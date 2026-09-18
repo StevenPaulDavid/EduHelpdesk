@@ -1,0 +1,39 @@
+@page
+@model UserModel
+@{
+    ViewData["Title"] = $"Edit {Model.Person?.Name}";
+    var linkedTickets = Model.Tickets.Where(x => x.RequesterId == Model.Person!.Id).Select(x => x.Number).ToHashSet();
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / PERSON</p><h1>Edit person</h1><p class="hero-copy">Update the person details and choose which tickets belong to them.</p></div>
+    <a class="button button-secondary" asp-page="/People">&lt;- Back to people</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<form method="post" asp-page-handler="Save">
+    <input type="hidden" name="id" value="@Model.Person!.Id" />
+    <div class="grid two asset-edit-grid">
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">PERSON DETAILS</p><h2>@Model.Person.Name</h2></div></div>
+            <div class="form-grid">
+                <label>Name<input name="name" value="@Model.Person.Name" required /></label>
+                <label>Email<input name="email" type="email" value="@Model.Person.Email" required /></label>
+                <label>Department<select name="department"><option value="">Unassigned</option>@foreach (var department in Model.Departments) { <option value="@department" selected="@(string.Equals(department, Model.Person.Department, StringComparison.OrdinalIgnoreCase))">@department</option> }</select></label>
+                <label>Location<input name="location" value="@Model.Person.Location" /></label>
+            </div>
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Select tickets</h2></div><span class="badge">@linkedTickets.Count linked</span></div>
+            <p class="muted">Selecting a ticket makes this person its requester.</p>
+            <div class="asset-job-list">
+                @foreach (var ticket in Model.Tickets)
+                {
+                    <div class="asset-job-option"><input type="checkbox" name="selectedNumbers" value="@ticket.Number" checked="@linkedTickets.Contains(ticket.Number)" /><a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a></div>
+                }
+                @if (Model.Tickets.Count == 0) { <p class="empty">No tickets have been logged yet.</p> }
+            </div>
+        </section>
+    </div>
+    <button class="button button-primary" type="submit">Save person and tickets</button>
+</form>

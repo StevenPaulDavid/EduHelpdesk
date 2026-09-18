@@ -13,6 +13,9 @@ public class JobModel(HelpdeskStore store) : PageModel
     public AssetRecord? Asset { get; private set; }
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
+    public IReadOnlyList<string> Statuses => store.Statuses;
+    public IReadOnlyList<string> Priorities => store.Priorities;
+    public IReadOnlyList<string> Categories => store.Categories;
     public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
@@ -36,6 +39,17 @@ public class JobModel(HelpdeskStore store) : PageModel
             if (string.IsNullOrWhiteSpace(value))
             {
                 Message = "Select a value.";
+                return RedirectToPage(new { number });
+            }
+            var allowed = field switch
+            {
+                "status" => store.Statuses,
+                "priority" => store.Priorities,
+                _ => store.Categories
+            };
+            if (!allowed.Contains(value, StringComparer.OrdinalIgnoreCase))
+            {
+                Message = "Select a valid value.";
                 return RedirectToPage(new { number });
             }
             ticket = field switch
@@ -72,6 +86,18 @@ public class JobModel(HelpdeskStore store) : PageModel
         }
         store.UpdateTicket(ticket);
         Message = "Job updated.";
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostAddComment(int number, string? comment)
+    {
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            Message = "Enter a comment before saving.";
+            return RedirectToPage(new { number });
+        }
+
+        Message = store.AddTicketComment(number, comment) ? "Comment added." : "Ticket was not found.";
         return RedirectToPage(new { number });
     }
 

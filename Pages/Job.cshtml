@@ -5,8 +5,8 @@
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / JOB DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
-    <div class="heading-actions no-print">@if (Model.Ticket.Status != "Closed") { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }<button class="button button-secondary" type="button" onclick="window.print()">🖨 Print job</button><a class="button button-secondary" asp-page="/Index">← Back to jobs</a></div>
+    <div><p class="eyebrow">EDUHELPDESK / TICKET DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
+    <div class="heading-actions no-print">@if (Model.Ticket.Status != "Closed") { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }<button class="button button-secondary" type="button" onclick="window.print()">🖨 Print ticket</button><a class="button button-secondary" asp-page="/Index">← Back to overview</a></div>
 </div>
 <div class="print-brand"><span class="brand-mark">EH</span><strong>@(Model.ViewData["Title"]?.ToString()?.Split('·').LastOrDefault()?.Trim() ?? "EduHelpdesk")</strong><span>Job record</span></div>
 @if (!string.IsNullOrWhiteSpace(Model.TemplateHtml)) { <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div> }
@@ -17,12 +17,54 @@
         <div class="panel-heading"><div><p class="eyebrow">DESCRIPTION</p><h2>@Model.Ticket.Title</h2></div></div>
         <p class="job-description">@Model.Ticket.Description</p>
         <div class="job-meta"><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
+        <div class="ticket-tabs no-print">
+            <div class="ticket-tab-buttons" role="tablist">
+                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="comments-tab" onclick="showTicketTab('comments')">Comments <span class="badge">@Model.Ticket.Comments.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab" onclick="showTicketTab('history')">History <span class="badge">@Model.Ticket.History.Count</span></button>
+            </div>
+            <div id="comments-tab" class="ticket-tab-panel active" role="tabpanel">
+                @if (Model.Ticket.Comments.Count > 0)
+                {
+                    <div class="comment-list">
+                        @foreach (var comment in Model.Ticket.Comments.OrderByDescending(x => x.CreatedAt))
+                        {
+                            <article class="comment"><p>@comment.Text</p><small>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="muted">No comments have been added.</p>
+                }
+                <form method="post" asp-page-handler="AddComment" class="comment-form">
+                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                    <label for="ticket-comment">Add a comment</label>
+                    <textarea id="ticket-comment" name="comment" rows="3" placeholder="Add an update, finding, or next action…"></textarea>
+                    <button class="button button-primary" type="submit">Add comment</button>
+                </form>
+            </div>
+            <div id="history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+                @if (Model.Ticket.History.Count > 0)
+                {
+                    <div class="history-list">
+                        @foreach (var activity in Model.Ticket.History.OrderByDescending(x => x.CreatedAt))
+                        {
+                            <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="muted">No ticket changes have been recorded.</p>
+                }
+            </div>
+        </div>
     </section>
     <aside class="panel detail-sidebar printable-job">
         <div class="detail-block"><p class="eyebrow">REQUESTER</p><h3>@(Model.Requester?.Name ?? "Unknown")</h3><p>@Model.Requester?.Email</p><p>@Model.Requester?.Department · @Model.Requester?.Location</p></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">STATUS</p><button id="status-edit" class="icon-button edit-icon" type="button" title="Edit status" onclick="editField('status')">✎</button></div><strong class="field-value" id="status-value">@Model.Ticket.Status</strong><form method="post" asp-page-handler="Update" class="inline-control" id="status-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="status" /><select name="value"><option selected="@(Model.Ticket.Status == "Open")">Open</option><option selected="@(Model.Ticket.Status == "In Progress")">In Progress</option><option selected="@(Model.Ticket.Status == "On Hold")">On Hold</option><option selected="@(Model.Ticket.Status == "Closed")">Closed</option></select><button class="icon-button save-icon" type="submit" title="Save status" aria-label="Save status">✓</button></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">PRIORITY</p><button id="priority-edit" class="icon-button edit-icon" type="button" title="Edit priority" onclick="editField('priority')">✎</button></div><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()" id="priority-value">@Model.Ticket.Priority</strong><form method="post" asp-page-handler="Update" class="inline-control" id="priority-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="priority" /><select name="value"><option selected="@(Model.Ticket.Priority == "Low")">Low</option><option selected="@(Model.Ticket.Priority == "Normal")">Normal</option><option selected="@(Model.Ticket.Priority == "High")">High</option><option selected="@(Model.Ticket.Priority == "Urgent")">Urgent</option></select><button class="icon-button save-icon" type="submit" title="Save priority" aria-label="Save priority">✓</button></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" onclick="editField('category')">✎</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value"><option selected="@(Model.Ticket.Category == "Hardware")">Hardware</option><option selected="@(Model.Ticket.Category == "Software")">Software</option><option selected="@(Model.Ticket.Category == "Account")">Account</option><option selected="@(Model.Ticket.Category == "Network")">Network</option><option selected="@(Model.Ticket.Category == "Classroom AV")">Classroom AV</option><option selected="@(Model.Ticket.Category == "Other")">Other</option></select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">STATUS</p><button id="status-edit" class="icon-button edit-icon" type="button" title="Edit status" onclick="editField('status')">✎</button></div><strong class="field-value" id="status-value">@Model.Ticket.Status</strong><form method="post" asp-page-handler="Update" class="inline-control" id="status-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="status" /><select name="value">@foreach (var status in Model.Statuses) { <option value="@status" selected="@(status == Model.Ticket.Status)">@status</option> }</select><button class="icon-button save-icon" type="submit" title="Save status" aria-label="Save status">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">PRIORITY</p><button id="priority-edit" class="icon-button edit-icon" type="button" title="Edit priority" onclick="editField('priority')">✎</button></div><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()" id="priority-value">@Model.Ticket.Priority</strong><form method="post" asp-page-handler="Update" class="inline-control" id="priority-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="priority" /><select name="value">@foreach (var priority in Model.Priorities) { <option value="@priority" selected="@(priority == Model.Ticket.Priority)">@priority</option> }</select><button class="icon-button save-icon" type="submit" title="Save priority" aria-label="Save priority">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" onclick="editField('category')">✎</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value">@foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> }</select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">✓</button></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" onclick="editField('technician')">✎</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">✓</button></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">LINKED ASSET</p><button id="asset-edit" class="icon-button edit-icon" type="button" title="Edit linked asset" onclick="editField('asset')">✎</button></div><strong class="field-value" id="asset-value">@(Model.Asset?.AssetTag ?? "No asset linked")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="asset-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="asset" /><select name="value"><option value="">No asset / general request</option>@foreach (var asset in Model.Assets) { <option value="@asset.Id" selected="@(asset.Id == Model.Ticket.AssetId)">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><button class="icon-button save-icon" type="submit" title="Save asset" aria-label="Save asset">✓</button></form></div>
     </aside>
@@ -33,6 +75,14 @@ function editField(name) {
     document.getElementById(name + "-value").style.display = "none";
     document.getElementById(name + "-edit").style.display = "none";
     document.getElementById(name + "-control").classList.add("visible");
+}
+function showTicketTab(name) {
+    document.querySelectorAll(".ticket-tab-button").forEach(button => {
+        const active = button.getAttribute("aria-controls") === name + "-tab";
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", active);
+    });
+    document.querySelectorAll(".ticket-tab-panel").forEach(panel => panel.hidden = panel.id !== name + "-tab");
 }
 </script>
 }

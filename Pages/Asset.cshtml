@@ -1,0 +1,41 @@
+@page
+@model AssetModel
+@{
+    ViewData["Title"] = $"Edit {Model.Asset?.AssetTag}";
+    var linkedTickets = Model.Tickets.Where(x => x.AssetId == Model.Asset!.Id).Select(x => x.Number).ToHashSet();
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / ASSET</p><h1>Edit asset</h1><p class="hero-copy">Update the asset details and choose which tickets belong to it.</p></div>
+    <a class="button button-secondary" asp-page="/Assets">&lt;- Back to assets</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<form method="post" asp-page-handler="Save">
+    <input type="hidden" name="id" value="@Model.Asset!.Id" />
+    <div class="grid two asset-edit-grid">
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">ASSET DETAILS</p><h2>@Model.Asset.AssetTag</h2></div></div>
+            <div class="form-grid">
+                <label>Asset tag<input name="assetTag" value="@Model.Asset.AssetTag" required /></label>
+                <label>Type<input name="type" value="@Model.Asset.Type" required /></label>
+                <label>Model<input name="model" value="@Model.Asset.Model" required /></label>
+                <label>Serial number<input name="serialNumber" value="@Model.Asset.SerialNumber" /></label>
+                <label>Location<input name="location" value="@Model.Asset.Location" /></label>
+                <label>Assigned user<select name="assignedUserId"><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" selected="@(user.Id == Model.Asset.AssignedUserId)">@user.Name</option> }</select></label>
+            </div>
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Select tickets</h2></div><span class="badge">@linkedTickets.Count linked</span></div>
+            <p class="muted">Selecting a ticket links it to this asset. Tickets currently linked to this asset are selected.</p>
+            <div class="asset-job-list">
+                @foreach (var ticket in Model.Tickets)
+                {
+                    <div class="asset-job-option"><input type="checkbox" name="selectedNumbers" value="@ticket.Number" checked="@linkedTickets.Contains(ticket.Number)" /><a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a></div>
+                }
+                @if (Model.Tickets.Count == 0) { <p class="empty">No tickets have been logged yet.</p> }
+            </div>
+        </section>
+    </div>
+    <button class="button button-primary" type="submit">Save asset and tickets</button>
+</form>

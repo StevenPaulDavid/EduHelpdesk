@@ -13,6 +13,10 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     [BindProperty] public IFormFile? PrintTemplate { get; set; }
     public bool HasPrintTemplate => store.HasPrintTemplate;
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
+    public IReadOnlyList<string> Departments => store.Departments;
+    public IReadOnlyList<string> Categories => store.Categories;
+    public IReadOnlyList<string> Statuses => store.Statuses;
+    public IReadOnlyList<string> Priorities => store.Priorities;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() => Branding = store.Branding;
@@ -31,16 +35,40 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
-    public IActionResult OnPostAddTechnicianTeam(string team)
+    public IActionResult OnPostAddTechnicianTeam(string team, string? returnBlade)
     {
         Message = store.AddTechnicianTeam(team);
-        return RedirectToPage();
+        return RedirectToPage(new { blade = returnBlade });
     }
 
-    public IActionResult OnPostUpdateTechnicianTeam(string currentTeam, string team)
+    public IActionResult OnPostUpdateTechnicianTeam(string currentTeam, string team, string? returnBlade)
     {
         Message = store.UpdateTechnicianTeam(currentTeam, team);
-        return RedirectToPage();
+        return RedirectToPage(new { blade = returnBlade });
+    }
+
+    public IActionResult OnPostAddDepartment(string department, string? returnBlade)
+    {
+        Message = store.AddDepartment(department);
+        return RedirectToPage(new { blade = returnBlade });
+    }
+
+    public IActionResult OnPostUpdateDepartment(string currentDepartment, string department, string? returnBlade)
+    {
+        Message = store.UpdateDepartment(currentDepartment, department);
+        return RedirectToPage(new { blade = returnBlade });
+    }
+
+    public IActionResult OnPostAddTicketOption(string kind, string value, string? returnBlade)
+    {
+        Message = store.AddTicketOption(kind, value);
+        return RedirectToPage(new { blade = returnBlade });
+    }
+
+    public IActionResult OnPostUpdateTicketOption(string kind, string currentValue, string value, string? returnBlade)
+    {
+        Message = store.UpdateTicketOption(kind, currentValue, value);
+        return RedirectToPage(new { blade = returnBlade });
     }
 
     public IActionResult OnPostUploadPrintTemplate()

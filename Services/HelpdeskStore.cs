@@ -26,6 +26,14 @@ public sealed class HelpdeskStore
             if (!_data.TechnicianTeams.Contains(team, StringComparer.OrdinalIgnoreCase))
                 _data.TechnicianTeams.Add(team);
         }
+        foreach (var department in _data.Users.Select(x => x.Department).Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            if (!_data.Departments.Contains(department, StringComparer.OrdinalIgnoreCase))
+                _data.Departments.Add(department);
+        }
+        EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
+        EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
+        EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {
             Seed();
@@ -35,6 +43,10 @@ public sealed class HelpdeskStore
     public IReadOnlyList<UserRecord> Users { get { lock (_sync) return _data.Users; } }
     public IReadOnlyList<TechnicianRecord> Technicians { get { lock (_sync) return _data.Technicians; } }
     public IReadOnlyList<string> TechnicianTeams { get { lock (_sync) return _data.TechnicianTeams.OrderBy(x => x).ToList(); } }
+    public IReadOnlyList<string> Departments { get { lock (_sync) return _data.Departments.OrderBy(x => x).ToList(); } }
+    public IReadOnlyList<string> Categories { get { lock (_sync) return _data.Categories.ToList(); } }
+    public IReadOnlyList<string> Statuses { get { lock (_sync) return _data.Statuses.ToList(); } }
+    public IReadOnlyList<string> Priorities { get { lock (_sync) return _data.Priorities.ToList(); } }
     public IReadOnlyList<AssetRecord> Assets { get { lock (_sync) return _data.Assets; } }
     public IReadOnlyList<TicketRecord> Tickets { get { lock (_sync) return _data.Tickets.OrderByDescending(x => x.Number).ToList(); } }
     public BrandingSettings Branding { get { lock (_sync) return _data.Branding; } }
@@ -78,12 +90,179 @@ public sealed class HelpdeskStore
             return "Technician team updated.";
         }
     }
+    public string AddDepartment(string department)
+    {
+        lock (_sync)
+        {
+            var value = department.Trim();
+            if (string.IsNullOrWhiteSpace(value)) return "Department name is required.";
+            if (_data.Departments.Contains(value, StringComparer.OrdinalIgnoreCase)) return "That department already exists.";
+            _data.Departments.Add(value);
+            Save();
+            return "Department added.";
+        }
+    }
+    public string UpdateDepartment(string currentDepartment, string department)
+    {
+        lock (_sync)
+        {
+            var oldValue = currentDepartment.Trim();
+            var newValue = department.Trim();
+            if (string.IsNullOrWhiteSpace(newValue)) return "Department name is required.";
+            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return "Department updated.";
+            if (_data.Departments.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return "That department already exists.";
+            var index = _data.Departments.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return "Department was not found.";
+            _data.Departments[index] = newValue;
+            for (var i = 0; i < _data.Users.Count; i++)
+            {
+                if (string.Equals(_data.Users[i].Department, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.Users[i] = _data.Users[i] with { Department = newValue };
+            }
+            Save();
+            return "Department updated.";
+        }
+    }
+    public string AddTicketOption(string kind, string value)
+    {
+        lock (_sync)
+        {
+            var options = GetOptions(kind);
+            var item = value.Trim();
+            if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
+            if (options.Contains(item, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
+            options.Add(item);
+            Save();
+            return $"{kind} added.";
+        }
+    }
+    public string UpdateTicketOption(string kind, string currentValue, string value)
+    {
+        lock (_sync)
+        {
+            var options = GetOptions(kind);
+            var oldValue = currentValue.Trim();
+            var newValue = value.Trim();
+            if (string.IsNullOrWhiteSpace(newValue)) return $"{kind} name is required.";
+            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return $"{kind} updated.";
+            if (options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
+            var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return $"{kind} was not found.";
+            options[index] = newValue;
+            for (var i = 0; i < _data.Tickets.Count; i++)
+            {
+                var ticket = _data.Tickets[i];
+                _data.Tickets[i] = kind switch
+                {
+                    "Category" when string.Equals(ticket.Category, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Category = newValue },
+                    "Status" when string.Equals(ticket.Status, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Status = newValue },
+                    "Priority" when string.Equals(ticket.Priority, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Priority = newValue },
+                    _ => ticket
+                };
+            }
+            Save();
+            return $"{kind} updated.";
+        }
+    }
     public void AddAsset(AssetRecord item) { lock (_sync) { _data.Assets.Add(item); Save(); } }
-    public int AddTicket(TicketRecord item) { lock (_sync) { var number = ++_data.LastTicketNumber; _data.Tickets.Add(item with { Number = number }); Save(); return number; } }
+    public int AddTicket(TicketRecord item)
+    {
+        lock (_sync)
+        {
+            var number = ++_data.LastTicketNumber;
+            var history = new List<TicketActivity>
+            {
+                new("Ticket created", "The ticket was created.", DateTime.UtcNow)
+            };
+            _data.Tickets.Add(item with { Number = number, History = history });
+            Save();
+            return number;
+        }
+    }
+    public bool AddTicketComment(int number, string text)
+    {
+        lock (_sync)
+        {
+            var index = _data.Tickets.FindIndex(x => x.Number == number);
+            if (index < 0) return false;
+            var comments = _data.Tickets[index].Comments.ToList();
+            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow));
+            _data.Tickets[index] = _data.Tickets[index] with { Comments = comments };
+            Save();
+            return true;
+        }
+    }
     public bool UpdateUser(UserRecord item) => Update(item, _data.Users, x => x.Id == item.Id);
+    public bool UpdateUserAndTickets(UserRecord user, IEnumerable<int> selectedTicketNumbers)
+    {
+        lock (_sync)
+        {
+            var userIndex = _data.Users.FindIndex(x => x.Id == user.Id);
+            if (userIndex < 0) return false;
+            _data.Users[userIndex] = user;
+            var selected = selectedTicketNumbers.ToHashSet();
+            for (var i = 0; i < _data.Tickets.Count; i++)
+            {
+                var ticket = _data.Tickets[i];
+                if (selected.Contains(ticket.Number))
+                    _data.Tickets[i] = ticket with { RequesterId = user.Id };
+                else if (ticket.RequesterId == user.Id)
+                    continue;
+            }
+            Save();
+            return true;
+        }
+    }
     public bool UpdateTechnician(TechnicianRecord item) => Update(item, _data.Technicians, x => x.Id == item.Id);
     public bool UpdateAsset(AssetRecord item) => Update(item, _data.Assets, x => x.Id == item.Id);
-    public bool UpdateTicket(TicketRecord item) => Update(item, _data.Tickets, x => x.Number == item.Number);
+    public bool UpdateAssetAndTickets(AssetRecord asset, IEnumerable<int> selectedTicketNumbers)
+    {
+        lock (_sync)
+        {
+            var assetIndex = _data.Assets.FindIndex(x => x.Id == asset.Id);
+            if (assetIndex < 0) return false;
+
+            _data.Assets[assetIndex] = asset;
+            var selected = selectedTicketNumbers.ToHashSet();
+            for (var i = 0; i < _data.Tickets.Count; i++)
+            {
+                var ticket = _data.Tickets[i];
+                if (selected.Contains(ticket.Number))
+                {
+                    if (ticket.AssetId != asset.Id)
+                    {
+                        var history = ticket.History.ToList();
+                        history.Add(new("Asset changed", "An asset was linked.", DateTime.UtcNow));
+                        _data.Tickets[i] = ticket with { AssetId = asset.Id, History = history };
+                    }
+                }
+                else if (ticket.AssetId == asset.Id)
+                {
+                    var history = ticket.History.ToList();
+                    history.Add(new("Asset changed", "The linked asset was removed.", DateTime.UtcNow));
+                    _data.Tickets[i] = ticket with { AssetId = null, History = history };
+                }
+            }
+
+            Save();
+            return true;
+        }
+    }
+    public bool UpdateTicket(TicketRecord item)
+    {
+        lock (_sync)
+        {
+            var index = _data.Tickets.FindIndex(x => x.Number == item.Number);
+            if (index < 0) return false;
+
+            var previous = _data.Tickets[index];
+            var history = previous.History.ToList();
+            AddTicketActivities(history, previous, item);
+            _data.Tickets[index] = item with { History = history };
+            Save();
+            return true;
+        }
+    }
     public void UpdateBranding(BrandingSettings item) { lock (_sync) { _data.Branding = item; Save(); } }
     public void SavePrintTemplate(Stream source)
     {
@@ -189,6 +368,20 @@ public sealed class HelpdeskStore
         }
     }
 
+    private static void AddTicketActivities(List<TicketActivity> history, TicketRecord previous, TicketRecord updated)
+    {
+        var now = DateTime.UtcNow;
+        if (previous.Title != updated.Title) history.Add(new("Title changed", $"{previous.Title} -> {updated.Title}", now));
+        if (previous.Description != updated.Description) history.Add(new("Description changed", "The ticket description was updated.", now));
+        if (previous.Status != updated.Status) history.Add(new("Status changed", $"{previous.Status} -> {updated.Status}", now));
+        if (previous.Priority != updated.Priority) history.Add(new("Priority changed", $"{previous.Priority} -> {updated.Priority}", now));
+        if (previous.Category != updated.Category) history.Add(new("Category changed", $"{previous.Category} -> {updated.Category}", now));
+        if (previous.RequesterId != updated.RequesterId) history.Add(new("Requester changed", "The ticket requester was updated.", now));
+        if (previous.TechnicianId != updated.TechnicianId) history.Add(new("Technician changed", updated.TechnicianId.HasValue ? "A technician was assigned." : "The technician assignment was removed.", now));
+        if (previous.AssetId != updated.AssetId) history.Add(new("Asset changed", updated.AssetId.HasValue ? "An asset was linked." : "The linked asset was removed.", now));
+        if (previous.ClosedAt != updated.ClosedAt && previous.Status == updated.Status) history.Add(new("Closure changed", updated.ClosedAt.HasValue ? "The ticket was closed." : "The ticket was reopened.", now));
+    }
+
     private StoreData Load()
     {
         if (!File.Exists(_path)) return new();
@@ -214,9 +407,30 @@ public sealed class HelpdeskStore
         public List<UserRecord> Users { get; set; } = [];
         public List<TechnicianRecord> Technicians { get; set; } = [];
         public List<string> TechnicianTeams { get; set; } = [];
+        public List<string> Departments { get; set; } = [];
+        public List<string> Categories { get; set; } = [];
+        public List<string> Statuses { get; set; } = [];
+        public List<string> Priorities { get; set; } = [];
         public List<AssetRecord> Assets { get; set; } = [];
         public List<TicketRecord> Tickets { get; set; } = [];
         public int LastTicketNumber { get; set; } = 1000;
         public BrandingSettings Branding { get; set; } = new();
+    }
+
+    private List<string> GetOptions(string kind) => kind switch
+    {
+        "Category" => _data.Categories,
+        "Status" => _data.Statuses,
+        "Priority" => _data.Priorities,
+        _ => throw new ArgumentException("Unknown ticket option.", nameof(kind))
+    };
+
+    private static void EnsureOptions(List<string> options, IEnumerable<string> defaults)
+    {
+        foreach (var value in defaults)
+        {
+            if (!options.Contains(value, StringComparer.OrdinalIgnoreCase))
+                options.Add(value);
+        }
     }
 }

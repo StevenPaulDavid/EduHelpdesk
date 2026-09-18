@@ -11,6 +11,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
+    public IReadOnlyList<string> Statuses => store.Statuses;
     [TempData] public string? Message { get; set; }
 
     public IActionResult OnPostBulkUpdate(int[] selectedNumbers, string operation, string? status, Guid? technicianId)
@@ -27,7 +28,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             return RedirectToPage();
         }
 
-        if (operation == "status" && status is not ("Open" or "In Progress" or "On Hold" or "Closed"))
+        if (operation == "status" && (status is null || !store.Statuses.Contains(status, StringComparer.OrdinalIgnoreCase)))
         {
             Message = "Select a valid status.";
             return RedirectToPage();

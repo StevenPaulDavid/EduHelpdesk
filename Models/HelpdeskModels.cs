@@ -14,7 +14,14 @@ public record TicketRecord(
     string Status,
     string Category,
     DateTime CreatedAt,
-    DateTime? ClosedAt);
+    DateTime? ClosedAt)
+{
+    public List<TicketComment> Comments { get; init; } = [];
+    public List<TicketActivity> History { get; init; } = [];
+}
+
+public record TicketComment(string Text, DateTime CreatedAt);
+public record TicketActivity(string Action, string Details, DateTime CreatedAt);
 
 public sealed class BrandingSettings
 {

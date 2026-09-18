@@ -10,6 +10,7 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
+    public IReadOnlyList<string> Departments => store.Departments;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
 
@@ -23,6 +24,11 @@ public class PeopleModel(HelpdeskStore store) : PageModel
             return RedirectToPage();
         }
 
+        if (!string.IsNullOrWhiteSpace(department) && !store.Departments.Contains(department.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            Message = "Select a valid department.";
+            return RedirectToPage();
+        }
         store.AddUser(new UserRecord(Guid.NewGuid(), name.Trim(), email.Trim(), department.Trim(), location.Trim()));
         Message = "User added.";
         return RedirectToPage();

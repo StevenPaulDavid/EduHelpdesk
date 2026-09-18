@@ -6,7 +6,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / DIRECTORY</p><h1>People and technicians</h1><p class="hero-copy">Manage the people available for ticket assignment.</p></div>
-    <a class="button button-secondary" asp-page="/Index">← Back to workspace</a>
+    <a class="button button-secondary" asp-page="/Index">← Back to overview</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
@@ -16,16 +16,14 @@
     @foreach (var user in Model.Users)
     {
         var userTickets = Model.Tickets.Where(x => x.RequesterId == user.Id).ToList();
-        <div class="directory-row" role="button" tabindex="0" onclick="openBlade('user-tickets-@user.Id')" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openBlade('user-tickets-@user.Id'); }"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div><strong>@user.Name</strong><span>@user.Email · @user.Department · @user.Location</span></div></div><div class="row-actions"><span class="badge">@userTickets.Count jobs</span><button class="icon-button" type="button" title="Edit user" aria-label="Edit @user.Name" onclick="event.stopPropagation(); openBlade('edit-user-@user.Id')">✎</button><button class="icon-button delete-icon" type="button" title="Delete user" aria-label="Delete @user.Name" onclick="event.stopPropagation(); openBlade('delete-user-@user.Id')">♜</button></div></div>
-        <div class="blade-backdrop" id="user-tickets-@user.Id"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">REQUESTER HISTORY</p><h2>@user.Name</h2><p class="muted">@userTickets.Count ticket@(userTickets.Count == 1 ? "" : "s") raised by this user.</p>@if (userTickets.Count > 0) { <label class="ticket-filter">Status<select id="user-ticket-filter-@user.Id" onchange="filterUserTickets('@user.Id')"><option value="Open" selected>Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option><option value="All">All statuses</option></select></label> }<div class="directory-list user-ticket-list" id="user-ticket-list-@user.Id">@if (userTickets.Count == 0) { <p class="empty">No tickets have been raised by this user.</p> } else { @foreach (var ticket in userTickets) { <a class="directory-row user-ticket-row" data-status="@ticket.Status" href="/Job?number=@ticket.Number"><div><strong>#@ticket.Number · @ticket.Title</strong><span>@ticket.Status · @ticket.Priority · @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span></div><span class="icon-button" aria-hidden="true">›</span></a> } }</div></aside></div>
-        <div class="blade-backdrop" id="edit-user-@user.Id"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT USER</p><h2>@user.Name</h2><form method="post" asp-page-handler="SaveUser" class="blade-form"><input type="hidden" name="id" value="@user.Id" /><label>Name<input name="name" value="@user.Name" required /></label><label>Email<input name="email" type="email" value="@user.Email" required /></label><label>Department<input name="department" value="@user.Department" /></label><label>Location<input name="location" value="@user.Location" /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+        <div class="directory-row" role="button" tabindex="0" onclick="window.location.href='/User?id=@user.Id'" onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href='/User?id=@user.Id'; }"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div><strong>@user.Name</strong><span>@user.Email · @user.Department · @user.Location</span></div></div><div class="row-actions"><span class="badge">@userTickets.Count tickets</span><button class="icon-button" type="button" title="Edit user" aria-label="Edit @user.Name" onclick="event.stopPropagation(); window.location.href='/User?id=@user.Id'">✎</button><button class="icon-button delete-icon" type="button" title="Delete user" aria-label="Delete @user.Name" onclick="event.stopPropagation(); openBlade('delete-user-@user.Id')">♜</button></div></div>
         <div class="blade-backdrop" id="delete-user-@user.Id"><aside class="blade warning-blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><div class="warning-symbol">!</div><p class="eyebrow">DELETE USER</p><h2>Are you sure?</h2><p class="muted">Delete <strong>@user.Name</strong>? Users linked to tickets or assets cannot be removed.</p><div class="blade-actions"><button class="button button-secondary" type="button" onclick="closeBlades()">Cancel</button><form method="post" asp-page-handler="DeleteUser"><input type="hidden" name="id" value="@user.Id" /><button class="button button-danger" type="submit">Delete user</button></form></div></aside></div>
     }
     @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }
     </div>
 </section>
 
-<div class="blade-backdrop" id="add-user"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW USER</p><h2>Add user</h2><form method="post" asp-page-handler="AddUser" class="blade-form"><label>Name<input name="name" required /></label><label>Email<input name="email" type="email" required /></label><label>Department<input name="department" /></label><label>Location<input name="location" /></label><button class="button button-primary" type="submit">Add user</button></form></aside></div>
+<div class="blade-backdrop" id="add-user"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW USER</p><h2>Add user</h2><form method="post" asp-page-handler="AddUser" class="blade-form"><label>Name<input name="name" required /></label><label>Email<input name="email" type="email" required /></label><label>Department<select name="department"><option value="">Select a department</option>@foreach (var department in Model.Departments) { <option value="@department">@department</option> }</select></label><label>Location<input name="location" /></label><button class="button button-primary" type="submit">Add user</button></form></aside></div>
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technicians</h2></div><div class="heading-actions"><span class="badge">@Model.Technicians.Count</span><button class="button button-primary" type="button" onclick="openBlade('add-technician')">＋ Add technician</button></div></div>
@@ -44,14 +42,8 @@
 
 @section Scripts {
 <script>
-function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); if (id.startsWith("user-tickets-")) filterUserTickets(id.substring("user-tickets-".length)); }
+function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
 function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
-function filterUserTickets(userId) {
-    const filter = document.getElementById("user-ticket-filter-" + userId).value;
-    document.querySelectorAll("#user-ticket-list-" + userId + " [data-status]").forEach(ticket => {
-        ticket.style.display = filter === "All" || ticket.dataset.status === filter ? "" : "none";
-    });
-}
 document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
 </script>
 }

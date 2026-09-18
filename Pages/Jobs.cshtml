@@ -1,23 +1,23 @@
 @page
 @model JobsModel
 @{
-    ViewData["Title"] = "Jobs";
+    ViewData["Title"] = "Tickets";
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / JOBS</p><h1>Jobs</h1><p class="hero-copy">Filter, select, and update multiple jobs at once.</p></div>
-    <a class="button button-secondary" asp-page="/Index">← Workspace</a>
+    <div><p class="eyebrow">EDUHELPDESK / TICKETS</p><h1>Tickets</h1><p class="hero-copy">Filter, select, and update multiple tickets at once.</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Overview</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">JOB REGISTER</p><h2>All jobs</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">TICKET REGISTER</p><h2>All tickets</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
     <div class="jobs-toolbar">
-        <label>Status filter<select id="job-status-filter" onchange="filterJobs()"><option value="All">All statuses</option><option value="Open" selected>Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></label>
+        <label>Status filter<select id="job-status-filter" onchange="filterJobs()"><option value="All">All statuses</option>@foreach (var status in Model.Statuses) { <option value="@status" selected="@(status == "Open")">@status</option> }</select></label>
         <button class="button button-secondary" type="button" onclick="toggleAllVisible()">Select visible</button>
     </div>
     <form method="post" asp-page-handler="BulkUpdate">
-        <div class="table-wrap"><table><thead><tr><th><input id="select-all" type="checkbox" aria-label="Select all visible jobs" onchange="toggleAllVisible()" /></th><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody id="jobs-body">
+        <div class="table-wrap"><table><thead><tr><th><input id="select-all" type="checkbox" aria-label="Select all visible tickets" onchange="toggleAllVisible()" /></th><th>Ticket</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody id="jobs-body">
         @foreach (var ticket in Model.Tickets)
         {
             var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
@@ -25,12 +25,12 @@
             var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
             <tr class="clickable-row job-filter-row" data-status="@ticket.Status" onclick="if(event.target.type !== 'checkbox') window.location.href='/Job?number=@ticket.Number'"><td><input class="job-select" type="checkbox" name="selectedNumbers" value="@ticket.Number" aria-label="Select job @ticket.Number" onclick="event.stopPropagation()" /></td><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@(tech?.Name ?? "Unassigned")</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
         }
-        @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No jobs have been logged yet.</td></tr> }
+        @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No tickets have been logged yet.</td></tr> }
         </tbody></table></div>
         <div class="bulk-actions">
             <strong>Bulk update selected</strong>
             <label>Update<select name="operation" id="bulk-operation" onchange="switchBulkOperation()"><option value="status">Status</option><option value="technician">Technician</option></select></label>
-            <label id="bulk-status-field">Status<select name="status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></label>
+            <label id="bulk-status-field">Status<select name="status">@foreach (var status in Model.Statuses) { <option value="@status">@status</option> }</select></label>
             <label id="bulk-technician-field" hidden>Technician<select name="technicianId" disabled><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
             <button class="button button-primary" type="submit">Apply to selected</button>
         </div>

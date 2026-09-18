@@ -6,7 +6,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>System settings</h1><p class="hero-copy">Brand the dashboard and import existing school directory records.</p></div>
-    <a class="button button-secondary" asp-page="/Index">← Back to workspace</a>
+    <a class="button button-secondary" asp-page="/Index">← Back to overview</a>
 </div>
 
 <section class="panel">
@@ -22,18 +22,53 @@
     </form>
 </section>
 
+@section Scripts {
+<script>
+    const returnBlade = new URLSearchParams(window.location.search).get("blade");
+    if (returnBlade) openBlade(returnBlade);
+</script>
+}
+
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technician teams</h2></div><div class="heading-actions"><span class="badge">@Model.TechnicianTeams.Count</span><button class="button button-primary" type="button" onclick="openBlade('team-list')">Manage teams</button></div></div>
     <p class="muted">Manage the teams available when creating or editing technicians.</p>
 </section>
 
-<div class="blade-backdrop" id="add-team"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW TEAM</p><h2>Add team</h2><form method="post" asp-page-handler="AddTechnicianTeam" class="blade-form"><label>Team name<input name="team" required /></label><button class="button button-primary" type="submit">Add team</button></form></aside></div>
+<div class="blade-backdrop" id="add-team"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW TEAM</p><h2>Add team</h2><form method="post" asp-page-handler="AddTechnicianTeam" class="blade-form"><input type="hidden" name="returnBlade" value="team-list" /><label>Team name<input name="team" required /></label><button class="button button-primary" type="submit">Add team</button></form></aside></div>
 @for (var index = 0; index < Model.TechnicianTeams.Count; index++)
 {
     var team = Model.TechnicianTeams[index];
-    <div class="blade-backdrop" id="edit-team-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT TEAM</p><h2>@team</h2><form method="post" asp-page-handler="UpdateTechnicianTeam" class="blade-form"><input type="hidden" name="currentTeam" value="@team" /><label>Team name<input name="team" value="@team" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+    <div class="blade-backdrop" id="edit-team-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT TEAM</p><h2>@team</h2><form method="post" asp-page-handler="UpdateTechnicianTeam" class="blade-form"><input type="hidden" name="returnBlade" value="team-list" /><input type="hidden" name="currentTeam" value="@team" /><label>Team name<input name="team" value="@team" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
 }
 <div class="blade-backdrop" id="team-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">TECHNICIAN TEAMS</p><h2>Teams</h2><button class="button button-primary" type="button" onclick="openBlade('add-team')">＋ Add team</button><div class="directory-list">@for (var index = 0; index < Model.TechnicianTeams.Count; index++) { var team = Model.TechnicianTeams[index]; <div class="directory-row"><strong>@team</strong><button class="icon-button" type="button" title="Edit @team" aria-label="Edit @team" onclick="openBlade('edit-team-@index')">✎</button></div> }</div></aside></div>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Departments</h2></div><div class="heading-actions"><span class="badge">@Model.Departments.Count</span><button class="button button-primary" type="button" onclick="openBlade('department-list')">Manage departments</button></div></div>
+    <p class="muted">Manage the departments available when creating or editing people.</p>
+</section>
+<div class="blade-backdrop" id="add-department"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW DEPARTMENT</p><h2>Add department</h2><form method="post" asp-page-handler="AddDepartment" class="blade-form"><input type="hidden" name="returnBlade" value="department-list" /><label>Department name<input name="department" required /></label><button class="button button-primary" type="submit">Add department</button></form></aside></div>
+@for (var index = 0; index < Model.Departments.Count; index++)
+{
+    var department = Model.Departments[index];
+    <div class="blade-backdrop" id="edit-department-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT DEPARTMENT</p><h2>@department</h2><form method="post" asp-page-handler="UpdateDepartment" class="blade-form"><input type="hidden" name="returnBlade" value="department-list" /><input type="hidden" name="currentDepartment" value="@department" /><label>Department name<input name="department" value="@department" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+}
+<div class="blade-backdrop" id="department-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">DEPARTMENTS</p><h2>Departments</h2><button class="button button-primary" type="button" onclick="openBlade('add-department')">＋ Add department</button><div class="directory-list">@for (var index = 0; index < Model.Departments.Count; index++) { var department = Model.Departments[index]; <div class="directory-row"><strong>@department</strong><button class="icon-button" type="button" title="Edit @department" aria-label="Edit @department" onclick="openBlade('edit-department-@index')">✎</button></div> }</div></aside></div>
+
+@foreach (var optionGroup in new[] { ("Category", Model.Categories), ("Status", Model.Statuses), ("Priority", Model.Priorities) })
+{
+    var key = optionGroup.Item1.ToLowerInvariant();
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">TICKET OPTIONS</p><h2>@optionGroup.Item1 options</h2></div><div class="heading-actions"><span class="badge">@optionGroup.Item2.Count</span><button class="button button-primary" type="button" onclick="openBlade('@key-list')">Manage @optionGroup.Item1.ToLowerInvariant() options</button></div></div>
+        <p class="muted">Manage the options available when creating or editing tickets.</p>
+    </section>
+    <div class="blade-backdrop" id="add-@key"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW @optionGroup.Item1.ToUpperInvariant()</p><h2>Add @optionGroup.Item1.ToLowerInvariant()</h2><form method="post" asp-page-handler="AddTicketOption" class="blade-form"><input type="hidden" name="returnBlade" value="@key-list" /><input type="hidden" name="kind" value="@optionGroup.Item1" /><label>@optionGroup.Item1 name<input name="value" required /></label><button class="button button-primary" type="submit">Add @optionGroup.Item1.ToLowerInvariant()</button></form></aside></div>
+    @for (var index = 0; index < optionGroup.Item2.Count; index++)
+    {
+        var option = optionGroup.Item2[index];
+        <div class="blade-backdrop" id="edit-@key-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT @optionGroup.Item1.ToUpperInvariant()</p><h2>@option</h2><form method="post" asp-page-handler="UpdateTicketOption" class="blade-form"><input type="hidden" name="returnBlade" value="@key-list" /><input type="hidden" name="kind" value="@optionGroup.Item1" /><input type="hidden" name="currentValue" value="@option" /><label>@optionGroup.Item1 name<input name="value" value="@option" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+    }
+    <div class="blade-backdrop" id="@key-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">@optionGroup.Item1.ToUpperInvariant() OPTIONS</p><h2>@optionGroup.Item1 options</h2><button class="button button-primary" type="button" onclick="openBlade('add-@key')">＋ Add @optionGroup.Item1.ToLowerInvariant()</button><div class="directory-list">@for (var index = 0; index < optionGroup.Item2.Count; index++) { var option = optionGroup.Item2[index]; <div class="directory-row"><strong>@option</strong><button class="icon-button" type="button" title="Edit @option" aria-label="Edit @option" onclick="openBlade('edit-@key-@index')">✎</button></div> }</div></aside></div>
+}
 
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">PRINTING</p><h2>Word print template</h2></div><span class="badge">@(Model.HasPrintTemplate ? "Uploaded" : "Built-in")</span></div>

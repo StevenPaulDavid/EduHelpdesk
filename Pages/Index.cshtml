@@ -1,7 +1,7 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Technician workspace";
+    ViewData["Title"] = "Overview";
 }
 
 <div class="hero">
@@ -15,14 +15,14 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="metrics">
-    <div class="metric"><span>Open jobs</span><strong>@Model.OpenTickets</strong><small>Needs technician action</small></div>
+    <div class="metric"><span>Open tickets</span><strong>@Model.OpenTickets</strong><small>Needs technician action</small></div>
     <div class="metric"><span>Assets tracked</span><strong>@Model.Assets.Count</strong><small>With searchable history</small></div>
     <div class="metric"><span>Users imported</span><strong>@Model.Users.Count</strong><small>Requesters available</small></div>
-    <div class="metric"><span>Technicians</span><strong>@Model.Technicians.Count</strong><small>Can log and own jobs</small></div>
+    <div class="metric"><span>Technicians</span><strong>@Model.Technicians.Count</strong><small>Can log and own tickets</small></div>
 </div>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Jobs</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
+    <div class="panel-heading">    <div><p class="eyebrow">RECENT ACTIVITY</p><h2>Tickets</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
     <div class="table-wrap"><table><thead><tr><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody>
     @foreach (var ticket in Model.Tickets) {
         var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
@@ -30,6 +30,6 @@
         var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
         <tr class="clickable-row" onclick="window.location.href='/Job?number=@ticket.Number'" tabindex="0" onkeydown="if(event.key==='Enter') window.location.href='/Job?number=@ticket.Number'"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
     }
-    @if (Model.Tickets.Count == 0) { <tr><td colspan="7" class="empty">No jobs have been logged yet.</td></tr> }
+    @if (Model.Tickets.Count == 0) { <tr><td colspan="7" class="empty">No tickets have been logged yet.</td></tr> }
     </tbody></table></div>
 </section>
