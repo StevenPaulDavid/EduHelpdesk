@@ -9,6 +9,7 @@ public class UserModel(HelpdeskStore store) : PageModel
 {
     public UserRecord? Person { get; private set; }
     public IReadOnlyList<string> Departments => store.Departments;
+    public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
 
@@ -18,7 +19,7 @@ public class UserModel(HelpdeskStore store) : PageModel
         return Person is null ? NotFound() : Page();
     }
 
-    public IActionResult OnPostSave(Guid id, string name, string email, string department, string location, int[]? selectedNumbers)
+    public IActionResult OnPostSave(Guid id, string name, string email, string? department, string? location, int[]? selectedNumbers)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
         {
@@ -30,7 +31,7 @@ public class UserModel(HelpdeskStore store) : PageModel
             Message = "Select a valid department.";
             return RedirectToPage(new { id });
         }
-        var user = new UserRecord(id, name.Trim(), email.Trim(), department.Trim(), location.Trim());
+        var user = new UserRecord(id, name.Trim(), email.Trim(), (department ?? string.Empty).Trim(), (location ?? string.Empty).Trim());
         Message = store.UpdateUserAndTickets(user, selectedNumbers ?? []) ? "User and linked tickets updated." : "User was not found.";
         return RedirectToPage(new { id });
     }

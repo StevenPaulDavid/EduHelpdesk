@@ -11,12 +11,13 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
     public IReadOnlyList<string> Departments => store.Departments;
+    public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() { }
 
-    public IActionResult OnPostAddUser(string name, string email, string department, string location)
+    public IActionResult OnPostAddUser(string name, string email, string? department, string? location)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
         {
@@ -29,12 +30,12 @@ public class PeopleModel(HelpdeskStore store) : PageModel
             Message = "Select a valid department.";
             return RedirectToPage();
         }
-        store.AddUser(new UserRecord(Guid.NewGuid(), name.Trim(), email.Trim(), department.Trim(), location.Trim()));
+        store.AddUser(new UserRecord(Guid.NewGuid(), name.Trim(), email.Trim(), (department ?? string.Empty).Trim(), (location ?? string.Empty).Trim()));
         Message = "User added.";
         return RedirectToPage();
     }
 
-    public IActionResult OnPostSaveUser(Guid id, string name, string email, string department, string location)
+    public IActionResult OnPostSaveUser(Guid id, string name, string email, string? department, string? location)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
         {
@@ -42,7 +43,7 @@ public class PeopleModel(HelpdeskStore store) : PageModel
             return RedirectToPage();
         }
 
-        Message = store.UpdateUser(new UserRecord(id, name.Trim(), email.Trim(), department.Trim(), location.Trim()))
+        Message = store.UpdateUser(new UserRecord(id, name.Trim(), email.Trim(), (department ?? string.Empty).Trim(), (location ?? string.Empty).Trim()))
             ? "User updated."
             : "User was not found.";
         return RedirectToPage();

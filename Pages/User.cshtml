@@ -20,7 +20,7 @@
                 <label>Name<input name="name" value="@Model.Person.Name" required /></label>
                 <label>Email<input name="email" type="email" value="@Model.Person.Email" required /></label>
                 <label>Department<select name="department"><option value="">Unassigned</option>@foreach (var department in Model.Departments) { <option value="@department" selected="@(string.Equals(department, Model.Person.Department, StringComparison.OrdinalIgnoreCase))">@department</option> }</select></label>
-                <label>Location<input name="location" value="@Model.Person.Location" /></label>
+                <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, Model.Person.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
             </div>
         </section>
         <section class="panel">

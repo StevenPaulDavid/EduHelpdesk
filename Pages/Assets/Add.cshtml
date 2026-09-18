@@ -1,0 +1,8 @@
+@page
+@model EduHelpdesk.Pages.Assets.AddModel
+@{ ViewData["Title"] = "Add asset"; }
+<div class="page-heading"><div><p class="eyebrow">ASSET REGISTER</p><h1>Add asset</h1></div><a class="button button-secondary" asp-page="/Assets">← Back to assets</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+<section class="panel"><form method="post" class="settings-form">
+<label>Asset tag<input name="assetTag" required /></label><label>Make<select name="make">@foreach (var item in Model.AssetMakes) { <option value="@item">@item</option> }</select></label><label>Model<select name="model" required>@foreach (var item in Model.AssetModels) { <option value="@item">@item</option> }</select></label><label>Type<select name="type" required>@foreach (var item in Model.AssetTypes) { <option value="@item">@item</option> }</select></label><label>Serial number<input name="serialNumber" /></label><label>Location<select name="location"><option value="">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label><label>Assigned user<select name="assignedUserId"><option value="">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label><label>Supplier<select name="supplierId"><option value="">No supplier</option>@foreach (var item in Model.Suppliers) { <option value="@item.Id">@item.Name</option> }</select></label><button class="button button-primary" type="submit">Add asset</button>
+</form></section>

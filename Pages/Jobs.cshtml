@@ -17,15 +17,15 @@
         <button class="button button-secondary" type="button" onclick="toggleAllVisible()">Select visible</button>
     </div>
     <form method="post" asp-page-handler="BulkUpdate">
-        <div class="table-wrap"><table><thead><tr><th><input id="select-all" type="checkbox" aria-label="Select all visible tickets" onchange="toggleAllVisible()" /></th><th>Ticket</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody id="jobs-body">
+        <div class="table-wrap"><table><thead><tr><th><input id="select-all" type="checkbox" aria-label="Select all visible tickets" onchange="toggleAllVisible()" /></th><th>Ticket</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Due</th><th>Created</th></tr></thead><tbody id="jobs-body">
         @foreach (var ticket in Model.Tickets)
         {
             var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
             var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
             var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
-            <tr class="clickable-row job-filter-row" data-status="@ticket.Status" onclick="if(event.target.type !== 'checkbox') window.location.href='/Job?number=@ticket.Number'"><td><input class="job-select" type="checkbox" name="selectedNumbers" value="@ticket.Number" aria-label="Select job @ticket.Number" onclick="event.stopPropagation()" /></td><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@(tech?.Name ?? "Unassigned")</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+            <tr class="clickable-row job-filter-row" data-status="@ticket.Status" onclick="if(event.target.type !== 'checkbox') window.location.href='/Job?number=@ticket.Number'"><td><input class="job-select" type="checkbox" name="selectedNumbers" value="@ticket.Number" aria-label="Select job @ticket.Number" onclick="event.stopPropagation()" /></td><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@(tech?.Name ?? "Unassigned")</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@(ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy") ?? "—")</td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
         }
-        @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No tickets have been logged yet.</td></tr> }
+        @if (Model.Tickets.Count == 0) { <tr><td colspan="9" class="empty">No tickets have been logged yet.</td></tr> }
         </tbody></table></div>
         <div class="bulk-actions">
             <strong>Bulk update selected</strong>

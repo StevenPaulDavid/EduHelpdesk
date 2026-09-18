@@ -8,7 +8,9 @@ Technician-first education IT helpdesk for logging jobs, tracking school assets,
 dotnet run
 ```
 
-Open the local URL printed by ASP.NET Core. Data is stored in `App_Data/helpdesk.json`, which is created automatically on first run and should be backed up in production.
+Open the local URL printed by ASP.NET Core. Data is stored in the SQLite database `App_Data/helpdesk.db`, which is created automatically on first run and should be backed up in production. Existing installations are migrated from `App_Data/helpdesk.json` the first time the application starts after this update.
+
+The database uses separate tables for users, technicians and teams, departments, ticket options, assets, tickets, comments, ticket activity, branding, and migration metadata. Existing databases that used the earlier single-payload `Store` table are migrated automatically.
 
 ## CSV imports
 

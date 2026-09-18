@@ -1,91 +1,9 @@
 @page
 @model SettingsModel
-@{
-    ViewData["Title"] = "Settings";
-}
-
-<div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>System settings</h1><p class="hero-copy">Brand the dashboard and import existing school directory records.</p></div>
-    <a class="button button-secondary" asp-page="/Index">← Back to overview</a>
-</div>
-
-<section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">BRANDING</p><h2>Dashboard appearance</h2></div></div>
-    <form method="post" asp-page-handler="SaveBranding" class="settings-form branding-form">
-        <label>Brand name<input asp-for="Branding.BrandName" /></label>
-        <label>Dashboard eyebrow<input asp-for="Branding.DashboardEyebrow" /></label>
-        <label>Dashboard title<input asp-for="Branding.DashboardTitle" /></label>
-        <label>Dashboard description<textarea asp-for="Branding.DashboardDescription" rows="3"></textarea></label>
-        <div class="color-grid"><label>Primary colour<input asp-for="Branding.PrimaryColor" type="text" pattern="^#[0-9A-Fa-f]{6}$" placeholder="#067A78" /></label><label>Accent colour<input asp-for="Branding.AccentColor" type="text" pattern="^#[0-9A-Fa-f]{6}$" placeholder="#E8F0EF" /></label><label>Background colour<input asp-for="Branding.BackgroundColor" type="text" pattern="^#[0-9A-Fa-f]{6}$" placeholder="#F5F8F8" /></label></div>
-        <label class="toggle-label"><input asp-for="Branding.DarkMode" type="checkbox" /> Enable dark mode</label>
-        <button class="button button-primary" type="submit">Save branding</button>
-    </form>
-</section>
-
-@section Scripts {
-<script>
-    const returnBlade = new URLSearchParams(window.location.search).get("blade");
-    if (returnBlade) openBlade(returnBlade);
-</script>
-}
-
-<section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technician teams</h2></div><div class="heading-actions"><span class="badge">@Model.TechnicianTeams.Count</span><button class="button button-primary" type="button" onclick="openBlade('team-list')">Manage teams</button></div></div>
-    <p class="muted">Manage the teams available when creating or editing technicians.</p>
-</section>
-
-<div class="blade-backdrop" id="add-team"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW TEAM</p><h2>Add team</h2><form method="post" asp-page-handler="AddTechnicianTeam" class="blade-form"><input type="hidden" name="returnBlade" value="team-list" /><label>Team name<input name="team" required /></label><button class="button button-primary" type="submit">Add team</button></form></aside></div>
-@for (var index = 0; index < Model.TechnicianTeams.Count; index++)
-{
-    var team = Model.TechnicianTeams[index];
-    <div class="blade-backdrop" id="edit-team-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT TEAM</p><h2>@team</h2><form method="post" asp-page-handler="UpdateTechnicianTeam" class="blade-form"><input type="hidden" name="returnBlade" value="team-list" /><input type="hidden" name="currentTeam" value="@team" /><label>Team name<input name="team" value="@team" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
-}
-<div class="blade-backdrop" id="team-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">TECHNICIAN TEAMS</p><h2>Teams</h2><button class="button button-primary" type="button" onclick="openBlade('add-team')">＋ Add team</button><div class="directory-list">@for (var index = 0; index < Model.TechnicianTeams.Count; index++) { var team = Model.TechnicianTeams[index]; <div class="directory-row"><strong>@team</strong><button class="icon-button" type="button" title="Edit @team" aria-label="Edit @team" onclick="openBlade('edit-team-@index')">✎</button></div> }</div></aside></div>
-
-<section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Departments</h2></div><div class="heading-actions"><span class="badge">@Model.Departments.Count</span><button class="button button-primary" type="button" onclick="openBlade('department-list')">Manage departments</button></div></div>
-    <p class="muted">Manage the departments available when creating or editing people.</p>
-</section>
-<div class="blade-backdrop" id="add-department"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW DEPARTMENT</p><h2>Add department</h2><form method="post" asp-page-handler="AddDepartment" class="blade-form"><input type="hidden" name="returnBlade" value="department-list" /><label>Department name<input name="department" required /></label><button class="button button-primary" type="submit">Add department</button></form></aside></div>
-@for (var index = 0; index < Model.Departments.Count; index++)
-{
-    var department = Model.Departments[index];
-    <div class="blade-backdrop" id="edit-department-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT DEPARTMENT</p><h2>@department</h2><form method="post" asp-page-handler="UpdateDepartment" class="blade-form"><input type="hidden" name="returnBlade" value="department-list" /><input type="hidden" name="currentDepartment" value="@department" /><label>Department name<input name="department" value="@department" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
-}
-<div class="blade-backdrop" id="department-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">DEPARTMENTS</p><h2>Departments</h2><button class="button button-primary" type="button" onclick="openBlade('add-department')">＋ Add department</button><div class="directory-list">@for (var index = 0; index < Model.Departments.Count; index++) { var department = Model.Departments[index]; <div class="directory-row"><strong>@department</strong><button class="icon-button" type="button" title="Edit @department" aria-label="Edit @department" onclick="openBlade('edit-department-@index')">✎</button></div> }</div></aside></div>
-
-@foreach (var optionGroup in new[] { ("Category", Model.Categories), ("Status", Model.Statuses), ("Priority", Model.Priorities) })
-{
-    var key = optionGroup.Item1.ToLowerInvariant();
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">TICKET OPTIONS</p><h2>@optionGroup.Item1 options</h2></div><div class="heading-actions"><span class="badge">@optionGroup.Item2.Count</span><button class="button button-primary" type="button" onclick="openBlade('@key-list')">Manage @optionGroup.Item1.ToLowerInvariant() options</button></div></div>
-        <p class="muted">Manage the options available when creating or editing tickets.</p>
-    </section>
-    <div class="blade-backdrop" id="add-@key"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW @optionGroup.Item1.ToUpperInvariant()</p><h2>Add @optionGroup.Item1.ToLowerInvariant()</h2><form method="post" asp-page-handler="AddTicketOption" class="blade-form"><input type="hidden" name="returnBlade" value="@key-list" /><input type="hidden" name="kind" value="@optionGroup.Item1" /><label>@optionGroup.Item1 name<input name="value" required /></label><button class="button button-primary" type="submit">Add @optionGroup.Item1.ToLowerInvariant()</button></form></aside></div>
-    @for (var index = 0; index < optionGroup.Item2.Count; index++)
-    {
-        var option = optionGroup.Item2[index];
-        <div class="blade-backdrop" id="edit-@key-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT @optionGroup.Item1.ToUpperInvariant()</p><h2>@option</h2><form method="post" asp-page-handler="UpdateTicketOption" class="blade-form"><input type="hidden" name="returnBlade" value="@key-list" /><input type="hidden" name="kind" value="@optionGroup.Item1" /><input type="hidden" name="currentValue" value="@option" /><label>@optionGroup.Item1 name<input name="value" value="@option" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
-    }
-    <div class="blade-backdrop" id="@key-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">@optionGroup.Item1.ToUpperInvariant() OPTIONS</p><h2>@optionGroup.Item1 options</h2><button class="button button-primary" type="button" onclick="openBlade('add-@key')">＋ Add @optionGroup.Item1.ToLowerInvariant()</button><div class="directory-list">@for (var index = 0; index < optionGroup.Item2.Count; index++) { var option = optionGroup.Item2[index]; <div class="directory-row"><strong>@option</strong><button class="icon-button" type="button" title="Edit @option" aria-label="Edit @option" onclick="openBlade('edit-@key-@index')">✎</button></div> }</div></aside></div>
-}
-
-<section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">PRINTING</p><h2>Word print template</h2></div><span class="badge">@(Model.HasPrintTemplate ? "Uploaded" : "Built-in")</span></div>
-    <p class="muted">Upload a .docx template to replace the built-in print layout. Add placeholders as plain text in Word; the matching values are filled in when a job is printed.</p>
-    <form method="post" enctype="multipart/form-data" asp-page-handler="UploadPrintTemplate" class="settings-form"><label>Word document<input type="file" asp-for="PrintTemplate" accept=".docx" required /></label><code>{{Job.Number}} · {{Job.Title}} · {{Job.Description}} · {{Job.Status}} · {{Job.Priority}} · {{Job.Category}} · {{Requester.Name}} · {{Technician.Name}} · {{Asset.Tag}}</code><button class="button button-primary" type="submit">Upload print template</button></form>
-</section>
-@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
-
-<div class="grid two">
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Import users</h2></div></div>
-        <p class="muted">Each valid row creates a new requester record.</p>
-        <form method="post" enctype="multipart/form-data" asp-page-handler="ImportUsers" class="settings-form"><label>Users CSV<input type="file" asp-for="UserCsv" accept=".csv" required /></label><code>name,email,department,location</code><button class="button button-primary" type="submit">Import users</button></form>
-    </section>
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Import technicians</h2></div></div>
-        <p class="muted">Each valid row creates a technician available for assignment.</p>
-        <form method="post" enctype="multipart/form-data" asp-page-handler="ImportTechnicians" class="settings-form"><label>Technicians CSV<input type="file" asp-for="TechnicianCsv" accept=".csv" required /></label><code>name,email,team</code><button class="button button-primary" type="submit">Import technicians</button></form>
-    </section>
-</div>
+@{ ViewData["Title"]="Settings"; }
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / CONFIGURATION</p><h1>Settings</h1><p class="hero-copy">Manage the values used throughout the helpdesk.</p></div><a class="button button-secondary" asp-page="/Index">← Overview</a></div>
+@if(!string.IsNullOrWhiteSpace(Model.Message)){<div class="notice">@Model.Message</div>}
+<section class="panel"><h2>Branding</h2><form method="post" asp-page-handler="SaveBranding" class="settings-form"><label>Primary colour<input asp-for="Branding.PrimaryColor"/></label><label>Accent colour<input asp-for="Branding.AccentColor"/></label><label>Background colour<input asp-for="Branding.BackgroundColor"/></label><button class="button button-primary">Save branding</button></form></section>
+<section class="panel"><div class="panel-heading"><h2>Directory and asset options</h2></div><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/Teams">Teams</a><a class="button button-secondary" asp-page="/Settings/Departments">Departments</a><a class="button button-secondary" asp-page="/Settings/Locations">Locations</a><a class="button button-secondary" asp-page="/Settings/AssetOptions">Asset makes, types and models</a><a class="button button-secondary" asp-page="/Settings/AssetAttributes">Custom asset attributes</a></div></section>
+<section class="panel"><div class="panel-heading"><h2>Ticket options</h2></div><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/TicketOptions">Categories, statuses and priorities</a><a class="button button-secondary" asp-page="/Settings/TicketAttributes">Ticket custom attributes</a><a class="button button-secondary" asp-page="/Settings/Slas">SLAs</a></div></section>
+<section class="panel"><h2>Imports</h2><form method="post" enctype="multipart/form-data" asp-page-handler="ImportUsers"><label>Users CSV<input asp-for="UserCsv"/></label><button class="button button-primary">Import users</button></form><form method="post" enctype="multipart/form-data" asp-page-handler="ImportTechnicians"><label>Technicians CSV<input asp-for="TechnicianCsv"/></label><button class="button button-primary">Import technicians</button></form></section>

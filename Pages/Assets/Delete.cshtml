@@ -1,0 +1,5 @@
+@page "{id:guid}"
+@model EduHelpdesk.Pages.Assets.DeleteModel
+@{ ViewData["Title"] = "Delete asset"; }
+<div class="page-heading"><h1>Delete asset?</h1><a class="button button-secondary" asp-page="/Assets">Cancel</a></div>
+<section class="panel"><p>Delete <strong>@Model.Asset!.AssetTag</strong>? Assets linked to tickets cannot be removed.</p><form method="post"><input type="hidden" name="id" value="@Model.Asset.Id" /><button class="button button-danger">Delete asset</button></form></section>

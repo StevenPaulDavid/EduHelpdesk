@@ -1,0 +1,5 @@
+@page
+@model SupplierModel
+@{ ViewData["Title"] = Model.Supplier?.Name ?? "Supplier"; }
+<div class="page-heading"><div><p class="eyebrow">SUPPLIER</p><h1>@Model.Supplier!.Name</h1><p class="hero-copy">@Model.Supplier.ContactName · @Model.Supplier.Email · @Model.Supplier.Phone</p></div><a class="button button-secondary" asp-page="/Suppliers">← Suppliers</a></div>
+<section class="panel"><div class="panel-heading"><h2>Assets bought via this supplier</h2><span class="badge">@Model.Assets.Count</span></div><div class="directory-list">@foreach (var asset in Model.Assets) { <div class="directory-row"><div class="directory-person"><div class="avatar asset-avatar">▣</div><div><a href="/Asset?id=@asset.Id"><strong>@asset.AssetTag · @asset.Make @asset.Model</strong></a><span>@asset.Type · @asset.SerialNumber · @asset.Location</span></div></div></div>} @if (Model.Assets.Count == 0) { <p class="empty">No assets are linked to this supplier.</p> }</div></section>

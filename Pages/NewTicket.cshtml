@@ -1,4 +1,5 @@
 @page
+@using EduHelpdesk.Services
 @model NewTicketModel
 @{
     ViewData["Title"] = "New ticket";
@@ -14,11 +15,33 @@
     <div class="form-grid">
         <label>Requester<select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select></label>
         <label>Assigned technician<select asp-for="Ticket.TechnicianId"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
+        <label>Assigned team<select asp-for="Ticket.TeamName"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team">@team</option> }</select></label>
         <label>Ticket title<input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
         <label>Asset<select asp-for="Ticket.AssetId"><option value="">No asset / general request</option>@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label>
         <label>Priority<select asp-for="Ticket.Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
         <label>Category<select asp-for="Ticket.Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+        <label>SLA<select asp-for="Ticket.SlaId"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select></label>
+        <label>Due date override <input asp-for="Ticket.DueDate" type="datetime-local" /><small>Leave blank to calculate from the selected SLA.</small></label>
         <label class="full">Description<textarea asp-for="Ticket.Description" rows="7" placeholder="Symptoms, checks already completed, and next action…"></textarea></label>
+        @foreach (var field in Model.TicketAttributes)
+        {
+            if (field.FieldType == "dropdown")
+            {
+                <label>@field.Name<select name="Ticket.CustomAttributes[@field.Id]"><option value="">Select an option</option>@foreach (var choice in HelpdeskStore.GetChoices(field)) { <option value="@choice">@choice</option> }</select></label>
+            }
+            else if (field.FieldType == "checkbox")
+            {
+                <label class="toggle-label">@field.Name<input type="checkbox" name="Ticket.CustomAttributes[@field.Id]" value="true" /></label>
+            }
+            else if (field.FieldType == "multi-line")
+            {
+                <label>@field.Name<textarea name="Ticket.CustomAttributes[@field.Id]" rows="3"></textarea></label>
+            }
+            else
+            {
+                <label>@field.Name<input name="Ticket.CustomAttributes[@field.Id]" /></label>
+            }
+        }
     </div>
     <div class="heading-actions"><button class="button button-primary" type="submit">Create ticket</button><a class="button button-secondary" asp-page="/Index">Cancel</a></div>
 </form>

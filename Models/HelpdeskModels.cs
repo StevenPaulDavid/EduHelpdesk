@@ -2,7 +2,13 @@ namespace EduHelpdesk.Models;
 
 public record UserRecord(Guid Id, string Name, string Email, string Department, string Location);
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team);
-public record AssetRecord(Guid Id, string AssetTag, string Type, string Model, string SerialNumber, string Location, Guid? AssignedUserId);
+public record SupplierRecord(Guid Id, string Name, string ContactName, string Email, string Phone, string AddressLine1, string AddressLine2, string City, string StateRegion, string PostalCode, string Country, string Website, string Notes, DateTime CreatedAt);
+public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, string Type, string SerialNumber, string Location, Guid? AssignedUserId, Guid? SupplierId = null);
+public record AssetAttributeDefinition(Guid Id, string Name, string AssetType, string FieldType = "single-line", string Choices = "");
+public record AssetAttributeValue(Guid AssetId, Guid AttributeDefinitionId, string Value);
+public record SlaDefinition(Guid Id, string Name, int Duration, string DurationUnit, string? Priority = null);
+public record TicketAttributeDefinition(Guid Id, string Name, string? Category, string FieldType = "single-line", string Choices = "");
+public record TicketAttributeValue(int TicketNumber, Guid AttributeDefinitionId, string Value);
 public record TicketRecord(
     int Number,
     string Title,
@@ -14,7 +20,12 @@ public record TicketRecord(
     string Status,
     string Category,
     DateTime CreatedAt,
-    DateTime? ClosedAt)
+    DateTime? ClosedAt,
+    Guid? SlaId = null,
+    DateTime? DueDate = null,
+    bool DueDateOverridden = false,
+    bool SlaOverridden = false,
+    string? TeamName = null)
 {
     public List<TicketComment> Comments { get; init; } = [];
     public List<TicketActivity> History { get; init; } = [];

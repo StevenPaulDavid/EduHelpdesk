@@ -1,0 +1,5 @@
+@page
+@model EduHelpdesk.Pages.People.TechnicianModel
+@{ ViewData["Title"] = Model.Technician is null ? "Add technician" : "Edit technician"; }
+<div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/People">← Back</a></div>
+<section class="panel"><form method="post" class="settings-form"><input type="hidden" name="id" value="@Model.Technician?.Id" /><div asp-validation-summary="All" class="validation-summary-errors"></div><label>Name<input name="name" value="@Model.Technician?.Name" required /></label><label>Email<input name="email" type="email" value="@Model.Technician?.Email" required /></label><label>Team<select name="team" required><option value="">Select a team</option>@foreach(var x in Model.Teams){<option value="@x" selected="@(x==Model.Technician?.Team)">@x</option>}</select></label><button class="button button-primary">Save technician</button></form></section>
