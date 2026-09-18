@@ -32,6 +32,7 @@ public sealed class HelpdeskStore
     public bool UpdateUser(UserRecord item) => Update(item, _data.Users, x => x.Id == item.Id);
     public bool UpdateTechnician(TechnicianRecord item) => Update(item, _data.Technicians, x => x.Id == item.Id);
     public bool UpdateAsset(AssetRecord item) => Update(item, _data.Assets, x => x.Id == item.Id);
+    public bool UpdateTicket(TicketRecord item) => Update(item, _data.Tickets, x => x.Number == item.Number);
 
     public string? DeleteAsset(Guid id)
     {

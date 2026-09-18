@@ -6,12 +6,13 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / JOB DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
-    <a class="button button-secondary" asp-page="/Index">← Back to jobs</a>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Back to jobs</a><button class="icon-button" type="button" title="Edit job" aria-label="Edit job" onclick="openBlade('edit-job')">✎</button></div>
 </div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="job-detail-grid">
     <section class="panel job-main">
-        <div class="panel-heading"><div><p class="eyebrow">DESCRIPTION</p><h2>@Model.Ticket.Title</h2></div><span class="status">@Model.Ticket.Status</span></div>
+        <div class="panel-heading"><div><p class="eyebrow">DESCRIPTION</p><h2>@Model.Ticket.Title</h2></div><div class="heading-actions"><span class="status">@Model.Ticket.Status</span><button class="icon-button" type="button" title="Edit job" aria-label="Edit job" onclick="openBlade('edit-job')">✎</button></div></div>
         <p class="job-description">@Model.Ticket.Description</p>
         <div class="job-meta"><div><span>Category</span><strong>@Model.Ticket.Category</strong></div><div><span>Priority</span><strong class="priority @Model.Ticket.Priority.ToLowerInvariant()">@Model.Ticket.Priority</strong></div><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
     </section>
@@ -21,3 +22,13 @@
         <div class="detail-block"><p class="eyebrow">LINKED ASSET</p>@if (Model.Asset is null) { <h3>No asset linked</h3> } else { <h3>@Model.Asset.AssetTag</h3><p>@Model.Asset.Type · @Model.Asset.Model</p><p>Serial: @Model.Asset.SerialNumber</p><p>@Model.Asset.Location</p> }</div>
     </aside>
 </div>
+
+<div class="blade-backdrop" id="edit-job"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT JOB</p><h2>#@Model.Ticket.Number</h2><form method="post" asp-page-handler="Update" class="blade-form"><input type="hidden" name="number" value="@Model.Ticket.Number" /><label>Status<select name="status"><option selected="@(Model.Ticket.Status == "Open")">Open</option><option selected="@(Model.Ticket.Status == "In Progress")">In Progress</option><option selected="@(Model.Ticket.Status == "On Hold")">On Hold</option><option selected="@(Model.Ticket.Status == "Closed")">Closed</option></select></label><label>Priority<select name="priority"><option selected="@(Model.Ticket.Priority == "Low")">Low</option><option selected="@(Model.Ticket.Priority == "Normal")">Normal</option><option selected="@(Model.Ticket.Priority == "High")">High</option><option selected="@(Model.Ticket.Priority == "Urgent")">Urgent</option></select></label><label>Category<select name="category"><option selected="@(Model.Ticket.Category == "Hardware")">Hardware</option><option selected="@(Model.Ticket.Category == "Software")">Software</option><option selected="@(Model.Ticket.Category == "Account")">Account</option><option selected="@(Model.Ticket.Category == "Network")">Network</option><option selected="@(Model.Ticket.Category == "Classroom AV")">Classroom AV</option><option selected="@(Model.Ticket.Category == "Other")">Other</option></select></label><label>Linked asset<select name="assetId"><option value="">No asset / general request</option>@foreach (var asset in Model.Assets) { <option value="@asset.Id" selected="@(asset.Id == Model.Ticket.AssetId)">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label><label>Technician<select name="technicianId" required>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+
+@section Scripts {
+<script>
+function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
+function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
+document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
+</script>
+}
