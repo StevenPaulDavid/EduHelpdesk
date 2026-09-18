@@ -37,7 +37,7 @@
         <form method="post" action="/?handler=CreateTicket" class="blade-form">
             @Html.AntiForgeryToken()
             <label>Requester <select name="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Helpdesk.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select></label>
-            <label>Assigned technician <select name="Ticket.TechnicianId" required><option value="">Select technician…</option>@foreach (var tech in Helpdesk.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
+            <label>Assigned technician <select name="Ticket.TechnicianId"><option value="">Unassigned</option>@foreach (var tech in Helpdesk.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
             <label>Job title <input name="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
             <label>Asset <select name="Ticket.AssetId"><option value="">No asset / general request</option>@foreach (var asset in Helpdesk.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label>
             <label>Priority <select name="Ticket.Priority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></label>

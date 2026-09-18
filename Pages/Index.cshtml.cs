@@ -25,10 +25,9 @@ public class IndexModel(HelpdeskStore store) : PageModel
         if (string.IsNullOrWhiteSpace(Ticket.Title)) ModelState.AddModelError("Ticket.Title", "Enter a job title.");
         if (string.IsNullOrWhiteSpace(Ticket.Description)) ModelState.AddModelError("Ticket.Description", "Enter a description.");
         if (Ticket.RequesterId == Guid.Empty) ModelState.AddModelError("Ticket.RequesterId", "Select a requester.");
-        if (Ticket.TechnicianId == Guid.Empty) ModelState.AddModelError("Ticket.TechnicianId", "Select a technician.");
         if (!ModelState.IsValid) return Page();
         var number = store.AddTicket(new TicketRecord(0, Ticket.Title.Trim(), Ticket.Description.Trim(), Ticket.RequesterId, Ticket.AssetId, Ticket.TechnicianId, Ticket.Priority, "Open", Ticket.Category, DateTime.UtcNow, null));
-        Message = $"Job #{number} created and assigned.";
+        Message = $"Job #{number} created.";
         return RedirectToPage();
     }
 
