@@ -25,22 +25,49 @@ public class JobModel(HelpdeskStore store) : PageModel
         return Page();
     }
 
-    public IActionResult OnPostUpdate(int number, string status, string priority, string category, Guid? assetId, Guid technicianId)
+    public IActionResult OnPostUpdate(int number, string field, string? value)
     {
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (ticket is null) return NotFound();
-        if (technicianId == Guid.Empty || !store.Technicians.Any(x => x.Id == technicianId))
+        if (field is "status" or "priority" or "category")
         {
-            Message = "Select a valid technician.";
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                Message = "Select a value.";
+                return RedirectToPage(new { number });
+            }
+            ticket = field switch
+            {
+                "status" => ticket with { Status = value, ClosedAt = value == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null },
+                "priority" => ticket with { Priority = value },
+                _ => ticket with { Category = value }
+            };
+        }
+        else if (field == "technician")
+        {
+            if (!Guid.TryParse(value, out var technicianId) || !store.Technicians.Any(x => x.Id == technicianId))
+            {
+                Message = "Select a valid technician.";
+                return RedirectToPage(new { number });
+            }
+            ticket = ticket with { TechnicianId = technicianId };
+        }
+        else if (field == "asset")
+        {
+            Guid? assetId = string.IsNullOrWhiteSpace(value) ? null : Guid.Parse(value);
+            if (assetId.HasValue && !store.Assets.Any(x => x.Id == assetId.Value))
+            {
+                Message = "Select a valid asset.";
+                return RedirectToPage(new { number });
+            }
+            ticket = ticket with { AssetId = assetId };
+        }
+        else
+        {
+            Message = "Unknown job field.";
             return RedirectToPage(new { number });
         }
-        if (assetId.HasValue && !store.Assets.Any(x => x.Id == assetId.Value))
-        {
-            Message = "Select a valid asset.";
-            return RedirectToPage(new { number });
-        }
-        DateTime? closedAt = status == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null;
-        store.UpdateTicket(ticket with { Status = status, Priority = priority, Category = category, AssetId = assetId, TechnicianId = technicianId, ClosedAt = closedAt });
+        store.UpdateTicket(ticket);
         Message = "Job updated.";
         return RedirectToPage(new { number });
     }
