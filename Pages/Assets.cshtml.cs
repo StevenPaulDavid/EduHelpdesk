@@ -9,6 +9,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<UserRecord> Users => store.Users;
+    public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() { }
