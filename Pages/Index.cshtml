@@ -28,7 +28,7 @@
         var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
         var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
         var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
-        <tr><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+        <tr class="clickable-row" onclick="window.location.href='/Job?number=@ticket.Number'" tabindex="0" onkeydown="if(event.key==='Enter') window.location.href='/Job?number=@ticket.Number'"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
     }
     @if (Model.Tickets.Count == 0) { <tr><td colspan="7" class="empty">No jobs have been logged yet.</td></tr> }
     </tbody></table></div>

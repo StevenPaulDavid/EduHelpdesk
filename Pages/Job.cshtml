@@ -1,0 +1,23 @@
+@page
+@model JobModel
+@{
+    ViewData["Title"] = $"Job #{Model.Ticket!.Number}";
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / JOB DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Back to jobs</a>
+</div>
+
+<div class="job-detail-grid">
+    <section class="panel job-main">
+        <div class="panel-heading"><div><p class="eyebrow">DESCRIPTION</p><h2>@Model.Ticket.Title</h2></div><span class="status">@Model.Ticket.Status</span></div>
+        <p class="job-description">@Model.Ticket.Description</p>
+        <div class="job-meta"><div><span>Category</span><strong>@Model.Ticket.Category</strong></div><div><span>Priority</span><strong class="priority @Model.Ticket.Priority.ToLowerInvariant()">@Model.Ticket.Priority</strong></div><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
+    </section>
+    <aside class="panel detail-sidebar">
+        <div class="detail-block"><p class="eyebrow">REQUESTER</p><h3>@(Model.Requester?.Name ?? "Unknown")</h3><p>@Model.Requester?.Email</p><p>@Model.Requester?.Department · @Model.Requester?.Location</p></div>
+        <div class="detail-block"><p class="eyebrow">ASSIGNED TECHNICIAN</p><h3>@(Model.Technician?.Name ?? "Unassigned")</h3><p>@Model.Technician?.Email</p><p>@Model.Technician?.Team</p></div>
+        <div class="detail-block"><p class="eyebrow">LINKED ASSET</p>@if (Model.Asset is null) { <h3>No asset linked</h3> } else { <h3>@Model.Asset.AssetTag</h3><p>@Model.Asset.Type · @Model.Asset.Model</p><p>Serial: @Model.Asset.SerialNumber</p><p>@Model.Asset.Location</p> }</div>
+    </aside>
+</div>
