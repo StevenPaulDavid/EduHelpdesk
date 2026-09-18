@@ -1,4 +1,6 @@
-﻿<!DOCTYPE html>
+﻿@using EduHelpdesk.Services
+@inject HelpdeskStore Helpdesk
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -7,9 +9,27 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>Edu<span>Helpdesk</span></span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><a class="button button-primary header-job-button" href="/?openJob=true">＋ Log a job</a><span class="workspace-label">Technician workspace</span></header>
+    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>Edu<span>Helpdesk</span></span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><button class="button button-primary header-job-button" type="button" onclick="openBlade('global-new-job')">＋ Log a job</button><span class="workspace-label">Technician workspace</span></header>
     <main class="shell">@RenderBody()</main>
     <footer class="footer">EduHelpdesk · Local technician operations</footer>
+    <div class="blade-backdrop" id="global-new-job"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW WORK ITEM</p><h2>Log a technician job</h2>
+        <form method="post" action="/?handler=CreateTicket" class="blade-form">
+            @Html.AntiForgeryToken()
+            <label>Requester <select name="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Helpdesk.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select></label>
+            <label>Assigned technician <select name="Ticket.TechnicianId" required><option value="">Select technician…</option>@foreach (var tech in Helpdesk.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
+            <label>Job title <input name="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
+            <label>Asset <select name="Ticket.AssetId"><option value="">No asset / general request</option>@foreach (var asset in Helpdesk.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label>
+            <label>Priority <select name="Ticket.Priority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></label>
+            <label>Category <select name="Ticket.Category"><option>Hardware</option><option>Software</option><option>Account</option><option>Network</option><option>Classroom AV</option><option>Other</option></select></label>
+            <label>Description <textarea name="Ticket.Description" rows="4" placeholder="Symptoms, checks already completed, and next action…" required></textarea></label>
+            <button class="button button-primary" type="submit">Create job</button>
+        </form>
+    </aside></div>
+    <script>
+    function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
+    function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
+    document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
