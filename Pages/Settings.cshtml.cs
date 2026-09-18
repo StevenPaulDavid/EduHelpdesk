@@ -12,6 +12,7 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     [BindProperty] public IFormFile? TechnicianCsv { get; set; }
     [BindProperty] public IFormFile? PrintTemplate { get; set; }
     public bool HasPrintTemplate => store.HasPrintTemplate;
+    public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() => Branding = store.Branding;
@@ -27,6 +28,12 @@ public class SettingsModel(HelpdeskStore store) : PageModel
 
         store.UpdateBranding(Branding);
         Message = "Branding saved.";
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostAddTechnicianTeam(string team)
+    {
+        Message = store.AddTechnicianTeam(team);
         return RedirectToPage();
     }
 

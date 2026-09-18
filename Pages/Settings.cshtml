@@ -23,6 +23,15 @@
 </section>
 
 <section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technician teams</h2></div><span class="badge">@Model.TechnicianTeams.Count</span></div>
+    <p class="muted">Add the teams available when creating or editing technicians.</p>
+    <form method="post" asp-page-handler="AddTechnicianTeam" class="settings-form">
+        <label>Team name<input name="team" required /></label>
+        <button class="button button-primary" type="submit">Add team</button>
+    </form>
+</section>
+
+<section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">PRINTING</p><h2>Word print template</h2></div><span class="badge">@(Model.HasPrintTemplate ? "Uploaded" : "Built-in")</span></div>
     <p class="muted">Upload a .docx template to replace the built-in print layout. Add placeholders as plain text in Word; the matching values are filled in when a job is printed.</p>
     <form method="post" enctype="multipart/form-data" asp-page-handler="UploadPrintTemplate" class="settings-form"><label>Word document<input type="file" asp-for="PrintTemplate" accept=".docx" required /></label><code>{{Job.Number}} · {{Job.Title}} · {{Job.Description}} · {{Job.Status}} · {{Job.Priority}} · {{Job.Category}} · {{Requester.Name}} · {{Technician.Name}} · {{Asset.Tag}}</code><button class="button button-primary" type="submit">Upload print template</button></form>
