@@ -40,6 +40,19 @@ public class PeopleModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public IActionResult OnPostAddTechnician(string name, string email, string team)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
+        {
+            Message = "Technician name and email are required.";
+            return RedirectToPage();
+        }
+
+        store.AddTechnician(new TechnicianRecord(Guid.NewGuid(), name.Trim(), email.Trim(), team.Trim()));
+        Message = "Technician added.";
+        return RedirectToPage();
+    }
+
     public IActionResult OnPostSaveTechnician(Guid id, string name, string email, string team)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
