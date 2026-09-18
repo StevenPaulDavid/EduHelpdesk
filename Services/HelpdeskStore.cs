@@ -211,6 +211,8 @@ public sealed class HelpdeskStore
     {
         lock (_sync)
         {
+            kind = NormalizeManagedOptionKind(kind);
+            if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
             var options = GetManagedOptions(kind);
             var item = value.Trim();
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
@@ -224,6 +226,8 @@ public sealed class HelpdeskStore
     {
         lock (_sync)
         {
+            kind = NormalizeManagedOptionKind(kind);
+            if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
             var options = GetManagedOptions(kind);
             var oldValue = currentValue.Trim();
             var newValue = value.Trim();
@@ -256,6 +260,7 @@ public sealed class HelpdeskStore
     {
         lock (_sync)
         {
+            kind = NormalizeManagedOptionKind(kind);
             if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
             var item = (value ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
@@ -1157,16 +1162,29 @@ public sealed class HelpdeskStore
         "Priority" => _data.Priorities,
         _ => throw new ArgumentException("Unknown ticket option.", nameof(kind))
     };
-    private List<string> GetManagedOptions(string kind) => kind switch
+    private static string NormalizeManagedOptionKind(string kind) => (kind ?? string.Empty).Trim() switch
     {
+        "Teams" => "Team",
+        "Departments" => "Department",
+        "Locations" => "Location",
+        "AssetTypes" => "Asset type",
+        "AssetMakes" => "Asset make",
+        "AssetModels" => "Asset model",
+        _ => (kind ?? string.Empty).Trim()
+    };
+
+    private List<string> GetManagedOptions(string kind) => NormalizeManagedOptionKind(kind) switch
+    {
+        "Team" => _data.TechnicianTeams,
+        "Department" => _data.Departments,
         "Location" => _data.Locations,
         "Asset type" => _data.AssetTypes,
         "Asset make" => _data.AssetMakes,
         "Asset model" => _data.AssetModels,
-        _ => throw new ArgumentException("Unknown managed option.", nameof(kind))
+        _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        kind is "Location" or "Asset type" or "Asset make" or "Asset model";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 
