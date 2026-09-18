@@ -1,3 +1,7 @@
 @page
-@model EduHelpdesk.Pages.Settings.OptionModel
-@{ Model.Kind="Slas"; ViewData["Title"]="SLAs"; }<partial name="_Option" model="Model"/>
+@model EduHelpdesk.Pages.Settings.SlasModel
+@{ ViewData["Title"] = "SLAs"; }
+<div class="page-heading"><h1>SLAs</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel"><form method="post" class="settings-form"><label>Name<input name="name" required /></label><label>Duration<input name="duration" type="number" min="1" required /></label><label>Unit<select name="durationUnit"><option value="hours">Hours</option><option value="days">Days</option></select></label><label>Priority mapping<select name="priority"><option value="">Any priority</option>@foreach (var value in Model.Priorities) { <option value="@value">@value</option> }</select></label><button class="button button-primary">Add SLA</button></form></section>
+<section class="panel"><div class="directory-list">@foreach (var item in Model.Slas) { <div class="directory-row"><div><strong>@item.Name</strong><span class="muted">@item.Duration @item.DurationUnit · @(item.Priority ?? "Any priority")</span></div><form method="post" asp-page-handler="Delete"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger">Delete</button></form></div> }</div></section>

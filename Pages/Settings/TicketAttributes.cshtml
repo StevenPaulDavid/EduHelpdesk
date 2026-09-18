@@ -1,3 +1,7 @@
 @page
-@model EduHelpdesk.Pages.Settings.OptionModel
-@{ Model.Kind="TicketAttributes"; ViewData["Title"]="Ticket custom attributes"; }<partial name="_Option" model="Model"/>
+@model EduHelpdesk.Pages.Settings.TicketAttributesModel
+@{ ViewData["Title"] = "Ticket custom attributes"; }
+<div class="page-heading"><h1>Ticket custom attributes</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel"><form method="post" class="settings-form"><label>Name<input name="name" required /></label><label>Category<select name="category"><option value="">All categories</option>@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label><label>Field type<select name="fieldType"><option value="single-line">Single-line text</option><option value="multi-line">Multi-line text</option><option value="dropdown">Dropdown</option><option value="checkbox">Checkbox</option></select></label><label>Dropdown choices<input name="choices" placeholder="One, Two, Three" /></label><button class="button button-primary">Add attribute</button></form></section>
+<section class="panel"><div class="directory-list">@foreach (var item in Model.Attributes) { <div class="directory-row"><div><strong>@item.Name</strong><span class="muted">@(item.Category ?? "All categories") · @item.FieldType</span></div><form method="post" asp-page-handler="Delete"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger">Delete</button></form></div> }</div></section>
