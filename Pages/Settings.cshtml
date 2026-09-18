@@ -1,0 +1,24 @@
+@page
+@model SettingsModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Directory imports</h1><p class="hero-copy">Import existing school records from CSV files. Manual user creation is available on the People page.</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Back to workspace</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<div class="grid two">
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Import users</h2></div></div>
+        <p class="muted">Each valid row creates a new requester record.</p>
+        <form method="post" enctype="multipart/form-data" asp-page-handler="ImportUsers" class="settings-form"><label>Users CSV<input type="file" asp-for="UserCsv" accept=".csv" required /></label><code>name,email,department,location</code><button class="button button-primary" type="submit">Import users</button></form>
+    </section>
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Import technicians</h2></div></div>
+        <p class="muted">Each valid row creates a technician available for assignment.</p>
+        <form method="post" enctype="multipart/form-data" asp-page-handler="ImportTechnicians" class="settings-form"><label>Technicians CSV<input type="file" asp-for="TechnicianCsv" accept=".csv" required /></label><code>name,email,team</code><button class="button button-primary" type="submit">Import technicians</button></form>
+    </section>
+</div>

@@ -39,14 +39,8 @@
     </section>
 
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">DATA SETUP</p><h2>Import records</h2></div></div>
-        <p class="muted">CSV imports are designed for existing school directories. Required headers are shown below.</p>
-        <form method="post" enctype="multipart/form-data" asp-page-handler="ImportUsers" class="import-row"><label>Users <input type="file" asp-for="UserCsv" accept=".csv" /></label><button class="button button-secondary" type="submit">Import users</button></form>
-        <code>name,email,department,location</code>
-        <form method="post" enctype="multipart/form-data" asp-page-handler="ImportTechnicians" class="import-row"><label>Technicians <input type="file" asp-for="TechnicianCsv" accept=".csv" /></label><button class="button button-secondary" type="submit">Import technicians</button></form>
-        <code>name,email,team</code>
+        <div class="panel-heading"><div><p class="eyebrow">DATA SETUP</p><h2>Asset register</h2></div><a class="button button-secondary" asp-page="/Settings">Settings</a></div>
         <hr />
-        <h3>Asset register</h3>
         <form method="post" asp-page-handler="CreateAsset" class="form-grid compact">
             <label>Asset tag <input asp-for="Asset.AssetTag" placeholder="LT-1002" required /><span asp-validation-for="Asset.AssetTag" class="field-error"></span></label><label>Type <input asp-for="Asset.Type" placeholder="Laptop" required /><span asp-validation-for="Asset.Type" class="field-error"></span></label>
             <label>Model <input asp-for="Asset.Model" required /><span asp-validation-for="Asset.Model" class="field-error"></span></label><label>Serial number <input asp-for="Asset.SerialNumber" /></label>

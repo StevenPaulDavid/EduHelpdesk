@@ -13,6 +13,19 @@ public class PeopleModel(HelpdeskStore store) : PageModel
 
     public void OnGet() { }
 
+    public IActionResult OnPostAddUser(string name, string email, string department, string location)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
+        {
+            Message = "User name and email are required.";
+            return RedirectToPage();
+        }
+
+        store.AddUser(new UserRecord(Guid.NewGuid(), name.Trim(), email.Trim(), department.Trim(), location.Trim()));
+        Message = "User added.";
+        return RedirectToPage();
+    }
+
     public IActionResult OnPostSaveUser(Guid id, string name, string email, string department, string location)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))

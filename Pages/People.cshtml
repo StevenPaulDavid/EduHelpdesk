@@ -11,7 +11,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Users</h2></div><span class="badge">@Model.Users.Count</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Users</h2></div><div class="heading-actions"><span class="badge">@Model.Users.Count</span><button class="button button-primary" type="button" onclick="openBlade('add-user')">＋ Add user</button></div></div>
     <div class="directory-list">
     @foreach (var user in Model.Users)
     {
@@ -22,6 +22,8 @@
     @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }
     </div>
 </section>
+
+<div class="blade-backdrop" id="add-user"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW USER</p><h2>Add user</h2><form method="post" asp-page-handler="AddUser" class="blade-form"><label>Name<input name="name" required /></label><label>Email<input name="email" type="email" required /></label><label>Department<input name="department" /></label><label>Location<input name="location" /></label><button class="button button-primary" type="submit">Add user</button></form></aside></div>
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technicians</h2></div><span class="badge">@Model.Technicians.Count</span></div>
