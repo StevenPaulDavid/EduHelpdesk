@@ -5,58 +5,41 @@
 }
 
 <div class="page-heading">
-    <div>
-        <p class="eyebrow">EDUHELPDESK / DIRECTORY</p>
-        <h1>People and technicians</h1>
-        <p class="hero-copy">Maintain the people available when technicians log and assign jobs.</p>
-    </div>
+    <div><p class="eyebrow">EDUHELPDESK / DIRECTORY</p><h1>People and technicians</h1><p class="hero-copy">Manage the people available for ticket assignment.</p></div>
     <a class="button button-secondary" asp-page="/Index">← Back to workspace</a>
 </div>
-
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-<div class="grid two people-grid">
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Users</h2></div><span class="badge">@Model.Users.Count</span></div>
-        <div class="people-list">
-        @foreach (var user in Model.Users)
-        {
-            <div class="person-card"><form method="post" asp-page-handler="SaveUser">
-                <input type="hidden" name="id" value="@user.Id" />
-                <div class="person-card-heading"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div><strong>@user.Name</strong><span>@user.Email</span></div></div>
-                <label>Name<input name="name" value="@user.Name" required /></label>
-                <label>Email<input name="email" type="email" value="@user.Email" required /></label>
-                <div class="form-grid compact"><label>Department<input name="department" value="@user.Department" /></label><label>Location<input name="location" value="@user.Location" /></label></div>
-                <button class="button button-secondary" type="submit">Save changes</button>
-            </form>
-            <div class="person-actions">
-                <form method="post" asp-page-handler="DeleteUser" onsubmit="return confirm('Delete this user? This is only allowed when they have no linked tickets or assets.');"><input type="hidden" name="id" value="@user.Id" /><button class="button button-danger" type="submit">Delete</button></form>
-            </div>
-            </div>
-        }
-        @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }
-        </div>
-    </section>
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">REQUESTERS</p><h2>Users</h2></div><span class="badge">@Model.Users.Count</span></div>
+    <div class="directory-list">
+    @foreach (var user in Model.Users)
+    {
+        <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div><strong>@user.Name</strong><span>@user.Email · @user.Department · @user.Location</span></div></div><div class="row-actions"><button class="icon-button" type="button" title="Edit user" aria-label="Edit @user.Name" onclick="openBlade('edit-user-@user.Id')">✎</button><button class="icon-button delete-icon" type="button" title="Delete user" aria-label="Delete @user.Name" onclick="openBlade('delete-user-@user.Id')">♜</button></div></div>
+        <div class="blade-backdrop" id="edit-user-@user.Id"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT USER</p><h2>@user.Name</h2><form method="post" asp-page-handler="SaveUser" class="blade-form"><input type="hidden" name="id" value="@user.Id" /><label>Name<input name="name" value="@user.Name" required /></label><label>Email<input name="email" type="email" value="@user.Email" required /></label><label>Department<input name="department" value="@user.Department" /></label><label>Location<input name="location" value="@user.Location" /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+        <div class="blade-backdrop" id="delete-user-@user.Id"><aside class="blade warning-blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><div class="warning-symbol">!</div><p class="eyebrow">DELETE USER</p><h2>Are you sure?</h2><p class="muted">Delete <strong>@user.Name</strong>? Users linked to tickets or assets cannot be removed.</p><div class="blade-actions"><button class="button button-secondary" type="button" onclick="closeBlades()">Cancel</button><form method="post" asp-page-handler="DeleteUser"><input type="hidden" name="id" value="@user.Id" /><button class="button button-danger" type="submit">Delete user</button></form></div></aside></div>
+    }
+    @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }
+    </div>
+</section>
 
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technicians</h2></div><span class="badge">@Model.Technicians.Count</span></div>
-        <div class="people-list">
-        @foreach (var technician in Model.Technicians)
-        {
-            <div class="person-card"><form method="post" asp-page-handler="SaveTechnician">
-                <input type="hidden" name="id" value="@technician.Id" />
-                <div class="person-card-heading"><div class="avatar technician-avatar">@technician.Name[..1].ToUpperInvariant()</div><div><strong>@technician.Name</strong><span>@technician.Email</span></div></div>
-                <label>Name<input name="name" value="@technician.Name" required /></label>
-                <label>Email<input name="email" type="email" value="@technician.Email" required /></label>
-                <label>Team<input name="team" value="@technician.Team" /></label>
-                <button class="button button-secondary" type="submit">Save changes</button>
-            </form>
-            <div class="person-actions">
-                <form method="post" asp-page-handler="DeleteTechnician" onsubmit="return confirm('Delete this technician? This is only allowed when they have no assigned tickets.');"><input type="hidden" name="id" value="@technician.Id" /><button class="button button-danger" type="submit">Delete</button></form>
-            </div>
-            </div>
-        }
-        @if (Model.Technicians.Count == 0) { <p class="empty">No technicians have been imported yet.</p> }
-        </div>
-    </section>
-</div>
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technicians</h2></div><span class="badge">@Model.Technicians.Count</span></div>
+    <div class="directory-list">
+    @foreach (var technician in Model.Technicians)
+    {
+        <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@technician.Name[..1].ToUpperInvariant()</div><div><strong>@technician.Name</strong><span>@technician.Email · @technician.Team</span></div></div><div class="row-actions"><button class="icon-button" type="button" title="Edit technician" aria-label="Edit @technician.Name" onclick="openBlade('edit-tech-@technician.Id')">✎</button><button class="icon-button delete-icon" type="button" title="Delete technician" aria-label="Delete @technician.Name" onclick="openBlade('delete-tech-@technician.Id')">♜</button></div></div>
+        <div class="blade-backdrop" id="edit-tech-@technician.Id"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT TECHNICIAN</p><h2>@technician.Name</h2><form method="post" asp-page-handler="SaveTechnician" class="blade-form"><input type="hidden" name="id" value="@technician.Id" /><label>Name<input name="name" value="@technician.Name" required /></label><label>Email<input name="email" type="email" value="@technician.Email" required /></label><label>Team<input name="team" value="@technician.Team" /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+        <div class="blade-backdrop" id="delete-tech-@technician.Id"><aside class="blade warning-blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><div class="warning-symbol">!</div><p class="eyebrow">DELETE TECHNICIAN</p><h2>Are you sure?</h2><p class="muted">Delete <strong>@technician.Name</strong>? Technicians assigned to tickets cannot be removed.</p><div class="blade-actions"><button class="button button-secondary" type="button" onclick="closeBlades()">Cancel</button><form method="post" asp-page-handler="DeleteTechnician"><input type="hidden" name="id" value="@technician.Id" /><button class="button button-danger" type="submit">Delete technician</button></form></div></aside></div>
+    }
+    @if (Model.Technicians.Count == 0) { <p class="empty">No technicians have been imported yet.</p> }
+    </div>
+</section>
+
+@section Scripts {
+<script>
+function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
+function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
+document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
+</script>
+}
