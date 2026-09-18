@@ -26,13 +26,14 @@
     <section class="panel" id="new-job">
         <div class="panel-heading"><div><p class="eyebrow">NEW WORK ITEM</p><h2>Log a technician job</h2></div></div>
         <form method="post" asp-page-handler="CreateTicket" class="form-grid">
-            <label>Requester <select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select></label>
-            <label>Assigned technician <select asp-for="Ticket.TechnicianId" required><option value="">Select technician…</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
+            <label>Requester <select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select><span asp-validation-for="Ticket.RequesterId" class="field-error"></span></label>
+            <label>Assigned technician <select asp-for="Ticket.TechnicianId" required><option value="">Select technician…</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select><span asp-validation-for="Ticket.TechnicianId" class="field-error"></span></label>
             <label class="full">Job title <input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
             <label>Asset <select asp-for="Ticket.AssetId"><option value="">No asset / general request</option>@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label>
             <label>Priority <select asp-for="Ticket.Priority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></label>
             <label>Category <select asp-for="Ticket.Category"><option>Hardware</option><option>Software</option><option>Account</option><option>Network</option><option>Classroom AV</option><option>Other</option></select></label>
             <label class="full">Description <textarea asp-for="Ticket.Description" rows="4" placeholder="Symptoms, checks already completed, and next action…" required></textarea></label>
+            <div asp-validation-summary="ModelOnly" class="field-error full"></div>
             <button class="button button-primary full" type="submit">Create job</button>
         </form>
     </section>
@@ -47,9 +48,10 @@
         <hr />
         <h3>Asset register</h3>
         <form method="post" asp-page-handler="CreateAsset" class="form-grid compact">
-            <label>Asset tag <input asp-for="Asset.AssetTag" placeholder="LT-1002" required /></label><label>Type <input asp-for="Asset.Type" placeholder="Laptop" required /></label>
-            <label>Model <input asp-for="Asset.Model" required /></label><label>Serial number <input asp-for="Asset.SerialNumber" /></label>
+            <label>Asset tag <input asp-for="Asset.AssetTag" placeholder="LT-1002" required /><span asp-validation-for="Asset.AssetTag" class="field-error"></span></label><label>Type <input asp-for="Asset.Type" placeholder="Laptop" required /><span asp-validation-for="Asset.Type" class="field-error"></span></label>
+            <label>Model <input asp-for="Asset.Model" required /><span asp-validation-for="Asset.Model" class="field-error"></span></label><label>Serial number <input asp-for="Asset.SerialNumber" /></label>
             <label>Location <input asp-for="Asset.Location" /></label><label>Assigned user <select asp-for="Asset.AssignedUserId"><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name</option> }</select></label>
+            <div asp-validation-summary="ModelOnly" class="field-error full"></div>
             <button class="button button-secondary full" type="submit">Add asset</button>
         </form>
     </section>

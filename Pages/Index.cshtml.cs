@@ -23,6 +23,9 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostCreateTicket()
     {
+        RemoveModelStateFor(nameof(Asset));
+        if (Ticket.RequesterId == Guid.Empty) ModelState.AddModelError("Ticket.RequesterId", "Select a requester.");
+        if (Ticket.TechnicianId == Guid.Empty) ModelState.AddModelError("Ticket.TechnicianId", "Select a technician.");
         if (!ModelState.IsValid) return Page();
         var number = store.AddTicket(new TicketRecord(0, Ticket.Title.Trim(), Ticket.Description.Trim(), Ticket.RequesterId, Ticket.AssetId, Ticket.TechnicianId, Ticket.Priority, "Open", Ticket.Category, DateTime.UtcNow, null));
         Message = $"Job #{number} created and assigned.";
@@ -31,6 +34,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostCreateAsset()
     {
+        RemoveModelStateFor(nameof(Ticket));
         if (!ModelState.IsValid) return Page();
         store.AddAsset(new AssetRecord(Guid.NewGuid(), Asset.AssetTag.Trim(), Asset.Type.Trim(), Asset.Model.Trim(), Asset.SerialNumber?.Trim() ?? "", Asset.Location?.Trim() ?? "", Asset.AssignedUserId));
         Message = $"Asset {Asset.AssetTag} added to the register.";
@@ -68,6 +72,13 @@ public class IndexModel(HelpdeskStore store) : PageModel
     }
 
     private static bool Mail(string value) => value.Contains('@', StringComparison.Ordinal) && value.Contains('.', StringComparison.Ordinal);
+    private void RemoveModelStateFor(string prefix)
+    {
+        foreach (var key in ModelState.Keys.Where(key => key.Equals(prefix, StringComparison.Ordinal) || key.StartsWith(prefix + ".", StringComparison.Ordinal)).ToList())
+        {
+            ModelState.Remove(key);
+        }
+    }
     public sealed class TicketInput { [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Title { get; set; } = ""; [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Description { get; set; } = ""; public Guid RequesterId { get; set; } public Guid? AssetId { get; set; } public Guid TechnicianId { get; set; } public string Priority { get; set; } = "Normal"; public string Category { get; set; } = "Hardware"; }
     public sealed class AssetInput { [System.ComponentModel.DataAnnotations.Required] public string AssetTag { get; set; } = ""; [System.ComponentModel.DataAnnotations.Required] public string Type { get; set; } = ""; [System.ComponentModel.DataAnnotations.Required] public string Model { get; set; } = ""; public string? SerialNumber { get; set; } public string? Location { get; set; } public Guid? AssignedUserId { get; set; } }
 }
