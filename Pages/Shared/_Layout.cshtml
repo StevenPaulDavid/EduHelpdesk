@@ -5,11 +5,12 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] · EduHelpdesk</title>
+    <title>@ViewData["Title"] · @Helpdesk.Branding.BrandName</title>
+    <style>:root{--teal:@Helpdesk.Branding.PrimaryColor;--teal-dark:@Helpdesk.Branding.PrimaryColor;--paper:@Helpdesk.Branding.BackgroundColor;--accent:@Helpdesk.Branding.AccentColor}@if (Helpdesk.Branding.DarkMode) { <text>body{--ink:#e7eeee;--muted:#aabcbc;--line:#304247;--paper:#152326;background:var(--paper)}.panel,.metric,.topbar,.blade{background:#1d3034;color:var(--ink)}input,select,textarea{background:#263b3f;color:var(--ink);border-color:#496064}</text> }</style>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
-    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>Edu<span>Helpdesk</span></span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><button class="button button-primary header-job-button" type="button" onclick="openBlade('global-new-job')">＋ Log a job</button><span class="workspace-label">Technician workspace</span></header>
+    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><button class="button button-primary header-job-button" type="button" onclick="openBlade('global-new-job')">＋ Log a job</button><span class="workspace-label">Technician workspace</span></header>
     <main class="shell">@RenderBody()</main>
     <footer class="footer">EduHelpdesk · Local technician operations</footer>
     <div class="blade-backdrop" id="global-new-job"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW WORK ITEM</p><h2>Log a technician job</h2>

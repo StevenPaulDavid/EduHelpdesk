@@ -14,6 +14,7 @@ public sealed class HelpdeskStore
         _path = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.json");
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         _data = Load();
+        _data.Branding ??= new BrandingSettings();
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {
             Seed();
@@ -24,6 +25,7 @@ public sealed class HelpdeskStore
     public IReadOnlyList<TechnicianRecord> Technicians { get { lock (_sync) return _data.Technicians; } }
     public IReadOnlyList<AssetRecord> Assets { get { lock (_sync) return _data.Assets; } }
     public IReadOnlyList<TicketRecord> Tickets { get { lock (_sync) return _data.Tickets.OrderByDescending(x => x.Number).ToList(); } }
+    public BrandingSettings Branding { get { lock (_sync) return _data.Branding; } }
 
     public void AddUser(UserRecord item) { lock (_sync) { _data.Users.Add(item); Save(); } }
     public void AddTechnician(TechnicianRecord item) { lock (_sync) { _data.Technicians.Add(item); Save(); } }
@@ -33,6 +35,7 @@ public sealed class HelpdeskStore
     public bool UpdateTechnician(TechnicianRecord item) => Update(item, _data.Technicians, x => x.Id == item.Id);
     public bool UpdateAsset(AssetRecord item) => Update(item, _data.Assets, x => x.Id == item.Id);
     public bool UpdateTicket(TicketRecord item) => Update(item, _data.Tickets, x => x.Number == item.Number);
+    public void UpdateBranding(BrandingSettings item) { lock (_sync) { _data.Branding = item; Save(); } }
 
     public string? DeleteAsset(Guid id)
     {
@@ -117,5 +120,6 @@ public sealed class HelpdeskStore
         public List<AssetRecord> Assets { get; set; } = [];
         public List<TicketRecord> Tickets { get; set; } = [];
         public int LastTicketNumber { get; set; } = 1000;
+        public BrandingSettings Branding { get; set; } = new();
     }
 }

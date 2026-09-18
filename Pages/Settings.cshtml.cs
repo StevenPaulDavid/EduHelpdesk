@@ -7,11 +7,25 @@ namespace EduHelpdesk.Pages;
 
 public class SettingsModel(HelpdeskStore store) : PageModel
 {
+    [BindProperty] public BrandingSettings Branding { get; set; } = new();
     [BindProperty] public IFormFile? UserCsv { get; set; }
     [BindProperty] public IFormFile? TechnicianCsv { get; set; }
     [TempData] public string? Message { get; set; }
 
-    public void OnGet() { }
+    public void OnGet() => Branding = store.Branding;
+
+    public IActionResult OnPostSaveBranding()
+    {
+        if (!Hex(Branding.PrimaryColor) || !Hex(Branding.AccentColor) || !Hex(Branding.BackgroundColor))
+        {
+            Message = "Colours must be valid six-digit hex values, such as #067A78.";
+            Branding = store.Branding;
+            return Page();
+        }
+        store.UpdateBranding(Branding);
+        Message = "Branding saved.";
+        return RedirectToPage();
+    }
 
     public async Task<IActionResult> OnPostImportUsersAsync()
     {
@@ -44,4 +58,5 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     }
 
     private static bool Mail(string value) => value.Contains('@', StringComparison.Ordinal) && value.Contains('.', StringComparison.Ordinal);
+    private static bool Hex(string value) => System.Text.RegularExpressions.Regex.IsMatch(value ?? "", "^#[0-9A-Fa-f]{6}$");
 }

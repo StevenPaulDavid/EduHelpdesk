@@ -15,3 +15,15 @@ public record TicketRecord(
     string Category,
     DateTime CreatedAt,
     DateTime? ClosedAt);
+
+public sealed class BrandingSettings
+{
+    public string BrandName { get; set; } = "EduHelpdesk";
+    public string DashboardEyebrow { get; set; } = "EDUHELPDESK / TECHNICIAN WORKSPACE";
+    public string DashboardTitle { get; set; } = "Keep every school device moving.";
+    public string DashboardDescription { get; set; } = "Log jobs, link them to assets, and keep a complete repair history without exposing a staff-facing portal.";
+    public string PrimaryColor { get; set; } = "#067A78";
+    public string AccentColor { get; set; } = "#E8F0EF";
+    public string BackgroundColor { get; set; } = "#F5F8F8";
+    public bool DarkMode { get; set; }
+}

@@ -12,6 +12,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
+    public BrandingSettings Branding => store.Branding;
     public int OpenTickets => Tickets.Count(x => x.Status is not "Closed");
     [BindProperty] public TicketInput Ticket { get; set; } = new();
     [TempData] public string? Message { get; set; }

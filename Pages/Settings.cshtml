@@ -5,9 +5,22 @@
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Directory imports</h1><p class="hero-copy">Import existing school records from CSV files. Manual user creation is available on the People page.</p></div>
+    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>System settings</h1><p class="hero-copy">Brand the dashboard and import existing school directory records.</p></div>
     <a class="button button-secondary" asp-page="/Index">← Back to workspace</a>
 </div>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">BRANDING</p><h2>Dashboard appearance</h2></div></div>
+    <form method="post" asp-page-handler="SaveBranding" class="settings-form branding-form">
+        <label>Brand name<input asp-for="Branding.BrandName" /></label>
+        <label>Dashboard eyebrow<input asp-for="Branding.DashboardEyebrow" /></label>
+        <label>Dashboard title<input asp-for="Branding.DashboardTitle" /></label>
+        <label>Dashboard description<textarea asp-for="Branding.DashboardDescription" rows="3"></textarea></label>
+        <div class="color-grid"><label>Primary colour<input asp-for="Branding.PrimaryColor" type="text" pattern="^#[0-9A-Fa-f]{6}$" placeholder="#067A78" /></label><label>Accent colour<input asp-for="Branding.AccentColor" type="text" pattern="^#[0-9A-Fa-f]{6}$" placeholder="#E8F0EF" /></label><label>Background colour<input asp-for="Branding.BackgroundColor" type="text" pattern="^#[0-9A-Fa-f]{6}$" placeholder="#F5F8F8" /></label></div>
+        <label class="toggle-label"><input asp-for="Branding.DarkMode" type="checkbox" /> Enable dark mode</label>
+        <button class="button button-primary" type="submit">Save branding</button>
+    </form>
+</section>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="grid two">
