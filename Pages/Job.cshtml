@@ -6,7 +6,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / JOB DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
-    <div class="heading-actions no-print"><button class="button button-secondary" type="button" onclick="window.print()">🖨 Print job</button><a class="button button-secondary" asp-page="/Index">← Back to jobs</a></div>
+    <div class="heading-actions no-print">@if (Model.Ticket.Status != "Closed") { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }<button class="button button-secondary" type="button" onclick="window.print()">🖨 Print job</button><a class="button button-secondary" asp-page="/Index">← Back to jobs</a></div>
 </div>
 <div class="print-brand"><span class="brand-mark">EH</span><strong>@(Model.ViewData["Title"]?.ToString()?.Split('·').LastOrDefault()?.Trim() ?? "EduHelpdesk")</strong><span>Job record</span></div>
 @if (!string.IsNullOrWhiteSpace(Model.TemplateHtml)) { <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div> }

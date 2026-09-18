@@ -74,4 +74,24 @@ public class JobModel(HelpdeskStore store) : PageModel
         Message = "Job updated.";
         return RedirectToPage(new { number });
     }
+
+    public IActionResult OnPostClose(int number)
+    {
+        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
+        if (ticket is null) return NotFound();
+
+        if (ticket.Status == "Closed")
+        {
+            Message = "Job is already closed.";
+            return RedirectToPage(new { number });
+        }
+
+        store.UpdateTicket(ticket with
+        {
+            Status = "Closed",
+            ClosedAt = ticket.ClosedAt ?? DateTime.UtcNow
+        });
+        Message = "Job closed.";
+        return RedirectToPage(new { number });
+    }
 }
