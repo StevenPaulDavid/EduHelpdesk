@@ -10,7 +10,7 @@
         <h1>Keep every school device moving.</h1>
         <p class="hero-copy">Log jobs, link them to assets, and keep a complete repair history without exposing a staff-facing portal.</p>
     </div>
-    <a class="button button-primary" href="#new-job">＋ Log a job</a>
+    <button class="button button-primary" type="button" onclick="openBlade('new-job')">＋ Log a job</button>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -22,31 +22,8 @@
     <div class="metric"><span>Technicians</span><strong>@Model.Technicians.Count</strong><small>Can log and own jobs</small></div>
 </div>
 
-<div class="grid two">
-    <section class="panel" id="new-job">
-        <div class="panel-heading"><div><p class="eyebrow">NEW WORK ITEM</p><h2>Log a technician job</h2></div></div>
-        <form method="post" asp-page-handler="CreateTicket" class="form-grid">
-            <label>Requester <select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select><span asp-validation-for="Ticket.RequesterId" class="field-error"></span></label>
-            <label>Assigned technician <select asp-for="Ticket.TechnicianId" required><option value="">Select technician…</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select><span asp-validation-for="Ticket.TechnicianId" class="field-error"></span></label>
-            <label class="full">Job title <input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
-            <label>Asset <select asp-for="Ticket.AssetId"><option value="">No asset / general request</option>@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label>
-            <label>Priority <select asp-for="Ticket.Priority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></label>
-            <label>Category <select asp-for="Ticket.Category"><option>Hardware</option><option>Software</option><option>Account</option><option>Network</option><option>Classroom AV</option><option>Other</option></select></label>
-            <label class="full">Description <textarea asp-for="Ticket.Description" rows="4" placeholder="Symptoms, checks already completed, and next action…" required></textarea></label>
-            <div asp-validation-summary="All" class="field-error full"></div>
-            <button class="button button-primary full" type="submit">Create job</button>
-        </form>
-    </section>
-
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">DATA SETUP</p><h2>Asset register</h2></div><a class="button button-secondary" asp-page="/Assets">Manage assets</a></div>
-        <p class="muted">Create, edit, assign, and review equipment from the asset register.</p>
-        <a class="button button-primary" asp-page="/Assets">Open asset register</a>
-    </section>
-</div>
-
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Jobs</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Jobs</h2></div><div class="heading-actions"><span class="badge">@Model.Tickets.Count total</span><button class="button button-primary" type="button" onclick="openBlade('new-job')">＋ Log a job</button></div></div>
     <div class="table-wrap"><table><thead><tr><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody>
     @foreach (var ticket in Model.Tickets) {
         var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
@@ -57,3 +34,25 @@
     @if (Model.Tickets.Count == 0) { <tr><td colspan="7" class="empty">No jobs have been logged yet.</td></tr> }
     </tbody></table></div>
 </section>
+
+<div class="blade-backdrop" id="new-job"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW WORK ITEM</p><h2>Log a technician job</h2>
+        <form method="post" asp-page-handler="CreateTicket" class="blade-form">
+            <label>Requester <select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select><span asp-validation-for="Ticket.RequesterId" class="field-error"></span></label>
+            <label>Assigned technician <select asp-for="Ticket.TechnicianId" required><option value="">Select technician…</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select><span asp-validation-for="Ticket.TechnicianId" class="field-error"></span></label>
+            <label>Job title <input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
+            <label>Asset <select asp-for="Ticket.AssetId"><option value="">No asset / general request</option>@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select></label>
+            <label>Priority <select asp-for="Ticket.Priority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></label>
+            <label>Category <select asp-for="Ticket.Category"><option>Hardware</option><option>Software</option><option>Account</option><option>Network</option><option>Classroom AV</option><option>Other</option></select></label>
+            <label>Description <textarea asp-for="Ticket.Description" rows="4" placeholder="Symptoms, checks already completed, and next action…" required></textarea></label>
+            <div asp-validation-summary="All" class="field-error"></div>
+            <button class="button button-primary" type="submit">Create job</button>
+        </form>
+</aside></div>
+
+@section Scripts {
+<script>
+function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
+function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
+document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
+</script>
+}

@@ -14,7 +14,6 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     public int OpenTickets => Tickets.Count(x => x.Status is not "Closed");
     [BindProperty] public TicketInput Ticket { get; set; } = new();
-    [BindProperty] public AssetInput Asset { get; set; } = new();
     [TempData] public string? Message { get; set; }
 
     public void OnGet() { }
@@ -32,18 +31,5 @@ public class IndexModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
-    public IActionResult OnPostCreateAsset()
-    {
-        ModelState.Clear();
-        if (string.IsNullOrWhiteSpace(Asset.AssetTag)) ModelState.AddModelError("Asset.AssetTag", "Enter an asset tag.");
-        if (string.IsNullOrWhiteSpace(Asset.Type)) ModelState.AddModelError("Asset.Type", "Enter an asset type.");
-        if (string.IsNullOrWhiteSpace(Asset.Model)) ModelState.AddModelError("Asset.Model", "Enter an asset model.");
-        if (!ModelState.IsValid) return Page();
-        store.AddAsset(new AssetRecord(Guid.NewGuid(), Asset.AssetTag.Trim(), Asset.Type.Trim(), Asset.Model.Trim(), Asset.SerialNumber?.Trim() ?? "", Asset.Location?.Trim() ?? "", Asset.AssignedUserId));
-        Message = $"Asset {Asset.AssetTag} added to the register.";
-        return RedirectToPage();
-    }
-
     public sealed class TicketInput { [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Title { get; set; } = ""; [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Description { get; set; } = ""; public Guid RequesterId { get; set; } public Guid? AssetId { get; set; } public Guid TechnicianId { get; set; } public string Priority { get; set; } = "Normal"; public string Category { get; set; } = "Hardware"; }
-    public sealed class AssetInput { [System.ComponentModel.DataAnnotations.Required] public string AssetTag { get; set; } = ""; [System.ComponentModel.DataAnnotations.Required] public string Type { get; set; } = ""; [System.ComponentModel.DataAnnotations.Required] public string Model { get; set; } = ""; public string? SerialNumber { get; set; } public string? Location { get; set; } public Guid? AssignedUserId { get; set; } }
 }
