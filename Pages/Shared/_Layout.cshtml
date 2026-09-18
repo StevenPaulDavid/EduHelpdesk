@@ -6,8 +6,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] · @Helpdesk.Branding.BrandName</title>
-    <style>:root{--teal:@Helpdesk.Branding.PrimaryColor;--teal-dark:@Helpdesk.Branding.PrimaryColor;--paper:@Helpdesk.Branding.BackgroundColor;--accent:@Helpdesk.Branding.AccentColor}@if (Helpdesk.Branding.DarkMode) { <text>body{--ink:#e7eeee;--muted:#aabcbc;--line:#304247;--paper:#152326;background:var(--paper)}.panel,.metric,.topbar,.blade{background:#1d3034;color:var(--ink)}input,select,textarea{background:#263b3f;color:var(--ink);border-color:#496064}</text> }</style>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        :root {
+            --teal: @Helpdesk.Branding.PrimaryColor;
+            --teal-dark: @Helpdesk.Branding.PrimaryColor;
+            --paper: @Helpdesk.Branding.BackgroundColor;
+            --accent: @Helpdesk.Branding.AccentColor;
+        }
+        .button-secondary { background: var(--accent); }
+        @if (Helpdesk.Branding.DarkMode)
+        {
+            <text>
+            :root { --ink: #e7eeee; --muted: #aabcbc; --line: #304247; --paper: #152326; }
+            body { background: var(--paper); color: var(--ink); }
+            .topbar, .panel, .metric, .blade { background: #1d3034; color: var(--ink); border-color: var(--line); }
+            .topbar nav a, .workspace-label, .muted { color: var(--muted); }
+            .directory-row, td, th { border-color: var(--line); }
+            input, select, textarea { background: #263b3f; color: var(--ink); border-color: #496064; }
+            .brand > span:last-child span, .topbar nav a:hover { color: var(--teal); }
+            </text>
+        }
+    </style>
 </head>
 <body>
     <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><button class="button button-primary header-job-button" type="button" onclick="openBlade('global-new-job')">＋ Log a job</button><span class="workspace-label">Technician workspace</span></header>
