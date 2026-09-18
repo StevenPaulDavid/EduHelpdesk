@@ -15,8 +15,9 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public int OpenTickets => Tickets.Count(x => x.Status is not "Closed");
     [BindProperty] public TicketInput Ticket { get; set; } = new();
     [TempData] public string? Message { get; set; }
+    public bool OpenJobBlade { get; private set; }
 
-    public void OnGet() { }
+    public void OnGet(bool openJob = false) => OpenJobBlade = openJob;
 
     public IActionResult OnPostCreateTicket()
     {

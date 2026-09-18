@@ -10,7 +10,6 @@
         <h1>Keep every school device moving.</h1>
         <p class="hero-copy">Log jobs, link them to assets, and keep a complete repair history without exposing a staff-facing portal.</p>
     </div>
-    <button class="button button-primary" type="button" onclick="openBlade('new-job')">＋ Log a job</button>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -23,7 +22,7 @@
 </div>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Jobs</h2></div><div class="heading-actions"><span class="badge">@Model.Tickets.Count total</span><button class="button button-primary" type="button" onclick="openBlade('new-job')">＋ Log a job</button></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">RECENT ACTIVITY</p><h2>Jobs</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
     <div class="table-wrap"><table><thead><tr><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody>
     @foreach (var ticket in Model.Tickets) {
         var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
@@ -54,5 +53,9 @@
 function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
 function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
 document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
+@if (Model.OpenJobBlade)
+{
+<text>openBlade('new-job');</text>
+}
 </script>
 }
