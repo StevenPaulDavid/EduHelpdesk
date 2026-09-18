@@ -13,7 +13,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     [TempData] public string? Message { get; set; }
 
-    public IActionResult OnPostBulkUpdate(int[] selectedNumbers, string status, Guid? technicianId)
+    public IActionResult OnPostBulkUpdate(int[] selectedNumbers, string operation, string? status, Guid? technicianId)
     {
         if (selectedNumbers.Length == 0)
         {
@@ -21,13 +21,19 @@ public class JobsModel(HelpdeskStore store) : PageModel
             return RedirectToPage();
         }
 
-        if (status is not ("Open" or "In Progress" or "On Hold" or "Closed"))
+        if (operation is not ("status" or "technician"))
+        {
+            Message = "Choose whether to update status or technician.";
+            return RedirectToPage();
+        }
+
+        if (operation == "status" && status is not ("Open" or "In Progress" or "On Hold" or "Closed"))
         {
             Message = "Select a valid status.";
             return RedirectToPage();
         }
 
-        if (technicianId.HasValue && !store.Technicians.Any(x => x.Id == technicianId.Value))
+        if (operation == "technician" && technicianId.HasValue && !store.Technicians.Any(x => x.Id == technicianId.Value))
         {
             Message = "Select a valid technician.";
             return RedirectToPage();
@@ -37,8 +43,14 @@ public class JobsModel(HelpdeskStore store) : PageModel
         var updated = 0;
         foreach (var ticket in store.Tickets.Where(x => selected.Contains(x.Number)))
         {
-            DateTime? closedAt = status == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null;
-            if (store.UpdateTicket(ticket with { Status = status, TechnicianId = technicianId, ClosedAt = closedAt }))
+            var updatedTicket = operation == "status"
+                ? ticket with
+                {
+                    Status = status!,
+                    ClosedAt = status == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null
+                }
+                : ticket with { TechnicianId = technicianId };
+            if (store.UpdateTicket(updatedTicket))
                 updated++;
         }
 

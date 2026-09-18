@@ -29,8 +29,9 @@
         </tbody></table></div>
         <div class="bulk-actions">
             <strong>Bulk update selected</strong>
-            <label>Status<select name="status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></label>
-            <label>Technician<select name="technicianId"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
+            <label>Update<select name="operation" id="bulk-operation" onchange="switchBulkOperation()"><option value="status">Status</option><option value="technician">Technician</option></select></label>
+            <label id="bulk-status-field">Status<select name="status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></label>
+            <label id="bulk-technician-field" hidden>Technician<select name="technicianId" disabled><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
             <button class="button button-primary" type="submit">Apply to selected</button>
         </div>
     </form>
@@ -48,6 +49,16 @@ function toggleAllVisible() {
     const shouldSelect = rows.some(row => !row.querySelector(".job-select").checked);
     rows.forEach(row => row.querySelector(".job-select").checked = shouldSelect);
     document.getElementById("select-all").checked = shouldSelect && rows.length > 0;
+}
+function switchBulkOperation() {
+    const statusField = document.getElementById("bulk-status-field");
+    const technicianField = document.getElementById("bulk-technician-field");
+    const technicianSelect = technicianField.querySelector("select");
+    const technicianSelected = document.getElementById("bulk-operation").value === "technician";
+    statusField.hidden = technicianSelected;
+    statusField.querySelector("select").disabled = technicianSelected;
+    technicianField.hidden = !technicianSelected;
+    technicianSelect.disabled = !technicianSelected;
 }
 </script>
 }
