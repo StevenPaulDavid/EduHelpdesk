@@ -30,7 +30,7 @@
     </style>
 </head>
 <body>
-    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><button class="button button-primary header-job-button" type="button" onclick="openBlade('global-new-job')">＋ Log a job</button><span class="workspace-label">Technician workspace</span></header>
+    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div><nav><a asp-page="/Index">Workspace</a><a asp-page="/Jobs">Jobs</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Settings">Settings</a></nav><button class="button button-primary header-job-button" type="button" onclick="openBlade('global-new-job')">＋ Log a job</button><span class="workspace-label">Technician workspace</span></header>
     <main class="shell">@RenderBody()</main>
     <footer class="footer">EduHelpdesk · Local technician operations</footer>
     <div class="blade-backdrop" id="global-new-job"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW WORK ITEM</p><h2>Log a technician job</h2>

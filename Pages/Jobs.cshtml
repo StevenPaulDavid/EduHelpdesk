@@ -1,0 +1,53 @@
+@page
+@model JobsModel
+@{
+    ViewData["Title"] = "Jobs";
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / JOBS</p><h1>Jobs</h1><p class="hero-copy">Filter, select, and update multiple jobs at once.</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Workspace</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">JOB REGISTER</p><h2>All jobs</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
+    <div class="jobs-toolbar">
+        <label>Status filter<select id="job-status-filter" onchange="filterJobs()"><option value="All">All statuses</option><option value="Open" selected>Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></label>
+        <button class="button button-secondary" type="button" onclick="toggleAllVisible()">Select visible</button>
+    </div>
+    <form method="post" asp-page-handler="BulkUpdate">
+        <div class="table-wrap"><table><thead><tr><th><input id="select-all" type="checkbox" aria-label="Select all visible jobs" onchange="toggleAllVisible()" /></th><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody id="jobs-body">
+        @foreach (var ticket in Model.Tickets)
+        {
+            var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
+            var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
+            var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
+            <tr class="clickable-row job-filter-row" data-status="@ticket.Status" onclick="if(event.target.type !== 'checkbox') window.location.href='/Job?number=@ticket.Number'"><td><input class="job-select" type="checkbox" name="selectedNumbers" value="@ticket.Number" aria-label="Select job @ticket.Number" onclick="event.stopPropagation()" /></td><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@(tech?.Name ?? "Unassigned")</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+        }
+        @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No jobs have been logged yet.</td></tr> }
+        </tbody></table></div>
+        <div class="bulk-actions">
+            <strong>Bulk update selected</strong>
+            <label>Status<select name="status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></label>
+            <label>Technician<select name="technicianId"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
+            <button class="button button-primary" type="submit">Apply to selected</button>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+<script>
+function filterJobs() {
+    const filter = document.getElementById("job-status-filter").value;
+    document.querySelectorAll(".job-filter-row").forEach(row => row.style.display = filter === "All" || row.dataset.status === filter ? "" : "none");
+    document.getElementById("select-all").checked = false;
+}
+function toggleAllVisible() {
+    const rows = [...document.querySelectorAll(".job-filter-row")].filter(row => row.style.display !== "none");
+    const shouldSelect = rows.some(row => !row.querySelector(".job-select").checked);
+    rows.forEach(row => row.querySelector(".job-select").checked = shouldSelect);
+    document.getElementById("select-all").checked = shouldSelect && rows.length > 0;
+}
+</script>
+}

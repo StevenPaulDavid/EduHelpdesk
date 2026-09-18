@@ -1,0 +1,48 @@
+using EduHelpdesk.Models;
+using EduHelpdesk.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace EduHelpdesk.Pages;
+
+public class JobsModel(HelpdeskStore store) : PageModel
+{
+    public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
+    public IReadOnlyList<UserRecord> Users => store.Users;
+    public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
+    public IReadOnlyList<AssetRecord> Assets => store.Assets;
+    [TempData] public string? Message { get; set; }
+
+    public IActionResult OnPostBulkUpdate(int[] selectedNumbers, string status, Guid? technicianId)
+    {
+        if (selectedNumbers.Length == 0)
+        {
+            Message = "Select at least one job.";
+            return RedirectToPage();
+        }
+
+        if (status is not ("Open" or "In Progress" or "On Hold" or "Closed"))
+        {
+            Message = "Select a valid status.";
+            return RedirectToPage();
+        }
+
+        if (technicianId.HasValue && !store.Technicians.Any(x => x.Id == technicianId.Value))
+        {
+            Message = "Select a valid technician.";
+            return RedirectToPage();
+        }
+
+        var selected = selectedNumbers.ToHashSet();
+        var updated = 0;
+        foreach (var ticket in store.Tickets.Where(x => selected.Contains(x.Number)))
+        {
+            DateTime? closedAt = status == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null;
+            if (store.UpdateTicket(ticket with { Status = status, TechnicianId = technicianId, ClosedAt = closedAt }))
+                updated++;
+        }
+
+        Message = $"{updated} job{(updated == 1 ? "" : "s")} updated.";
+        return RedirectToPage();
+    }
+}
