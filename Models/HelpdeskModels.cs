@@ -9,7 +9,7 @@ public record TicketRecord(
     string Description,
     Guid RequesterId,
     Guid? AssetId,
-    Guid TechnicianId,
+    Guid? TechnicianId,
     string Priority,
     string Status,
     string Category,

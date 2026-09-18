@@ -45,7 +45,8 @@ public class JobModel(HelpdeskStore store) : PageModel
         }
         else if (field == "technician")
         {
-            if (!Guid.TryParse(value, out var technicianId) || !store.Technicians.Any(x => x.Id == technicianId))
+            Guid? technicianId = string.IsNullOrWhiteSpace(value) ? null : Guid.TryParse(value, out var parsedTechnicianId) ? parsedTechnicianId : null;
+            if (technicianId.HasValue && !store.Technicians.Any(x => x.Id == technicianId.Value))
             {
                 Message = "Select a valid technician.";
                 return RedirectToPage(new { number });

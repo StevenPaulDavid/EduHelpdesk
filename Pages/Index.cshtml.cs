@@ -31,5 +31,5 @@ public class IndexModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
-    public sealed class TicketInput { [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Title { get; set; } = ""; [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Description { get; set; } = ""; public Guid RequesterId { get; set; } public Guid? AssetId { get; set; } public Guid TechnicianId { get; set; } public string Priority { get; set; } = "Normal"; public string Category { get; set; } = "Hardware"; }
+    public sealed class TicketInput { [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Title { get; set; } = ""; [BindProperty, System.ComponentModel.DataAnnotations.Required] public string Description { get; set; } = ""; public Guid RequesterId { get; set; } public Guid? AssetId { get; set; } public Guid? TechnicianId { get; set; } public string Priority { get; set; } = "Normal"; public string Category { get; set; } = "Hardware"; }
 }
