@@ -10,6 +10,7 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
+    public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() { }
