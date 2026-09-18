@@ -53,7 +53,7 @@ public sealed class HelpdeskStore
     {
         if (!File.Exists(_templatePath)) return string.Empty;
         using var document = WordprocessingDocument.Open(_templatePath, false);
-        var body = document.MainDocumentPart?.Document.Body;
+        var body = document.MainDocumentPart?.Document?.Body;
         if (body is null) return string.Empty;
         var values = new Dictionary<string, string?>
         {
