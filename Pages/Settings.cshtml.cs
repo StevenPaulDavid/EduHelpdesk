@@ -37,6 +37,12 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public IActionResult OnPostUpdateTechnicianTeam(string currentTeam, string team)
+    {
+        Message = store.UpdateTechnicianTeam(currentTeam, team);
+        return RedirectToPage();
+    }
+
     public IActionResult OnPostUploadPrintTemplate()
     {
         if (PrintTemplate is null || PrintTemplate.Length == 0 || !Path.GetExtension(PrintTemplate.FileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))

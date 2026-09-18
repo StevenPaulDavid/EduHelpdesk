@@ -55,6 +55,29 @@ public sealed class HelpdeskStore
             return "Technician team added.";
         }
     }
+    public string UpdateTechnicianTeam(string currentTeam, string team)
+    {
+        lock (_sync)
+        {
+            var oldValue = currentTeam.Trim();
+            var newValue = team.Trim();
+            if (string.IsNullOrWhiteSpace(newValue)) return "Team name is required.";
+            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase))
+                return "Technician team updated.";
+            if (_data.TechnicianTeams.Contains(newValue, StringComparer.OrdinalIgnoreCase))
+                return "That team already exists.";
+            var index = _data.TechnicianTeams.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return "Technician team was not found.";
+            _data.TechnicianTeams[index] = newValue;
+            for (var i = 0; i < _data.Technicians.Count; i++)
+            {
+                if (string.Equals(_data.Technicians[i].Team, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.Technicians[i] = _data.Technicians[i] with { Team = newValue };
+            }
+            Save();
+            return "Technician team updated.";
+        }
+    }
     public void AddAsset(AssetRecord item) { lock (_sync) { _data.Assets.Add(item); Save(); } }
     public int AddTicket(TicketRecord item) { lock (_sync) { var number = ++_data.LastTicketNumber; _data.Tickets.Add(item with { Number = number }); Save(); return number; } }
     public bool UpdateUser(UserRecord item) => Update(item, _data.Users, x => x.Id == item.Id);

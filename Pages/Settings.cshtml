@@ -23,13 +23,17 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technician teams</h2></div><span class="badge">@Model.TechnicianTeams.Count</span></div>
-    <p class="muted">Add the teams available when creating or editing technicians.</p>
-    <form method="post" asp-page-handler="AddTechnicianTeam" class="settings-form">
-        <label>Team name<input name="team" required /></label>
-        <button class="button button-primary" type="submit">Add team</button>
-    </form>
+    <div class="panel-heading"><div><p class="eyebrow">JOB OWNERS</p><h2>Technician teams</h2></div><div class="heading-actions"><span class="badge">@Model.TechnicianTeams.Count</span><button class="button button-primary" type="button" onclick="openBlade('team-list')">Manage teams</button></div></div>
+    <p class="muted">Manage the teams available when creating or editing technicians.</p>
 </section>
+
+<div class="blade-backdrop" id="add-team"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW TEAM</p><h2>Add team</h2><form method="post" asp-page-handler="AddTechnicianTeam" class="blade-form"><label>Team name<input name="team" required /></label><button class="button button-primary" type="submit">Add team</button></form></aside></div>
+@for (var index = 0; index < Model.TechnicianTeams.Count; index++)
+{
+    var team = Model.TechnicianTeams[index];
+    <div class="blade-backdrop" id="edit-team-@index"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT TEAM</p><h2>@team</h2><form method="post" asp-page-handler="UpdateTechnicianTeam" class="blade-form"><input type="hidden" name="currentTeam" value="@team" /><label>Team name<input name="team" value="@team" required /></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+}
+<div class="blade-backdrop" id="team-list"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">TECHNICIAN TEAMS</p><h2>Teams</h2><button class="button button-primary" type="button" onclick="openBlade('add-team')">＋ Add team</button><div class="directory-list">@for (var index = 0; index < Model.TechnicianTeams.Count; index++) { var team = Model.TechnicianTeams[index]; <div class="directory-row"><strong>@team</strong><button class="icon-button" type="button" title="Edit @team" aria-label="Edit @team" onclick="openBlade('edit-team-@index')">✎</button></div> }</div></aside></div>
 
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">PRINTING</p><h2>Word print template</h2></div><span class="badge">@(Model.HasPrintTemplate ? "Uploaded" : "Built-in")</span></div>
