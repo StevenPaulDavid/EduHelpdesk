@@ -21,6 +21,12 @@
         <button class="button button-primary" type="submit">Save branding</button>
     </form>
 </section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">PRINTING</p><h2>Word print template</h2></div><span class="badge">@(Model.HasPrintTemplate ? "Uploaded" : "Built-in")</span></div>
+    <p class="muted">Upload a .docx template to replace the built-in print layout. Add placeholders as plain text in Word; the matching values are filled in when a job is printed.</p>
+    <form method="post" enctype="multipart/form-data" asp-page-handler="UploadPrintTemplate" class="settings-form"><label>Word document<input type="file" asp-for="PrintTemplate" accept=".docx" required /></label><code>{{Job.Number}} · {{Job.Title}} · {{Job.Description}} · {{Job.Status}} · {{Job.Priority}} · {{Job.Category}} · {{Requester.Name}} · {{Technician.Name}} · {{Asset.Tag}}</code><button class="button button-primary" type="submit">Upload print template</button></form>
+</section>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="grid two">

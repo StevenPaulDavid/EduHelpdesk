@@ -9,6 +9,7 @@
     <div class="heading-actions no-print"><button class="button button-secondary" type="button" onclick="window.print()">🖨 Print job</button><a class="button button-secondary" asp-page="/Index">← Back to jobs</a></div>
 </div>
 <div class="print-brand"><span class="brand-mark">EH</span><strong>@(Model.ViewData["Title"]?.ToString()?.Split('·').LastOrDefault()?.Trim() ?? "EduHelpdesk")</strong><span>Job record</span></div>
+@if (!string.IsNullOrWhiteSpace(Model.TemplateHtml)) { <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div> }
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="job-detail-grid">

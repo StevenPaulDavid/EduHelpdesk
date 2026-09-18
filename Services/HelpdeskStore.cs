@@ -1,5 +1,9 @@
 using System.Text.Json;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using EduHelpdesk.Models;
+using System.Net;
+using System.Text;
 
 namespace EduHelpdesk.Services;
 
@@ -8,10 +12,12 @@ public sealed class HelpdeskStore
     private readonly string _path;
     private readonly object _sync = new();
     private StoreData _data;
+    private readonly string _templatePath;
 
     public HelpdeskStore(IHostEnvironment environment)
     {
         _path = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.json");
+        _templatePath = Path.Combine(environment.ContentRootPath, "App_Data", "print-template.docx");
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         _data = Load();
         _data.Branding ??= new BrandingSettings();
@@ -26,6 +32,7 @@ public sealed class HelpdeskStore
     public IReadOnlyList<AssetRecord> Assets { get { lock (_sync) return _data.Assets; } }
     public IReadOnlyList<TicketRecord> Tickets { get { lock (_sync) return _data.Tickets.OrderByDescending(x => x.Number).ToList(); } }
     public BrandingSettings Branding { get { lock (_sync) return _data.Branding; } }
+    public bool HasPrintTemplate => File.Exists(_templatePath);
 
     public void AddUser(UserRecord item) { lock (_sync) { _data.Users.Add(item); Save(); } }
     public void AddTechnician(TechnicianRecord item) { lock (_sync) { _data.Technicians.Add(item); Save(); } }
@@ -36,6 +43,52 @@ public sealed class HelpdeskStore
     public bool UpdateAsset(AssetRecord item) => Update(item, _data.Assets, x => x.Id == item.Id);
     public bool UpdateTicket(TicketRecord item) => Update(item, _data.Tickets, x => x.Number == item.Number);
     public void UpdateBranding(BrandingSettings item) { lock (_sync) { _data.Branding = item; Save(); } }
+    public void SavePrintTemplate(Stream source)
+    {
+        using var destination = File.Create(_templatePath);
+        source.CopyTo(destination);
+    }
+
+    public string RenderPrintTemplate(TicketRecord ticket, UserRecord? requester, TechnicianRecord? technician, AssetRecord? asset)
+    {
+        if (!File.Exists(_templatePath)) return string.Empty;
+        using var document = WordprocessingDocument.Open(_templatePath, false);
+        var body = document.MainDocumentPart?.Document.Body;
+        if (body is null) return string.Empty;
+        var values = new Dictionary<string, string?>
+        {
+            ["{{Job.Number}}"] = ticket.Number.ToString(),
+            ["{{Job.Title}}"] = ticket.Title,
+            ["{{Job.Description}}"] = ticket.Description,
+            ["{{Job.Status}}"] = ticket.Status,
+            ["{{Job.Priority}}"] = ticket.Priority,
+            ["{{Job.Category}}"] = ticket.Category,
+            ["{{Job.Created}}"] = ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm"),
+            ["{{Job.Closed}}"] = ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed",
+            ["{{Requester.Name}}"] = requester?.Name ?? "Unknown",
+            ["{{Requester.Email}}"] = requester?.Email ?? "",
+            ["{{Requester.Department}}"] = requester?.Department ?? "",
+            ["{{Requester.Location}}"] = requester?.Location ?? "",
+            ["{{Technician.Name}}"] = technician?.Name ?? "Unassigned",
+            ["{{Technician.Email}}"] = technician?.Email ?? "",
+            ["{{Technician.Team}}"] = technician?.Team ?? "",
+            ["{{Asset.Tag}}"] = asset?.AssetTag ?? "No asset linked",
+            ["{{Asset.Type}}"] = asset?.Type ?? "",
+            ["{{Asset.Model}}"] = asset?.Model ?? "",
+            ["{{Asset.Serial}}"] = asset?.SerialNumber ?? "",
+            ["{{Asset.Location}}"] = asset?.Location ?? ""
+        };
+        var html = new StringBuilder();
+        foreach (var element in body.Elements())
+        {
+            var content = element.InnerText;
+            foreach (var value in values) content = content.Replace(value.Key, value.Value ?? "", StringComparison.OrdinalIgnoreCase);
+            var encoded = WebUtility.HtmlEncode(content);
+            if (element is Table) html.Append($"<div class=\"template-table\">{encoded}</div>");
+            else if (!string.IsNullOrWhiteSpace(encoded)) html.Append($"<p>{encoded}</p>");
+        }
+        return html.ToString();
+    }
 
     public string? DeleteAsset(Guid id)
     {

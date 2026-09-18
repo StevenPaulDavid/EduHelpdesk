@@ -13,6 +13,7 @@ public class JobModel(HelpdeskStore store) : PageModel
     public AssetRecord? Asset { get; private set; }
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
+    public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
     public IActionResult OnGet(int number)
@@ -22,6 +23,7 @@ public class JobModel(HelpdeskStore store) : PageModel
         Requester = store.Users.FirstOrDefault(x => x.Id == Ticket.RequesterId);
         Technician = store.Technicians.FirstOrDefault(x => x.Id == Ticket.TechnicianId);
         Asset = store.Assets.FirstOrDefault(x => x.Id == Ticket.AssetId);
+        TemplateHtml = store.RenderPrintTemplate(Ticket, Requester, Technician, Asset);
         return Page();
     }
 

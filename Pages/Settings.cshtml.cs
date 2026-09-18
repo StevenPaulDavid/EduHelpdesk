@@ -10,6 +10,8 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     [BindProperty] public BrandingSettings Branding { get; set; } = new();
     [BindProperty] public IFormFile? UserCsv { get; set; }
     [BindProperty] public IFormFile? TechnicianCsv { get; set; }
+    [BindProperty] public IFormFile? PrintTemplate { get; set; }
+    public bool HasPrintTemplate => store.HasPrintTemplate;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() => Branding = store.Branding;
@@ -22,8 +24,22 @@ public class SettingsModel(HelpdeskStore store) : PageModel
             Branding = store.Branding;
             return Page();
         }
+
         store.UpdateBranding(Branding);
         Message = "Branding saved.";
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostUploadPrintTemplate()
+    {
+        if (PrintTemplate is null || PrintTemplate.Length == 0 || !Path.GetExtension(PrintTemplate.FileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))
+        {
+            Message = "Choose a .docx Word document.";
+            return RedirectToPage();
+        }
+        using var stream = PrintTemplate.OpenReadStream();
+        store.SavePrintTemplate(stream);
+        Message = "Print template uploaded.";
         return RedirectToPage();
     }
 
