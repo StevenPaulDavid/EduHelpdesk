@@ -6,7 +6,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / JOB DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Back to jobs</a><button class="icon-button" type="button" title="Edit job" aria-label="Edit job" onclick="openBlade('edit-job')">✎</button></div>
+    <a class="button button-secondary" asp-page="/Index">← Back to jobs</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
