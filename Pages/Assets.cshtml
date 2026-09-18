@@ -1,0 +1,35 @@
+@page
+@model AssetsModel
+@{
+    ViewData["Title"] = "Assets";
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / ASSET REGISTER</p><h1>Assets</h1><p class="hero-copy">Track school equipment and keep its ticket history connected.</p></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Workspace</a><button class="button button-primary" type="button" onclick="openBlade('add-asset')">＋ Add asset</button></div>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><span class="badge">@Model.Assets.Count</span></div>
+    <div class="directory-list">
+    @foreach (var asset in Model.Assets)
+    {
+        var owner = Model.Users.FirstOrDefault(x => x.Id == asset.AssignedUserId);
+        <div class="directory-row"><div class="directory-person"><div class="avatar asset-avatar">▣</div><div><strong>@asset.AssetTag · @asset.Type</strong><span>@asset.Model · @asset.SerialNumber · @(owner?.Name ?? "Unassigned") · @asset.Location</span></div></div><div class="row-actions"><button class="icon-button" type="button" title="Edit asset" aria-label="Edit @asset.AssetTag" onclick="openBlade('edit-asset-@asset.Id')">✎</button><button class="icon-button delete-icon" type="button" title="Delete asset" aria-label="Delete @asset.AssetTag" onclick="openBlade('delete-asset-@asset.Id')">♜</button></div></div>
+        <div class="blade-backdrop" id="edit-asset-@asset.Id"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">EDIT ASSET</p><h2>@asset.AssetTag</h2><form method="post" asp-page-handler="SaveAsset" class="blade-form"><input type="hidden" name="id" value="@asset.Id" /><label>Asset tag<input name="assetTag" value="@asset.AssetTag" required /></label><label>Type<input name="type" value="@asset.Type" required /></label><label>Model<input name="model" value="@asset.Model" required /></label><label>Serial number<input name="serialNumber" value="@asset.SerialNumber" /></label><label>Location<input name="location" value="@asset.Location" /></label><label>Assigned user<select name="assignedUserId"><option value="">Unassigned</option>@foreach (var user in Model.Users) { if (user.Id == asset.AssignedUserId) { <option value="@user.Id" selected>@user.Name</option> } else { <option value="@user.Id">@user.Name</option> } }</select></label><button class="button button-primary" type="submit">Save changes</button></form></aside></div>
+        <div class="blade-backdrop" id="delete-asset-@asset.Id"><aside class="blade warning-blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><div class="warning-symbol">!</div><p class="eyebrow">DELETE ASSET</p><h2>Are you sure?</h2><p class="muted">Delete <strong>@asset.AssetTag</strong>? Assets linked to tickets cannot be removed.</p><div class="blade-actions"><button class="button button-secondary" type="button" onclick="closeBlades()">Cancel</button><form method="post" asp-page-handler="DeleteAsset"><input type="hidden" name="id" value="@asset.Id" /><button class="button button-danger" type="submit">Delete asset</button></form></div></aside></div>
+    }
+    @if (Model.Assets.Count == 0) { <p class="empty">No assets have been added yet.</p> }
+    </div>
+</section>
+
+<div class="blade-backdrop" id="add-asset"><aside class="blade"><button class="blade-close" type="button" onclick="closeBlades()">×</button><p class="eyebrow">NEW ASSET</p><h2>Add asset</h2><form method="post" asp-page-handler="AddAsset" class="blade-form"><label>Asset tag<input name="assetTag" placeholder="LT-1002" required /></label><label>Type<input name="type" placeholder="Laptop" required /></label><label>Model<input name="model" required /></label><label>Serial number<input name="serialNumber" /></label><label>Location<input name="location" /></label><label>Assigned user<select name="assignedUserId"><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name</option> }</select></label><button class="button button-primary" type="submit">Add asset</button></form></aside></div>
+
+@section Scripts {
+<script>
+function openBlade(id){ closeBlades(); document.getElementById(id).classList.add("open"); }
+function closeBlades(){ document.querySelectorAll(".blade-backdrop.open").forEach(x => x.classList.remove("open")); }
+document.addEventListener("click", e => { if (e.target.classList.contains("blade-backdrop")) closeBlades(); });
+</script>
+}

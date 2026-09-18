@@ -31,6 +31,21 @@ public sealed class HelpdeskStore
     public int AddTicket(TicketRecord item) { lock (_sync) { var number = ++_data.LastTicketNumber; _data.Tickets.Add(item with { Number = number }); Save(); return number; } }
     public bool UpdateUser(UserRecord item) => Update(item, _data.Users, x => x.Id == item.Id);
     public bool UpdateTechnician(TechnicianRecord item) => Update(item, _data.Technicians, x => x.Id == item.Id);
+    public bool UpdateAsset(AssetRecord item) => Update(item, _data.Assets, x => x.Id == item.Id);
+
+    public string? DeleteAsset(Guid id)
+    {
+        lock (_sync)
+        {
+            if (_data.Tickets.Any(x => x.AssetId == id))
+                return "This asset is linked to a ticket and cannot be deleted.";
+            var item = _data.Assets.FirstOrDefault(x => x.Id == id);
+            if (item is null) return "Asset was not found.";
+            _data.Assets.Remove(item);
+            Save();
+            return null;
+        }
+    }
 
     public string? DeleteUser(Guid id)
     {
