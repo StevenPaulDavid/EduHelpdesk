@@ -32,7 +32,7 @@
     </style>
 </head>
 <body>
-    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div><nav><a asp-page="/Index">Overview</a><a asp-page="/Jobs">Tickets</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Suppliers">Suppliers</a><a asp-page="/Settings">Settings</a></nav><a class="button button-primary header-job-button" asp-page="/NewTicket">＋ Log a ticket</a><span class="workspace-label">Technician overview</span></header>
+    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div><nav><a asp-page="/Index">Overview</a><a asp-page="/Jobs">Tickets</a><a asp-page="/People">People</a><a asp-page="/Assets">Assets</a><a asp-page="/Parts">Parts</a><a asp-page="/Suppliers">Suppliers</a><a asp-page="/Settings">Settings</a></nav><a class="button button-primary header-job-button" asp-page="/NewTicket">＋ Log a ticket</a><span class="workspace-label">Technician overview</span></header>
     <main class="shell">@RenderBody()</main>
     <footer class="footer">EduHelpdesk · Local technician operations</footer>
     @await RenderSectionAsync("Scripts", required: false)

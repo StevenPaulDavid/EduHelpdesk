@@ -12,6 +12,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<string> Statuses => store.Statuses;
+    public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
+    public string StatusDescriptionsJson => System.Text.Json.JsonSerializer.Serialize(StatusDescriptions).Replace("</", "<\\/");
     [TempData] public string? Message { get; set; }
 
     public IActionResult OnPostBulkUpdate(int[] selectedNumbers, string operation, string? status, Guid? technicianId)

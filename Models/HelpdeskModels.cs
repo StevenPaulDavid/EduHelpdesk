@@ -2,9 +2,17 @@ namespace EduHelpdesk.Models;
 
 public record UserRecord(Guid Id, string Name, string Email, string Department, string Location);
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team);
-public record SupplierRecord(Guid Id, string Name, string ContactName, string Email, string Phone, string AddressLine1, string AddressLine2, string City, string StateRegion, string PostalCode, string Country, string Website, string Notes, DateTime CreatedAt);
-public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, string Type, string SerialNumber, string Location, Guid? AssignedUserId, Guid? SupplierId = null);
-public record AssetAttributeDefinition(Guid Id, string Name, string AssetType, string FieldType = "single-line", string Choices = "");
+public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
+public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt);
+public record TicketPartAssignment(int TicketNumber, Guid PartId, int Quantity);
+public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, string Type, string SerialNumber, string Location, Guid? AssignedUserId, Guid? SupplierId = null)
+{
+    public List<AssetComment> Comments { get; init; } = [];
+    public List<AssetActivity> History { get; init; } = [];
+}
+public record AssetComment(string Text, DateTime CreatedAt);
+public record AssetActivity(string Action, string Details, DateTime CreatedAt);
+public record AssetAttributeDefinition(Guid Id, string Name, string? AssetType, string FieldType = "single-line", string Choices = "");
 public record AssetAttributeValue(Guid AssetId, Guid AttributeDefinitionId, string Value);
 public record SlaDefinition(Guid Id, string Name, int Duration, string DurationUnit, string? Priority = null);
 public record TicketAttributeDefinition(Guid Id, string Name, string? Category, string FieldType = "single-line", string Choices = "");
@@ -14,7 +22,7 @@ public record TicketRecord(
     string Title,
     string Description,
     Guid RequesterId,
-    Guid? AssetId,
+    IReadOnlyList<Guid> AssetIds,
     Guid? TechnicianId,
     string Priority,
     string Status,

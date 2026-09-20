@@ -16,7 +16,7 @@
     @foreach (var asset in Model.Assets)
     {
         var owner = Model.Users.FirstOrDefault(x => x.Id == asset.AssignedUserId);
-        var assetTickets = Model.Tickets.Where(x => x.AssetId == asset.Id).ToList();
+        var assetTickets = Model.Tickets.Where(x => x.AssetIds.Contains(asset.Id)).ToList();
         <div class="directory-row"><div class="directory-person"><div class="avatar asset-avatar">▣</div><div><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag · @asset.Make @asset.Model</a></strong><span>@asset.Type · @asset.SerialNumber · @(owner?.Name ?? "Unassigned") · @asset.Location</span></div></div><div class="row-actions"><span class="badge">@assetTickets.Count tickets</span><a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">✎</a><a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">♜</a></div></div>
     }
     @if (Model.Assets.Count == 0) { <p class="empty">No assets have been added yet.</p> }

@@ -14,11 +14,17 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
-    public IReadOnlyList<TicketAttributeDefinition> TicketAttributes => store.GetTicketAttributes(Ticket.Category);
+    public IReadOnlyList<TicketAttributeDefinition> TicketAttributes => store.TicketAttributeDefinitions;
     [BindProperty] public TicketInput Ticket { get; set; } = new();
     [TempData] public string? Message { get; set; }
 
-    public void OnGet() { }
+    public void OnGet()
+    {
+        if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase))
+            Ticket.Category = store.Categories.FirstOrDefault() ?? Ticket.Category;
+        if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase))
+            Ticket.Priority = store.Priorities.FirstOrDefault() ?? Ticket.Priority;
+    }
 
     public IActionResult OnPostCreateTicket()
     {
@@ -37,12 +43,13 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         var createdAt = DateTime.UtcNow;
         var selectedSla = Ticket.SlaId ?? store.SlaForPriority(Ticket.Priority);
         var dueDate = Ticket.DueDate ?? store.CalculateDueDate(selectedSla, createdAt);
+        var assetIds = (Ticket.AssetIds ?? []).Where(id => store.Assets.Any(a => a.Id == id)).Distinct().ToList();
         var number = store.AddTicket(new TicketRecord(
             0,
             Ticket.Title.Trim(),
             (Ticket.Description ?? string.Empty).Trim(),
             Ticket.RequesterId,
-            Ticket.AssetId,
+            assetIds,
             Ticket.TechnicianId,
             Ticket.Priority,
             store.Statuses.FirstOrDefault() ?? "Open",
@@ -59,7 +66,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         public string Title { get; set; } = "";
         public string Description { get; set; } = "";
         public Guid RequesterId { get; set; }
-        public Guid? AssetId { get; set; }
+        public List<Guid> AssetIds { get; set; } = [];
         public Guid? TechnicianId { get; set; }
         public string? TeamName { get; set; }
         public string Priority { get; set; } = "Normal";

@@ -1,4 +1,29 @@
 @page
-@model EduHelpdesk.Pages.Settings.OptionModel
-@{ Model.Kind = "Statuses"; ViewData["Title"] = "Statuses"; }
-<partial name="_Option" model="Model" />
+@model EduHelpdesk.Pages.Settings.StatusesModel
+@{ ViewData["Title"] = "Statuses"; }
+<div class="page-heading"><h1>Statuses</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel">
+    <form method="post" asp-page-handler="Add" class="settings-form"><label>Add status<input name="value" required /></label><button class="button button-primary">Add</button></form>
+    <div class="directory-list">
+        @foreach (var status in Model.Statuses)
+        {
+            var description = Model.Descriptions.TryGetValue(status, out var d) ? d : "";
+            <div class="directory-row status-option-row">
+                <div class="status-option-header">
+                    <strong>@status</strong>
+                    <div class="row-actions">
+                        <form method="post" asp-page-handler="Rename"><input type="hidden" name="currentValue" value="@status" /><input name="value" value="@status" required /><button class="button button-secondary">Rename</button></form>
+                        <form method="post" asp-page-handler="Delete"><input type="hidden" name="value" value="@status" /><button class="button button-danger">Delete</button></form>
+                    </div>
+                </div>
+                <form method="post" asp-page-handler="SaveDescription" class="status-description-form">
+                    <input type="hidden" name="status" value="@status" />
+                    <label>Description<textarea name="description" rows="2" placeholder="Shown under the status dropdown when this status is selected">@description</textarea></label>
+                    <button class="button button-secondary" type="submit">Save description</button>
+                </form>
+            </div>
+        }
+        @if (Model.Statuses.Count == 0) { <p class="empty">No statuses have been added yet.</p> }
+    </div>
+</section>

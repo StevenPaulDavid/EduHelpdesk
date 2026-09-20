@@ -21,6 +21,8 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyList<string> Priorities => store.Priorities;
+    public IReadOnlyList<string> RequireCloseMessagePriorities => store.RequireCloseMessagePriorities;
+    public IReadOnlyList<string> RequireCloseMessageCategories => store.RequireCloseMessageCategories;
     public IReadOnlyList<AssetAttributeDefinition> AssetAttributeDefinitions => store.AssetAttributeDefinitions;
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
     public IReadOnlyList<TicketAttributeDefinition> TicketAttributeDefinitions => store.TicketAttributeDefinitions;
@@ -99,13 +101,13 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { });
     }
 
-    public IActionResult OnPostAddAssetAttribute(string name, string assetType, string fieldType, string? choices)
+    public IActionResult OnPostAddAssetAttribute(string name, string? assetType, string fieldType, string? choices)
     {
         Message = store.AddAssetAttributeDefinition(name, assetType, fieldType, choices);
         return RedirectToPage(new { });
     }
 
-    public IActionResult OnPostUpdateAssetAttribute(Guid id, string name, string assetType, string fieldType, string? choices)
+    public IActionResult OnPostUpdateAssetAttribute(Guid id, string name, string? assetType, string fieldType, string? choices)
     {
         Message = store.UpdateAssetAttributeDefinition(id, name, assetType, fieldType, choices);
         return RedirectToPage(new { });
@@ -151,6 +153,12 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { });
     }
 
+    public IActionResult OnPostSaveCloseRequirements(string[]? priorities, string[]? categories)
+    {
+        Message = store.SetCloseMessageRequirements(priorities, categories);
+        return RedirectToPage(new { });
+    }
+
     public IActionResult OnPostUploadPrintTemplate()
     {
         if (PrintTemplate is null || PrintTemplate.Length == 0 || !Path.GetExtension(PrintTemplate.FileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))
@@ -164,18 +172,39 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public IActionResult OnGetUserImportTemplate()
+    {
+        const string csv = "Name,Email,Department,Location\r\nJane Doe,jane.doe@example.com,IT,Main Building\r\n";
+        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "users-import-template.csv");
+    }
+
+    public IActionResult OnGetTechnicianImportTemplate()
+    {
+        const string csv = "Name,Email,Team\r\nJohn Smith,john.smith@example.com,IT Support\r\n";
+        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "technicians-import-template.csv");
+    }
+
     public async Task<IActionResult> OnPostImportUsersAsync()
     {
         if (UserCsv is null || UserCsv.Length == 0) { Message = "Choose a users CSV file first."; return RedirectToPage(); }
         var records = new List<UserRecord>();
+        var invalidRows = 0;
         using var reader = new StreamReader(UserCsv.OpenReadStream());
         await reader.ReadLineAsync();
         while (await reader.ReadLineAsync() is { } line)
         {
+            if (string.IsNullOrWhiteSpace(line)) continue;
             var cells = line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
-            if (cells.Length >= 4 && !string.IsNullOrWhiteSpace(cells[0]) && Mail(cells[1])) records.Add(new(Guid.NewGuid(), cells[0], cells[1], cells[2], cells[3]));
+            var name = cells.ElementAtOrDefault(0) ?? "";
+            var email = cells.ElementAtOrDefault(1) ?? "";
+            if (string.IsNullOrWhiteSpace(name) || !Mail(email)) { invalidRows++; continue; }
+            var department = cells.ElementAtOrDefault(2) ?? "";
+            var location = cells.ElementAtOrDefault(3) ?? "";
+            records.Add(new(Guid.NewGuid(), name, email, department, location));
         }
-        Message = $"{store.ImportUsers(records)} users imported.";
+        var (imported, duplicates) = store.ImportUsers(records);
+        var skipped = invalidRows + duplicates;
+        Message = skipped > 0 ? $"{imported} users imported, {skipped} row(s) skipped (missing name/email or email already in use)." : $"{imported} users imported.";
         return RedirectToPage();
     }
 
@@ -183,14 +212,22 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     {
         if (TechnicianCsv is null || TechnicianCsv.Length == 0) { Message = "Choose a technicians CSV file first."; return RedirectToPage(); }
         var records = new List<TechnicianRecord>();
+        var invalidRows = 0;
         using var reader = new StreamReader(TechnicianCsv.OpenReadStream());
         await reader.ReadLineAsync();
         while (await reader.ReadLineAsync() is { } line)
         {
+            if (string.IsNullOrWhiteSpace(line)) continue;
             var cells = line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
-            if (cells.Length >= 3 && !string.IsNullOrWhiteSpace(cells[0]) && Mail(cells[1])) records.Add(new(Guid.NewGuid(), cells[0], cells[1], cells[2]));
+            var name = cells.ElementAtOrDefault(0) ?? "";
+            var email = cells.ElementAtOrDefault(1) ?? "";
+            if (string.IsNullOrWhiteSpace(name) || !Mail(email)) { invalidRows++; continue; }
+            var team = cells.ElementAtOrDefault(2) ?? "";
+            records.Add(new(Guid.NewGuid(), name, email, team));
         }
-        Message = $"{store.ImportTechnicians(records)} technicians imported.";
+        var (imported, duplicates) = store.ImportTechnicians(records);
+        var skipped = invalidRows + duplicates;
+        Message = skipped > 0 ? $"{imported} technicians imported, {skipped} row(s) skipped (missing name/email or email already in use)." : $"{imported} technicians imported.";
         return RedirectToPage();
     }
 

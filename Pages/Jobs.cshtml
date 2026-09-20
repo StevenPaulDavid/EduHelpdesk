@@ -22,15 +22,15 @@
         {
             var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
             var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
-            var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
-            <tr class="clickable-row job-filter-row" data-status="@ticket.Status" onclick="if(event.target.type !== 'checkbox') window.location.href='/Job?number=@ticket.Number'"><td><input class="job-select" type="checkbox" name="selectedNumbers" value="@ticket.Number" aria-label="Select job @ticket.Number" onclick="event.stopPropagation()" /></td><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@(tech?.Name ?? "Unassigned")</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@(ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy") ?? "—")</td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+            var linkedAssets = Model.Assets.Where(x => ticket.AssetIds.Contains(x.Id)).ToList();
+            <tr class="clickable-row job-filter-row" data-status="@ticket.Status" onclick="if(event.target.type !== 'checkbox') window.location.href='/Job?number=@ticket.Number'"><td><input class="job-select" type="checkbox" name="selectedNumbers" value="@ticket.Number" aria-label="Select job @ticket.Number" onclick="event.stopPropagation()" /></td><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(linkedAssets.Count == 0 ? "—" : string.Join(", ", linkedAssets.Select(a => $"{a.AssetTag} · {a.Model}")))</td><td>@(tech?.Name ?? "Unassigned")</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@(ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy") ?? "—")</td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
         }
         @if (Model.Tickets.Count == 0) { <tr><td colspan="9" class="empty">No tickets have been logged yet.</td></tr> }
         </tbody></table></div>
         <div class="bulk-actions">
             <strong>Bulk update selected</strong>
             <label>Update<select name="operation" id="bulk-operation" onchange="switchBulkOperation()"><option value="status">Status</option><option value="technician">Technician</option></select></label>
-            <label id="bulk-status-field">Status<select name="status">@foreach (var status in Model.Statuses) { <option value="@status">@status</option> }</select></label>
+            <label id="bulk-status-field">Status<select name="status" onchange="updateBulkStatusDescription(this.value)">@foreach (var status in Model.Statuses) { <option value="@status">@status</option> }</select><small id="bulk-status-description" class="status-description-hint">@(Model.Statuses.Count > 0 && Model.StatusDescriptions.TryGetValue(Model.Statuses[0], out var firstStatusDescription) ? firstStatusDescription : "")</small></label>
             <label id="bulk-technician-field" hidden>Technician<select name="technicianId" disabled><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
             <button class="button button-primary" type="submit">Apply to selected</button>
         </div>
@@ -39,6 +39,11 @@
 
 @section Scripts {
 <script>
+const bulkStatusDescriptions = @Html.Raw(Model.StatusDescriptionsJson);
+function updateBulkStatusDescription(value) {
+    const el = document.getElementById("bulk-status-description");
+    if (el) el.textContent = bulkStatusDescriptions[value] || "";
+}
 function filterJobs() {
     const filter = document.getElementById("job-status-filter").value;
     document.querySelectorAll(".job-filter-row").forEach(row => row.style.display = filter === "All" || row.dataset.status === filter ? "" : "none");

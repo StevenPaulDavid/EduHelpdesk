@@ -1,0 +1,3 @@
+@page "{id:guid}"
+@model EduHelpdesk.Pages.Parts.DeleteModel
+@{ViewData["Title"]="Delete part";}<div class="page-heading"><h1>Delete "@Model.Part!.Name"?</h1><a class="button button-secondary" asp-page="/Parts">Cancel</a></div><section class="panel"><p>Parts assigned to a ticket cannot be deleted.</p><form method="post"><button class="button button-danger">Delete part</button></form></section>

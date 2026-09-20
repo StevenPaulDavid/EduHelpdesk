@@ -27,8 +27,8 @@
     @foreach (var ticket in Model.Tickets) {
         var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
         var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
-        var asset = Model.Assets.FirstOrDefault(x => x.Id == ticket.AssetId);
-        <tr class="clickable-row" onclick="window.location.href='/Job?number=@ticket.Number'" tabindex="0" onkeydown="if(event.key==='Enter') window.location.href='/Job?number=@ticket.Number'"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(asset is null ? "—" : $"{asset.AssetTag} · {asset.Model}")</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+        var linkedAssets = Model.Assets.Where(x => ticket.AssetIds.Contains(x.Id)).ToList();
+        <tr class="clickable-row" onclick="window.location.href='/Job?number=@ticket.Number'" tabindex="0" onkeydown="if(event.key==='Enter') window.location.href='/Job?number=@ticket.Number'"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(linkedAssets.Count == 0 ? "—" : string.Join(", ", linkedAssets.Select(a => $"{a.AssetTag} · {a.Model}")))</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
     }
     @if (Model.Tickets.Count == 0) { <tr><td colspan="7" class="empty">No tickets have been logged yet.</td></tr> }
     </tbody></table></div>

@@ -2,7 +2,8 @@
 @model AssetModel
 @{
     ViewData["Title"] = $"Edit {Model.Asset?.AssetTag}";
-    var linkedTickets = Model.Tickets.Where(x => x.AssetId == Model.Asset!.Id).Select(x => x.Number).ToHashSet();
+    var linkedTicketRecords = Model.Tickets.Where(x => x.AssetIds.Contains(Model.Asset!.Id)).ToList();
+    var unlinkedTickets = Model.Tickets.Where(x => !x.AssetIds.Contains(Model.Asset!.Id)).ToList();
 }
 
 <div class="page-heading">
@@ -11,11 +12,11 @@
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-<form method="post" asp-page-handler="Save">
-    <input type="hidden" name="id" value="@Model.Asset!.Id" />
-    <div class="grid two asset-edit-grid">
-        <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">ASSET DETAILS</p><h2>@Model.Asset.AssetTag</h2></div></div>
+<div class="grid two asset-edit-grid">
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">ASSET DETAILS</p><h2>@Model.Asset!.AssetTag</h2></div></div>
+        <form method="post" asp-page-handler="Save">
+            <input type="hidden" name="id" value="@Model.Asset!.Id" />
             <div class="form-grid">
                 <label>Asset tag<input name="assetTag" value="@Model.Asset.AssetTag" required /></label>
                 <label>Make<select name="make" required><option value="">Select a make</option>@foreach (var make in Model.AssetMakes) { <option value="@make" selected="@(string.Equals(make, Model.Asset.Make, StringComparison.OrdinalIgnoreCase))">@make</option> }</select></label>
@@ -46,18 +47,86 @@
                     }
                 }
             </div>
-        </section>
-        <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Select tickets</h2></div><span class="badge">@linkedTickets.Count linked</span></div>
-            <p class="muted">Selecting a ticket links it to this asset. Tickets currently linked to this asset are selected.</p>
-            <div class="asset-job-list">
-                @foreach (var ticket in Model.Tickets)
-                {
-                    <div class="asset-job-option"><input type="checkbox" name="selectedNumbers" value="@ticket.Number" checked="@linkedTickets.Contains(ticket.Number)" /><a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a></div>
-                }
-                @if (Model.Tickets.Count == 0) { <p class="empty">No tickets have been logged yet.</p> }
-            </div>
-        </section>
+            <button class="button button-primary" type="submit">Save asset</button>
+        </form>
+    </section>
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Linked tickets</h2></div><span class="badge">@linkedTicketRecords.Count linked</span></div>
+        <div class="asset-job-list">
+            @foreach (var ticket in linkedTicketRecords)
+            {
+                <div class="asset-job-option">
+                    <a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a>
+                    <form method="post" asp-page-handler="UnlinkTicket" class="inline-unlink-form">
+                        <input type="hidden" name="id" value="@Model.Asset!.Id" />
+                        <input type="hidden" name="ticketNumber" value="@ticket.Number" />
+                        <button class="icon-button delete-icon" type="submit" title="Unlink ticket">♜</button>
+                    </form>
+                </div>
+            }
+            @if (linkedTicketRecords.Count == 0) { <p class="empty">No tickets are linked to this asset yet.</p> }
+        </div>
+        <form method="post" asp-page-handler="LinkTicket" class="asset-link-ticket-form">
+            <input type="hidden" name="id" value="@Model.Asset!.Id" />
+            <label>Link a ticket<select name="ticketNumber"><option value="">Select a ticket…</option>@foreach (var ticket in unlinkedTickets) { <option value="@ticket.Number">#@ticket.Number - @ticket.Title</option> }</select></label>
+            <button class="button button-secondary" type="submit">Link ticket</button>
+            @if (unlinkedTickets.Count == 0) { <p class="empty">Every ticket is already linked to this asset.</p> }
+        </form>
+    </section>
+</div>
+<section class="panel">
+    <div class="ticket-tabs">
+        <div class="ticket-tab-buttons" role="tablist">
+            <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="asset-comments-tab" onclick="showAssetTab('comments')">Comments <span class="badge">@Model.Asset.Comments.Count</span></button>
+            <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-history-tab" onclick="showAssetTab('history')">History <span class="badge">@Model.Asset.History.Count</span></button>
+        </div>
+        <div id="asset-comments-tab" class="ticket-tab-panel active" role="tabpanel">
+            @if (Model.Asset.Comments.Count > 0)
+            {
+                <div class="comment-list">
+                    @foreach (var comment in Model.Asset.Comments.OrderByDescending(x => x.CreatedAt))
+                    {
+                        <article class="comment"><p>@comment.Text</p><small>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="muted">No comments have been added.</p>
+            }
+            <form method="post" asp-page-handler="AddComment" class="comment-form">
+                <input type="hidden" name="id" value="@Model.Asset.Id" />
+                <label for="asset-comment">Add a comment</label>
+                <textarea id="asset-comment" name="comment" rows="3" placeholder="Add a note about this asset…"></textarea>
+                <button class="button button-primary" type="submit">Add comment</button>
+            </form>
+        </div>
+        <div id="asset-history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+            @if (Model.Asset.History.Count > 0)
+            {
+                <div class="history-list">
+                    @foreach (var activity in Model.Asset.History.OrderByDescending(x => x.CreatedAt))
+                    {
+                        <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="muted">No asset changes have been recorded.</p>
+            }
+        </div>
     </div>
-    <button class="button button-primary" type="submit">Save asset and tickets</button>
-</form>
+</section>
+@section Scripts {
+<script>
+function showAssetTab(name) {
+    document.querySelectorAll(".ticket-tab-button").forEach(button => {
+        const active = button.getAttribute("aria-controls") === "asset-" + name + "-tab";
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", active);
+    });
+    document.querySelectorAll(".ticket-tab-panel").forEach(panel => panel.hidden = panel.id !== "asset-" + name + "-tab");
+}
+</script>
+}

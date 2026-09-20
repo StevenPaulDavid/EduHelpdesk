@@ -15,7 +15,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> AssetModels => store.AssetModels;
     public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
-    public IReadOnlyList<AssetAttributeDefinition> CustomAttributes => Asset is null ? [] : store.AssetAttributeDefinitions.Where(x => x.AssetType.Equals(Asset.Type, StringComparison.OrdinalIgnoreCase)).ToList();
+    public IReadOnlyList<AssetAttributeDefinition> CustomAttributes => Asset is null ? [] : store.AssetAttributeDefinitions.Where(x => x.AssetType is null || x.AssetType.Equals(Asset.Type, StringComparison.OrdinalIgnoreCase)).ToList();
     public IReadOnlyDictionary<Guid, string> CustomAttributeValues => Asset is null ? new Dictionary<Guid, string>() : store.GetAssetAttributeValues(Asset.Id).ToDictionary(x => x.AttributeDefinitionId, x => x.Value);
     public static IReadOnlyList<string> Choices(AssetAttributeDefinition definition) => HelpdeskStore.GetChoices(definition);
     [TempData] public string? Message { get; set; }
@@ -36,7 +36,6 @@ public class AssetModel(HelpdeskStore store) : PageModel
         string? location,
         Guid? assignedUserId,
         Guid? supplierId,
-        int[]? selectedNumbers,
         Dictionary<Guid, string>? customAttributes)
     {
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
@@ -62,7 +61,36 @@ public class AssetModel(HelpdeskStore store) : PageModel
             Message = "Asset was not found.";
             return RedirectToPage(new { id });
         }
-        Message = store.UpdateAssetAndTickets(asset, selectedNumbers ?? []) ? "Asset and linked jobs updated." : "Asset was not found.";
+        Message = store.UpdateAsset(asset) ? "Asset updated." : "Asset was not found.";
+        return RedirectToPage(new { id });
+    }
+
+    public IActionResult OnPostLinkTicket(Guid id, int? ticketNumber)
+    {
+        if (ticketNumber is null)
+        {
+            Message = "Select a ticket to link.";
+            return RedirectToPage(new { id });
+        }
+        Message = store.LinkAssetToTicket(id, ticketNumber.Value) ? "Ticket linked." : "Ticket or asset was not found.";
+        return RedirectToPage(new { id });
+    }
+
+    public IActionResult OnPostUnlinkTicket(Guid id, int ticketNumber)
+    {
+        Message = store.UnlinkAssetFromTicket(id, ticketNumber) ? "Ticket unlinked." : "Ticket or asset was not found.";
+        return RedirectToPage(new { id });
+    }
+
+    public IActionResult OnPostAddComment(Guid id, string? comment)
+    {
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            Message = "Enter a comment before saving.";
+            return RedirectToPage(new { id });
+        }
+
+        Message = store.AddAssetComment(id, comment) ? "Comment added." : "Asset was not found.";
         return RedirectToPage(new { id });
     }
 }
