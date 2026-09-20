@@ -26,6 +26,7 @@ public class JobModel(HelpdeskStore store) : PageModel
     public IReadOnlyDictionary<Guid, string> TicketAttributeValues => Ticket is null ? new Dictionary<Guid, string>() : store.GetTicketAttributeValues(Ticket.Number);
     public IReadOnlyList<(PartRecord Part, int Quantity)> TicketParts => Ticket is null ? [] : store.GetTicketParts(Ticket.Number);
     public IReadOnlyList<PartRecord> Parts => store.Parts;
+    public IReadOnlyList<TicketRecord> MergeCandidates => Ticket is null ? [] : store.Tickets.Where(x => x.Number != Ticket.Number).OrderByDescending(x => x.Number).ToList();
     public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
@@ -237,5 +238,29 @@ public class JobModel(HelpdeskStore store) : PageModel
         });
         Message = "Job closed.";
         return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostDelete(int number)
+    {
+        var message = store.DeleteTicket(number);
+        if (message is not null)
+        {
+            Message = message;
+            return RedirectToPage(new { number });
+        }
+        Message = $"Ticket #{number} deleted.";
+        return RedirectToPage("/Jobs");
+    }
+
+    public IActionResult OnPostMerge(int number, int targetNumber)
+    {
+        var message = store.MergeTicket(number, targetNumber);
+        if (message is not null)
+        {
+            Message = message;
+            return RedirectToPage(new { number });
+        }
+        Message = $"Ticket #{number} was merged into ticket #{targetNumber}.";
+        return RedirectToPage(new { number = targetNumber });
     }
 }

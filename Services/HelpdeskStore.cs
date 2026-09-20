@@ -497,6 +497,83 @@ public sealed class HelpdeskStore
             return number;
         }
     }
+    public string? DeleteTicket(int number)
+    {
+        lock (_sync)
+        {
+            var index = _data.Tickets.FindIndex(x => x.Number == number);
+            if (index < 0) return "Ticket was not found.";
+
+            foreach (var assignment in _data.TicketParts.Where(x => x.TicketNumber == number).ToList())
+            {
+                var partIndex = _data.Parts.FindIndex(x => x.Id == assignment.PartId);
+                if (partIndex >= 0) _data.Parts[partIndex] = _data.Parts[partIndex] with { QuantityOnHand = _data.Parts[partIndex].QuantityOnHand + assignment.Quantity };
+            }
+            _data.TicketParts.RemoveAll(x => x.TicketNumber == number);
+            _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == number);
+            _data.Tickets.RemoveAt(index);
+            Save();
+            return null;
+        }
+    }
+    public string? MergeTicket(int sourceNumber, int targetNumber)
+    {
+        lock (_sync)
+        {
+            if (sourceNumber == targetNumber) return "Select two different tickets to merge.";
+            var sourceIndex = _data.Tickets.FindIndex(x => x.Number == sourceNumber);
+            var targetIndex = _data.Tickets.FindIndex(x => x.Number == targetNumber);
+            if (sourceIndex < 0 || targetIndex < 0) return "Ticket was not found.";
+
+            var source = _data.Tickets[sourceIndex];
+            var target = _data.Tickets[targetIndex];
+            var now = DateTime.UtcNow;
+
+            var mergedComments = target.Comments.ToList();
+            mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt)));
+
+            var mergedAssetIds = target.AssetIds.Concat(source.AssetIds).Distinct().ToList();
+
+            var targetHistory = target.History.ToList();
+            targetHistory.Add(new("Ticket merged", $"Merged ticket #{source.Number} - {source.Title} into this ticket.", now));
+
+            _data.Tickets[targetIndex] = target with
+            {
+                AssetIds = mergedAssetIds,
+                Comments = mergedComments,
+                History = targetHistory
+            };
+
+            foreach (var assignment in _data.TicketParts.Where(x => x.TicketNumber == sourceNumber).ToList())
+            {
+                var existingIndex = _data.TicketParts.FindIndex(x => x.TicketNumber == targetNumber && x.PartId == assignment.PartId);
+                if (existingIndex >= 0)
+                    _data.TicketParts[existingIndex] = _data.TicketParts[existingIndex] with { Quantity = _data.TicketParts[existingIndex].Quantity + assignment.Quantity };
+                else
+                    _data.TicketParts.Add(assignment with { TicketNumber = targetNumber });
+            }
+            _data.TicketParts.RemoveAll(x => x.TicketNumber == sourceNumber);
+
+            foreach (var value in _data.TicketAttributeValues.Where(x => x.TicketNumber == sourceNumber).ToList())
+            {
+                if (!_data.TicketAttributeValues.Any(x => x.TicketNumber == targetNumber && x.AttributeDefinitionId == value.AttributeDefinitionId))
+                    _data.TicketAttributeValues.Add(value with { TicketNumber = targetNumber });
+            }
+            _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == sourceNumber);
+
+            var sourceHistory = source.History.ToList();
+            sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now));
+            _data.Tickets[sourceIndex] = source with
+            {
+                Status = "Closed",
+                ClosedAt = source.ClosedAt ?? now,
+                History = sourceHistory
+            };
+
+            Save();
+            return null;
+        }
+    }
     public bool AddTicketComment(int number, string text)
     {
         lock (_sync)

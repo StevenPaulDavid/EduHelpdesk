@@ -7,7 +7,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / TICKET DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
-    <div class="heading-actions no-print">@if (Model.Ticket.Status != "Closed") { if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" onclick="openCloseDialog()">Mark as closed</button> } else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> } }<button class="button button-secondary" type="button" onclick="window.print()">🖨 Print ticket</button><a class="button button-secondary" asp-page="/Index">← Back to overview</a></div>
+    <div class="heading-actions no-print">@if (Model.Ticket.Status != "Closed") { if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" onclick="openCloseDialog()">Mark as closed</button> } else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> } }<button class="button button-secondary" type="button" onclick="openMergeDialog()">Merge ticket</button><button class="button button-secondary" type="button" onclick="window.print()">🖨 Print ticket</button><a class="button button-secondary" asp-page="/Index">← Back to overview</a><button class="button button-danger" type="button" onclick="openDeleteDialog()">Delete ticket</button></div>
 </div>
 @if (Model.Ticket.Status != "Closed" && Model.RequiresCloseMessage)
 {
@@ -24,6 +24,29 @@
         </div>
     </div>
 }
+<div id="merge-dialog-backdrop" class="blade-backdrop no-print" onclick="closeMergeDialog()">
+    <div class="blade" onclick="event.stopPropagation()">
+        <button class="blade-close" type="button" onclick="closeMergeDialog()">×</button>
+        <h2>Merge ticket #@Model.Ticket.Number</h2>
+        <p class="muted">Choose the ticket to merge this one into. Comments, linked assets, and assigned parts will be copied across, and this ticket will be closed.</p>
+        <form method="post" asp-page-handler="Merge" class="blade-form">
+            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+            <label>Merge into<select name="targetNumber" required><option value="">Select a ticket…</option>@foreach (var candidate in Model.MergeCandidates) { <option value="@candidate.Number">#@candidate.Number - @candidate.Title</option> }</select></label>
+            <div class="blade-actions"><button class="button button-primary" type="submit">Merge ticket</button><button class="button button-secondary" type="button" onclick="closeMergeDialog()">Cancel</button></div>
+        </form>
+    </div>
+</div>
+<div id="delete-dialog-backdrop" class="blade-backdrop no-print" onclick="closeDeleteDialog()">
+    <div class="blade" onclick="event.stopPropagation()">
+        <button class="blade-close" type="button" onclick="closeDeleteDialog()">×</button>
+        <h2>Delete ticket #@Model.Ticket.Number</h2>
+        <p class="muted">This permanently removes the ticket, its comments, and history. Any parts assigned to it will be returned to stock. This can't be undone.</p>
+        <form method="post" asp-page-handler="Delete" class="blade-form">
+            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+            <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" onclick="closeDeleteDialog()">Cancel</button></div>
+        </form>
+    </div>
+</div>
 <div class="print-brand"><span class="brand-mark">EH</span><strong>@(Model.ViewData["Title"]?.ToString()?.Split('·').LastOrDefault()?.Trim() ?? "EduHelpdesk")</strong><span>Job record</span></div>
 @if (!string.IsNullOrWhiteSpace(Model.TemplateHtml)) { <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div> }
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -173,6 +196,22 @@ function openCloseDialog() {
 }
 function closeCloseDialog() {
     const backdrop = document.getElementById("close-dialog-backdrop");
+    if (backdrop) backdrop.classList.remove("open");
+}
+function openMergeDialog() {
+    const backdrop = document.getElementById("merge-dialog-backdrop");
+    if (backdrop) backdrop.classList.add("open");
+}
+function closeMergeDialog() {
+    const backdrop = document.getElementById("merge-dialog-backdrop");
+    if (backdrop) backdrop.classList.remove("open");
+}
+function openDeleteDialog() {
+    const backdrop = document.getElementById("delete-dialog-backdrop");
+    if (backdrop) backdrop.classList.add("open");
+}
+function closeDeleteDialog() {
+    const backdrop = document.getElementById("delete-dialog-backdrop");
     if (backdrop) backdrop.classList.remove("open");
 }
 function editField(name) {
