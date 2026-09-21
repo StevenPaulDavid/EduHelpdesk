@@ -47,7 +47,7 @@ public static class TicketReports
     public sealed record WorkloadRow(Guid? TechnicianId, string Name, string Team, int Open, int OpenIncidents, int OpenRequests, int Overdue, DateTime? OldestOpen, int ClosedInPeriod, double? AverageResolutionHours);
 
     // Open tickets are counted as they stand now; closed ones are those closed since the start of the period.
-    public static IReadOnlyList<WorkloadRow> Workload(IReadOnlyCollection<TicketRecord> tickets, IReadOnlyList<TechnicianRecord> technicians, DateTime now, DateTime since, int dueSoonHours)
+    public static IReadOnlyList<WorkloadRow> Workload(IReadOnlyCollection<TicketRecord> tickets, IReadOnlyList<TechnicianRecord> technicians, DateTime now, DateTime since)
     {
         var byTechnician = tickets.GroupBy(t => t.TechnicianId).ToDictionary(g => g.Key ?? Guid.Empty, g => g.ToList());
         WorkloadRow Row(Guid? id, string name, string team)

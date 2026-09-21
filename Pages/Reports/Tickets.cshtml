@@ -36,7 +36,7 @@
         <label>Ticket type<select name="type"><option value="">Incidents and requests</option>@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Type)">@(type == TicketTypes.Incident ? "Incidents only" : "Requests only")</option> }</select></label>
         <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Tickets">Reset</a></div>
     </form>
-    <p class="muted">Showing <strong>@Model.TypeLabel</strong>, tickets created in the <strong>@Model.PeriodLabel.ToLowerInvariant()</strong>. Open ticket counts are as they stand now.</p>
+    <p class="muted">Showing <strong>@Model.TypeLabel</strong>, tickets created <strong>@Model.WhenText</strong>. Open ticket counts are as they stand now.</p>
     <div class="report-nav"><a href="#sla">Deadlines (SLA)</a><a href="#workload">Technician workload</a><a href="#repeat">Repeat problems</a></div>
 </section>
 
@@ -73,7 +73,7 @@
 
 <section class="panel" id="workload">
     <div class="panel-heading"><div><p class="eyebrow">WORKLOAD</p><h2>Technician workload</h2></div><span class="badge">@Model.OpenNow open now</span></div>
-    <p class="muted">Open tickets are counted now; closed tickets are those closed in the @Model.PeriodLabel.ToLowerInvariant(). Tickets no one has picked up are under Unassigned.</p>
+    <p class="muted">Open tickets are counted now; closed tickets are those closed @Model.WhenText. Tickets no one has picked up are under Unassigned.</p>
     <div class="table-wrap"><table><thead><tr><th>Technician</th><th>Open</th><th>Incidents</th><th>Requests</th><th>Overdue</th><th>Oldest open</th><th>Closed in period</th><th>Average resolution</th></tr></thead><tbody>
     @foreach (var row in Model.Workload)
     {

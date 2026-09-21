@@ -21,10 +21,12 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     public DateTime Now { get; } = DateTime.UtcNow;
     public string PeriodKey { get; private set; } = "3m";
     public string PeriodLabel { get; private set; } = "";
+    // "in the last 3 months" or "over all time", for sentences.
+    public string WhenText => PeriodKey == "all" ? "over all time" : "in the " + PeriodLabel.ToLowerInvariant();
     public string TypeLabel => string.IsNullOrEmpty(Type) ? "Incidents and requests" : Type == TicketTypes.Request ? "Requests only" : "Incidents only";
     public DateTime Since { get; private set; }
     public bool HasPreviousPeriod { get; private set; }
-    public int DueSoonHours => store.TicketDueSoonHours;
+
 
     public int TicketsInPeriod { get; private set; }
     public TicketReports.SlaRow Overall { get; private set; } = new("", 0, 0, 0, 0, 0, 0, 0, null, null);
@@ -41,7 +43,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketReports.RepeatFaultRow> RepeatFaults { get; private set; } = [];
     public IReadOnlyList<TicketReports.RequesterRow> Requesters { get; private set; } = [];
     public IReadOnlyList<TicketReports.CategoryRow> Categories { get; private set; } = [];
-    public IReadOnlyDictionary<Guid, string> UserNames { get; private set; } = new Dictionary<Guid, string>();
+
 
     public void OnGet()
     {
@@ -72,17 +74,16 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         ByCategory = TicketReports.SlaBy(cohort, t => t.Category, Now);
         ByTechnician = TicketReports.SlaBy(cohort, t => t.TechnicianId is { } id && technicianNames.TryGetValue(id, out var name) ? name : "Unassigned", Now);
 
-        Workload = TicketReports.Workload(all, technicians, Now, Since, store.TicketDueSoonHours);
+        Workload = TicketReports.Workload(all, technicians, Now, Since);
         Teams = TicketReports.WorkloadByTeam(all, technicians, Now, Since);
 
         Assets = TicketReports.AssetsWithMostTickets(cohort, store.Assets, RowLimit);
         RepeatFaults = TicketReports.RepeatFaults(cohort, store.Assets, RowLimit);
         Requesters = TicketReports.RequestersWithMostTickets(cohort, users, RowLimit);
         Categories = TicketReports.Categories(cohort, previous);
-        UserNames = users.ToDictionary(x => x.Id, x => x.Name);
+
     }
 
-    public string? PeriodUrl(string key) => Url.Page("/Reports/Tickets", new { period = key == "3m" ? null : key, type = string.IsNullOrEmpty(Type) ? null : Type });
     public static string Percent(double? value) => value.HasValue ? $"{value.Value:0}%" : "—";
     public static string Change(int current, int previous) => current == previous ? "no change" : current > previous ? $"up {current - previous}" : $"down {previous - current}";
 }
