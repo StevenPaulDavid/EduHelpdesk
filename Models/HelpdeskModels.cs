@@ -69,8 +69,13 @@ public record TicketRecord(
 // One line of the system audit. EntityType and EntityKey identify the record it concerns (for linking); they are null for lists and settings.
 public record AuditEntry(DateTime At, string Area, string? EntityType, string? EntityKey, string Entity, string Action, string Details);
 
-public record TicketComment(string Text, DateTime CreatedAt);
+// An internal note is for technicians: it is left off the printed ticket.
+public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = false);
 public record TicketActivity(string Action, string Details, DateTime CreatedAt);
+// A file uploaded to a ticket. The file itself is kept on disk under App_Data/attachments, named by Id.
+public record TicketAttachment(Guid Id, int TicketNumber, string FileName, string ContentType, long Size, DateTime UploadedAt);
+// Kind is "related" (either direction) or "follow-up" (TicketNumber is the original ticket, LinkedNumber the follow-up).
+public record TicketLink(int TicketNumber, int LinkedNumber, string Kind);
 
 public sealed class BrandingSettings
 {

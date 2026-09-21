@@ -121,7 +121,7 @@
                 <label id="bulk-team-field" hidden>Team<select name="newTeam" disabled><option value="@TicketListQuery.None">No team</option>@foreach (var item in Model.Teams) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-priority-field" hidden>New priority<select name="newPriority" disabled>@foreach (var item in Model.Priorities) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-category-field" hidden>New category<select name="newCategory" disabled>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
-                <label id="bulk-comment-field" class="bulk-wide" hidden>Comment for every selected ticket<textarea name="commentText" rows="2" disabled></textarea></label>
+                <label id="bulk-comment-field" class="bulk-wide" hidden>Comment for every selected ticket<textarea name="commentText" rows="2" disabled></textarea><span class="toggle-label"><input type="checkbox" name="commentInternal" value="true" disabled /> Internal note (left off printed tickets)</span></label>
                 <label id="bulk-close-field" class="bulk-wide" hidden>Closing message (required for some priorities and categories)<textarea name="closingMessage" rows="2" disabled></textarea></label>
                 <label id="bulk-merge-field" hidden>Merge into ticket number<input type="number" name="mergeTarget" min="1" step="1" disabled /></label>
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>

@@ -64,3 +64,16 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .ticket-table .status { white-space: nowrap; }
 .ticket-table td { vertical-align: top; }
 .whoami label { white-space: nowrap; }
+
+.print-only { display: none; }
+@media print { .print-only { display: block; margin-top: 4mm; } .print-comments h3 { font-size: 10pt; margin: 0 0 2mm; } .print-comments p { margin: 0 0 2mm; font-size: 8.5pt; } .related-block .related-row { break-inside: avoid; } }
+.comment-internal { border-left: 3px solid #f79009; }
+.attachment-list { display: grid; gap: 10px; margin-bottom: 14px; }
+.attachment-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.attachment-thumb img { display: block; width: 64px; height: 48px; object-fit: cover; border-radius: 6px; }
+.attachment-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.attachment-info a { overflow-wrap: anywhere; }
+.related-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.related-row a { overflow-wrap: anywhere; }
+.related-form { display: flex; align-items: flex-end; gap: 8px; margin: 10px 0; }
+.related-form label { flex: 1; }

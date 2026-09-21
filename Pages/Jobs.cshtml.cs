@@ -71,7 +71,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         AssetsById = context.Assets.ToDictionary(x => x.Id);
     }
 
-    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newTeam, string? newTechnician, string? commentText, string? closingMessage, int? mergeTarget)
+    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, int? mergeTarget)
     {
         Prepare();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
@@ -99,7 +99,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             "category" => new("category", newCategory),
             "team" => new("team", string.IsNullOrWhiteSpace(newTeam) ? TicketListQuery.None : newTeam),
             "technician" => new("technician", TechnicianId: technicianId),
-            "comment" => new("comment", Text: commentText),
+            "comment" => new("comment", Text: commentText, Internal: commentInternal),
             "close" => new("close", Text: closingMessage),
             "merge" => new("merge", TargetNumber: mergeTarget),
             _ => null

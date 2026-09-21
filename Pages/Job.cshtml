@@ -76,6 +76,7 @@
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab" onclick="showTicketTab('history')">History <span class="badge">@Model.Ticket.History.Count</span></button>
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="assets-tab" onclick="showTicketTab('assets')">Assets <span class="badge">@Model.LinkedAssets.Count</span></button>
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="parts-tab" onclick="showTicketTab('parts')">Parts <span class="badge">@Model.TicketParts.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="attachments-tab" onclick="showTicketTab('attachments')">Attachments <span class="badge">@Model.Attachments.Count</span></button>
             </div>
             <div id="comments-tab" class="ticket-tab-panel active" role="tabpanel">
                 @if (Model.Ticket.Comments.Count > 0)
@@ -83,7 +84,7 @@
                     <div class="comment-list">
                         @foreach (var comment in Model.Ticket.Comments.OrderByDescending(x => x.CreatedAt))
                         {
-                            <article class="comment"><p>@comment.Text</p><small>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                         }
                     </div>
                 }
@@ -95,6 +96,7 @@
                     <input type="hidden" name="number" value="@Model.Ticket.Number" />
                     <label for="ticket-comment">Add a comment</label>
                     <textarea id="ticket-comment" name="comment" rows="3" placeholder="Add an update, finding, or next action…"></textarea>
+                    <label class="toggle-label"><input type="checkbox" name="internalNote" value="true" onchange="updateCommentSubmit()" /> Internal note (technicians only, left off the printed ticket)</label>
                     <label for="comment-status">Status</label>
                     <select id="comment-status" name="status" data-current="@Model.Ticket.Status" onchange="updateCommentSubmit()">
                         @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))
@@ -176,6 +178,42 @@
                     <button class="button button-primary" type="submit">Assign part</button>
                 </form>
             </div>
+            <div id="attachments-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+                @if (Model.Attachments.Count > 0)
+                {
+                    <div class="attachment-list">
+                        @foreach (var attachment in Model.Attachments)
+                        {
+                            <div class="attachment-row">
+                                @if (HelpdeskStore.IsInlineImage(attachment)) { <a class="attachment-thumb" href="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" target="_blank" rel="noopener"><img loading="lazy" alt="@attachment.FileName" src="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" /></a> }
+                                <div class="attachment-info"><a href="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span></div>
+                                <form method="post" asp-page-handler="RemoveAttachment" onsubmit="return confirm('Remove this attachment from the ticket?');">
+                                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                                    <input type="hidden" name="id" value="@attachment.Id" />
+                                    <button class="icon-button delete-icon" type="submit" title="Remove attachment" aria-label="Remove @attachment.FileName">♜</button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="muted">No files are attached to this ticket.</p>
+                }
+                <form method="post" enctype="multipart/form-data" asp-page-handler="UploadAttachments" class="asset-edit-form" id="attachment-form">
+                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                    <label for="ticket-files">Attach files</label>
+                    <input id="ticket-files" type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" />
+                    <small class="muted">Up to @HelpdeskStore.MaxAttachmentsPerUpload files at a time, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB. Pictures, PDFs, Office documents, text and email files.</small>
+                    <button class="button button-primary" type="submit">Upload</button>
+                </form>
+            </div>
+        </div>
+        <div class="print-only print-comments">
+            <h3>Comments</h3>
+            @{ var printedComments = Model.Ticket.Comments.Where(x => !x.IsInternal).OrderBy(x => x.CreatedAt).ToList(); }
+            @if (printedComments.Count == 0) { <p>No comments.</p> }
+            @foreach (var comment in printedComments) { <p><strong>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong> — @comment.Text</p> }
         </div>
     </section>
     <aside class="panel detail-sidebar printable-job">
@@ -183,6 +221,27 @@
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">STATUS</p><button id="status-edit" class="icon-button edit-icon" type="button" title="Edit status" onclick="editField('status')">✎</button></div><strong class="field-value" id="status-value">@Model.Ticket.Status</strong><form method="post" asp-page-handler="Update" class="inline-control" id="status-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="status" /><select name="value" onchange="updateStatusDescription(this.value)">@foreach (var status in Model.Statuses) { <option value="@status" selected="@(status == Model.Ticket.Status)">@status</option> }</select><button class="icon-button save-icon" type="submit" title="Save status" aria-label="Save status">✓</button><small id="status-description" class="status-description-hint">@(Model.StatusDescriptions.TryGetValue(Model.Ticket.Status, out var currentStatusDescription) ? currentStatusDescription : "")</small></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">PRIORITY</p><button id="priority-edit" class="icon-button edit-icon" type="button" title="Edit priority" onclick="editField('priority')">✎</button></div><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()" id="priority-value">@Model.Ticket.Priority</strong><form method="post" asp-page-handler="Update" class="inline-control" id="priority-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="priority" /><select name="value">@foreach (var priority in Model.Priorities) { <option value="@priority" selected="@(priority == Model.Ticket.Priority)">@priority</option> }</select><button class="icon-button save-icon" type="submit" title="Save priority" aria-label="Save priority">✓</button></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" onclick="editField('category')">✎</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value">@foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> }</select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">✓</button></form></div>
+        <div class="detail-block related-block">
+            <p class="eyebrow">RELATED TICKETS</p>
+            @if (Model.Relations.Count == 0) { <p class="muted">No related tickets.</p> }
+            @foreach (var relation in Model.Relations)
+            {
+                <div class="related-row">
+                    <div><span class="muted">@relation.Label</span><br /><a asp-page="/Job" asp-route-number="@relation.Number"><strong>#@relation.Number</strong> @relation.Title</a> <span class="status">@relation.Status</span></div>
+                    <form method="post" asp-page-handler="UnlinkTicket" class="no-print"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="other" value="@relation.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@relation.Number" aria-label="Remove link to #@relation.Number">♜</button></form>
+                </div>
+            }
+            <form method="post" asp-page-handler="LinkRelated" class="related-form no-print">
+                <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                <label>Link a related ticket<input name="other" type="number" min="1" step="1" placeholder="Ticket number" required /></label>
+                <button class="button button-secondary" type="submit">Link</button>
+            </form>
+            <form method="post" asp-page-handler="CreateFollowUp" class="no-print" onsubmit="return confirm('Create a follow-up ticket for #@Model.Ticket.Number?');">
+                <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                <button class="button button-secondary" type="submit">Create follow-up ticket</button>
+                <small class="muted">A new ticket with the same requester, assets, category and priority.</small>
+            </form>
+        </div>
         @if (Model.TicketAttributes.Count > 0) { <div class="detail-block"><p class="eyebrow">CUSTOM ATTRIBUTES</p><form method="post" asp-page-handler="UpdateAttributes"><input type="hidden" name="number" value="@Model.Ticket.Number" />@foreach (var field in Model.TicketAttributes) { var customValue = Model.TicketAttributeValues.GetValueOrDefault(field.Id, ""); if (field.FieldType == "dropdown") { <label>@field.Name<select name="customAttributes[@field.Id]"><option value="">Select an option</option>@foreach (var choice in HelpdeskStore.GetChoices(field)) { <option value="@choice" selected="@(choice == customValue)">@choice</option> }</select></label> } else if (field.FieldType == "checkbox") { <label class="toggle-label">@field.Name<input type="checkbox" name="customAttributes[@field.Id]" value="true" checked="@(customValue.Equals("true", StringComparison.OrdinalIgnoreCase))" /></label> } else if (field.FieldType == "multi-line") { <label>@field.Name<textarea name="customAttributes[@field.Id]" rows="3">@customValue</textarea></label> } else { <label>@field.Name<input name="customAttributes[@field.Id]" value="@customValue" /></label> } }<button class="button button-primary" type="submit">Save attributes</button></form></div> }
     </aside>
 </div>
@@ -197,7 +256,8 @@ function updateCommentSubmit() {
     const select = document.getElementById("comment-status");
     const button = document.getElementById("comment-submit");
     const changed = select.value !== "" && select.value.toLowerCase() !== select.dataset.current.toLowerCase();
-    button.textContent = !changed ? "Add comment" : select.value === "Closed" ? "Add comment & close ticket" : "Add comment & set status to " + select.value;
+    const noun = document.querySelector("[name=internalNote]")?.checked ? "internal note" : "comment";
+    button.textContent = !changed ? "Add " + noun : select.value === "Closed" ? "Add " + noun + " & close ticket" : "Add " + noun + " & set status to " + select.value;
 }
 function openCloseDialog() {
     const backdrop = document.getElementById("close-dialog-backdrop");

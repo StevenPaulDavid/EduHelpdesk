@@ -28,6 +28,8 @@ public class JobModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<(PartRecord Part, int Quantity)> TicketParts => Ticket is null ? [] : store.GetTicketParts(Ticket.Number);
     public IReadOnlyList<PartRecord> Parts => store.Parts;
     public IReadOnlyList<TicketRecord> MergeCandidates => Ticket is null ? [] : store.Tickets.Where(x => x.Number != Ticket.Number).OrderByDescending(x => x.Number).ToList();
+    public IReadOnlyList<TicketAttachment> Attachments => Ticket is null ? [] : store.GetTicketAttachments(Ticket.Number);
+    public IReadOnlyList<HelpdeskStore.TicketRelation> Relations => Ticket is null ? [] : store.GetTicketRelations(Ticket.Number);
     public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
@@ -183,11 +185,12 @@ public class JobModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { number });
     }
 
-    public IActionResult OnPostAddComment(int number, string? comment, string? status)
+    public IActionResult OnPostAddComment(int number, string? comment, string? status, bool internalNote)
     {
+        var label = internalNote ? "Internal note" : "Comment";
         if (string.IsNullOrWhiteSpace(comment))
         {
-            Message = "Enter a comment before saving.";
+            Message = internalNote ? "Enter a note before saving." : "Enter a comment before saving.";
             return RedirectToPage(new { number });
         }
 
@@ -202,7 +205,7 @@ public class JobModel(HelpdeskStore store) : PageModel
             }
         }
 
-        if (!store.AddTicketComment(number, comment))
+        if (!store.AddTicketComment(number, comment, internalNote))
         {
             Message = "Ticket was not found.";
             return RedirectToPage(new { number });
@@ -213,18 +216,86 @@ public class JobModel(HelpdeskStore store) : PageModel
 
         if (newStatus is null || string.Equals(newStatus, ticket.Status, StringComparison.OrdinalIgnoreCase))
         {
-            Message = "Comment added.";
+            Message = $"{label} added.";
         }
         else
         {
             var wasClosed = ticket.Status == "Closed";
             store.UpdateTicket(ticket with { Status = newStatus, ClosedAt = newStatus == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null });
-            Message = newStatus == "Closed" ? "Comment added and ticket closed."
-                : wasClosed ? "Comment added and ticket reopened."
-                : $"Comment added and status changed to {newStatus}.";
+            Message = newStatus == "Closed" ? $"{label} added and ticket closed."
+                : wasClosed ? $"{label} added and ticket reopened."
+                : $"{label} added and status changed to {newStatus}.";
         }
 
         return RedirectToPage(new { number });
+    }
+
+    // Uploads one or more files. Each is checked on its own, so one bad file does not stop the others.
+    public IActionResult OnPostUploadAttachments(int number, List<IFormFile>? files)
+    {
+        if (store.Tickets.All(x => x.Number != number)) return NotFound();
+        var chosen = (files ?? []).Where(x => x.Length > 0 || !string.IsNullOrEmpty(x.FileName)).ToList();
+        if (chosen.Count == 0)
+        {
+            Message = "Choose a file to attach.";
+            return RedirectToPage(new { number });
+        }
+        var added = 0;
+        var problems = new List<string>();
+        foreach (var file in chosen.Take(HelpdeskStore.MaxAttachmentsPerUpload))
+        {
+            using var stream = file.OpenReadStream();
+            var error = store.AddTicketAttachment(number, file.FileName, stream, file.Length);
+            if (error is null) added++; else problems.Add(error);
+        }
+        if (problems.Any(x => x.Contains("not accepted") || x.Contains("no file type")))
+            problems.Add($"Accepted types: {HelpdeskStore.AllowedAttachmentExtensions}.");
+        if (chosen.Count > HelpdeskStore.MaxAttachmentsPerUpload)
+            problems.Add($"Only {HelpdeskStore.MaxAttachmentsPerUpload} files can be attached at a time, so {chosen.Count - HelpdeskStore.MaxAttachmentsPerUpload} {(chosen.Count - HelpdeskStore.MaxAttachmentsPerUpload == 1 ? "was" : "were")} skipped.");
+        Message = string.Join(" ", new[] { added > 0 ? $"{added} file{(added == 1 ? "" : "s")} attached." : null }.Concat(problems).Where(x => x is not null));
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostRemoveAttachment(int number, Guid id)
+    {
+        Message = store.RemoveTicketAttachment(number, id) ?? "Attachment removed.";
+        return RedirectToPage(new { number });
+    }
+
+    // Pictures are shown in the page (inline); everything else is downloaded. Either way the browser is told not to guess the type
+    // and not to run anything in it.
+    public IActionResult OnGetAttachment(int number, Guid id, bool inline)
+    {
+        if (store.FindAttachment(number, id) is not { } found) return NotFound();
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";
+        if (inline && HelpdeskStore.IsInlineImage(found.Attachment))
+            return PhysicalFile(found.Path, found.Attachment.ContentType);
+        return PhysicalFile(found.Path, found.Attachment.ContentType, found.Attachment.FileName);
+    }
+
+    public IActionResult OnPostLinkRelated(int number, int? other)
+    {
+        Message = other is null ? "Enter the number of the ticket to link." : store.LinkRelatedTickets(number, other.Value) ?? $"Linked to #{other}.";
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostUnlinkTicket(int number, int other)
+    {
+        Message = store.UnlinkTickets(number, other) ?? $"Link to #{other} removed.";
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostCreateFollowUp(int number)
+    {
+        var (followUp, error) = store.CreateFollowUpTicket(number);
+        if (followUp is null)
+        {
+            Message = error;
+            return RedirectToPage(new { number });
+        }
+        Message = $"Follow-up ticket #{followUp} created from #{number}. Edit its details below.";
+        return RedirectToPage(new { number = followUp.Value });
     }
 
     public IActionResult OnPostClose(int number, string? closingMessage)

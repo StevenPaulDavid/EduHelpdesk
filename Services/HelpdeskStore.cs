@@ -787,6 +787,7 @@ public sealed partial class HelpdeskStore
             }
             _data.TicketParts.RemoveAll(x => x.TicketNumber == number);
             _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == number);
+            RemoveTicketExtras(number);
             _data.Tickets.RemoveAt(index);
             Save();
             return null;
@@ -814,7 +815,7 @@ public sealed partial class HelpdeskStore
         var now = DateTime.UtcNow;
 
         var mergedComments = target.Comments.ToList();
-        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt)));
+        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt, c.IsInternal)));
 
         var mergedAssetIds = target.AssetIds.Concat(source.AssetIds).Distinct().ToList();
 
@@ -844,6 +845,7 @@ public sealed partial class HelpdeskStore
                 _data.TicketAttributeValues.Add(value with { TicketNumber = targetNumber });
         }
         _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == sourceNumber);
+        MoveTicketExtras(sourceNumber, targetNumber);
 
         var sourceHistory = source.History.ToList();
         sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now));
@@ -880,7 +882,7 @@ public sealed partial class HelpdeskStore
     // One change applied to many tickets. Operation is status, technician, team, priority, category, comment, close or merge.
     // Value is the new status, team, priority or category (TicketListQuery.None clears the team); Text is the comment or closing message;
     // TargetNumber is the ticket to merge into.
-    public sealed record TicketBulkChange(string Operation, string? Value = null, Guid? TechnicianId = null, string? Text = null, int? TargetNumber = null);
+    public sealed record TicketBulkChange(string Operation, string? Value = null, Guid? TechnicianId = null, string? Text = null, int? TargetNumber = null, bool Internal = false);
     // Skipped tickets could not be changed for a reason worth telling the user; unchanged ones already had the value.
     public sealed record TicketBulkResult(int Updated, int Unchanged, int Skipped, string? SkippedReason, string? Error);
 
@@ -969,7 +971,7 @@ public sealed partial class HelpdeskStore
                     case "comment":
                     {
                         var comments = ticket.Comments.ToList();
-                        comments.Add(new TicketComment(text!, DateTime.UtcNow));
+                        comments.Add(new TicketComment(text!, DateTime.UtcNow, change.Internal));
                         _data.Tickets[index] = ticket with { Comments = comments };
                         updated++;
                         continue;
@@ -1001,14 +1003,14 @@ public sealed partial class HelpdeskStore
             return new TicketBulkResult(updated, unchanged, skipped, skippedReason, null);
         }
     }
-    public bool AddTicketComment(int number, string text)
+    public bool AddTicketComment(int number, string text, bool isInternal = false)
     {
         lock (_sync)
         {
             var index = _data.Tickets.FindIndex(x => x.Number == number);
             if (index < 0) return false;
             var comments = _data.Tickets[index].Comments.ToList();
-            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow));
+            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow, isInternal));
             _data.Tickets[index] = _data.Tickets[index] with { Comments = comments };
             Save();
             return true;
@@ -1502,6 +1504,7 @@ public sealed partial class HelpdeskStore
                 File.Delete(_templatePath);
             if (File.Exists(_legacyPath))
                 File.Delete(_legacyPath);
+            DeleteAllAttachmentFiles();
             return "System reset to factory settings." + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in App_Data\\backups.");
         }
     }
@@ -1522,6 +1525,8 @@ public sealed partial class HelpdeskStore
         SqliteConnection.ClearAllPools();
         if (File.Exists(_templatePath))
             File.Copy(_templatePath, Path.Combine(BackupFolder, $"print-template-before-reset-{stamp}.docx"));
+        // Restoring: put this folder back as App_Data\attachments next to the restored database.
+        CopyAttachmentsTo(Path.Combine(BackupFolder, $"attachments-before-reset-{stamp}"));
         return name;
     }
     public void SavePrintTemplate(Stream source)
@@ -1551,6 +1556,8 @@ public sealed partial class HelpdeskStore
             ["{{Job.Category}}"] = ticket.Category,
             ["{{Job.Created}}"] = ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm"),
             ["{{Job.Closed}}"] = ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed",
+            // Internal notes never go on a printout.
+            ["{{Job.Comments}}"] = ticket.Comments.Count(x => !x.IsInternal) == 0 ? "No comments" : string.Join("\n", ticket.Comments.Where(x => !x.IsInternal).OrderBy(x => x.CreatedAt).Select(x => $"{x.CreatedAt.ToLocalTime():dd MMM yyyy, HH:mm}: {x.Text}")),
             ["{{Requester.Name}}"] = requester?.Name ?? "Unknown",
             ["{{Requester.Email}}"] = requester?.Email ?? "",
             ["{{Requester.Department}}"] = requester?.Department ?? "",
@@ -1569,7 +1576,7 @@ public sealed partial class HelpdeskStore
         {
             var content = element.InnerText;
             foreach (var value in values) content = content.Replace(value.Key, value.Value ?? "", StringComparison.OrdinalIgnoreCase);
-            var encoded = WebUtility.HtmlEncode(content);
+            var encoded = WebUtility.HtmlEncode(content).Replace("\n", "<br />");
             if (element is Table) html.Append($"<div class=\"template-table\">{encoded}</div>");
             else if (!string.IsNullOrWhiteSpace(encoded)) html.Append($"<p>{encoded}</p>");
         }
@@ -1857,7 +1864,7 @@ public sealed partial class HelpdeskStore
                 var key = ticket.Number.ToString();
                 entries.AddRange(ticket.History.Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.Action, x.Details)));
                 entries.AddRange(ticket.Comments.Where(x => !x.Text.StartsWith("(Merged from #", StringComparison.Ordinal))
-                    .Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, "Comment added", x.Text)));
+                    .Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.IsInternal ? "Internal note added" : "Comment added", x.Text)));
             }
             foreach (var asset in _data.Assets)
             {
@@ -1972,7 +1979,8 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN PurchaseOrder TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Assets ADD COLUMN WarrantyEnd TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN ReplacementDate TEXT NULL;",
-            "ALTER TABLE Assets ADD COLUMN LoanDueDate TEXT NULL;"
+            "ALTER TABLE Assets ADD COLUMN LoanDueDate TEXT NULL;",
+            "ALTER TABLE TicketComments ADD COLUMN IsInternal INTEGER NOT NULL DEFAULT 0;"
         })
         {
             using var m = connection.CreateCommand();
@@ -1987,6 +1995,15 @@ public sealed partial class HelpdeskStore
                 StartedAt TEXT NULL, EndedAt TEXT NULL, DueBack TEXT NULL, FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE);
             """;
         assetTables.ExecuteNonQuery();
+        using var ticketTables = connection.CreateCommand();
+        ticketTables.CommandText = """
+            CREATE TABLE IF NOT EXISTS TicketAttachments (Id TEXT PRIMARY KEY, TicketNumber INTEGER NOT NULL, FileName TEXT NOT NULL, ContentType TEXT NOT NULL,
+                Size INTEGER NOT NULL, UploadedAt TEXT NOT NULL, FOREIGN KEY (TicketNumber) REFERENCES Tickets(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS TicketLinks (TicketNumber INTEGER NOT NULL, LinkedNumber INTEGER NOT NULL, Kind TEXT NOT NULL,
+                PRIMARY KEY (TicketNumber, LinkedNumber),
+                FOREIGN KEY (TicketNumber) REFERENCES Tickets(Number) ON DELETE CASCADE, FOREIGN KEY (LinkedNumber) REFERENCES Tickets(Number) ON DELETE CASCADE);
+            """;
+        ticketTables.ExecuteNonQuery();
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -2210,6 +2227,18 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
+            command.CommandText = "SELECT Id, TicketNumber, FileName, ContentType, Size, UploadedAt FROM TicketAttachments ORDER BY rowid;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.TicketAttachments.Add(new(Guid.Parse(reader.GetString(0)), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4), Date(reader, 5)));
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT TicketNumber, LinkedNumber, Kind FROM TicketLinks ORDER BY rowid;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.TicketLinks.Add(new(reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+        }
+        using (var command = connection.CreateCommand())
+        {
             command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate FROM Assets;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Assets.Add(new AssetRecord(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8))
@@ -2285,10 +2314,10 @@ public sealed partial class HelpdeskStore
     private static void ReadTicketChildren(SqliteConnection connection, TicketRecord ticket)
     {
         using var comments = connection.CreateCommand();
-        comments.CommandText = "SELECT Text, CreatedAt FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
+        comments.CommandText = "SELECT Text, CreatedAt, IsInternal FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
         comments.Parameters.AddWithValue("$number", ticket.Number);
         using var commentReader = comments.ExecuteReader();
-        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1)));
+        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1), commentReader.GetInt32(2) != 0));
         using var activities = connection.CreateCommand();
         activities.CommandText = "SELECT Action, Details, CreatedAt FROM TicketActivities WHERE TicketNumber = $number ORDER BY Id;";
         activities.Parameters.AddWithValue("$number", ticket.Number);
@@ -2322,7 +2351,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -2401,10 +2430,15 @@ public sealed partial class HelpdeskStore
                 if (data.TicketAttributeDefinitions.Any(x => x.Id == value.AttributeDefinitionId))
                     Execute(connection, transaction, "INSERT INTO TicketAttributeValues (TicketNumber, AttributeDefinitionId, Value) VALUES ($number,$definition,$value);", ("$number", value.TicketNumber), ("$definition", value.AttributeDefinitionId.ToString()), ("$value", value.Value));
             foreach (var comment in item.Comments)
-                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt) VALUES ($number,$text,$created);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)));
+                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal) VALUES ($number,$text,$created,$internal);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0));
+            foreach (var attachment in data.TicketAttachments.Where(x => x.TicketNumber == item.Number))
+                Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt) VALUES ($id,$number,$name,$type,$size,$uploaded);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)));
             foreach (var activity in item.History)
                 Execute(connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt) VALUES ($number,$action,$details,$created);", ("$number", item.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
         }
+        var ticketNumbers = data.Tickets.Select(x => x.Number).ToHashSet();
+        foreach (var link in data.TicketLinks.Where(x => ticketNumbers.Contains(x.TicketNumber) && ticketNumbers.Contains(x.LinkedNumber)))
+            Execute(connection, transaction, "INSERT INTO TicketLinks (TicketNumber, LinkedNumber, Kind) VALUES ($a,$b,$kind);", ("$a", link.TicketNumber), ("$b", link.LinkedNumber), ("$kind", link.Kind));
         var branding = data.Branding ?? new BrandingSettings();
         Execute(connection, transaction, "INSERT INTO BrandingSettings (Id, BrandName, DashboardEyebrow, DashboardTitle, DashboardDescription, PrimaryColor, AccentColor, BackgroundColor, DarkMode) VALUES (1,$name,$eyebrow,$title,$description,$primary,$accent,$background,$dark);",
             ("$name", branding.BrandName), ("$eyebrow", branding.DashboardEyebrow), ("$title", branding.DashboardTitle), ("$description", branding.DashboardDescription), ("$primary", branding.PrimaryColor), ("$accent", branding.AccentColor), ("$background", branding.BackgroundColor), ("$dark", branding.DarkMode ? 1 : 0));
@@ -2470,6 +2504,8 @@ public sealed partial class HelpdeskStore
         public List<SupplierRecord> Suppliers { get; set; } = [];
         public List<PartRecord> Parts { get; set; } = [];
         public List<TicketPartAssignment> TicketParts { get; set; } = [];
+        public List<TicketAttachment> TicketAttachments { get; set; } = [];
+        public List<TicketLink> TicketLinks { get; set; } = [];
         public List<AssetAttributeDefinition> AssetAttributeDefinitions { get; set; } = [];
         public List<AssetAttributeValue> AssetAttributeValues { get; set; } = [];
         public List<SlaDefinition> Slas { get; set; } = [];
