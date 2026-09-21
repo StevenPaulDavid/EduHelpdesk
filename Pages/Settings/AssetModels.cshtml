@@ -1,4 +1,32 @@
 @page
-@model EduHelpdesk.Pages.Settings.OptionModel
-@{ Model.Kind = "AssetModels"; ViewData["Title"] = "Asset models"; }
-<partial name="_Option" model="Model" />
+@model EduHelpdesk.Pages.Settings.AssetModelsModel
+@{ ViewData["Title"] = "Asset models"; }
+<div class="page-heading"><h1>Asset models</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel">
+    <form method="post" class="settings-form">
+        <label>Add model<input name="value" required /></label>
+        <label>Make<select name="make"><option value="">Any make</option>@foreach (var make in Model.Makes) { <option value="@make">@make</option> }</select></label>
+        <small class="muted">Link each model to the make it belongs to, and the Add asset and Edit asset pages will only offer that make's models. A model set to "Any make" is offered for every make.</small>
+        <button class="button button-primary">Add</button>
+    </form>
+    <div class="directory-list">
+        @foreach (var value in Model.Models)
+        {
+            var linkedMake = Model.ModelMakes.GetValueOrDefault(value);
+            <div class="directory-row">
+                <div class="attribute-row-main"><strong>@value</strong><span class="muted">@(linkedMake ?? "Any make")</span></div>
+                <div class="row-actions">
+                    <form method="post" asp-page-handler="Save">
+                        <input type="hidden" name="currentValue" value="@value" />
+                        <input name="value" value="@value" required />
+                        <select name="make" aria-label="Make for @value"><option value="">Any make</option>@foreach (var make in Model.Makes) { <option value="@make" selected="@string.Equals(make, linkedMake, StringComparison.OrdinalIgnoreCase)">@make</option> }</select>
+                        <button class="button button-secondary">Save</button>
+                    </form>
+                    <form method="post" asp-page-handler="Delete"><input type="hidden" name="value" value="@value" /><button class="button button-danger">Delete</button></form>
+                </div>
+            </div>
+        }
+        @if (Model.Models.Count == 0) { <p class="empty">No asset models have been added yet.</p> }
+    </div>
+</section>

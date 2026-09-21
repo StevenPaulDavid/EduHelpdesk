@@ -8,13 +8,17 @@ using System.Text;
 
 namespace EduHelpdesk.Services;
 
-public sealed class HelpdeskStore
+public sealed partial class HelpdeskStore
 {
     private readonly string _path;
     private readonly string _legacyPath;
     private readonly object _sync = new();
     private StoreData _data;
     private readonly string _templatePath;
+    // Audit entries recorded by comparing the data before and after each save. Ticket and asset history is read from the records themselves.
+    private readonly List<AuditEntry> _audit;
+    private readonly List<AuditEntry> _pendingAudit = [];
+    private AuditTracker.Snapshot? _snapshot;
 
     public HelpdeskStore(IHostEnvironment environment)
     {
@@ -23,13 +27,17 @@ public sealed class HelpdeskStore
         _templatePath = Path.Combine(environment.ContentRootPath, "App_Data", "print-template.docx");
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         _data = Load();
+        _audit = LoadAudit();
         _data.Assets = _data.Assets.Select(x => x with
         {
             Make = x.Make ?? string.Empty,
             Model = x.Model ?? string.Empty,
             Type = x.Type ?? string.Empty,
             SerialNumber = x.SerialNumber ?? string.Empty,
-            Location = x.Location ?? string.Empty
+            Location = x.Location ?? string.Empty,
+            Status = string.IsNullOrWhiteSpace(x.Status) ? "In use" : x.Status.Trim(),
+            PurchaseOrder = x.PurchaseOrder ?? string.Empty,
+            LoanDueDate = x.AssignedUserId.HasValue ? x.LoanDueDate : null
         }).ToList();
         _data.Suppliers ??= [];
         _data.Suppliers = _data.Suppliers.Select(x => x with
@@ -53,10 +61,10 @@ public sealed class HelpdeskStore
         _data.Slas = _data.Slas.Select(x => x with { Name = x.Name?.Trim() ?? string.Empty, Duration = Math.Max(1, x.Duration), DurationUnit = NormalizeDurationUnit(x.DurationUnit), Description = string.IsNullOrWhiteSpace(x.Description) ? null : x.Description.Trim() }).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
         _data.TicketAttributeDefinitions ??= [];
         _data.TicketAttributeValues ??= [];
-        _data.TicketAttributeDefinitions = _data.TicketAttributeDefinitions.Select(x => x with { Name = x.Name.Trim(), Category = string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(), FieldType = NormalizeAttributeType(x.FieldType), Choices = NormalizeChoices(x.Choices) }).ToList();
+        _data.TicketAttributeDefinitions = _data.TicketAttributeDefinitions.Select(x => x with { Name = x.Name.Trim(), Categories = NormalizeScope(x.Categories), FieldType = NormalizeAttributeType(x.FieldType), Choices = NormalizeChoices(x.Choices) }).ToList();
         _data.AssetAttributeDefinitions = _data.AssetAttributeDefinitions.Select(x => x with
         {
-            AssetType = string.IsNullOrWhiteSpace(x.AssetType) ? null : x.AssetType.Trim(),
+            AssetTypes = NormalizeScope(x.AssetTypes),
             FieldType = NormalizeAttributeType(x.FieldType),
             Choices = NormalizeChoices(x.Choices)
         }).ToList();
@@ -74,16 +82,21 @@ public sealed class HelpdeskStore
         EnsureOptions(_data.AssetTypes, _data.Assets.Select(x => x.Type));
         EnsureOptions(_data.AssetMakes, _data.Assets.Select(x => x.Make));
         EnsureOptions(_data.AssetModels, _data.Assets.Select(x => x.Model));
-        EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
-        EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
-        EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
+        _data.AssetModelMakes = new Dictionary<string, string>(_data.AssetModelMakes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+        EnsureFactoryOptions();
+        EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
+        _data.AssetTypeLifespans = new Dictionary<string, int>(_data.AssetTypeLifespans ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
+        if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
+        // Assets that already had a holder before ownership was tracked get an open period with an unknown start.
+        foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
+            asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {
             Seed();
         }
         else
         {
-            Save();
+            SaveBaseline();
         }
     }
 
@@ -95,6 +108,18 @@ public sealed class HelpdeskStore
     public IReadOnlyList<string> AssetTypes { get { lock (_sync) return _data.AssetTypes.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> AssetMakes { get { lock (_sync) return _data.AssetMakes.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> AssetModels { get { lock (_sync) return _data.AssetModels.OrderBy(x => x).ToList(); } }
+    public IReadOnlyList<string> AssetStatuses { get { lock (_sync) return _data.AssetStatuses.ToList(); } }
+    public IReadOnlyDictionary<string, int> AssetTypeLifespans { get { lock (_sync) return new Dictionary<string, int>(_data.AssetTypeLifespans, StringComparer.OrdinalIgnoreCase); } }
+    public int AssetReviewDays { get { lock (_sync) return _data.AssetReviewDays; } }
+    // Model name -> the make it belongs to. A model with no entry can be used with any make.
+    public IReadOnlyDictionary<string, string> AssetModelMakes { get { lock (_sync) return new Dictionary<string, string>(_data.AssetModelMakes, StringComparer.OrdinalIgnoreCase); } }
+    public bool AssetModelMatchesMake(string? model, string? make)
+    {
+        lock (_sync)
+            return string.IsNullOrWhiteSpace(make) || string.IsNullOrWhiteSpace(model)
+                || !_data.AssetModelMakes.TryGetValue(model.Trim(), out var linkedMake)
+                || string.Equals(linkedMake, make.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
     public IReadOnlyList<string> Categories { get { lock (_sync) return _data.Categories.ToList(); } }
     public IReadOnlyList<string> Statuses { get { lock (_sync) return _data.Statuses.ToList(); } }
     public IReadOnlyDictionary<string, string> StatusDescriptions { get { lock (_sync) return new Dictionary<string, string>(_data.StatusDescriptions, StringComparer.OrdinalIgnoreCase); } }
@@ -104,14 +129,17 @@ public sealed class HelpdeskStore
     public IReadOnlyList<AssetRecord> Assets { get { lock (_sync) return _data.Assets; } }
     public IReadOnlyList<SupplierRecord> Suppliers { get { lock (_sync) return _data.Suppliers.OrderBy(x => x.Name).ToList(); } }
     public IReadOnlyList<PartRecord> Parts { get { lock (_sync) return _data.Parts.OrderBy(x => x.Name).ToList(); } }
-    public IReadOnlyList<AssetAttributeDefinition> AssetAttributeDefinitions { get { lock (_sync) return _data.AssetAttributeDefinitions.OrderBy(x => x.AssetType).ThenBy(x => x.Name).ToList(); } }
+    public IReadOnlyList<AssetAttributeDefinition> AssetAttributeDefinitions { get { lock (_sync) return _data.AssetAttributeDefinitions.OrderBy(x => x.Name).ToList(); } }
     public IReadOnlyList<SlaDefinition> Slas { get { lock (_sync) return _data.Slas.OrderBy(x => x.Name).ToList(); } }
-    public IReadOnlyList<TicketAttributeDefinition> TicketAttributeDefinitions { get { lock (_sync) return _data.TicketAttributeDefinitions.OrderBy(x => x.Category).ThenBy(x => x.Name).ToList(); } }
+    public IReadOnlyList<TicketAttributeDefinition> TicketAttributeDefinitions { get { lock (_sync) return _data.TicketAttributeDefinitions.OrderBy(x => x.Name).ToList(); } }
     public IReadOnlyList<TicketRecord> Tickets { get { lock (_sync) return _data.Tickets.OrderByDescending(x => x.Number).ToList(); } }
     public BrandingSettings Branding { get { lock (_sync) return _data.Branding; } }
     public bool HasPrintTemplate => File.Exists(_templatePath);
-    public IReadOnlyList<TicketAttributeDefinition> GetTicketAttributes(string category) => TicketAttributeDefinitions.Where(x => x.Category is null || x.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToList();
+    public IReadOnlyList<TicketAttributeDefinition> GetTicketAttributes(string category) => TicketAttributeDefinitions.Where(x => x.AppliesTo(category)).ToList();
+    public IReadOnlyList<AssetAttributeDefinition> GetAssetAttributes(string assetType) => AssetAttributeDefinitions.Where(x => x.AppliesTo(assetType)).ToList();
     public IReadOnlyDictionary<Guid, string> GetTicketAttributeValues(int number) { lock (_sync) return _data.TicketAttributeValues.Where(x => x.TicketNumber == number).ToDictionary(x => x.AttributeDefinitionId, x => x.Value); }
+    public static bool TechnicianInTeam(TechnicianRecord technician, string? team) => string.IsNullOrWhiteSpace(team) || string.Equals(technician.Team, team.Trim(), StringComparison.OrdinalIgnoreCase);
+    public IReadOnlyList<TechnicianRecord> GetTechniciansForTeam(string? team) { lock (_sync) return _data.Technicians.Where(x => TechnicianInTeam(x, team)).ToList(); }
 
     public void AddUser(UserRecord item) { lock (_sync) { _data.Users.Add(item); Save(); } }
     public void AddTechnician(TechnicianRecord item) { lock (_sync) { _data.Technicians.Add(item); Save(); } }
@@ -146,6 +174,11 @@ public sealed class HelpdeskStore
             {
                 if (string.Equals(_data.Technicians[i].Team, oldValue, StringComparison.OrdinalIgnoreCase))
                     _data.Technicians[i] = _data.Technicians[i] with { Team = newValue };
+            }
+            for (var i = 0; i < _data.Tickets.Count; i++)
+            {
+                if (string.Equals(_data.Tickets[i].TeamName, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.Tickets[i] = _data.Tickets[i] with { TeamName = newValue };
             }
             Save();
             return "Technician team updated.";
@@ -254,8 +287,23 @@ public sealed class HelpdeskStore
                     "Asset make" when string.Equals(asset.Make, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Make = newValue },
                     "Asset type" when string.Equals(asset.Type, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Type = newValue },
                     "Asset model" when string.Equals(asset.Model, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Model = newValue },
+                    "Asset status" when string.Equals(asset.Status, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Status = newValue },
                     _ => asset
                 };
+            }
+            if (kind == "Asset type")
+            {
+                for (var i = 0; i < _data.AssetAttributeDefinitions.Count; i++)
+                    _data.AssetAttributeDefinitions[i] = _data.AssetAttributeDefinitions[i] with { AssetTypes = RenameInScope(_data.AssetAttributeDefinitions[i].AssetTypes, oldValue, newValue) };
+            }
+            if (kind == "Asset model" && _data.AssetModelMakes.Remove(oldValue, out var linkedMake))
+                _data.AssetModelMakes[newValue] = linkedMake;
+            if (kind == "Asset type" && _data.AssetTypeLifespans.Remove(oldValue, out var lifespan))
+                _data.AssetTypeLifespans[newValue] = lifespan;
+            if (kind == "Asset make")
+            {
+                foreach (var model in _data.AssetModelMakes.Where(x => string.Equals(x.Value, oldValue, StringComparison.OrdinalIgnoreCase)).Select(x => x.Key).ToList())
+                    _data.AssetModelMakes[model] = newValue;
             }
             Save();
             return $"{kind} updated.";
@@ -275,15 +323,155 @@ public sealed class HelpdeskStore
             var inUse = kind switch
             {
                 "Location" => _data.Users.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)) || _data.Assets.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
-                "Asset make" => _data.Assets.Any(x => string.Equals(x.Make, item, StringComparison.OrdinalIgnoreCase)),
-                "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => string.Equals(x.AssetType, item, StringComparison.OrdinalIgnoreCase)),
+                "Asset make" => _data.Assets.Any(x => string.Equals(x.Make, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetModelMakes.Values.Any(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase)),
+                "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)),
                 "Asset model" => _data.Assets.Any(x => string.Equals(x.Model, item, StringComparison.OrdinalIgnoreCase)),
+                "Asset status" => _data.Assets.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
                 _ => false
             };
             if (inUse) return $"That {kind.ToLowerInvariant()} cannot be deleted because it is in use.";
             options.RemoveAt(index);
+            if (kind == "Asset model") _data.AssetModelMakes.Remove(item);
+            if (kind == "Asset type") _data.AssetTypeLifespans.Remove(item);
             Save();
             return $"{kind} deleted.";
+        }
+    }
+    public string AddAssetType(string name, int? lifespanYears)
+    {
+        lock (_sync)
+        {
+            if (lifespanYears is < 1 or > 50) return "Enter a lifespan between 1 and 50 years, or leave it blank.";
+            var message = AddManagedOption("Asset type", name);
+            if (message != "Asset type added.") return message;
+            if (!lifespanYears.HasValue) return message;
+            var saved = SetAssetTypeLifespan(name, lifespanYears);
+            return saved == "Asset type updated." ? message : saved;
+        }
+    }
+    public string UpdateAssetType(string currentType, string name, int? lifespanYears)
+    {
+        lock (_sync)
+        {
+            if (lifespanYears is < 1 or > 50) return "Enter a lifespan between 1 and 50 years, or leave it blank.";
+            var oldName = (currentType ?? string.Empty).Trim();
+            var message = UpdateManagedOption("Asset type", oldName, name);
+            if (message != "Asset type updated.") return message;
+            var finalName = string.IsNullOrWhiteSpace(name) || string.Equals(oldName, name.Trim(), StringComparison.OrdinalIgnoreCase) ? oldName : name.Trim();
+            return SetAssetTypeLifespan(finalName, lifespanYears);
+        }
+    }
+    // A blank lifespan (null) removes it, so replacement dates for that type are only those typed on assets.
+    public string SetAssetTypeLifespan(string assetType, int? years)
+    {
+        lock (_sync)
+        {
+            var name = _data.AssetTypes.FirstOrDefault(x => string.Equals(x, (assetType ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
+            if (name is null) return "Asset type was not found.";
+            if (years is < 1 or > 50) return "Enter a lifespan between 1 and 50 years, or leave it blank.";
+            if (years is null) _data.AssetTypeLifespans.Remove(name);
+            else _data.AssetTypeLifespans[name] = years.Value;
+            Save();
+            return "Asset type updated.";
+        }
+    }
+    public string SetAssetReviewDays(int days)
+    {
+        lock (_sync)
+        {
+            if (days is < 0 or > 3650) return "Enter a number of days between 0 and 3650.";
+            _data.AssetReviewDays = days;
+            Save();
+            return "Asset review window saved.";
+        }
+    }
+    public string AddAssetModel(string name, string? make)
+    {
+        lock (_sync)
+        {
+            var item = (name ?? string.Empty).Trim();
+            if (item.Length == 0) return "Asset model name is required.";
+            if (_data.AssetModels.Contains(item, StringComparer.OrdinalIgnoreCase)) return "That asset model already exists.";
+            var linkedMake = FindMake(make, out var validMake);
+            if (!validMake) return "Select a valid make.";
+            _data.AssetModels.Add(item);
+            if (linkedMake is not null) _data.AssetModelMakes[item] = linkedMake;
+            Save();
+            return "Asset model added.";
+        }
+    }
+    // Renames a model and/or changes the make it belongs to. A blank make means the model can be used with any make.
+    public string UpdateAssetModel(string currentModel, string name, string? make)
+    {
+        lock (_sync)
+        {
+            var oldName = (currentModel ?? string.Empty).Trim();
+            FindMake(make, out var validMake);
+            if (!validMake) return "Select a valid make.";
+            var message = UpdateManagedOption("Asset model", oldName, name);
+            if (message != "Asset model updated.") return message;
+            var finalName = string.IsNullOrWhiteSpace(name) || string.Equals(oldName, name.Trim(), StringComparison.OrdinalIgnoreCase) ? oldName : name.Trim();
+            return SetAssetModelMake(finalName, make);
+        }
+    }
+    public string SetAssetModelMake(string model, string? make)
+    {
+        lock (_sync)
+        {
+            var name = _data.AssetModels.FirstOrDefault(x => string.Equals(x, (model ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
+            if (name is null) return "Asset model was not found.";
+            var linkedMake = FindMake(make, out var validMake);
+            if (!validMake) return "Select a valid make.";
+            if (linkedMake is null) _data.AssetModelMakes.Remove(name);
+            else _data.AssetModelMakes[name] = linkedMake;
+            Save();
+            return "Asset model updated.";
+        }
+    }
+    // Returns the configured make matching the text (null for blank). valid is false when a non-blank make is not configured.
+    private string? FindMake(string? make, out bool valid)
+    {
+        var requested = (make ?? string.Empty).Trim();
+        valid = true;
+        if (requested.Length == 0) return null;
+        var match = _data.AssetMakes.FirstOrDefault(x => string.Equals(x, requested, StringComparison.OrdinalIgnoreCase));
+        valid = match is not null;
+        return match;
+    }
+    public (int Imported, int Linked, int Skipped) ImportAssetModels(IEnumerable<(string Name, string? Make)> rows)
+    {
+        lock (_sync)
+        {
+            var imported = 0;
+            var linked = 0;
+            var skipped = 0;
+            foreach (var (rawName, rawMake) in rows)
+            {
+                var name = (rawName ?? string.Empty).Trim();
+                var make = (rawMake ?? string.Empty).Trim();
+                if (name.Length == 0) { skipped++; continue; }
+                var existing = _data.AssetModels.FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null && (make.Length == 0 || _data.AssetModelMakes.ContainsKey(existing))) { skipped++; continue; }
+                string? linkedMake = null;
+                if (make.Length > 0)
+                {
+                    linkedMake = _data.AssetMakes.FirstOrDefault(x => string.Equals(x, make, StringComparison.OrdinalIgnoreCase));
+                    if (linkedMake is null) { _data.AssetMakes.Add(make); linkedMake = make; }
+                }
+                if (existing is null)
+                {
+                    _data.AssetModels.Add(name);
+                    if (linkedMake is not null) _data.AssetModelMakes[name] = linkedMake;
+                    imported++;
+                }
+                else
+                {
+                    _data.AssetModelMakes[existing] = linkedMake!;
+                    linked++;
+                }
+            }
+            if (imported > 0 || linked > 0) Save();
+            return (imported, linked, skipped);
         }
     }
     public string AddTicketOption(string kind, string value)
@@ -323,6 +511,8 @@ public sealed class HelpdeskStore
             {
                 var categoryIndex = _data.RequireCloseMessageCategories.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
                 if (categoryIndex >= 0) _data.RequireCloseMessageCategories[categoryIndex] = newValue;
+                for (var i = 0; i < _data.TicketAttributeDefinitions.Count; i++)
+                    _data.TicketAttributeDefinitions[i] = _data.TicketAttributeDefinitions[i] with { Categories = RenameInScope(_data.TicketAttributeDefinitions[i].Categories, oldValue, newValue) };
             }
             for (var i = 0; i < _data.Tickets.Count; i++)
             {
@@ -356,6 +546,8 @@ public sealed class HelpdeskStore
                 "Priority" => string.Equals(x.Priority, item, StringComparison.OrdinalIgnoreCase),
                 _ => false
             })) return $"That {kind.ToLowerInvariant()} cannot be deleted because tickets use it.";
+            if (kind == "Category" && _data.TicketAttributeDefinitions.Any(x => x.Categories.Contains(item, StringComparer.OrdinalIgnoreCase)))
+                return "That category cannot be deleted because a ticket custom attribute uses it.";
             options.RemoveAt(index);
             if (kind == "Status") _data.StatusDescriptions.Remove(item);
             if (kind == "Priority") _data.RequireCloseMessagePriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
@@ -404,7 +596,78 @@ public sealed class HelpdeskStore
                 || _data.RequireCloseMessageCategories.Contains(ticket.Category, StringComparer.OrdinalIgnoreCase);
         }
     }
-    public void AddAsset(AssetRecord item) { lock (_sync) { _data.Assets.Add(item); Save(); } }
+    public void AddAsset(AssetRecord item)
+    {
+        lock (_sync)
+        {
+            AddAssetCore(item);
+            Save();
+        }
+    }
+    // Adds the asset with its first ownership period. The caller holds the lock and saves.
+    private void AddAssetCore(AssetRecord item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Status)) item = item with { Status = "In use" };
+        if (!item.AssignedUserId.HasValue) item = item with { LoanDueDate = null };
+        var assignments = item.AssignedUserId is { } holder
+            ? new List<AssetAssignment> { new(holder, UserName(holder), DateTime.UtcNow, null, item.LoanDueDate) }
+            : [];
+        _data.Assets.Add(item with { Assignments = assignments });
+    }
+    // Null when the tag is free to use; otherwise the reason it can't be. Tags are compared ignoring case and surrounding spaces.
+    public string? CheckAssetTag(string? tag, Guid? excludeAssetId)
+    {
+        lock (_sync)
+        {
+            var value = (tag ?? string.Empty).Trim();
+            return _data.Assets.Any(x => x.Id != excludeAssetId && string.Equals(x.AssetTag, value, StringComparison.OrdinalIgnoreCase))
+                ? $"Asset tag {value} is already used by another asset."
+                : null;
+        }
+    }
+    // A repeated serial number is allowed but worth a warning; returns the other asset that has it.
+    public AssetRecord? FindDuplicateSerial(string? serialNumber, Guid? excludeAssetId)
+    {
+        lock (_sync)
+        {
+            var value = (serialNumber ?? string.Empty).Trim();
+            return value.Length == 0 ? null : _data.Assets.FirstOrDefault(x => x.Id != excludeAssetId && string.Equals(x.SerialNumber, value, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+    private string UserName(Guid userId) => _data.Users.FirstOrDefault(x => x.Id == userId)?.Name ?? "Unknown user";
+    public string LoanAsset(Guid assetId, Guid userId, DateOnly dueBack)
+    {
+        lock (_sync)
+        {
+            var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
+            if (asset is null) return "Asset was not found.";
+            if (!_data.Users.Any(x => x.Id == userId)) return "Select who the device is loaned to.";
+            if (dueBack < AssetInsights.Today) return "The due-back date cannot be in the past.";
+            var status = _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, "In use", StringComparison.OrdinalIgnoreCase)) ?? asset.Status;
+            UpdateAsset(asset with { AssignedUserId = userId, LoanDueDate = dueBack, Status = status });
+            return $"Loaned to {UserName(userId)}, due back {AssetInsights.Format(dueBack)}.";
+        }
+    }
+    // Ends the current holder's period. The status can be set at the same time, for example back to stock.
+    public string ReturnAsset(Guid assetId, string? status)
+    {
+        lock (_sync)
+        {
+            var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
+            if (asset is null) return "Asset was not found.";
+            if (!asset.AssignedUserId.HasValue) return "This asset is not currently assigned to anyone.";
+            var newStatus = asset.Status;
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                var match = _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (match is null) return "Select a valid status.";
+                newStatus = match;
+            }
+            var holder = UserName(asset.AssignedUserId.Value);
+            UpdateAsset(asset with { AssignedUserId = null, LoanDueDate = null, Status = newStatus });
+            return $"Returned by {holder}.";
+        }
+    }
     public void AddSupplier(SupplierRecord item) { lock (_sync) { _data.Suppliers.Add(item); Save(); } }
     public bool UpdateSupplier(SupplierRecord item) => Update(item, _data.Suppliers, x => x.Id == item.Id);
     public string? DeleteSupplier(Guid id)
@@ -668,15 +931,83 @@ public sealed class HelpdeskStore
         {
             var index = _data.Assets.FindIndex(x => x.Id == item.Id);
             if (index < 0) return false;
-
-            var previous = _data.Assets[index];
-            var history = previous.History.ToList();
-            AddAssetActivities(history, previous, item);
-            _data.Assets[index] = item with { History = history, Comments = previous.Comments };
+            ApplyAssetUpdate(index, item);
             Save();
             return true;
         }
     }
+    // Replaces the asset at index, recording history and ownership changes. The caller holds the lock and saves.
+    private void ApplyAssetUpdate(int index, AssetRecord item)
+    {
+        var previous = _data.Assets[index];
+        if (string.IsNullOrWhiteSpace(item.Status)) item = item with { Status = previous.Status };
+        if (!item.AssignedUserId.HasValue) item = item with { LoanDueDate = null };
+        var history = previous.History.ToList();
+        AddAssetActivities(history, previous, item, _data.Users);
+        var assignments = previous.Assignments.ToList();
+        var now = DateTime.UtcNow;
+        if (previous.AssignedUserId != item.AssignedUserId)
+        {
+            for (var i = 0; i < assignments.Count; i++)
+                if (assignments[i].EndedAt is null) assignments[i] = assignments[i] with { EndedAt = now };
+            if (item.AssignedUserId is { } holder) assignments.Add(new AssetAssignment(holder, UserName(holder), now, null, item.LoanDueDate));
+        }
+        else if (previous.LoanDueDate != item.LoanDueDate)
+        {
+            var open = assignments.FindLastIndex(x => x.EndedAt is null);
+            if (open >= 0) assignments[open] = assignments[open] with { DueBack = item.LoanDueDate };
+        }
+        _data.Assets[index] = item with { History = history, Comments = previous.Comments, Assignments = assignments };
+    }
+
+    // One or more of these can be set: the status, the owner (OwnerId null clears it) and the location (blank clears it).
+    public sealed record AssetBulkChange(string? Status, bool ChangeOwner, Guid? OwnerId, bool ChangeLocation, string? Location);
+
+    // Applies the same change to many assets and saves once, however many there are. Assets the change would not alter are counted, not touched.
+    public (int Updated, int Unchanged, string? Error) BulkUpdateAssets(IEnumerable<Guid> assetIds, AssetBulkChange change)
+    {
+        lock (_sync)
+        {
+            if (change.Status is null && !change.ChangeOwner && !change.ChangeLocation) return (0, 0, "Choose what to change.");
+            string? status = null;
+            if (change.Status is not null)
+            {
+                status = _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, change.Status.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (status is null) return (0, 0, "Select a valid status.");
+            }
+            if (change.ChangeOwner && change.OwnerId.HasValue && !_data.Users.Any(x => x.Id == change.OwnerId.Value)) return (0, 0, "Select a valid user.");
+            var location = string.Empty;
+            if (change.ChangeLocation && !string.IsNullOrWhiteSpace(change.Location))
+            {
+                var match = _data.Locations.FirstOrDefault(x => string.Equals(x, change.Location.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (match is null) return (0, 0, "Select a valid location.");
+                location = match;
+            }
+
+            var updated = 0;
+            var unchanged = 0;
+            foreach (var id in assetIds.Distinct())
+            {
+                var index = _data.Assets.FindIndex(x => x.Id == id);
+                if (index < 0) continue;
+                var asset = _data.Assets[index];
+                var next = asset;
+                if (status is not null) next = next with { Status = status };
+                if (change.ChangeOwner)
+                {
+                    // Handing a device to someone else is a normal assignment, not a continuation of the old loan.
+                    next = next with { AssignedUserId = change.OwnerId, LoanDueDate = asset.AssignedUserId == change.OwnerId ? asset.LoanDueDate : null };
+                }
+                if (change.ChangeLocation) next = next with { Location = location };
+                if (next == asset) { unchanged++; continue; }
+                ApplyAssetUpdate(index, next);
+                updated++;
+            }
+            if (updated > 0) Save();
+            return (updated, unchanged, null);
+        }
+    }
+    public IReadOnlyList<AssetAttributeValue> AssetAttributeValues { get { lock (_sync) return _data.AssetAttributeValues.ToList(); } }
     public bool AddAssetComment(Guid assetId, string text)
     {
         lock (_sync)
@@ -741,48 +1072,63 @@ public sealed class HelpdeskStore
     {
         lock (_sync) return _data.AssetAttributeValues.Where(x => x.AssetId == assetId).ToList();
     }
-    public string AddAssetAttributeDefinition(string name, string? assetType, string fieldType, string? choices)
+    public string AddAssetAttributeDefinition(string name, IEnumerable<string>? assetTypes, string fieldType, string? choices)
     {
         lock (_sync)
         {
             name = (name ?? string.Empty).Trim();
-            assetType = string.IsNullOrWhiteSpace(assetType) ? null : assetType.Trim();
             fieldType = (fieldType ?? string.Empty).Trim().ToLowerInvariant();
             choices = NormalizeChoices(choices);
             if (string.IsNullOrWhiteSpace(name)) return "Attribute name is required.";
-            if (assetType is not null && !_data.AssetTypes.Contains(assetType, StringComparer.OrdinalIgnoreCase)) return "Select a valid asset type.";
+            var types = ResolveScope(assetTypes, _data.AssetTypes);
+            if (types is null) return "Select valid asset types.";
             if (!IsAttributeType(fieldType)) return "Select a valid field type.";
             if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
-            if (_data.AssetAttributeDefinitions.Any(x => string.Equals(x.AssetType, assetType, StringComparison.OrdinalIgnoreCase) && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) return "That attribute already exists for this asset type.";
-            _data.AssetAttributeDefinitions.Add(new(Guid.NewGuid(), name, assetType, fieldType, choices));
+            if (_data.AssetAttributeDefinitions.Any(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.AssetTypes, types))) return DuplicateAttributeMessage(types, "asset types");
+            _data.AssetAttributeDefinitions.Add(new(Guid.NewGuid(), name, fieldType, choices) { AssetTypes = types });
             Save();
             return "Custom attribute added.";
         }
     }
-    public string AddAssetAttributeDefinition(string name, string? assetType) =>
-        AddAssetAttributeDefinition(name, assetType, "single-line", null);
-    public string UpdateAssetAttributeDefinition(Guid id, string name, string? assetType, string fieldType, string? choices)
+    public string AddAssetAttributeDefinition(string name, IEnumerable<string>? assetTypes) =>
+        AddAssetAttributeDefinition(name, assetTypes, "single-line", null);
+    public string UpdateAssetAttributeDefinition(Guid id, string name, IEnumerable<string>? assetTypes, string fieldType, string? choices)
     {
         lock (_sync)
         {
             name = (name ?? string.Empty).Trim();
-            assetType = string.IsNullOrWhiteSpace(assetType) ? null : assetType.Trim();
             fieldType = (fieldType ?? string.Empty).Trim().ToLowerInvariant();
             choices = NormalizeChoices(choices);
             var index = _data.AssetAttributeDefinitions.FindIndex(x => x.Id == id);
             if (index < 0) return "Custom attribute was not found.";
             if (string.IsNullOrWhiteSpace(name)) return "Attribute name is required.";
-            if (assetType is not null && !_data.AssetTypes.Contains(assetType, StringComparer.OrdinalIgnoreCase)) return "Select a valid asset type.";
+            var types = ResolveScope(assetTypes, _data.AssetTypes);
+            if (types is null) return "Select valid asset types.";
             if (!IsAttributeType(fieldType)) return "Select a valid field type.";
             if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
-            if (_data.AssetAttributeDefinitions.Any(x => x.Id != id && string.Equals(x.AssetType, assetType, StringComparison.OrdinalIgnoreCase) && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) return "That attribute already exists for this asset type.";
-            _data.AssetAttributeDefinitions[index] = new(id, name, assetType, fieldType, choices);
+            if (_data.AssetAttributeDefinitions.Any(x => x.Id != id && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.AssetTypes, types))) return DuplicateAttributeMessage(types, "asset types");
+            _data.AssetAttributeDefinitions[index] = new(id, name, fieldType, choices) { AssetTypes = types };
             Save();
             return "Custom attribute updated.";
         }
     }
-    public string UpdateAssetAttributeDefinition(Guid id, string name, string? assetType) =>
-        UpdateAssetAttributeDefinition(id, name, assetType, "single-line", null);
+    public string UpdateAssetAttributeDefinition(Guid id, string name, IEnumerable<string>? assetTypes) =>
+        UpdateAssetAttributeDefinition(id, name, assetTypes, "single-line", null);
+    public string SetAssetAttributeAssetTypes(Guid id, IEnumerable<string>? assetTypes)
+    {
+        lock (_sync)
+        {
+            var index = _data.AssetAttributeDefinitions.FindIndex(x => x.Id == id);
+            if (index < 0) return "Custom attribute was not found.";
+            var types = ResolveScope(assetTypes, _data.AssetTypes);
+            if (types is null) return "Select valid asset types.";
+            var definition = _data.AssetAttributeDefinitions[index];
+            if (_data.AssetAttributeDefinitions.Any(x => x.Id != id && x.Name.Equals(definition.Name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.AssetTypes, types))) return DuplicateAttributeMessage(types, "asset types");
+            _data.AssetAttributeDefinitions[index] = definition with { AssetTypes = types };
+            Save();
+            return "Custom attribute updated.";
+        }
+    }
     public string DeleteAssetAttributeDefinition(Guid id)
     {
         lock (_sync)
@@ -802,7 +1148,7 @@ public sealed class HelpdeskStore
         {
             if (!_data.Assets.Any(x => x.Id == assetId)) return false;
             _data.AssetAttributeValues.RemoveAll(x => x.AssetId == assetId);
-            foreach (var definition in _data.AssetAttributeDefinitions.Where(x => x.AssetType is null || x.AssetType.Equals(assetType, StringComparison.OrdinalIgnoreCase)))
+            foreach (var definition in _data.AssetAttributeDefinitions.Where(x => x.AppliesTo(assetType)))
             {
                 string? raw = null;
                 values?.TryGetValue(definition.Id, out raw);
@@ -819,29 +1165,46 @@ public sealed class HelpdeskStore
         }
     }
 
-            public string AddTicketAttributeDefinition(string name, string? category, string fieldType, string? choices)
+            public string AddTicketAttributeDefinition(string name, IEnumerable<string>? categories, string fieldType, string? choices)
             {
                 lock (_sync)
                 {
-                    name = (name ?? "").Trim(); category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
+                    name = (name ?? "").Trim();
                     fieldType = NormalizeAttributeType(fieldType); choices = NormalizeChoices(choices);
                     if (string.IsNullOrWhiteSpace(name) || !IsAttributeType(fieldType)) return "Enter a name and valid field type.";
+                    var scope = ResolveScope(categories, _data.Categories);
+                    if (scope is null) return "Select valid categories.";
                     if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
-                    if (_data.TicketAttributeDefinitions.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase))) return "That ticket attribute already exists.";
-                    _data.TicketAttributeDefinitions.Add(new(Guid.NewGuid(), name, category, fieldType, choices)); Save(); return "Ticket attribute added.";
+                    if (_data.TicketAttributeDefinitions.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.Categories, scope))) return DuplicateAttributeMessage(scope, "categories");
+                    _data.TicketAttributeDefinitions.Add(new(Guid.NewGuid(), name, fieldType, choices) { Categories = scope }); Save(); return "Ticket attribute added.";
                 }
             }
-            public string UpdateTicketAttributeDefinition(Guid id, string name, string? category, string fieldType, string? choices)
+            public string UpdateTicketAttributeDefinition(Guid id, string name, IEnumerable<string>? categories, string fieldType, string? choices)
             {
                 lock (_sync)
                 {
                     var index = _data.TicketAttributeDefinitions.FindIndex(x => x.Id == id);
                     if (index < 0) return "Ticket attribute was not found.";
-                    name = (name ?? "").Trim(); category = string.IsNullOrWhiteSpace(category) ? null : category.Trim(); fieldType = NormalizeAttributeType(fieldType); choices = NormalizeChoices(choices);
+                    name = (name ?? "").Trim(); fieldType = NormalizeAttributeType(fieldType); choices = NormalizeChoices(choices);
                     if (string.IsNullOrWhiteSpace(name) || !IsAttributeType(fieldType)) return "Enter a name and valid field type.";
+                    var scope = ResolveScope(categories, _data.Categories);
+                    if (scope is null) return "Select valid categories.";
                     if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
-                    if (_data.TicketAttributeDefinitions.Any(x => x.Id != id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase))) return "That ticket attribute already exists.";
-                    _data.TicketAttributeDefinitions[index] = new(id, name, category, fieldType, choices); Save(); return "Ticket attribute updated.";
+                    if (_data.TicketAttributeDefinitions.Any(x => x.Id != id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.Categories, scope))) return DuplicateAttributeMessage(scope, "categories");
+                    _data.TicketAttributeDefinitions[index] = new(id, name, fieldType, choices) { Categories = scope }; Save(); return "Ticket attribute updated.";
+                }
+            }
+            public string SetTicketAttributeCategories(Guid id, IEnumerable<string>? categories)
+            {
+                lock (_sync)
+                {
+                    var index = _data.TicketAttributeDefinitions.FindIndex(x => x.Id == id);
+                    if (index < 0) return "Ticket attribute was not found.";
+                    var scope = ResolveScope(categories, _data.Categories);
+                    if (scope is null) return "Select valid categories.";
+                    var definition = _data.TicketAttributeDefinitions[index];
+                    if (_data.TicketAttributeDefinitions.Any(x => x.Id != id && string.Equals(x.Name, definition.Name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.Categories, scope))) return DuplicateAttributeMessage(scope, "categories");
+                    _data.TicketAttributeDefinitions[index] = definition with { Categories = scope }; Save(); return "Ticket attribute updated.";
                 }
             }
             public string DeleteTicketAttributeDefinition(Guid id)
@@ -917,29 +1280,95 @@ public sealed class HelpdeskStore
         }
     }
     public void UpdateBranding(BrandingSettings item) { lock (_sync) { _data.Branding = item; Save(); } }
-    public string ResetFactory(string confirmation)
+    // The lists a brand new install starts with. Anything already in use is added on top of these when data is loaded.
+    private void EnsureFactoryOptions()
+    {
+        EnsureOptions(_data.AssetStatuses, ["In use", "In stock or spare", "In repair", "Lost or stolen"]);
+        EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
+        EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
+        EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
+    }
+
+    public string BackupFolder => Path.Combine(Path.GetDirectoryName(_path)!, "backups");
+
+    // Removes everything and puts the system back to how a new install starts (the same demo records Seed creates).
+    // The audit log survives unless eraseAudit is set; either way the reset itself is recorded as the first entry.
+    public string ResetFactory(string? confirmation, bool keepBackup = true, bool eraseAudit = false)
     {
         lock (_sync)
         {
-            if (!string.Equals(confirmation, "DELETE", StringComparison.Ordinal))
-                return "Type DELETE exactly to reset the system.";
+            if (!string.Equals(confirmation?.Trim(), "DELETE", StringComparison.Ordinal))
+                return "Nothing was changed. Type DELETE in capitals to reset the system.";
 
+            string? backupName = null;
+            if (keepBackup)
+            {
+                try { backupName = BackUpBeforeReset(); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
+                {
+                    return $"Nothing was changed. The backup could not be saved ({ex.Message}). Fix that, or untick the backup option to reset without one.";
+                }
+            }
+
+            if (eraseAudit)
+            {
+                using var connection = new SqliteConnection($"Data Source={_path}");
+                connection.Open();
+                using var transaction = connection.BeginTransaction();
+                Execute(connection, transaction, "DELETE FROM AuditLog;");
+                transaction.Commit();
+                _audit.Clear();
+            }
+            // The wipe is not audited record by record.
+            _pendingAudit.Clear();
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "System", null, null, "Helpdesk", "Factory reset",
+                "All data was reset to factory settings." + (eraseAudit ? " The previous audit log was erased." : "") + (backupName is null ? " No backup was kept." : $" A backup was saved as {backupName}.")));
             _data = new StoreData();
-            EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
-            EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
-            EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
+            EnsureFactoryOptions();
             Seed();
+            // Deleted rows otherwise linger in the file's free pages, which defeats the point of a purge.
+            using (var connection = new SqliteConnection($"Data Source={_path}"))
+            {
+                connection.Open();
+                using var vacuum = connection.CreateCommand();
+                vacuum.CommandText = "VACUUM;";
+                vacuum.ExecuteNonQuery();
+            }
             if (File.Exists(_templatePath))
                 File.Delete(_templatePath);
             if (File.Exists(_legacyPath))
                 File.Delete(_legacyPath);
-            return "System reset to factory settings.";
+            return "System reset to factory settings." + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in App_Data\\backups.");
         }
+    }
+
+    // A consistent copy of the database (and the print template, if there is one) before it is wiped.
+    private string BackUpBeforeReset()
+    {
+        Directory.CreateDirectory(BackupFolder);
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var name = $"helpdesk-before-reset-{stamp}.db";
+        using (var source = new SqliteConnection($"Data Source={_path}"))
+        using (var target = new SqliteConnection($"Data Source={Path.Combine(BackupFolder, name)}"))
+        {
+            source.Open();
+            target.Open();
+            source.BackupDatabase(target);
+        }
+        SqliteConnection.ClearAllPools();
+        if (File.Exists(_templatePath))
+            File.Copy(_templatePath, Path.Combine(BackupFolder, $"print-template-before-reset-{stamp}.docx"));
+        return name;
     }
     public void SavePrintTemplate(Stream source)
     {
-        using var destination = File.Create(_templatePath);
-        source.CopyTo(destination);
+        lock (_sync)
+        {
+            using (var destination = File.Create(_templatePath))
+                source.CopyTo(destination);
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Settings", null, null, "Ticket print template", "Uploaded", "The ticket print template was replaced."));
+            Save();
+        }
     }
 
     public string RenderPrintTemplate(TicketRecord ticket, UserRecord? requester, TechnicianRecord? technician, IReadOnlyList<AssetRecord> assets)
@@ -1025,6 +1454,36 @@ public sealed class HelpdeskStore
         }
     }
 
+    // Kinds use the same names as the Settings option pages: AssetTypes, AssetMakes, AssetModels and Categories.
+    public (int Imported, int Skipped) ImportOptions(string kind, IEnumerable<string> values)
+    {
+        lock (_sync)
+        {
+            var options = kind switch
+            {
+                "AssetTypes" => _data.AssetTypes,
+                "AssetMakes" => _data.AssetMakes,
+                "AssetModels" => _data.AssetModels,
+                "Categories" => _data.Categories,
+                _ => throw new ArgumentException("Unknown option list.", nameof(kind))
+            };
+            var imported = 0;
+            var skipped = 0;
+            foreach (var value in values)
+            {
+                var item = (value ?? string.Empty).Trim();
+                if (item.Length == 0 || options.Contains(item, StringComparer.OrdinalIgnoreCase))
+                {
+                    skipped++;
+                    continue;
+                }
+                options.Add(item);
+                imported++;
+            }
+            if (imported > 0) Save();
+            return (imported, skipped);
+        }
+    }
     public (int Imported, int Skipped) ImportUsers(IEnumerable<UserRecord> users)
     {
         lock (_sync)
@@ -1110,16 +1569,27 @@ public sealed class HelpdeskStore
         if (previous.DueDate != updated.DueDate || previous.DueDateOverridden != updated.DueDateOverridden) history.Add(new("Due date changed", updated.DueDate.HasValue ? (updated.DueDateOverridden ? "The due date was manually overridden." : "The due date was recalculated from the SLA.") : "The due date was removed.", now));
     }
 
-    private static void AddAssetActivities(List<AssetActivity> history, AssetRecord previous, AssetRecord updated)
+    private static void AddAssetActivities(List<AssetActivity> history, AssetRecord previous, AssetRecord updated, IReadOnlyList<UserRecord> users)
     {
         var now = DateTime.UtcNow;
+        string Person(Guid? id) => users.FirstOrDefault(x => x.Id == id)?.Name ?? "an unknown user";
+        static string Date(DateOnly? value) => value.HasValue ? AssetInsights.Format(value.Value) : "(none)";
+        static string Money(decimal? value) => value.HasValue ? value.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "(none)";
+        static string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "(none)" : value;
+        if (!string.Equals(previous.Status, updated.Status, StringComparison.Ordinal)) history.Add(new("Status changed", $"{previous.Status} -> {updated.Status}", now));
+        if (previous.PurchaseDate != updated.PurchaseDate) history.Add(new("Purchase date changed", $"{Date(previous.PurchaseDate)} -> {Date(updated.PurchaseDate)}", now));
+        if (previous.PurchasePrice != updated.PurchasePrice) history.Add(new("Purchase price changed", $"{Money(previous.PurchasePrice)} -> {Money(updated.PurchasePrice)}", now));
+        if (!string.Equals(previous.PurchaseOrder, updated.PurchaseOrder, StringComparison.Ordinal)) history.Add(new("Purchase order changed", $"{Text(previous.PurchaseOrder)} -> {Text(updated.PurchaseOrder)}", now));
+        if (previous.WarrantyEnd != updated.WarrantyEnd) history.Add(new("Warranty end changed", $"{Date(previous.WarrantyEnd)} -> {Date(updated.WarrantyEnd)}", now));
+        if (previous.ReplacementDate != updated.ReplacementDate) history.Add(new("Replacement date changed", $"{Date(previous.ReplacementDate)} -> {Date(updated.ReplacementDate)}", now));
+        if (previous.LoanDueDate != updated.LoanDueDate) history.Add(new("Loan due date changed", updated.LoanDueDate.HasValue ? $"Due back {Date(updated.LoanDueDate)}." : "The loan due date was cleared.", now));
         if (previous.AssetTag != updated.AssetTag) history.Add(new("Asset tag changed", $"{previous.AssetTag} -> {updated.AssetTag}", now));
         if (previous.Make != updated.Make) history.Add(new("Make changed", $"{previous.Make} -> {updated.Make}", now));
         if (previous.Model != updated.Model) history.Add(new("Model changed", $"{previous.Model} -> {updated.Model}", now));
         if (previous.Type != updated.Type) history.Add(new("Type changed", $"{previous.Type} -> {updated.Type}", now));
         if (previous.SerialNumber != updated.SerialNumber) history.Add(new("Serial number changed", $"{previous.SerialNumber} -> {updated.SerialNumber}", now));
         if (previous.Location != updated.Location) history.Add(new("Location changed", string.IsNullOrWhiteSpace(updated.Location) ? "The location was removed." : $"Moved to {updated.Location}.", now));
-        if (previous.AssignedUserId != updated.AssignedUserId) history.Add(new("Assigned user changed", updated.AssignedUserId.HasValue ? "The asset was assigned to a user." : "The user assignment was removed.", now));
+        if (previous.AssignedUserId != updated.AssignedUserId) history.Add(new("Assigned user changed", updated.AssignedUserId.HasValue ? $"Assigned to {Person(updated.AssignedUserId)}." : $"No longer assigned to {Person(previous.AssignedUserId)}.", now));
         if (previous.SupplierId != updated.SupplierId) history.Add(new("Supplier changed", updated.SupplierId.HasValue ? "A supplier was linked." : "The supplier was removed.", now));
     }
 
@@ -1172,14 +1642,67 @@ public sealed class HelpdeskStore
         return ReadData(connection);
     }
 
-    private void Save()
+    private void Save() => Persist(auditChanges: true);
+
+    // Saves without auditing the differences: used at startup and after seeding, when the change is not a user action.
+    private void SaveBaseline() => Persist(auditChanges: false);
+
+    private void Persist(bool auditChanges)
     {
+        var current = AuditTracker.Take(_data);
+        var entries = new List<AuditEntry>(_pendingAudit);
+        if (auditChanges && _snapshot is not null) entries.AddRange(AuditTracker.Diff(_snapshot, current, DateTime.UtcNow));
+
         using var connection = new SqliteConnection($"Data Source={_path}");
         connection.Open();
         using var transaction = connection.BeginTransaction();
         WriteData(connection, transaction, _data);
         SetMetadata(connection, transaction, "SchemaVersion", "5");
+        foreach (var entry in entries)
+            Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details) VALUES ($at,$area,$type,$key,$entity,$action,$details);",
+                ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details));
         transaction.Commit();
+
+        _audit.AddRange(entries);
+        _pendingAudit.Clear();
+        _snapshot = current;
+    }
+
+    private List<AuditEntry> LoadAudit()
+    {
+        var entries = new List<AuditEntry>();
+        using var connection = new SqliteConnection($"Data Source={_path}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT At, Area, EntityType, EntityKey, Entity, Action, Details FROM AuditLog ORDER BY Id;";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            entries.Add(new AuditEntry(Date(reader, 0), reader.GetString(1), NullableString(reader, 2), NullableString(reader, 3), reader.GetString(4), reader.GetString(5), reader.GetString(6)));
+        return entries;
+    }
+
+    // Everything that has happened, newest first: the audit log plus the history and comments already kept on tickets and assets.
+    public IReadOnlyList<AuditEntry> GetAuditEntries()
+    {
+        lock (_sync)
+        {
+            var entries = new List<AuditEntry>(_audit);
+            foreach (var ticket in _data.Tickets)
+            {
+                var label = $"#{ticket.Number} {ticket.Title}";
+                var key = ticket.Number.ToString();
+                entries.AddRange(ticket.History.Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.Action, x.Details)));
+                entries.AddRange(ticket.Comments.Where(x => !x.Text.StartsWith("(Merged from #", StringComparison.Ordinal))
+                    .Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, "Comment added", x.Text)));
+            }
+            foreach (var asset in _data.Assets)
+            {
+                var key = asset.Id.ToString();
+                entries.AddRange(asset.History.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, x.Action, x.Details)));
+                entries.AddRange(asset.Comments.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, "Comment added", x.Text)));
+            }
+            return entries.OrderByDescending(x => x.At).ToList();
+        }
     }
 
     private static void EnsureSchema(SqliteConnection connection)
@@ -1197,6 +1720,7 @@ public sealed class HelpdeskStore
             CREATE TABLE IF NOT EXISTS AssetTypes (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS AssetMakes (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS AssetModels (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS AssetModelMakes (Model TEXT PRIMARY KEY, Make TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS Categories (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS Statuses (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS StatusDescriptions (Status TEXT PRIMARY KEY, Description TEXT NOT NULL);
@@ -1265,6 +1789,40 @@ public sealed class HelpdeskStore
         foreach (var sql in new[] { "ALTER TABLE Slas ADD COLUMN Priority TEXT NULL;", "ALTER TABLE Slas ADD COLUMN Description TEXT NULL;", "ALTER TABLE TicketAttributeDefinitions ADD COLUMN FieldType TEXT NOT NULL DEFAULT 'single-line';", "ALTER TABLE TicketAttributeDefinitions ADD COLUMN Choices TEXT NOT NULL DEFAULT '';" })
         { using var m = connection.CreateCommand(); m.CommandText = sql; try { m.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { } }
         MigrateAssetAttributeTypeToNullable(connection);
+        using var scopeTables = connection.CreateCommand();
+        scopeTables.CommandText = """
+            CREATE TABLE IF NOT EXISTS AssetAttributeAssetTypes (AttributeId TEXT NOT NULL, AssetType TEXT NOT NULL,
+                PRIMARY KEY (AttributeId, AssetType), FOREIGN KEY (AttributeId) REFERENCES AssetAttributeDefinitions(Id) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS TicketAttributeCategories (AttributeId TEXT NOT NULL, Category TEXT NOT NULL,
+                PRIMARY KEY (AttributeId, Category), FOREIGN KEY (AttributeId) REFERENCES TicketAttributeDefinitions(Id) ON DELETE CASCADE);
+            """;
+        scopeTables.ExecuteNonQuery();
+        using var auditTable = connection.CreateCommand();
+        auditTable.CommandText = "CREATE TABLE IF NOT EXISTS AuditLog (Id INTEGER PRIMARY KEY AUTOINCREMENT, At TEXT NOT NULL, Area TEXT NOT NULL, EntityType TEXT NULL, EntityKey TEXT NULL, Entity TEXT NOT NULL, Action TEXT NOT NULL, Details TEXT NOT NULL);";
+        auditTable.ExecuteNonQuery();
+        foreach (var sql in new[]
+        {
+            "ALTER TABLE Assets ADD COLUMN Status TEXT NOT NULL DEFAULT 'In use';",
+            "ALTER TABLE Assets ADD COLUMN PurchaseDate TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN PurchasePrice TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN PurchaseOrder TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN WarrantyEnd TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN ReplacementDate TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN LoanDueDate TEXT NULL;"
+        })
+        {
+            using var m = connection.CreateCommand();
+            m.CommandText = sql;
+            try { m.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+        }
+        using var assetTables = connection.CreateCommand();
+        assetTables.CommandText = """
+            CREATE TABLE IF NOT EXISTS AssetStatuses (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS AssetTypeLifespans (AssetType TEXT PRIMARY KEY, Years INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS AssetAssignments (Id INTEGER PRIMARY KEY AUTOINCREMENT, AssetId TEXT NOT NULL, UserId TEXT NULL, UserName TEXT NOT NULL,
+                StartedAt TEXT NULL, EndedAt TEXT NULL, DueBack TEXT NULL, FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE);
+            """;
+        assetTables.ExecuteNonQuery();
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -1325,6 +1883,9 @@ public sealed class HelpdeskStore
     }
 
     private static string Iso(DateTime value) => value.ToUniversalTime().ToString("O");
+    private static string? IsoDay(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    private static DateOnly? NullableDateOnly(SqliteDataReader reader, int index) =>
+        reader.IsDBNull(index) || !DateOnly.TryParseExact(reader.GetString(index), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var value) ? null : value;
     private static DateTime Date(SqliteDataReader reader, int index) => DateTime.Parse(reader.GetString(index), null, System.Globalization.DateTimeStyles.RoundtripKind);
     private static string? NullableString(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
     private static Guid? NullableGuid(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : Guid.Parse(reader.GetString(index));
@@ -1344,6 +1905,20 @@ public sealed class HelpdeskStore
         ReadStrings(connection, "AssetTypes", data.AssetTypes);
         ReadStrings(connection, "AssetMakes", data.AssetMakes);
         ReadStrings(connection, "AssetModels", data.AssetModels);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Model, Make FROM AssetModelMakes;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.AssetModelMakes[reader.GetString(0)] = reader.GetString(1);
+        }
+        ReadStrings(connection, "AssetStatuses", data.AssetStatuses);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT AssetType, Years FROM AssetTypeLifespans;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.AssetTypeLifespans[reader.GetString(0)] = reader.GetInt32(1);
+        }
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
         ReadStrings(connection, "Categories", data.Categories);
         ReadStrings(connection, "Statuses", data.Statuses);
         using (var command = connection.CreateCommand())
@@ -1396,16 +1971,42 @@ public sealed class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
+            // The legacy single AssetType column seeds the scope; rows in AssetAttributeAssetTypes are merged in.
             command.CommandText = "SELECT Id, Name, AssetType, FieldType, Choices FROM AssetAttributeDefinitions ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.AssetAttributeDefinitions.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), NullableString(reader, 2), reader.GetString(3), reader.GetString(4)));
+            while (reader.Read())
+            {
+                var legacyAssetType = NullableString(reader, 2);
+                data.AssetAttributeDefinitions.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(3), reader.GetString(4))
+                {
+                    AssetTypes = string.IsNullOrWhiteSpace(legacyAssetType) ? [] : [legacyAssetType]
+                });
+            }
         }
+        ReadAttributeScope(connection, "AssetAttributeAssetTypes", "AssetType", (id, assetType) =>
+        {
+            var definition = data.AssetAttributeDefinitions.FirstOrDefault(x => x.Id == id);
+            if (definition is not null && !definition.AssetTypes.Contains(assetType, StringComparer.OrdinalIgnoreCase)) definition.AssetTypes.Add(assetType);
+        });
         using (var command = connection.CreateCommand())
         {
+            // The legacy single Category column seeds the scope; rows in TicketAttributeCategories are merged in.
             command.CommandText = "SELECT Id, Name, Category, FieldType, Choices FROM TicketAttributeDefinitions ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.TicketAttributeDefinitions.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), NullableString(reader, 2), reader.GetString(3), reader.GetString(4)));
+            while (reader.Read())
+            {
+                var legacyCategory = NullableString(reader, 2);
+                data.TicketAttributeDefinitions.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(3), reader.GetString(4))
+                {
+                    Categories = string.IsNullOrWhiteSpace(legacyCategory) ? [] : [legacyCategory]
+                });
+            }
         }
+        ReadAttributeScope(connection, "TicketAttributeCategories", "Category", (id, category) =>
+        {
+            var definition = data.TicketAttributeDefinitions.FirstOrDefault(x => x.Id == id);
+            if (definition is not null && !definition.Categories.Contains(category, StringComparer.OrdinalIgnoreCase)) definition.Categories.Add(category);
+        });
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT TicketNumber, AttributeDefinitionId, Value FROM TicketAttributeValues;";
@@ -1444,10 +2045,18 @@ public sealed class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId FROM Assets;";
-            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId FROM Assets;";
+            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate FROM Assets;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Assets.Add(new(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8)));
+            while (reader.Read()) data.Assets.Add(new AssetRecord(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8))
+            {
+                Status = NullableString(reader, 9) ?? "In use",
+                PurchaseDate = NullableDateOnly(reader, 10),
+                PurchasePrice = NullableString(reader, 11) is { } price && decimal.TryParse(price, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedPrice) ? parsedPrice : null,
+                PurchaseOrder = NullableString(reader, 12) ?? "",
+                WarrantyEnd = NullableDateOnly(reader, 13),
+                ReplacementDate = NullableDateOnly(reader, 14),
+                LoanDueDate = NullableDateOnly(reader, 15)
+            });
         }
         foreach (var asset in data.Assets) ReadAssetChildren(connection, asset);
         var ticketAssetMap = new Dictionary<int, List<Guid>>();
@@ -1492,6 +2101,14 @@ public sealed class HelpdeskStore
         return data;
     }
 
+    private static void ReadAttributeScope(SqliteConnection connection, string table, string column, Action<Guid, string> add)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT AttributeId, {column} FROM {table};";
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) add(Guid.Parse(reader.GetString(0)), reader.GetString(1));
+    }
+
     private static void ReadStrings(SqliteConnection connection, string table, List<string> target)
     {
         using var command = connection.CreateCommand();
@@ -1526,6 +2143,13 @@ public sealed class HelpdeskStore
         activities.Parameters.AddWithValue("$id", asset.Id.ToString());
         using var activityReader = activities.ExecuteReader();
         while (activityReader.Read()) asset.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)));
+        using var assignments = connection.CreateCommand();
+        assignments.CommandText = "SELECT UserId, UserName, StartedAt, EndedAt, DueBack FROM AssetAssignments WHERE AssetId = $id ORDER BY Id;";
+        assignments.Parameters.AddWithValue("$id", asset.Id.ToString());
+        using var assignmentReader = assignments.ExecuteReader();
+        while (assignmentReader.Read())
+            asset.Assignments.Add(new AssetAssignment(NullableGuid(assignmentReader, 0), assignmentReader.GetString(1),
+                assignmentReader.IsDBNull(2) ? null : Date(assignmentReader, 2), assignmentReader.IsDBNull(3) ? null : Date(assignmentReader, 3), NullableDateOnly(assignmentReader, 4)));
     }
 
     private static void WriteData(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
@@ -1533,7 +2157,7 @@ public sealed class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -1542,6 +2166,12 @@ public sealed class HelpdeskStore
         InsertStrings(connection, transaction, "AssetTypes", data.AssetTypes);
         InsertStrings(connection, transaction, "AssetMakes", data.AssetMakes);
         InsertStrings(connection, transaction, "AssetModels", data.AssetModels);
+        InsertStrings(connection, transaction, "AssetStatuses", data.AssetStatuses);
+        foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
+            Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
+        SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
+            Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));
         InsertStrings(connection, transaction, "Categories", data.Categories);
         InsertStrings(connection, transaction, "Statuses", data.Statuses);
         foreach (var pair in data.StatusDescriptions.Where(x => data.Statuses.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(x.Value)))
@@ -1567,19 +2197,30 @@ public sealed class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt) VALUES ($id,$name,$sku,$category,$quantity,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$sku", item.Sku), ("$category", item.Category), ("$quantity", item.QuantityOnHand), ("$created", Iso(item.CreatedAt)));
         foreach (var item in data.Assets)
         {
-            Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()));
+            Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()),
+                ("$status", string.IsNullOrWhiteSpace(item.Status) ? "In use" : item.Status), ("$purchased", IsoDay(item.PurchaseDate)), ("$price", item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(item.WarrantyEnd)), ("$replacement", IsoDay(item.ReplacementDate)), ("$loan", IsoDay(item.LoanDueDate)));
+            foreach (var assignment in item.Assignments)
+                Execute(connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack) VALUES ($id,$user,$name,$started,$ended,$due);", ("$id", item.Id.ToString()), ("$user", assignment.UserId?.ToString()), ("$name", assignment.UserName), ("$started", assignment.StartedAt.HasValue ? Iso(assignment.StartedAt.Value) : null), ("$ended", assignment.EndedAt.HasValue ? Iso(assignment.EndedAt.Value) : null), ("$due", IsoDay(assignment.DueBack)));
             foreach (var comment in item.Comments)
                 Execute(connection, transaction, "INSERT INTO AssetComments (AssetId, Text, CreatedAt) VALUES ($id,$text,$created);", ("$id", item.Id.ToString()), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)));
             foreach (var activity in item.History)
                 Execute(connection, transaction, "INSERT INTO AssetActivities (AssetId, Action, Details, CreatedAt) VALUES ($id,$action,$details,$created);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
         }
         foreach (var item in data.AssetAttributeDefinitions)
-            Execute(connection, transaction, "INSERT INTO AssetAttributeDefinitions (Id, Name, AssetType, FieldType, Choices) VALUES ($id,$name,$type,$fieldType,$choices);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$type", item.AssetType), ("$fieldType", NormalizeAttributeType(item.FieldType)), ("$choices", NormalizeChoices(item.Choices)));
+        {
+            Execute(connection, transaction, "INSERT INTO AssetAttributeDefinitions (Id, Name, FieldType, Choices) VALUES ($id,$name,$fieldType,$choices);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$fieldType", NormalizeAttributeType(item.FieldType)), ("$choices", NormalizeChoices(item.Choices)));
+            foreach (var assetType in item.AssetTypes.Distinct(StringComparer.OrdinalIgnoreCase))
+                Execute(connection, transaction, "INSERT INTO AssetAttributeAssetTypes (AttributeId, AssetType) VALUES ($id,$type);", ("$id", item.Id.ToString()), ("$type", assetType));
+        }
         foreach (var item in data.AssetAttributeValues)
             if (data.Assets.Any(x => x.Id == item.AssetId) && data.AssetAttributeDefinitions.Any(x => x.Id == item.AttributeDefinitionId))
                 Execute(connection, transaction, "INSERT INTO AssetAttributeValues (AssetId, AttributeDefinitionId, Value) VALUES ($asset,$definition,$value);", ("$asset", item.AssetId.ToString()), ("$definition", item.AttributeDefinitionId.ToString()), ("$value", item.Value));
         foreach (var item in data.TicketAttributeDefinitions)
-            Execute(connection, transaction, "INSERT INTO TicketAttributeDefinitions (Id, Name, Category, FieldType, Choices) VALUES ($id,$name,$category,$fieldType,$choices);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$category", item.Category), ("$fieldType", NormalizeAttributeType(item.FieldType)), ("$choices", NormalizeChoices(item.Choices)));
+        {
+            Execute(connection, transaction, "INSERT INTO TicketAttributeDefinitions (Id, Name, FieldType, Choices) VALUES ($id,$name,$fieldType,$choices);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$fieldType", NormalizeAttributeType(item.FieldType)), ("$choices", NormalizeChoices(item.Choices)));
+            foreach (var category in item.Categories.Distinct(StringComparer.OrdinalIgnoreCase))
+                Execute(connection, transaction, "INSERT INTO TicketAttributeCategories (AttributeId, Category) VALUES ($id,$category);", ("$id", item.Id.ToString()), ("$category", category));
+        }
         foreach (var item in data.Tickets)
         {
             Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team);",
@@ -1630,7 +2271,7 @@ public sealed class HelpdeskStore
         _data.AssetTypes.Add("Laptop");
         _data.AssetMakes.Add("Dell");
         _data.AssetModels.Add("Dell Latitude 5440");
-        Save();
+        SaveBaseline();
     }
 
     public sealed class StoreData
@@ -1643,6 +2284,12 @@ public sealed class HelpdeskStore
         public List<string> AssetTypes { get; set; } = [];
         public List<string> AssetMakes { get; set; } = [];
         public List<string> AssetModels { get; set; } = [];
+        public Dictionary<string, string> AssetModelMakes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<string> AssetStatuses { get; set; } = [];
+        // Expected life in years per asset type, used to work out replacement dates.
+        public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        // Warranty ends and replacement dates inside this many days go on the overview review list.
+        public int AssetReviewDays { get; set; } = 60;
         public List<string> Categories { get; set; } = [];
         public List<string> Statuses { get; set; } = [];
         public Dictionary<string, string> StatusDescriptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -1680,6 +2327,7 @@ public sealed class HelpdeskStore
         "AssetTypes" => "Asset type",
         "AssetMakes" => "Asset make",
         "AssetModels" => "Asset model",
+        "AssetStatuses" => "Asset status",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -1691,10 +2339,11 @@ public sealed class HelpdeskStore
         "Asset type" => _data.AssetTypes,
         "Asset make" => _data.AssetMakes,
         "Asset model" => _data.AssetModels,
+        "Asset status" => _data.AssetStatuses,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 
@@ -1724,6 +2373,32 @@ public sealed class HelpdeskStore
         if (string.Equals(trimmed, "minutes", StringComparison.OrdinalIgnoreCase)) return "minutes";
         return "hours";
     }
+
+    private static List<string> NormalizeScope(IEnumerable<string>? values) =>
+        (values ?? []).Select(x => x?.Trim() ?? string.Empty).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    // Returns the requested values using the casing of the configured options, or null if any value is not a configured option.
+    private static List<string>? ResolveScope(IEnumerable<string>? requested, List<string> options)
+    {
+        var resolved = new List<string>();
+        foreach (var value in NormalizeScope(requested))
+        {
+            var match = options.FirstOrDefault(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase));
+            if (match is null) return null;
+            resolved.Add(match);
+        }
+        return resolved;
+    }
+
+    // An empty scope means "applies to everything", so it overlaps with any other scope.
+    private static bool ScopesOverlap(List<string> first, List<string> second) =>
+        first.Count == 0 || second.Count == 0 || first.Intersect(second, StringComparer.OrdinalIgnoreCase).Any();
+
+    private static List<string> RenameInScope(List<string> scope, string oldValue, string newValue) =>
+        scope.Select(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase) ? newValue : x).ToList();
+
+    private static string DuplicateAttributeMessage(List<string> scope, string noun) =>
+        scope.Count == 0 ? "That attribute name is already in use." : $"That attribute already exists for one of the selected {noun}.";
 
     private static void EnsureOptions(List<string> options, IEnumerable<string> defaults)
     {

@@ -63,9 +63,9 @@
             <label>Description<textarea name="description" rows="7">@Model.Ticket.Description</textarea></label>
             <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" onclick="cancelTicketContent()">Cancel</button></div>
         </form>
-        <div class="job-meta"><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
+        <div class="job-meta"><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last modified</span><strong>@Model.Ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
         <div class="job-detail-fields">
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" onclick="editField('technician')">✎</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">✓</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" onclick="editField('technician')">✎</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">✓</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TEAM</p><button id="team-edit" class="icon-button edit-icon" type="button" title="Edit team" onclick="editField('team')">✎</button></div><strong class="field-value" id="team-value">@(Model.Ticket.TeamName ?? "No team")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="team-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="team" /><select name="value"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" selected="@(team == Model.Ticket.TeamName)">@team</option> }</select><button class="icon-button save-icon" type="submit" title="Save team" aria-label="Save team">✓</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA</p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" onclick="editField('sla')">✎</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">✓</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE</p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" onclick="editField('dueDate')">✎</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">✓</button></form></div>
@@ -95,14 +95,17 @@
                     <input type="hidden" name="number" value="@Model.Ticket.Number" />
                     <label for="ticket-comment">Add a comment</label>
                     <textarea id="ticket-comment" name="comment" rows="3" placeholder="Add an update, finding, or next action…"></textarea>
-                    @if (Model.Ticket.Status == "Closed")
-                    {
-                        <label class="toggle-label"><input type="checkbox" name="reopenTicket" value="true" onchange="document.getElementById('comment-submit').textContent = this.checked ? 'Add comment &amp; reopen ticket' : 'Add comment';" /> Reopen this ticket</label>
-                    }
-                    else
-                    {
-                        <label class="toggle-label"><input type="checkbox" name="closeTicket" value="true" onchange="document.getElementById('comment-submit').textContent = this.checked ? 'Add comment &amp; close ticket' : 'Add comment';" /> Close this ticket with this comment</label>
-                    }
+                    <label for="comment-status">Status</label>
+                    <select id="comment-status" name="status" data-current="@Model.Ticket.Status" onchange="updateCommentSubmit()">
+                        @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))
+                        {
+                            <option value="" selected>@Model.Ticket.Status</option>
+                        }
+                        @foreach (var status in Model.Statuses)
+                        {
+                            <option value="@status" selected="@string.Equals(status, Model.Ticket.Status, StringComparison.OrdinalIgnoreCase)">@status</option>
+                        }
+                    </select>
                     <button class="button button-primary" type="submit" id="comment-submit">Add comment</button>
                 </form>
             </div>
@@ -189,6 +192,12 @@ const statusDescriptions = @Html.Raw(Model.StatusDescriptionsJson);
 function updateStatusDescription(value) {
     const el = document.getElementById("status-description");
     if (el) el.textContent = statusDescriptions[value] || "";
+}
+function updateCommentSubmit() {
+    const select = document.getElementById("comment-status");
+    const button = document.getElementById("comment-submit");
+    const changed = select.value !== "" && select.value.toLowerCase() !== select.dataset.current.toLowerCase();
+    button.textContent = !changed ? "Add comment" : select.value === "Closed" ? "Add comment & close ticket" : "Add comment & set status to " + select.value;
 }
 function openCloseDialog() {
     const backdrop = document.getElementById("close-dialog-backdrop");

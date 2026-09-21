@@ -14,6 +14,7 @@ public class JobModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<AssetRecord> LinkedAssets { get; private set; } = [];
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
+    public IReadOnlyList<TechnicianRecord> TeamTechnicians => Ticket is null ? [] : store.GetTechniciansForTeam(Ticket.TeamName);
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
@@ -45,6 +46,7 @@ public class JobModel(HelpdeskStore store) : PageModel
     {
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (ticket is null) return NotFound();
+        string? successMessage = null;
         if (field is "status" or "priority" or "category")
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -80,13 +82,20 @@ public class JobModel(HelpdeskStore store) : PageModel
                 Message = "Select a valid technician.";
                 return RedirectToPage(new { number });
             }
+            if (technicianId.HasValue && store.Technicians.FirstOrDefault(x => x.Id == technicianId.Value) is { } selectedTechnician && !HelpdeskStore.TechnicianInTeam(selectedTechnician, ticket.TeamName))
+            {
+                Message = $"Select a technician from the {ticket.TeamName} team.";
+                return RedirectToPage(new { number });
+            }
             ticket = ticket with { TechnicianId = technicianId };
         }
         else if (field == "team")
         {
             var team = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             if (team is not null && !store.TechnicianTeams.Contains(team, StringComparer.OrdinalIgnoreCase)) { Message = "Select a valid team."; return RedirectToPage(new { number }); }
-            ticket = ticket with { TeamName = team };
+            var keepTechnician = ticket.TechnicianId is not { } currentTechnicianId || store.Technicians.FirstOrDefault(x => x.Id == currentTechnicianId) is not { } currentTechnician || HelpdeskStore.TechnicianInTeam(currentTechnician, team);
+            ticket = ticket with { TeamName = team, TechnicianId = keepTechnician ? ticket.TechnicianId : null };
+            if (!keepTechnician) successMessage = "Team updated. The technician was unassigned because they are not in that team.";
         }
         else if (field == "sla")
         {
@@ -115,7 +124,7 @@ public class JobModel(HelpdeskStore store) : PageModel
             return RedirectToPage(new { number });
         }
         store.UpdateTicket(ticket);
-        Message = "Job updated.";
+        Message = successMessage ?? "Job updated.";
         return RedirectToPage(new { number });
     }
 
@@ -174,12 +183,23 @@ public class JobModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { number });
     }
 
-    public IActionResult OnPostAddComment(int number, string? comment, bool closeTicket = false, bool reopenTicket = false)
+    public IActionResult OnPostAddComment(int number, string? comment, string? status)
     {
         if (string.IsNullOrWhiteSpace(comment))
         {
             Message = "Enter a comment before saving.";
             return RedirectToPage(new { number });
+        }
+
+        string? newStatus = null;
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            newStatus = store.Statuses.FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (newStatus is null)
+            {
+                Message = "Select a valid status.";
+                return RedirectToPage(new { number });
+            }
         }
 
         if (!store.AddTicketComment(number, comment))
@@ -191,20 +211,17 @@ public class JobModel(HelpdeskStore store) : PageModel
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (ticket is null) return NotFound();
 
-        if (closeTicket && ticket.Status != "Closed")
+        if (newStatus is null || string.Equals(newStatus, ticket.Status, StringComparison.OrdinalIgnoreCase))
         {
-            store.UpdateTicket(ticket with { Status = "Closed", ClosedAt = ticket.ClosedAt ?? DateTime.UtcNow });
-            Message = "Comment added and ticket closed.";
-        }
-        else if (reopenTicket && ticket.Status == "Closed")
-        {
-            var reopenStatus = store.Statuses.FirstOrDefault(x => !string.Equals(x, "Closed", StringComparison.OrdinalIgnoreCase)) ?? ticket.Status;
-            store.UpdateTicket(ticket with { Status = reopenStatus, ClosedAt = null });
-            Message = "Comment added and ticket reopened.";
+            Message = "Comment added.";
         }
         else
         {
-            Message = "Comment added.";
+            var wasClosed = ticket.Status == "Closed";
+            store.UpdateTicket(ticket with { Status = newStatus, ClosedAt = newStatus == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null });
+            Message = newStatus == "Closed" ? "Comment added and ticket closed."
+                : wasClosed ? "Comment added and ticket reopened."
+                : $"Comment added and status changed to {newStatus}.";
         }
 
         return RedirectToPage(new { number });

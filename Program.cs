@@ -1,6 +1,7 @@
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
+builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<EduHelpdesk.Services.HelpdeskStore>();
 
 var app = builder.Build();

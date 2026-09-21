@@ -36,7 +36,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (Ticket.SlaId.HasValue && !store.Slas.Any(x => x.Id == Ticket.SlaId)) ModelState.AddModelError("Ticket.SlaId", "Select a valid SLA.");
         if (Ticket.TechnicianId.HasValue && !store.Technicians.Any(x => x.Id == Ticket.TechnicianId)) ModelState.AddModelError("Ticket.TechnicianId", "Select a valid technician.");
         if (!string.IsNullOrWhiteSpace(Ticket.TeamName) && !store.TechnicianTeams.Contains(Ticket.TeamName, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.TeamName", "Select a valid team.");
-        if (Ticket.TechnicianId.HasValue && !string.IsNullOrWhiteSpace(Ticket.TeamName)) ModelState.AddModelError("Ticket.TeamName", "Choose an individual technician or a team, not both.");
+        if (Ticket.TechnicianId.HasValue && !string.IsNullOrWhiteSpace(Ticket.TeamName) && store.Technicians.FirstOrDefault(x => x.Id == Ticket.TechnicianId) is { } technician && !HelpdeskStore.TechnicianInTeam(technician, Ticket.TeamName)) ModelState.AddModelError("Ticket.TechnicianId", $"Select a technician from the {Ticket.TeamName} team.");
         if (Ticket.DueDate.HasValue && Ticket.DueDate < DateTime.UtcNow.Date) ModelState.AddModelError("Ticket.DueDate", "Due date cannot be in the past.");
         if (!ModelState.IsValid) return Page();
 

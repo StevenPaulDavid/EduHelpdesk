@@ -1,4 +1,5 @@
 @page
+@using EduHelpdesk.Services
 @model AssetsModel
 @{
     ViewData["Title"] = "Assets";
@@ -6,19 +7,160 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / ASSET REGISTER</p><h1>Assets</h1><p class="hero-copy">Track school equipment and keep its ticket history connected.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-primary" asp-page="/Assets/Add">＋ Add asset</a></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">＋ Add asset</a></div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-<section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><span class="badge">@Model.Assets.Count</span></div>
-    <div class="directory-list">
-    @foreach (var asset in Model.Assets)
-    {
-        var owner = Model.Users.FirstOrDefault(x => x.Id == asset.AssignedUserId);
-        var assetTickets = Model.Tickets.Where(x => x.AssetIds.Contains(asset.Id)).ToList();
-        <div class="directory-row"><div class="directory-person"><div class="avatar asset-avatar">▣</div><div><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag · @asset.Make @asset.Model</a></strong><span>@asset.Type · @asset.SerialNumber · @(owner?.Name ?? "Unassigned") · @asset.Location</span></div></div><div class="row-actions"><span class="badge">@assetTickets.Count tickets</span><a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">✎</a><a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">♜</a></div></div>
-    }
-    @if (Model.Assets.Count == 0) { <p class="empty">No assets have been added yet.</p> }
-    </div>
+<section class="panel">
+    <form method="get" class="audit-filters asset-filters">
+        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Tag, serial number, make, model, location, holder, purchase order" /></label>
+        <label>Status<select name="status"><option value="">Any status</option>@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Make<select name="make"><option value="">Any make</option>@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@string.Equals(item, Model.Make, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Location<select name="location"><option value="">Any location</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No location)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Held by<select name="holder"><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
+        <label>Show<select name="flag"><option value="">All assets</option><option value="review" selected="@(Model.Flag == "review")">Needs review</option><option value="loan" selected="@(Model.Flag == "loan")">On loan</option><option value="overdue" selected="@(Model.Flag == "overdue")">Loan overdue</option></select></label>
+        <label>Per page<select name="size">@foreach (var size in AssetsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+        <input type="hidden" name="sort" value="@(Model.Sort == "tag" ? "" : Model.Sort)" />
+        <input type="hidden" name="dir" value="@(Model.Descending ? "desc" : "")" />
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" asp-page="/Assets">Clear</a></div>
+    </form>
 </section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalAssets}" : Model.TotalAssets.ToString())</span></div>
+    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount">
+        <input type="hidden" name="q" value="@Model.Search" />
+        <input type="hidden" name="status" value="@Model.Status" />
+        <input type="hidden" name="type" value="@Model.Type" />
+        <input type="hidden" name="make" value="@Model.Make" />
+        <input type="hidden" name="location" value="@Model.Location" />
+        <input type="hidden" name="holder" value="@Model.Holder" />
+        <input type="hidden" name="flag" value="@Model.Flag" />
+        <input type="hidden" name="sort" value="@Model.Sort" />
+        <input type="hidden" name="dir" value="@Model.Dir" />
+        <input type="hidden" name="p" value="@Model.PageNumber" />
+        <input type="hidden" name="size" value="@Model.Size" />
+        <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
+        <div class="select-banner" id="select-banner" hidden></div>
+        <div class="table-wrap"><table class="asset-table"><thead><tr>
+            <th><input id="select-page" type="checkbox" aria-label="Select all assets on this page" onchange="toggleAssetPage(this)" /></th>
+            <th><a class="sort-link" href="@Model.SortUrl("tag")">Asset@(Model.SortMark("tag"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("model")">Make and model@(Model.SortMark("model"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("holder")">Held by@(Model.SortMark("holder"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("status")">Status@(Model.SortMark("status"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("warranty")">Warranty ends@(Model.SortMark("warranty"))</a></th>
+            <th>Tickets</th><th></th>
+        </tr></thead><tbody>
+        @foreach (var asset in Model.Rows)
+        {
+            var holder = asset.AssignedUserId is { } holderId ? Model.UserNames.GetValueOrDefault(holderId) : null;
+            var overdue = asset.AssignedUserId is not null && asset.LoanDueDate is { } due && due < Model.Today;
+            var expired = asset.WarrantyEnd is { } ends && ends < Model.Today;
+            <tr>
+                <td><input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" onchange="assetSelectionChanged()" /></td>
+                <td><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
+                <td>@asset.Type</td>
+                <td>@asset.SerialNumber</td>
+                <td>@(holder ?? "—")@if (asset.AssignedUserId is not null && asset.LoanDueDate is { } loanDue) { <br /><span class="badge @(overdue ? "badge-warning" : "")">Loan due @AssetInsights.Format(loanDue)</span> }</td>
+                <td>@asset.Location</td>
+                <td><span class="status">@asset.Status</span></td>
+                <td>@if (asset.WarrantyEnd is { } warrantyEnd) { <span>@AssetInsights.Format(warrantyEnd)</span> @if (expired) { <br /><span class="badge badge-warning">Expired</span> } } else { <span class="muted">—</span> }</td>
+                <td><span class="badge">@Model.TicketCounts.GetValueOrDefault(asset.Id)</span></td>
+                <td class="asset-row-actions"><a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">✎</a><a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">♜</a></td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="10" class="empty">@(Model.IsFiltered ? "No assets match these filters." : "No assets have been added yet.")</td></tr> }
+        </tbody></table></div>
+
+        @if (Model.Rows.Count > 0)
+        {
+            <div class="bulk-actions">
+                <strong>With selected assets</strong>
+                <span class="muted" id="selected-count">None selected</span>
+                <label>Action<select name="operation" id="bulk-operation" onchange="switchAssetOperation()"><option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change location</option><option value="export">Export to CSV</option></select></label>
+                <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>
+                <label id="bulk-owner-field" hidden>New owner<select name="newOwner" disabled><option value="none">Nobody (unassigned)</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label>
+                <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@AssetListQuery.None">No location</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
+            </div>
+        }
+    </form>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="audit-pager">
+            @if (Model.PageNumber > 1) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber - 1)">← Previous</a> } else { <span></span> }
+            <span class="muted">Showing @((Model.PageNumber - 1) * Model.Size + 1)–@Math.Min(Model.PageNumber * Model.Size, Model.MatchCount) of @Model.MatchCount · page @Model.PageNumber of @Model.TotalPages</span>
+            @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber + 1)">Next →</a> } else { <span></span> }
+        </div>
+    }
+</section>
+
+@section Scripts {
+<script>
+const form = document.getElementById("bulk-form");
+const matchCount = parseInt(form.dataset.matchCount || "0", 10);
+const selectAllField = document.getElementById("select-all-matching");
+const banner = document.getElementById("select-banner");
+const rowBoxes = () => [...document.querySelectorAll(".asset-select")];
+
+function selectedTotal() {
+    return selectAllField.value === "true" ? matchCount : rowBoxes().filter(b => b.checked).length;
+}
+function assetSelectionChanged(fromToggle) {
+    if (!fromToggle) selectAllField.value = "false";
+    const boxes = rowBoxes();
+    const checked = boxes.filter(b => b.checked).length;
+    const pageBox = document.getElementById("select-page");
+    if (pageBox) pageBox.checked = boxes.length > 0 && checked === boxes.length;
+    const all = selectAllField.value === "true";
+    const total = selectedTotal();
+    const counter = document.getElementById("selected-count");
+    if (counter) counter.textContent = total === 0 ? "None selected" : total + " selected";
+    // Offer to extend the selection to every match once the whole page is ticked and there are more matches than fit on it.
+    if (all) {
+        banner.hidden = false;
+        banner.innerHTML = "All " + matchCount + " matching assets are selected. <button type=\"button\" class=\"link-button\" onclick=\"clearAssetSelection()\">Clear selection</button>";
+    } else if (boxes.length > 0 && checked === boxes.length && matchCount > boxes.length) {
+        banner.hidden = false;
+        banner.innerHTML = "All " + boxes.length + " assets on this page are selected. <button type=\"button\" class=\"link-button\" onclick=\"selectAllMatching()\">Select all " + matchCount + " matching assets</button>";
+    } else {
+        banner.hidden = true;
+    }
+}
+function toggleAssetPage(box) {
+    rowBoxes().forEach(b => b.checked = box.checked);
+    selectAllField.value = "false";
+    assetSelectionChanged(true);
+}
+function selectAllMatching() {
+    selectAllField.value = "true";
+    assetSelectionChanged(true);
+}
+function clearAssetSelection() {
+    rowBoxes().forEach(b => b.checked = false);
+    selectAllField.value = "false";
+    assetSelectionChanged(true);
+}
+function switchAssetOperation() {
+    const op = document.getElementById("bulk-operation").value;
+    for (const [name, id] of [["status", "bulk-status-field"], ["owner", "bulk-owner-field"], ["location", "bulk-location-field"]]) {
+        const field = document.getElementById(id);
+        field.hidden = op !== name;
+        field.querySelector("select").disabled = op !== name;
+    }
+    document.getElementById("bulk-apply").textContent = op === "export" ? "Export selected" : "Apply to selected";
+}
+form.addEventListener("submit", event => {
+    const total = selectedTotal();
+    if (total === 0) { event.preventDefault(); alert("Select at least one asset first."); return; }
+    const op = document.getElementById("bulk-operation").value;
+    if (op !== "export" && total > 20 && !confirm("Change " + total + " assets?")) event.preventDefault();
+});
+switchAssetOperation();
+assetSelectionChanged();
+</script>
+}

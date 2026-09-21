@@ -3,5 +3,41 @@
 @{ ViewData["Title"] = "Custom asset attributes"; }
 <div class="page-heading"><h1>Custom asset attributes</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
-<section class="panel"><form method="post" class="settings-form"><label>Name<input name="name" required /></label><label>Asset type<select name="assetType"><option value="">All asset types</option>@foreach (var type in Model.AssetTypes) { <option value="@type">@type</option> }</select><small>Choose "All asset types" for attributes every asset should have, such as warranty end date.</small></label><label>Field type<select name="fieldType"><option value="single-line">Single-line text</option><option value="multi-line">Multi-line text</option><option value="dropdown">Dropdown</option><option value="checkbox">Checkbox</option></select></label><label>Dropdown choices<input name="choices" placeholder="One, Two, Three" /></label><button class="button button-primary">Add attribute</button></form></section>
-<section class="panel"><div class="directory-list">@foreach (var item in Model.Attributes) { <div class="directory-row"><div><strong>@item.Name</strong><span class="muted">@(item.AssetType ?? "All asset types") · @item.FieldType</span></div><form method="post" asp-page-handler="Delete"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger">Delete</button></form></div> }</div></section>
+<section class="panel">
+    <form method="post" class="settings-form">
+        <label>Name<input name="name" required /></label>
+        <label>Field type<select name="fieldType"><option value="single-line">Single-line text</option><option value="multi-line">Multi-line text</option><option value="dropdown">Dropdown</option><option value="checkbox">Checkbox</option></select></label>
+        <label>Dropdown choices<input name="choices" placeholder="One, Two, Three" /></label>
+        <div class="checkbox-grid">
+            <div><p class="eyebrow">Applies to asset types</p>@foreach (var type in Model.AssetTypes) { <label class="toggle-label"><input type="checkbox" name="assetTypes" value="@type" /> @type</label> }@if (Model.AssetTypes.Count == 0) { <p class="empty">No asset types configured yet.</p> }</div>
+        </div>
+        <small class="muted">Tick every asset type this attribute applies to. Leave all unticked for attributes every asset should have, such as warranty end date.</small>
+        <button class="button button-primary" type="submit">Add attribute</button>
+    </form>
+</section>
+<section class="panel">
+    <div class="directory-list">
+        @foreach (var item in Model.Attributes)
+        {
+            <div class="directory-row">
+                <div class="attribute-row-main">
+                    <strong>@item.Name</strong>
+                    <span class="muted">@(item.AssetTypes.Count > 0 ? string.Join(", ", item.AssetTypes.OrderBy(x => x)) : "All asset types") · @item.FieldType</span>
+                    <details>
+                        <summary>Change asset types</summary>
+                        <form method="post" asp-page-handler="SaveScope" class="settings-form attribute-scope-form">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <div class="checkbox-grid">
+                                <div>@foreach (var type in Model.AssetTypes) { <label class="toggle-label"><input type="checkbox" name="assetTypes" value="@type" checked="@item.AssetTypes.Contains(type, StringComparer.OrdinalIgnoreCase)" /> @type</label> }</div>
+                            </div>
+                            <small class="muted">Leave all unticked to apply to every asset type.</small>
+                            <button class="button button-primary" type="submit">Save asset types</button>
+                        </form>
+                    </details>
+                </div>
+                <form method="post" asp-page-handler="Delete"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger">Delete</button></form>
+            </div>
+        }
+        @if (Model.Attributes.Count == 0) { <p class="empty">No custom asset attributes have been added yet.</p> }
+    </div>
+</section>

@@ -1,4 +1,32 @@
 @page
-@model EduHelpdesk.Pages.Settings.OptionModel
-@{ Model.Kind = "AssetTypes"; ViewData["Title"] = "Asset types"; }
-<partial name="_Option" model="Model" />
+@model EduHelpdesk.Pages.Settings.AssetTypesModel
+@{ ViewData["Title"] = "Asset types"; }
+<div class="page-heading"><h1>Asset types</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel">
+    <form method="post" class="settings-form">
+        <label>Add type<input name="value" required /></label>
+        <label>Expected lifespan (years)<input name="lifespan" type="number" min="1" max="50" step="1" placeholder="Optional" /></label>
+        <small class="muted">The lifespan works out when an asset is due for replacement: its purchase date plus the lifespan. A replacement date typed on an asset always overrides it. Leave it blank to only use typed dates.</small>
+        <button class="button button-primary">Add</button>
+    </form>
+    <div class="directory-list">
+        @foreach (var value in Model.Types)
+        {
+            var years = Model.Lifespans.TryGetValue(value, out var lifespan) ? lifespan : (int?)null;
+            <div class="directory-row">
+                <div class="attribute-row-main"><strong>@value</strong><span class="muted">@(years.HasValue ? $"{years} year{(years == 1 ? "" : "s")}" : "No lifespan set")</span></div>
+                <div class="row-actions">
+                    <form method="post" asp-page-handler="Save">
+                        <input type="hidden" name="currentValue" value="@value" />
+                        <input name="value" value="@value" required />
+                        <input name="lifespan" type="number" min="1" max="50" step="1" value="@years" placeholder="Years" aria-label="Lifespan in years for @value" />
+                        <button class="button button-secondary">Save</button>
+                    </form>
+                    <form method="post" asp-page-handler="Delete"><input type="hidden" name="value" value="@value" /><button class="button button-danger">Delete</button></form>
+                </div>
+            </div>
+        }
+        @if (Model.Types.Count == 0) { <p class="empty">No asset types have been added yet.</p> }
+    </div>
+</section>

@@ -1,0 +1,107 @@
+@page
+@using EduHelpdesk.Services
+@model ReportsModel
+@{ ViewData["Title"] = "Reports"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Asset reports</h1><p class="hero-copy">A snapshot of the asset register: what is due for review, what the fleet looks like, and which devices cause the most trouble.</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Overview</a>
+</div>
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Warranty window<select name="warranty">@foreach (var days in Model.WarrantyOptions) { <option value="@days" selected="@(days == Model.EffectiveWarrantyDays)">@days days@(days == Model.ReviewWindowDays ? " (review window)" : "")</option> }</select></label>
+        <label>Problem devices<select name="period">@foreach (var period in ReportsModel.Periods) { <option value="@period.Key" selected="@(period.Key == Model.PeriodKey)">@period.Label</option> }</select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports">Reset</a></div>
+    </form>
+    <div class="report-nav"><a href="#review">Review list</a><a href="#counts">Counts</a><a href="#age">Fleet age and refresh</a><a href="#warranty">Warranty</a><a href="#problems">Problem devices</a></div>
+</section>
+
+<section class="panel" id="review">
+    <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.Review.Count > 0 ? "badge-warning" : "")">@Model.Review.Count</span></div>
+    <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and overdue loans. The window is set in Settings.</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Held by</th><th>Why it needs review</th></tr></thead><tbody>
+    @foreach (var item in Model.Review)
+    {
+        <tr>
+            <td><strong><a asp-page="/Asset" asp-route-id="@item.Asset.Id">@item.Asset.AssetTag</a></strong><br /><span class="muted">@item.Asset.Make @item.Asset.Model · @item.Asset.Type</span></td>
+            <td>@(Model.HolderName(item.Asset) ?? "—")</td>
+            <td>@foreach (var reason in item.Reasons) { <div><span class="badge @(reason.Overdue ? "badge-warning" : "")">@reason.Kind</span> @reason.Text</div> }</td>
+        </tr>
+    }
+    @if (Model.Review.Count == 0) { <tr><td colspan="3" class="empty">No assets need review right now.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="counts">
+    <div class="panel-heading"><div><p class="eyebrow">BREAKDOWN</p><h2>Assets by type, make, location and status</h2></div><span class="badge">@Model.TotalAssets assets</span></div>
+    <div class="report-grid">
+        @foreach (var (title, rows) in Model.CountTables)
+        {
+            <div>
+                <h3>@title</h3>
+                <table><thead><tr><th>Name</th><th>Assets</th><th>Share</th></tr></thead><tbody>
+                @foreach (var row in rows)
+                {
+                    var share = Model.TotalAssets == 0 ? 0 : row.Count * 100.0 / Model.TotalAssets;
+                    <tr><td>@row.Name</td><td>@row.Count</td><td class="report-share"><div class="bar"><span style="width:@share.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)%"></span></div><small class="muted">@share.ToString("0")%</small></td></tr>
+                }
+                @if (rows.Count == 0) { <tr><td colspan="3" class="empty">No assets yet.</td></tr> }
+                </tbody></table>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="panel" id="age">
+    <div class="panel-heading"><div><p class="eyebrow">FLEET AGE AND REFRESH</p><h2>How old the fleet is</h2></div><span class="badge">@(Model.FleetAverageYears.HasValue ? $"Average {Model.FleetAverageYears.Value:0.0} yrs" : "No purchase dates")</span></div>
+    @if (Model.MissingPurchaseDate > 0) { <p class="muted">@Model.MissingPurchaseDate of @Model.TotalAssets assets have no purchase date, so they are left out of the ages below.</p> }
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Assets</th><th>With a purchase date</th><th>Average age</th><th>Oldest</th><th>Due or overdue for replacement</th></tr></thead><tbody>
+    @foreach (var row in Model.Age)
+    {
+        <tr><td>@row.Type</td><td>@row.Count</td><td>@row.WithPurchaseDate</td><td>@ReportsModel.Years(row.AverageYears)</td><td>@ReportsModel.Years(row.OldestYears)</td><td>@(row.DueOrOverdue > 0 ? Html.Raw($"<span class=\"badge badge-warning\">{row.DueOrOverdue}</span>") : Html.Raw("0"))</td></tr>
+    }
+    @if (Model.Age.Count == 0) { <tr><td colspan="6" class="empty">No assets yet.</td></tr> }
+    </tbody></table></div>
+    <h3>Replacement planning</h3>
+    <p class="muted">Assets already due or overdue for replacement, and those due within the next 12 months. @(Model.ReplacementCount > ReportsModel.RowLimit ? $"Showing the first {ReportsModel.RowLimit} of {Model.ReplacementCount}." : $"{Model.ReplacementCount} in total.")</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Age</th><th>Replacement date</th><th>When</th></tr></thead><tbody>
+    @foreach (var row in Model.Replacements)
+    {
+        <tr><td><a asp-page="/Asset" asp-route-id="@row.Asset.Id">@row.Asset.AssetTag</a></td><td>@row.Asset.Type</td><td>@ReportsModel.Years(row.AgeYears)</td><td>@AssetInsights.Format(row.Due)</td><td><span class="badge @(row.Due < Model.Today ? "badge-warning" : "")">@ReportsModel.DaysFrom(row.Due, Model.Today)</span></td></tr>
+    }
+    @if (Model.Replacements.Count == 0) { <tr><td colspan="5" class="empty">Nothing is due for replacement in the next 12 months. Set a lifespan on each asset type in Settings, or type replacement dates on assets.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="warranty">
+    <div class="panel-heading"><div><p class="eyebrow">WARRANTY</p><h2>Warranty ending within @Model.EffectiveWarrantyDays days</h2></div><span class="badge @(Model.ExpiringCount > 0 ? "badge-warning" : "")">@Model.ExpiringCount</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Held by</th><th>Warranty ends</th><th>When</th></tr></thead><tbody>
+    @foreach (var row in Model.Expiring)
+    {
+        <tr><td><a asp-page="/Asset" asp-route-id="@row.Asset.Id">@row.Asset.AssetTag</a></td><td>@row.Asset.Type</td><td>@(Model.HolderName(row.Asset) ?? "—")</td><td>@AssetInsights.Format(row.Ends)</td><td>@ReportsModel.DaysFrom(row.Ends, Model.Today)</td></tr>
+    }
+    @if (Model.Expiring.Count == 0) { <tr><td colspan="5" class="empty">No warranties end in this window.</td></tr> }
+    </tbody></table></div>
+    @if (Model.ExpiringCount > ReportsModel.RowLimit) { <p class="muted">Showing the first @ReportsModel.RowLimit of @Model.ExpiringCount.</p> }
+    <h3>Already out of warranty <span class="badge">@Model.ExpiredCount</span></h3>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Held by</th><th>Warranty ended</th><th>When</th></tr></thead><tbody>
+    @foreach (var row in Model.Expired)
+    {
+        <tr><td><a asp-page="/Asset" asp-route-id="@row.Asset.Id">@row.Asset.AssetTag</a></td><td>@row.Asset.Type</td><td>@(Model.HolderName(row.Asset) ?? "—")</td><td>@AssetInsights.Format(row.Ends)</td><td>@ReportsModel.DaysFrom(row.Ends, Model.Today)</td></tr>
+    }
+    @if (Model.Expired.Count == 0) { <tr><td colspan="5" class="empty">No assets with a recorded warranty end date are out of warranty.</td></tr> }
+    </tbody></table></div>
+    @if (Model.ExpiredCount > ReportsModel.RowLimit) { <p class="muted">Showing the most recent @ReportsModel.RowLimit of @Model.ExpiredCount.</p> }
+</section>
+
+<section class="panel" id="problems">
+    <div class="panel-heading"><div><p class="eyebrow">PROBLEM DEVICES</p><h2>Assets with the most tickets</h2></div><span class="badge">@ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label</span></div>
+    <p class="muted">Tickets linked to each asset, newest first when tied. Devices that keep coming back are candidates for replacement.</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Tickets</th><th>Open now</th><th>Most recent ticket</th></tr></thead><tbody>
+    @foreach (var row in Model.Problems)
+    {
+        <tr><td><a asp-page="/Asset" asp-route-id="@row.Asset.Id">@row.Asset.AssetTag</a><br /><span class="muted">@row.Asset.Make @row.Asset.Model</span></td><td>@row.Asset.Type</td><td><strong>@row.Tickets</strong></td><td>@row.Open</td><td>@row.LastTicket?.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+    }
+    @if (Model.Problems.Count == 0) { <tr><td colspan="5" class="empty">No tickets are linked to assets in this period.</td></tr> }
+    </tbody></table></div>
+</section>

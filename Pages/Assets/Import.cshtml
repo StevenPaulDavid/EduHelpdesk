@@ -1,0 +1,145 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Assets.ImportModel
+@{ ViewData["Title"] = "Import assets"; }
+<div class="page-heading">
+    <div><p class="eyebrow">ASSET REGISTER</p><h1>Import assets</h1><p class="hero-copy">Bring assets in from a spreadsheet. Rows are matched to existing assets by asset tag: a tag that already exists updates that asset, and any other tag adds a new one.</p></div>
+    <a class="button button-secondary" asp-page="/Assets">← Back to assets</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (!string.IsNullOrWhiteSpace(Model.Notice)) { <div class="notice">@Model.Notice</div> }
+<ol class="import-steps">
+    <li class="@(Model.Stage == "upload" ? "current" : "done")"><span>1</span> Choose a file</li>
+    <li class="@(Model.Stage == "map" ? "current" : Model.Stage == "preview" ? "done" : "")"><span>2</span> Match the columns</li>
+    <li class="@(Model.Stage == "preview" ? "current" : "")"><span>3</span> Review and import</li>
+</ol>
+
+@if (Model.Stage == "upload")
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">STEP 1</p><h2>Choose a CSV file</h2></div></div>
+        <p class="muted">One row per asset with a header row, saved as CSV from Excel, Google Sheets, or exported from another system. Comma, semicolon and tab separated files all work. Nothing is changed until you have reviewed the result in step 3.</p>
+        <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="import-row">
+            <label>CSV file<input type="file" name="file" accept=".csv,.txt" required /></label>
+            <label>Separator<select name="delimiter"><option value="">Detect automatically</option><option value="comma">Comma</option><option value="semicolon">Semicolon</option><option value="tab">Tab</option></select></label>
+            <button class="button button-primary" type="submit">Upload and continue</button>
+        </form>
+        <h3>Good to know</h3>
+        <ul class="import-notes">
+            <li>The <strong>asset tag</strong> column is required. It decides whether a row updates an existing asset or adds a new one.</li>
+            <li>An update only changes the columns you map. Blank cells leave the current value alone unless you choose otherwise in step 2.</li>
+            <li>A new asset needs a <strong>type</strong> and a <strong>model</strong>.</li>
+            <li>Tip: use <strong>Export to CSV</strong> on the Assets page to get every asset in a file, edit it, and import it back to update them in bulk.</li>
+        </ul>
+        <div class="heading-actions"><a class="button button-secondary" asp-page="/Assets/Import" asp-page-handler="Template">Download a template file</a></div>
+    </section>
+}
+else if (Model.Stage == "map")
+{
+    var session = Model.Session!;
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">STEP 2</p><h2>Match the columns</h2></div><span class="badge">@session.Rows.Count.ToString("N0") rows · @session.FileName</span></div>
+        <p class="muted">We guessed what each column is from its heading. Check them, and change any that are wrong. Columns set to "Don't import" are ignored.</p>
+        <form method="post" asp-page-handler="Preview">
+            <input type="hidden" name="t" value="@Model.Token" />
+            <div class="table-wrap"><table><thead><tr><th>Column in your file</th><th>Example values</th><th>Import it as</th></tr></thead><tbody>
+            @for (var i = 0; i < session.Headers.Length; i++)
+            {
+                var current = i < session.Targets.Length ? session.Targets[i] : null;
+                <tr>
+                    <td><strong>@(string.IsNullOrWhiteSpace(session.Headers[i]) ? $"(column {i + 1})" : session.Headers[i])</strong></td>
+                    <td class="muted import-sample">@Model.SampleFor(i)</td>
+                    <td>
+                        <select name="targets" aria-label="Import column @session.Headers[i] as">
+                            <option value="">Don't import</option>
+                            <optgroup label="Asset fields">@foreach (var field in AssetImportTargets.Fields) { <option value="@field.Key" selected="@(current == field.Key)">@field.Label</option> }</optgroup>
+                            @if (Model.Attributes.Count > 0)
+                            {
+                                <optgroup label="Custom attributes">@foreach (var definition in Model.Attributes) { <option value="@(AssetImportTargets.AttributePrefix + definition.Id)" selected="@(current == AssetImportTargets.AttributePrefix + definition.Id)">@definition.Name</option> }</optgroup>
+                            }
+                        </select>
+                    </td>
+                </tr>
+            }
+            </tbody></table></div>
+
+            <h3>Options</h3>
+            <div class="form-grid">
+                <label>Dates in the file are written as<select name="dateFormat">@foreach (var format in ImportParsing.DateFormats) { <option value="@format.Key" selected="@(format.Key == session.Options.DateFormat)">@format.Label</option> }</select><small class="muted">Dates written year-first (2026-01-31) are always understood.</small></label>
+                <label>Type for new assets with no type<select name="defaultType"><option value="">No default (a type is required)</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@string.Equals(type, session.Options.DefaultType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
+                <label>Status for new assets with no status<select name="defaultStatus">@foreach (var status in Model.Statuses) { <option value="@status" selected="@(string.Equals(status, session.Options.DefaultStatus, StringComparison.OrdinalIgnoreCase) || (session.Options.DefaultStatus is null && status == Model.Statuses[0]))">@status</option> }</select></label>
+            </div>
+            <label class="toggle-label"><input type="checkbox" name="createMissing" value="true" checked="@session.Options.CreateMissing" /> Add makes, models, types, locations, statuses and suppliers that are not in the lists yet</label>
+            <p class="muted import-hint">You will see everything that would be added in step 3. If this is off, a row with an unknown value is skipped instead.</p>
+            <label class="toggle-label"><input type="checkbox" name="blankClears" value="true" checked="@session.Options.BlankClears" /> A blank cell clears the value on an existing asset</label>
+            <p class="muted import-hint">Off (recommended): blank cells are ignored and existing values stay. Tags, types, models and statuses are never cleared.</p>
+            <div class="heading-actions"><button class="button button-primary" type="submit">Preview the import</button><a class="button button-secondary" asp-page="/Assets/Import">Start again with another file</a></div>
+        </form>
+    </section>
+}
+else
+{
+    var plan = Model.Plan!;
+    var importable = plan.Created + plan.Updated;
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">STEP 3</p><h2>Review before importing</h2></div><a class="button button-secondary" asp-page="/Assets/Import" asp-route-t="@Model.Token" asp-route-step="map">← Change the columns</a></div>
+        <div class="import-summary">
+            <a href="@Model.PageUrl(1, "create")"><strong>@plan.Created.ToString("N0")</strong><span>New assets</span></a>
+            <a href="@Model.PageUrl(1, "update")"><strong>@plan.Updated.ToString("N0")</strong><span>Updated</span></a>
+            <a href="@Model.PageUrl(1, "unchanged")"><strong>@plan.Unchanged.ToString("N0")</strong><span>Already up to date</span></a>
+            <a href="@Model.PageUrl(1, "error")" class="@(plan.Errors > 0 ? "has-problems" : "")"><strong>@plan.Errors.ToString("N0")</strong><span>Skipped (problems)</span></a>
+        </div>
+        @if (plan.NewValues.Count > 0)
+        {
+            <div class="import-new-values">
+                <strong>These would be added to your lists</strong>
+                @foreach (var group in plan.NewValues.GroupBy(x => x.List))
+                {
+                    <p><span class="muted">@group.Key:</span> @string.Join(", ", group.Take(12).Select(x => x.Value))@(group.Count() > 12 ? $" and {group.Count() - 12} more" : "")</p>
+                }
+            </div>
+        }
+        @if (plan.Warnings > 0) { <p class="muted">@plan.Warnings warning@(plan.Warnings == 1 ? "" : "s") below. Warnings do not stop a row being imported.</p> }
+        <div class="heading-actions import-apply">
+            <form method="post" asp-page-handler="Apply" onsubmit="return confirm('Import @importable.ToString("N0") assets now?');">
+                <input type="hidden" name="t" value="@Model.Token" />
+                <button class="button button-primary" type="submit" disabled="@(importable == 0)">Import @plan.Created.ToString("N0") new and update @plan.Updated.ToString("N0")</button>
+            </form>
+            @if (plan.Errors > 0) { <a class="button button-secondary" asp-page="/Assets/Import" asp-page-handler="Problems" asp-route-t="@Model.Token">Download the skipped rows</a> }
+            <a class="button button-secondary" asp-page="/Assets/Import">Cancel</a>
+        </div>
+        @if (importable == 0) { <p class="muted">There is nothing to import with these settings. Change the columns, or fix the problems listed below.</p> }
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">ROW BY ROW</p><h2>@(Model.Show switch { "create" => "New assets", "update" => "Updated assets", "unchanged" => "Already up to date", "error" => "Skipped rows", _ => "All rows" })</h2></div><span class="badge">@Model.ShownCount.ToString("N0") of @plan.Results.Count.ToString("N0")</span></div>
+        <div class="report-nav">
+            <a href="@Model.PageUrl(1, "all")">All</a><a href="@Model.PageUrl(1, "create")">New</a><a href="@Model.PageUrl(1, "update")">Updated</a><a href="@Model.PageUrl(1, "unchanged")">Up to date</a><a href="@Model.PageUrl(1, "error")">Problems</a>
+        </div>
+        <div class="table-wrap"><table class="import-table"><thead><tr><th>Row</th><th>Asset tag</th><th>Result</th><th>Details</th></tr></thead><tbody>
+        @foreach (var row in Model.ShownRows)
+        {
+            <tr>
+                <td>@row.RowNumber</td>
+                <td><strong>@(string.IsNullOrEmpty(row.Tag) ? "—" : row.Tag)</strong></td>
+                <td><span class="badge @(row.Action == ImportAction.Error ? "badge-warning" : "")">@(row.Action switch { ImportAction.Create => "New", ImportAction.Update => "Update", ImportAction.Unchanged => "No change", _ => "Skipped" })</span></td>
+                <td>
+                    @if (row.Error is not null) { <span>@row.Error</span> }
+                    else if (row.Action == ImportAction.Create) { <span class="muted">@string.Join(" · ", row.Changes)</span> }
+                    else if (row.Changes.Count > 0) { <ul class="import-changes">@foreach (var change in row.Changes) { <li>@change</li> }</ul> }
+                    @foreach (var warning in row.Warnings) { <div class="import-warning">Warning: @warning</div> }
+                </td>
+            </tr>
+        }
+        @if (Model.ShownRows.Count == 0) { <tr><td colspan="4" class="empty">No rows in this view.</td></tr> }
+        </tbody></table></div>
+        @if (Model.TotalPages > 1)
+        {
+            <div class="audit-pager">
+                @if (Model.PageNumber > 1) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber - 1)">← Previous</a> } else { <span></span> }
+                <span class="muted">Page @Model.PageNumber of @Model.TotalPages</span>
+                @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber + 1)">Next →</a> } else { <span></span> }
+            </div>
+        }
+    </section>
+}

@@ -13,9 +13,16 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
     public IReadOnlyList<string> AssetMakes => store.AssetMakes;
     public IReadOnlyList<string> AssetModels => store.AssetModels;
+    public IReadOnlyDictionary<string, string> AssetModelMakes => store.AssetModelMakes;
     public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
-    public IReadOnlyList<AssetAttributeDefinition> CustomAttributes => Asset is null ? [] : store.AssetAttributeDefinitions.Where(x => x.AssetType is null || x.AssetType.Equals(Asset.Type, StringComparison.OrdinalIgnoreCase)).ToList();
+    public IReadOnlyList<string> Statuses => store.AssetStatuses;
+    // The date the asset is due for replacement, from the typed date or the asset type's lifespan.
+    public DateOnly? ReplacementDue => Asset is null ? null : AssetInsights.ReplacementDate(Asset, store.AssetTypeLifespans);
+    public IReadOnlyList<AssetAssignment> Ownership => Asset is null ? [] : Asset.Assignments.OrderByDescending(x => x.EndedAt is null).ThenByDescending(x => x.StartedAt ?? DateTime.MinValue).ToList();
+    public string? HolderName => Asset?.AssignedUserId is { } id ? store.Users.FirstOrDefault(x => x.Id == id)?.Name : null;
+    public bool LoanOverdue => Asset is { AssignedUserId: not null, LoanDueDate: { } due } && due < AssetInsights.Today;
+    public IReadOnlyList<AssetAttributeDefinition> CustomAttributes => Asset is null ? [] : store.GetAssetAttributes(Asset.Type);
     public IReadOnlyDictionary<Guid, string> CustomAttributeValues => Asset is null ? new Dictionary<Guid, string>() : store.GetAssetAttributeValues(Asset.Id).ToDictionary(x => x.AttributeDefinitionId, x => x.Value);
     public static IReadOnlyList<string> Choices(AssetAttributeDefinition definition) => HelpdeskStore.GetChoices(definition);
     [TempData] public string? Message { get; set; }
@@ -36,11 +43,39 @@ public class AssetModel(HelpdeskStore store) : PageModel
         string? location,
         Guid? assignedUserId,
         Guid? supplierId,
-        Dictionary<Guid, string>? customAttributes)
+        Dictionary<Guid, string>? customAttributes,
+        string? status,
+        DateOnly? purchaseDate,
+        string? purchasePrice,
+        string? purchaseOrder,
+        DateOnly? warrantyEnd,
+        DateOnly? replacementDate,
+        DateOnly? loanDueDate)
     {
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
         {
             Message = "Asset tag, type, and model are required.";
+            return RedirectToPage(new { id });
+        }
+        if (AssetForm.DescribeInvalid(ModelState) is { } formError)
+        {
+            Message = formError;
+            return RedirectToPage(new { id });
+        }
+        if (!AssetForm.TryPrice(purchasePrice, out var price))
+        {
+            Message = "Enter the purchase price as a positive amount, such as 349.99.";
+            return RedirectToPage(new { id });
+        }
+        if (loanDueDate.HasValue && !assignedUserId.HasValue)
+        {
+            Message = "Choose who holds the device before setting a due-back date.";
+            return RedirectToPage(new { id });
+        }
+        var chosenStatus = string.IsNullOrWhiteSpace(status) ? store.Assets.FirstOrDefault(x => x.Id == id)?.Status : store.AssetStatuses.FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (chosenStatus is null)
+        {
+            Message = "Select a valid status.";
             return RedirectToPage(new { id });
         }
 
@@ -55,13 +90,56 @@ public class AssetModel(HelpdeskStore store) : PageModel
             Message = "Select a valid supplier.";
             return RedirectToPage(new { id });
         }
-        var asset = new AssetRecord(id, assetTag.Trim(), (make ?? string.Empty).Trim(), model.Trim(), type.Trim(), (serialNumber ?? string.Empty).Trim(), (location ?? string.Empty).Trim(), assignedUserId, supplierId);
+        var current = store.Assets.FirstOrDefault(x => x.Id == id);
+        var makeModelChanged = current is null
+            || !string.Equals(current.Make, (make ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(current.Model, model.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (makeModelChanged && !store.AssetModelMatchesMake(model, make))
+        {
+            Message = $"{model.Trim()} does not belong to {(make ?? string.Empty).Trim()}. Select a model for that make.";
+            return RedirectToPage(new { id });
+        }
+        // A tag may not be changed to one another asset already uses; a repeated serial number only earns a warning.
+        if (current is not null && !string.Equals(current.AssetTag, assetTag.Trim(), StringComparison.OrdinalIgnoreCase) && store.CheckAssetTag(assetTag, id) is { } tagError)
+        {
+            Message = tagError;
+            return RedirectToPage(new { id });
+        }
+        var serialChanged = current is null || !string.Equals(current.SerialNumber, (serialNumber ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase);
+        var duplicateSerial = serialChanged ? store.FindDuplicateSerial(serialNumber, id) : null;
+        var asset = new AssetRecord(id, assetTag.Trim(), (make ?? string.Empty).Trim(), model.Trim(), type.Trim(), (serialNumber ?? string.Empty).Trim(), (location ?? string.Empty).Trim(), assignedUserId, supplierId)
+        {
+            Status = chosenStatus,
+            PurchaseDate = purchaseDate,
+            PurchasePrice = price,
+            PurchaseOrder = (purchaseOrder ?? string.Empty).Trim(),
+            WarrantyEnd = warrantyEnd,
+            ReplacementDate = replacementDate,
+            LoanDueDate = loanDueDate
+        };
         if (!store.UpdateAssetAttributeValues(id, type.Trim(), customAttributes))
         {
             Message = "Asset was not found.";
             return RedirectToPage(new { id });
         }
-        Message = store.UpdateAsset(asset) ? "Asset updated." : "Asset was not found.";
+        var saved = store.UpdateAsset(asset);
+        Message = !saved ? "Asset was not found."
+            : duplicateSerial is null ? "Asset updated."
+            : $"Asset updated. Warning: serial number {(serialNumber ?? string.Empty).Trim()} is also recorded on asset {duplicateSerial.AssetTag}.";
+        return RedirectToPage(new { id });
+    }
+
+    public IActionResult OnPostLoan(Guid id, Guid? userId, DateOnly? dueBack)
+    {
+        Message = userId is null || dueBack is null
+            ? "Choose who the device is loaned to and the date it is due back."
+            : store.LoanAsset(id, userId.Value, dueBack.Value);
+        return RedirectToPage(new { id });
+    }
+
+    public IActionResult OnPostReturn(Guid id, string? status)
+    {
+        Message = store.ReturnAsset(id, status);
         return RedirectToPage(new { id });
     }
 

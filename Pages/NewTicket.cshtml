@@ -14,8 +14,8 @@
     <div asp-validation-summary="ModelOnly" class="field-error"></div>
     <div class="form-grid">
         <label>Requester<select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select></label>
-        <label>Assigned technician<select asp-for="Ticket.TechnicianId"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
-        <label>Assigned team<select asp-for="Ticket.TeamName"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team">@team</option> }</select></label>
+        <label>Assigned technician<select asp-for="Ticket.TechnicianId" id="ticket-technician-select"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" data-team="@tech.Team">@tech.Name · @tech.Team</option> }</select><span asp-validation-for="Ticket.TechnicianId" class="field-error"></span></label>
+        <label>Assigned team<select asp-for="Ticket.TeamName" id="ticket-team-select"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team">@team</option> }</select></label>
         <label>Ticket title<input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
         <label>Assets<select asp-for="Ticket.AssetIds" multiple size="5">@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><small>Hold Ctrl (Windows) or Cmd (Mac) to link more than one asset. Leave unselected for a general request.</small></label>
         <label>Priority<select asp-for="Ticket.Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
@@ -25,8 +25,8 @@
         <label class="full">Description<textarea asp-for="Ticket.Description" rows="7" placeholder="Symptoms, checks already completed, and next action…"></textarea></label>
         @foreach (var field in Model.TicketAttributes)
         {
-            var hideField = field.Category is not null && !string.Equals(field.Category, Model.Ticket.Category, StringComparison.OrdinalIgnoreCase);
-            <div class="ticket-attribute-field" data-category="@(field.Category ?? "")" hidden="@hideField">
+            var hideField = !field.AppliesTo(Model.Ticket.Category);
+            <div class="ticket-attribute-field" data-categories="@System.Text.Json.JsonSerializer.Serialize(field.Categories)" hidden="@hideField">
                 @if (field.FieldType == "dropdown")
                 {
                     <label>@field.Name<select name="Ticket.CustomAttributes[@field.Id]"><option value="">Select an option</option>@foreach (var choice in HelpdeskStore.GetChoices(field)) { <option value="@choice">@choice</option> }</select></label>
@@ -50,10 +50,26 @@
 </form>
 @section Scripts {
 <script>
+const technicianSelect = document.getElementById("ticket-technician-select");
+const teamSelect = document.getElementById("ticket-team-select");
+const allTechnicians = Array.from(technicianSelect.options).filter(o => o.value !== "").map(o => ({ value: o.value, text: o.text, team: (o.dataset.team || "").toLowerCase() }));
+
+function filterTechnicians() {
+    const team = teamSelect.value.toLowerCase();
+    const selected = technicianSelect.value;
+    technicianSelect.length = 1;
+    allTechnicians
+        .filter(t => team === "" || t.team === team)
+        .forEach(t => technicianSelect.add(new Option(t.text, t.value, false, t.value === selected)));
+}
+
+teamSelect.addEventListener("change", filterTechnicians);
+filterTechnicians();
+
 function filterTicketAttributes(category) {
     document.querySelectorAll(".ticket-attribute-field").forEach(field => {
-        const fieldCategory = field.getAttribute("data-category");
-        field.hidden = fieldCategory !== "" && fieldCategory !== category;
+        const categories = JSON.parse(field.getAttribute("data-categories") || "[]");
+        field.hidden = categories.length > 0 && !categories.some(c => c.toLowerCase() === category.toLowerCase());
     });
 }
 </script>
