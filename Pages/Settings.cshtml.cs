@@ -134,14 +134,14 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         Message = store.DeleteTicketOption(kind, value);
         return RedirectToPage(new { });
     }
-    public IActionResult OnPostAddSla(string name, int duration, string durationUnit, string? priority)
+    public IActionResult OnPostAddSla(string name, int duration, string durationUnit, string? description, string[]? priorities, string[]? categories)
     {
-        Message = store.AddSla(name, duration, durationUnit, priority);
+        Message = store.AddSla(name, duration, durationUnit, description, priorities, categories);
         return RedirectToPage(new { });
     }
-    public IActionResult OnPostUpdateSla(Guid id, string name, int duration, string durationUnit, string? priority)
+    public IActionResult OnPostUpdateSla(Guid id, string name, int duration, string durationUnit, string? description, string[]? priorities, string[]? categories)
     {
-        Message = store.UpdateSla(id, name, duration, durationUnit, priority);
+        Message = store.UpdateSla(id, name, duration, durationUnit, description, priorities, categories);
         return RedirectToPage(new { });
     }
     public IActionResult OnPostAddTicketAttribute(string name, string? category, string fieldType, string? choices) { Message = store.AddTicketAttributeDefinition(name, category, fieldType, choices); return RedirectToPage(new { }); }

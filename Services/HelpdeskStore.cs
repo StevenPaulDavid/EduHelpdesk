@@ -50,7 +50,7 @@ public sealed class HelpdeskStore
         _data.AssetAttributeDefinitions ??= [];
         _data.AssetAttributeValues ??= [];
         _data.Slas ??= [];
-        _data.Slas = _data.Slas.Select(x => x with { Name = x.Name?.Trim() ?? string.Empty, Duration = Math.Max(1, x.Duration), DurationUnit = NormalizeDurationUnit(x.DurationUnit), Priority = string.IsNullOrWhiteSpace(x.Priority) ? null : x.Priority.Trim() }).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
+        _data.Slas = _data.Slas.Select(x => x with { Name = x.Name?.Trim() ?? string.Empty, Duration = Math.Max(1, x.Duration), DurationUnit = NormalizeDurationUnit(x.DurationUnit), Description = string.IsNullOrWhiteSpace(x.Description) ? null : x.Description.Trim() }).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
         _data.TicketAttributeDefinitions ??= [];
         _data.TicketAttributeValues ??= [];
         _data.TicketAttributeDefinitions = _data.TicketAttributeDefinitions.Select(x => x with { Name = x.Name.Trim(), Category = string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(), FieldType = NormalizeAttributeType(x.FieldType), Choices = NormalizeChoices(x.Choices) }).ToList();
@@ -587,7 +587,7 @@ public sealed class HelpdeskStore
             return true;
         }
     }
-        public string AddSla(string name, int duration, string durationUnit, string? priority = null)
+        public string AddSla(string name, int duration, string durationUnit, string? description, IEnumerable<string>? priorities, IEnumerable<string>? categories)
         {
             lock (_sync)
             {
@@ -595,15 +595,15 @@ public sealed class HelpdeskStore
                 durationUnit = NormalizeDurationUnit(durationUnit);
                 if (string.IsNullOrWhiteSpace(name)) return "SLA name is required.";
                 if (duration < 1) return "SLA duration must be at least 1.";
-                priority = string.IsNullOrWhiteSpace(priority) ? null : priority.Trim();
                 if (_data.Slas.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return "That SLA already exists.";
-                if (priority is not null && _data.Slas.Any(x => string.Equals(x.Priority, priority, StringComparison.OrdinalIgnoreCase))) return "That priority already has an SLA.";
-                _data.Slas.Add(new(Guid.NewGuid(), name, duration, durationUnit, priority));
+                var validPriorities = (priorities ?? []).Where(x => _data.Priorities.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var validCategories = (categories ?? []).Where(x => _data.Categories.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                _data.Slas.Add(new(Guid.NewGuid(), name, duration, durationUnit, string.IsNullOrWhiteSpace(description) ? null : description.Trim()) { Priorities = validPriorities, Categories = validCategories });
                 Save();
                 return "SLA added.";
             }
         }
-        public string UpdateSla(Guid id, string name, int duration, string durationUnit, string? priority = null)
+        public string UpdateSla(Guid id, string name, int duration, string durationUnit, string? description, IEnumerable<string>? priorities, IEnumerable<string>? categories)
         {
             lock (_sync)
             {
@@ -613,10 +613,10 @@ public sealed class HelpdeskStore
                 durationUnit = NormalizeDurationUnit(durationUnit);
                 if (string.IsNullOrWhiteSpace(name)) return "SLA name is required.";
                 if (duration < 1) return "SLA duration must be at least 1.";
-                priority = string.IsNullOrWhiteSpace(priority) ? null : priority.Trim();
                 if (_data.Slas.Any(x => x.Id != id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return "That SLA already exists.";
-                if (priority is not null && _data.Slas.Any(x => x.Id != id && string.Equals(x.Priority, priority, StringComparison.OrdinalIgnoreCase))) return "That priority already has an SLA.";
-                _data.Slas[index] = new(id, name, duration, durationUnit, priority);
+                var validPriorities = (priorities ?? []).Where(x => _data.Priorities.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var validCategories = (categories ?? []).Where(x => _data.Categories.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                _data.Slas[index] = new(id, name, duration, durationUnit, string.IsNullOrWhiteSpace(description) ? null : description.Trim()) { Priorities = validPriorities, Categories = validCategories };
                 Save();
                 return "SLA updated.";
             }
@@ -635,9 +635,11 @@ public sealed class HelpdeskStore
         }
         public DateTime? CalculateDueDate(Guid? slaId, DateTime createdAt) =>
             slaId is Guid id && _data.Slas.FirstOrDefault(x => x.Id == id) is { } sla
-                ? createdAt.Add(sla.DurationUnit == "days" ? TimeSpan.FromDays(sla.Duration) : TimeSpan.FromHours(sla.Duration))
+                ? createdAt.Add(sla.DurationUnit switch { "days" => TimeSpan.FromDays(sla.Duration), "minutes" => TimeSpan.FromMinutes(sla.Duration), _ => TimeSpan.FromHours(sla.Duration) })
                 : null;
-    public Guid? SlaForPriority(string priority) => _data.Slas.FirstOrDefault(x => string.Equals(x.Priority, priority, StringComparison.OrdinalIgnoreCase))?.Id;
+    public Guid? SlaFor(string priority, string category) =>
+        _data.Slas.FirstOrDefault(x => x.Categories.Contains(category, StringComparer.OrdinalIgnoreCase))?.Id
+        ?? _data.Slas.FirstOrDefault(x => x.Priorities.Contains(priority, StringComparer.OrdinalIgnoreCase))?.Id;
     public bool UpdateUser(UserRecord item) => Update(item, _data.Users, x => x.Id == item.Id);
     public bool UpdateUserAndTickets(UserRecord user, IEnumerable<int> selectedTicketNumbers)
     {
@@ -1201,7 +1203,9 @@ public sealed class HelpdeskStore
             CREATE TABLE IF NOT EXISTS RequireCloseMessagePriorities (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS RequireCloseMessageCategories (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS Priorities (Name TEXT PRIMARY KEY);
-            CREATE TABLE IF NOT EXISTS Slas (Id TEXT PRIMARY KEY, Name TEXT NOT NULL UNIQUE, Duration INTEGER NOT NULL, DurationUnit TEXT NOT NULL, Priority TEXT NULL UNIQUE);
+            CREATE TABLE IF NOT EXISTS Slas (Id TEXT PRIMARY KEY, Name TEXT NOT NULL UNIQUE, Duration INTEGER NOT NULL, DurationUnit TEXT NOT NULL, Priority TEXT NULL, Description TEXT NULL);
+            CREATE TABLE IF NOT EXISTS SlaPriorities (SlaId TEXT NOT NULL, Priority TEXT NOT NULL, PRIMARY KEY (SlaId, Priority), FOREIGN KEY (SlaId) REFERENCES Slas(Id) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS SlaCategories (SlaId TEXT NOT NULL, Category TEXT NOT NULL, PRIMARY KEY (SlaId, Category), FOREIGN KEY (SlaId) REFERENCES Slas(Id) ON DELETE CASCADE);
             CREATE TABLE IF NOT EXISTS Suppliers (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, ContactName TEXT NOT NULL DEFAULT '', Email TEXT NOT NULL DEFAULT '', Phone TEXT NOT NULL DEFAULT '', AddressLine1 TEXT NOT NULL DEFAULT '', AddressLine2 TEXT NOT NULL DEFAULT '', City TEXT NOT NULL DEFAULT '', StateRegion TEXT NOT NULL DEFAULT '', PostalCode TEXT NOT NULL DEFAULT '', Country TEXT NOT NULL DEFAULT '', Website TEXT NOT NULL DEFAULT '', Notes TEXT NOT NULL DEFAULT '', CreatedAt TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS Parts (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, Sku TEXT NOT NULL DEFAULT '', Category TEXT NOT NULL DEFAULT '', QuantityOnHand INTEGER NOT NULL DEFAULT 0, CreatedAt TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TicketParts (TicketNumber INTEGER NOT NULL, PartId TEXT NOT NULL, Quantity INTEGER NOT NULL,
@@ -1258,7 +1262,7 @@ public sealed class HelpdeskStore
         using var slaMigration = connection.CreateCommand();
         slaMigration.CommandText = "ALTER TABLE Tickets ADD COLUMN SlaId TEXT NULL; ALTER TABLE Tickets ADD COLUMN DueDate TEXT NULL; ALTER TABLE Tickets ADD COLUMN DueDateOverridden INTEGER NOT NULL DEFAULT 0; ALTER TABLE Tickets ADD COLUMN SlaOverridden INTEGER NOT NULL DEFAULT 0; ALTER TABLE Tickets ADD COLUMN TeamName TEXT NULL;";
         try { slaMigration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
-        foreach (var sql in new[] { "ALTER TABLE Slas ADD COLUMN Priority TEXT NULL;", "ALTER TABLE TicketAttributeDefinitions ADD COLUMN FieldType TEXT NOT NULL DEFAULT 'single-line';", "ALTER TABLE TicketAttributeDefinitions ADD COLUMN Choices TEXT NOT NULL DEFAULT '';" })
+        foreach (var sql in new[] { "ALTER TABLE Slas ADD COLUMN Priority TEXT NULL;", "ALTER TABLE Slas ADD COLUMN Description TEXT NULL;", "ALTER TABLE TicketAttributeDefinitions ADD COLUMN FieldType TEXT NOT NULL DEFAULT 'single-line';", "ALTER TABLE TicketAttributeDefinitions ADD COLUMN Choices TEXT NOT NULL DEFAULT '';" })
         { using var m = connection.CreateCommand(); m.CommandText = sql; try { m.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { } }
         MigrateAssetAttributeTypeToNullable(connection);
     }
@@ -1353,9 +1357,42 @@ public sealed class HelpdeskStore
         ReadStrings(connection, "RequireCloseMessageCategories", data.RequireCloseMessageCategories);
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Duration, DurationUnit, Priority FROM Slas ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Name, Duration, DurationUnit, Priority, Description FROM Slas ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Slas.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetInt32(2), NormalizeDurationUnit(reader.GetString(3)), NullableString(reader, 4)));
+            while (reader.Read())
+            {
+                var slaId = Guid.Parse(reader.GetString(0));
+                var legacyPriority = NullableString(reader, 4);
+                data.Slas.Add(new(slaId, reader.GetString(1), reader.GetInt32(2), NormalizeDurationUnit(reader.GetString(3)), NullableString(reader, 5))
+                {
+                    Priorities = legacyPriority is not null ? [legacyPriority] : []
+                });
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT SlaId, Priority FROM SlaPriorities;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var slaId = Guid.Parse(reader.GetString(0));
+                var priority = reader.GetString(1);
+                var index = data.Slas.FindIndex(x => x.Id == slaId);
+                if (index >= 0 && !data.Slas[index].Priorities.Contains(priority, StringComparer.OrdinalIgnoreCase))
+                    data.Slas[index] = data.Slas[index] with { Priorities = data.Slas[index].Priorities.Append(priority).ToList() };
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT SlaId, Category FROM SlaCategories;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var slaId = Guid.Parse(reader.GetString(0));
+                var category = reader.GetString(1);
+                var index = data.Slas.FindIndex(x => x.Id == slaId);
+                if (index >= 0) data.Slas[index] = data.Slas[index] with { Categories = data.Slas[index].Categories.Append(category).ToList() };
+            }
         }
         using (var command = connection.CreateCommand())
         {
@@ -1496,7 +1533,7 @@ public sealed class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeDefinitions; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -1513,7 +1550,13 @@ public sealed class HelpdeskStore
         InsertStrings(connection, transaction, "RequireCloseMessagePriorities", data.RequireCloseMessagePriorities);
         InsertStrings(connection, transaction, "RequireCloseMessageCategories", data.RequireCloseMessageCategories);
         foreach (var sla in data.Slas)
-            Execute(connection, transaction, "INSERT INTO Slas (Id, Name, Duration, DurationUnit, Priority) VALUES ($id,$name,$duration,$unit,$priority);", ("$id", sla.Id.ToString()), ("$name", sla.Name), ("$duration", sla.Duration), ("$unit", NormalizeDurationUnit(sla.DurationUnit)), ("$priority", sla.Priority));
+        {
+            Execute(connection, transaction, "INSERT INTO Slas (Id, Name, Duration, DurationUnit, Description) VALUES ($id,$name,$duration,$unit,$description);", ("$id", sla.Id.ToString()), ("$name", sla.Name), ("$duration", sla.Duration), ("$unit", NormalizeDurationUnit(sla.DurationUnit)), ("$description", sla.Description));
+            foreach (var priority in sla.Priorities.Distinct(StringComparer.OrdinalIgnoreCase))
+                Execute(connection, transaction, "INSERT INTO SlaPriorities (SlaId, Priority) VALUES ($id,$priority);", ("$id", sla.Id.ToString()), ("$priority", priority));
+            foreach (var category in sla.Categories.Distinct(StringComparer.OrdinalIgnoreCase))
+                Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
+        }
         foreach (var item in data.Users)
             Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location) VALUES ($id,$name,$email,$department,$location);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location));
         foreach (var item in data.Technicians)
@@ -1674,8 +1717,13 @@ public sealed class HelpdeskStore
     public static IReadOnlyList<string> GetChoices(TicketAttributeDefinition definition) =>
         NormalizeChoices(definition.Choices).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    public static string NormalizeDurationUnit(string? value) =>
-        string.Equals(value?.Trim(), "days", StringComparison.OrdinalIgnoreCase) ? "days" : "hours";
+    public static string NormalizeDurationUnit(string? value)
+    {
+        var trimmed = value?.Trim();
+        if (string.Equals(trimmed, "days", StringComparison.OrdinalIgnoreCase)) return "days";
+        if (string.Equals(trimmed, "minutes", StringComparison.OrdinalIgnoreCase)) return "minutes";
+        return "hours";
+    }
 
     private static void EnsureOptions(List<string> options, IEnumerable<string> defaults)
     {

@@ -29,3 +29,4 @@
 .job-detail-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:22px}.job-detail-fields .detail-block{border:1px solid var(--line);border-radius:8px;padding:16px}@media(max-width:1000px){.job-detail-fields{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.job-detail-fields{grid-template-columns:1fr}}
 .badge-warning{background:#fae8e7;color:var(--red)}
 .part-list{display:grid;gap:10px;margin-bottom:18px}.part-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#f7faf9}.part-row strong{font-size:13px}.part-row span{display:block;font-size:12px;color:var(--muted);margin-top:3px}.part-row-form{display:flex;gap:8px;align-items:center;margin:0}.part-row-form input{width:70px}
+.sla-row-info{display:grid;gap:4px}.sla-row-info span{display:block}

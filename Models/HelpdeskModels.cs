@@ -14,7 +14,11 @@ public record AssetComment(string Text, DateTime CreatedAt);
 public record AssetActivity(string Action, string Details, DateTime CreatedAt);
 public record AssetAttributeDefinition(Guid Id, string Name, string? AssetType, string FieldType = "single-line", string Choices = "");
 public record AssetAttributeValue(Guid AssetId, Guid AttributeDefinitionId, string Value);
-public record SlaDefinition(Guid Id, string Name, int Duration, string DurationUnit, string? Priority = null);
+public record SlaDefinition(Guid Id, string Name, int Duration, string DurationUnit, string? Description = null)
+{
+    public List<string> Priorities { get; init; } = [];
+    public List<string> Categories { get; init; } = [];
+}
 public record TicketAttributeDefinition(Guid Id, string Name, string? Category, string FieldType = "single-line", string Choices = "");
 public record TicketAttributeValue(int TicketNumber, Guid AttributeDefinitionId, string Value);
 public record TicketRecord(

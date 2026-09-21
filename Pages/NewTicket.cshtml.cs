@@ -41,7 +41,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (!ModelState.IsValid) return Page();
 
         var createdAt = DateTime.UtcNow;
-        var selectedSla = Ticket.SlaId ?? store.SlaForPriority(Ticket.Priority);
+        var selectedSla = Ticket.SlaId ?? store.SlaFor(Ticket.Priority, Ticket.Category);
         var dueDate = Ticket.DueDate ?? store.CalculateDueDate(selectedSla, createdAt);
         var assetIds = (Ticket.AssetIds ?? []).Where(id => store.Assets.Any(a => a.Id == id)).Distinct().ToList();
         var number = store.AddTicket(new TicketRecord(

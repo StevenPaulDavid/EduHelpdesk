@@ -68,8 +68,8 @@ public class JobModel(HelpdeskStore store) : PageModel
             ticket = field switch
             {
                 "status" => ticket with { Status = value, ClosedAt = value == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null },
-                "priority" => ticket.SlaOverridden ? ticket with { Priority = value } : ticket with { Priority = value, SlaId = store.SlaForPriority(value), DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(store.SlaForPriority(value), ticket.CreatedAt) },
-                _ => ticket with { Category = value }
+                "priority" => ticket.SlaOverridden ? ticket with { Priority = value } : ticket with { Priority = value, SlaId = store.SlaFor(value, ticket.Category), DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(store.SlaFor(value, ticket.Category), ticket.CreatedAt) },
+                _ => ticket.SlaOverridden ? ticket with { Category = value } : ticket with { Category = value, SlaId = store.SlaFor(ticket.Priority, value), DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(store.SlaFor(ticket.Priority, value), ticket.CreatedAt) }
             };
         }
         else if (field == "technician")
@@ -80,13 +80,13 @@ public class JobModel(HelpdeskStore store) : PageModel
                 Message = "Select a valid technician.";
                 return RedirectToPage(new { number });
             }
-            ticket = ticket with { TechnicianId = technicianId, TeamName = null };
+            ticket = ticket with { TechnicianId = technicianId };
         }
         else if (field == "team")
         {
             var team = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             if (team is not null && !store.TechnicianTeams.Contains(team, StringComparer.OrdinalIgnoreCase)) { Message = "Select a valid team."; return RedirectToPage(new { number }); }
-            ticket = ticket with { TeamName = team, TechnicianId = null };
+            ticket = ticket with { TeamName = team };
         }
         else if (field == "sla")
         {
