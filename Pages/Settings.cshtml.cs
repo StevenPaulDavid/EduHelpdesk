@@ -52,6 +52,14 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public int TicketDueSoonHours => store.TicketDueSoonHours;
+
+    public IActionResult OnPostSaveTicketDueSoon(int hours)
+    {
+        Message = store.SetTicketDueSoonHours(hours);
+        return RedirectToPage();
+    }
+
     public string BackupFolder => store.BackupFolder;
 
     public IActionResult OnPostResetFactory(string? confirmation, bool keepBackup, bool eraseAudit)

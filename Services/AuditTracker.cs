@@ -69,6 +69,7 @@ internal static class AuditTracker
         foreach (var pair in d.AssetTypeLifespans)
             Add(s, "Lists", "Asset type lifespan", pair.Key.ToLowerInvariant(), $"Lifespan for asset type: {pair.Key}", Track.All, ("Years", pair.Value.ToString()));
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
+        Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
 
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);

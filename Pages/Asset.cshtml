@@ -64,7 +64,7 @@
         </form>
     </section>
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Linked tickets</h2></div><span class="badge">@linkedTicketRecords.Count linked</span></div>
+        <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Linked tickets</h2></div><span class="badge">@linkedTicketRecords.Count linked</span>@if (linkedTicketRecords.Count > 0) { <a class="button button-secondary" asp-page="/Jobs" asp-route-asset="@Model.Asset!.Id" asp-route-view="all">Open in ticket list</a> }</div>
         <div class="asset-job-list">
             @foreach (var ticket in linkedTicketRecords)
             {

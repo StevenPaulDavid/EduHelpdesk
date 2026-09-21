@@ -70,8 +70,8 @@ public class JobModel(HelpdeskStore store) : PageModel
             ticket = field switch
             {
                 "status" => ticket with { Status = value, ClosedAt = value == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null },
-                "priority" => ticket.SlaOverridden ? ticket with { Priority = value } : ticket with { Priority = value, SlaId = store.SlaFor(value, ticket.Category), DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(store.SlaFor(value, ticket.Category), ticket.CreatedAt) },
-                _ => ticket.SlaOverridden ? ticket with { Category = value } : ticket with { Category = value, SlaId = store.SlaFor(ticket.Priority, value), DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(store.SlaFor(ticket.Priority, value), ticket.CreatedAt) }
+                "priority" => store.WithPriority(ticket, value),
+                _ => store.WithCategory(ticket, value)
             };
         }
         else if (field == "technician")

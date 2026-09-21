@@ -41,3 +41,26 @@ main a:not([class]){color:var(--ink)}
 
 .panel.danger-zone { border-color: #d92d20; }
 .panel.danger-zone h2 { color: #d92d20; }
+
+.queue-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.queue-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.queue-tab { color: var(--ink); display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-weight: 700; font-size: 14px; }
+.queue-tab.active { background: var(--teal); border-color: var(--teal); color: #fff; }
+.queue-tab.active .badge { background: rgba(255, 255, 255, .22); color: #fff; }
+.whoami label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.whoami select { min-width: 160px; }
+.queue-hint { margin: 6px 0 12px; }
+.filter-checks { display: flex; flex-wrap: wrap; gap: 8px 24px; grid-column: 1 / -1; }
+.filter-checks fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.filter-checks legend { float: left; padding: 0; margin-right: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+.filter-checks .toggle-label { margin: 0; }
+.filter-chip { grid-column: 1 / -1; margin: 0; }
+tr.row-overdue td:first-child { box-shadow: inset 4px 0 0 #d92d20; }
+tr.row-soon td:first-child { box-shadow: inset 4px 0 0 #f79009; }
+tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #d92d20; margin-left: 6px; }
+.bulk-actions .bulk-wide { flex: 1 1 320px; }
+.bulk-actions .bulk-wide textarea { width: 100%; }
+.bulk-hint { margin: 6px 0 0; }.ticket-filters .audit-search { grid-column: span 2; }
+.ticket-table .status { white-space: nowrap; }
+.ticket-table td { vertical-align: top; }
+.whoami label { white-space: nowrap; }

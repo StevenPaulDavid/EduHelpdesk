@@ -87,6 +87,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
         _data.AssetTypeLifespans = new Dictionary<string, int>(_data.AssetTypeLifespans ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
         if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
+        if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
         // Assets that already had a holder before ownership was tracked get an open period with an unknown start.
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
@@ -111,6 +112,8 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<string> AssetStatuses { get { lock (_sync) return _data.AssetStatuses.ToList(); } }
     public IReadOnlyDictionary<string, int> AssetTypeLifespans { get { lock (_sync) return new Dictionary<string, int>(_data.AssetTypeLifespans, StringComparer.OrdinalIgnoreCase); } }
     public int AssetReviewDays { get { lock (_sync) return _data.AssetReviewDays; } }
+    public int TicketDueSoonHours { get { lock (_sync) return _data.TicketDueSoonHours; } }
+    public IReadOnlyList<TicketAttributeValue> TicketAttributeValues { get { lock (_sync) return _data.TicketAttributeValues.ToList(); } }
     // Model name -> the make it belongs to. A model with no entry can be used with any make.
     public IReadOnlyDictionary<string, string> AssetModelMakes { get { lock (_sync) return new Dictionary<string, string>(_data.AssetModelMakes, StringComparer.OrdinalIgnoreCase); } }
     public bool AssetModelMatchesMake(string? model, string? make)
@@ -383,6 +386,16 @@ public sealed partial class HelpdeskStore
             _data.AssetReviewDays = days;
             Save();
             return "Asset review window saved.";
+        }
+    }
+    public string SetTicketDueSoonHours(int hours)
+    {
+        lock (_sync)
+        {
+            if (hours is < 0 or > 720) return "Enter a number of hours between 0 and 720.";
+            _data.TicketDueSoonHours = hours;
+            Save();
+            return "Due soon window saved.";
         }
     }
     public string AddAssetModel(string name, string? make)
@@ -783,58 +796,209 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            if (sourceNumber == targetNumber) return "Select two different tickets to merge.";
-            var sourceIndex = _data.Tickets.FindIndex(x => x.Number == sourceNumber);
-            var targetIndex = _data.Tickets.FindIndex(x => x.Number == targetNumber);
-            if (sourceIndex < 0 || targetIndex < 0) return "Ticket was not found.";
+            var error = MergeTicketCore(sourceNumber, targetNumber);
+            if (error is null) Save();
+            return error;
+        }
+    }
+    // Merges without saving, so a batch of merges can be saved once.
+    private string? MergeTicketCore(int sourceNumber, int targetNumber)
+    {
+        if (sourceNumber == targetNumber) return "Select two different tickets to merge.";
+        var sourceIndex = _data.Tickets.FindIndex(x => x.Number == sourceNumber);
+        var targetIndex = _data.Tickets.FindIndex(x => x.Number == targetNumber);
+        if (sourceIndex < 0 || targetIndex < 0) return "Ticket was not found.";
 
-            var source = _data.Tickets[sourceIndex];
-            var target = _data.Tickets[targetIndex];
-            var now = DateTime.UtcNow;
+        var source = _data.Tickets[sourceIndex];
+        var target = _data.Tickets[targetIndex];
+        var now = DateTime.UtcNow;
 
-            var mergedComments = target.Comments.ToList();
-            mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt)));
+        var mergedComments = target.Comments.ToList();
+        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt)));
 
-            var mergedAssetIds = target.AssetIds.Concat(source.AssetIds).Distinct().ToList();
+        var mergedAssetIds = target.AssetIds.Concat(source.AssetIds).Distinct().ToList();
 
-            var targetHistory = target.History.ToList();
-            targetHistory.Add(new("Ticket merged", $"Merged ticket #{source.Number} - {source.Title} into this ticket.", now));
+        var targetHistory = target.History.ToList();
+        targetHistory.Add(new("Ticket merged", $"Merged ticket #{source.Number} - {source.Title} into this ticket.", now));
 
-            _data.Tickets[targetIndex] = target with
+        _data.Tickets[targetIndex] = target with
+        {
+            AssetIds = mergedAssetIds,
+            Comments = mergedComments,
+            History = targetHistory
+        };
+
+        foreach (var assignment in _data.TicketParts.Where(x => x.TicketNumber == sourceNumber).ToList())
+        {
+            var existingIndex = _data.TicketParts.FindIndex(x => x.TicketNumber == targetNumber && x.PartId == assignment.PartId);
+            if (existingIndex >= 0)
+                _data.TicketParts[existingIndex] = _data.TicketParts[existingIndex] with { Quantity = _data.TicketParts[existingIndex].Quantity + assignment.Quantity };
+            else
+                _data.TicketParts.Add(assignment with { TicketNumber = targetNumber });
+        }
+        _data.TicketParts.RemoveAll(x => x.TicketNumber == sourceNumber);
+
+        foreach (var value in _data.TicketAttributeValues.Where(x => x.TicketNumber == sourceNumber).ToList())
+        {
+            if (!_data.TicketAttributeValues.Any(x => x.TicketNumber == targetNumber && x.AttributeDefinitionId == value.AttributeDefinitionId))
+                _data.TicketAttributeValues.Add(value with { TicketNumber = targetNumber });
+        }
+        _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == sourceNumber);
+
+        var sourceHistory = source.History.ToList();
+        sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now));
+        _data.Tickets[sourceIndex] = source with
+        {
+            Status = "Closed",
+            ClosedAt = source.ClosedAt ?? now,
+            History = sourceHistory
+        };
+
+        return null;
+    }
+
+    // A ticket with its priority or category changed. Unless the SLA or due date was set by hand, they follow the change.
+    public TicketRecord WithPriority(TicketRecord ticket, string priority)
+    {
+        lock (_sync)
+        {
+            if (ticket.SlaOverridden) return ticket with { Priority = priority };
+            var sla = SlaFor(priority, ticket.Category);
+            return ticket with { Priority = priority, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt) };
+        }
+    }
+    public TicketRecord WithCategory(TicketRecord ticket, string category)
+    {
+        lock (_sync)
+        {
+            if (ticket.SlaOverridden) return ticket with { Category = category };
+            var sla = SlaFor(ticket.Priority, category);
+            return ticket with { Category = category, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt) };
+        }
+    }
+
+    // One change applied to many tickets. Operation is status, technician, team, priority, category, comment, close or merge.
+    // Value is the new status, team, priority or category (TicketListQuery.None clears the team); Text is the comment or closing message;
+    // TargetNumber is the ticket to merge into.
+    public sealed record TicketBulkChange(string Operation, string? Value = null, Guid? TechnicianId = null, string? Text = null, int? TargetNumber = null);
+    // Skipped tickets could not be changed for a reason worth telling the user; unchanged ones already had the value.
+    public sealed record TicketBulkResult(int Updated, int Unchanged, int Skipped, string? SkippedReason, string? Error);
+
+    // Saves once for the whole batch, however many tickets change.
+    public TicketBulkResult BulkUpdateTickets(IReadOnlyCollection<int> numbers, TicketBulkChange change)
+    {
+        lock (_sync)
+        {
+            static TicketBulkResult Fail(string message) => new(0, 0, 0, null, message);
+            var chosen = numbers.ToHashSet();
+            string? canonical = null;
+            string? text = string.IsNullOrWhiteSpace(change.Text) ? null : change.Text.Trim();
+            switch (change.Operation)
             {
-                AssetIds = mergedAssetIds,
-                Comments = mergedComments,
-                History = targetHistory
-            };
-
-            foreach (var assignment in _data.TicketParts.Where(x => x.TicketNumber == sourceNumber).ToList())
-            {
-                var existingIndex = _data.TicketParts.FindIndex(x => x.TicketNumber == targetNumber && x.PartId == assignment.PartId);
-                if (existingIndex >= 0)
-                    _data.TicketParts[existingIndex] = _data.TicketParts[existingIndex] with { Quantity = _data.TicketParts[existingIndex].Quantity + assignment.Quantity };
-                else
-                    _data.TicketParts.Add(assignment with { TicketNumber = targetNumber });
+                case "status":
+                    canonical = _data.Statuses.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (canonical is null) return Fail("Select a valid status.");
+                    break;
+                case "priority":
+                    canonical = _data.Priorities.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (canonical is null) return Fail("Select a valid priority.");
+                    break;
+                case "category":
+                    canonical = _data.Categories.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (canonical is null) return Fail("Select a valid category.");
+                    break;
+                case "team":
+                    if (change.Value == TicketListQuery.None) break;
+                    canonical = _data.TechnicianTeams.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (canonical is null) return Fail("Select a valid team.");
+                    break;
+                case "technician":
+                    if (change.TechnicianId is { } id && !_data.Technicians.Any(x => x.Id == id)) return Fail("Select a valid technician.");
+                    break;
+                case "comment":
+                    if (text is null) return Fail("Enter a comment to add.");
+                    break;
+                case "close":
+                    break;
+                case "merge":
+                    if (change.TargetNumber is not { } target || !_data.Tickets.Any(x => x.Number == target)) return Fail("Enter the number of an existing ticket to merge into.");
+                    break;
+                default:
+                    return Fail("Choose what to change.");
             }
-            _data.TicketParts.RemoveAll(x => x.TicketNumber == sourceNumber);
 
-            foreach (var value in _data.TicketAttributeValues.Where(x => x.TicketNumber == sourceNumber).ToList())
+            int updated = 0, unchanged = 0, skipped = 0;
+            string? skippedReason = null;
+            void Skip(string reason) { skipped++; skippedReason ??= reason; }
+
+            foreach (var number in _data.Tickets.Where(x => chosen.Contains(x.Number)).Select(x => x.Number).ToList())
             {
-                if (!_data.TicketAttributeValues.Any(x => x.TicketNumber == targetNumber && x.AttributeDefinitionId == value.AttributeDefinitionId))
-                    _data.TicketAttributeValues.Add(value with { TicketNumber = targetNumber });
+                var index = _data.Tickets.FindIndex(x => x.Number == number);
+                var ticket = _data.Tickets[index];
+                TicketRecord changed;
+                switch (change.Operation)
+                {
+                    case "status":
+                        if (string.Equals(ticket.Status, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
+                        changed = ticket with { Status = canonical!, ClosedAt = string.Equals(canonical, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase) ? ticket.ClosedAt ?? DateTime.UtcNow : null };
+                        break;
+                    case "priority":
+                        if (string.Equals(ticket.Priority, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
+                        changed = WithPriority(ticket, canonical!);
+                        break;
+                    case "category":
+                        if (string.Equals(ticket.Category, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
+                        changed = WithCategory(ticket, canonical!);
+                        break;
+                    case "team":
+                    {
+                        var team = change.Value == TicketListQuery.None ? null : canonical;
+                        if (string.Equals(ticket.TeamName, team, StringComparison.Ordinal)) { unchanged++; continue; }
+                        var keep = ticket.TechnicianId is not { } current || _data.Technicians.FirstOrDefault(x => x.Id == current) is not { } holder || TechnicianInTeam(holder, team);
+                        changed = ticket with { TeamName = team, TechnicianId = keep ? ticket.TechnicianId : null };
+                        break;
+                    }
+                    case "technician":
+                    {
+                        if (ticket.TechnicianId == change.TechnicianId) { unchanged++; continue; }
+                        if (change.TechnicianId is { } technicianId && _data.Technicians.First(x => x.Id == technicianId) is { } technician && !TechnicianInTeam(technician, ticket.TeamName))
+                        { Skip($"{technician.Name} is not in the team a ticket is assigned to."); continue; }
+                        changed = ticket with { TechnicianId = change.TechnicianId };
+                        break;
+                    }
+                    case "comment":
+                    {
+                        var comments = ticket.Comments.ToList();
+                        comments.Add(new TicketComment(text!, DateTime.UtcNow));
+                        _data.Tickets[index] = ticket with { Comments = comments };
+                        updated++;
+                        continue;
+                    }
+                    case "close":
+                    {
+                        if (TicketInsights.IsClosed(ticket)) { unchanged++; continue; }
+                        if (text is null && RequiresCloseMessage(ticket)) { Skip("A closing message is required for some of these tickets."); continue; }
+                        var comments = ticket.Comments.ToList();
+                        if (text is not null) comments.Add(new TicketComment(text, DateTime.UtcNow));
+                        changed = ticket with { Status = TicketInsights.ClosedStatus, ClosedAt = ticket.ClosedAt ?? DateTime.UtcNow, Comments = comments };
+                        break;
+                    }
+                    default: // merge
+                    {
+                        if (number == change.TargetNumber) { unchanged++; continue; }
+                        if (MergeTicketCore(number, change.TargetNumber!.Value) is { } mergeError) { Skip(mergeError); continue; }
+                        updated++;
+                        continue;
+                    }
+                }
+                var history = ticket.History.ToList();
+                AddTicketActivities(history, ticket, changed);
+                _data.Tickets[index] = changed with { History = history };
+                updated++;
             }
-            _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == sourceNumber);
 
-            var sourceHistory = source.History.ToList();
-            sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now));
-            _data.Tickets[sourceIndex] = source with
-            {
-                Status = "Closed",
-                ClosedAt = source.ClosedAt ?? now,
-                History = sourceHistory
-            };
-
-            Save();
-            return null;
+            if (updated > 0) Save();
+            return new TicketBulkResult(updated, unchanged, skipped, skippedReason, null);
         }
     }
     public bool AddTicketComment(int number, string text)
@@ -1919,6 +2083,7 @@ public sealed partial class HelpdeskStore
             while (reader.Read()) data.AssetTypeLifespans[reader.GetString(0)] = reader.GetInt32(1);
         }
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
         ReadStrings(connection, "Categories", data.Categories);
         ReadStrings(connection, "Statuses", data.Statuses);
         using (var command = connection.CreateCommand())
@@ -2170,6 +2335,7 @@ public sealed partial class HelpdeskStore
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));
         InsertStrings(connection, transaction, "Categories", data.Categories);
@@ -2290,6 +2456,8 @@ public sealed partial class HelpdeskStore
         public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Warranty ends and replacement dates inside this many days go on the overview review list.
         public int AssetReviewDays { get; set; } = 60;
+        // Open tickets due within this many hours count as "due soon" on the ticket list.
+        public int TicketDueSoonHours { get; set; } = 24;
         public List<string> Categories { get; set; } = [];
         public List<string> Statuses { get; set; } = [];
         public Dictionary<string, string> StatusDescriptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);

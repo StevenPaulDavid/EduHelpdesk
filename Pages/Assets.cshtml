@@ -68,7 +68,7 @@
                 <td>@asset.Location</td>
                 <td><span class="status">@asset.Status</span></td>
                 <td>@if (asset.WarrantyEnd is { } warrantyEnd) { <span>@AssetInsights.Format(warrantyEnd)</span> @if (expired) { <br /><span class="badge badge-warning">Expired</span> } } else { <span class="muted">—</span> }</td>
-                <td><span class="badge">@Model.TicketCounts.GetValueOrDefault(asset.Id)</span></td>
+                <td>@if (Model.TicketCounts.GetValueOrDefault(asset.Id) > 0) { <a asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all" title="Show these tickets"><span class="badge">@Model.TicketCounts.GetValueOrDefault(asset.Id)</span></a> } else { <span class="badge">0</span> }</td>
                 <td class="asset-row-actions"><a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">✎</a><a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">♜</a></td>
             </tr>
         }
