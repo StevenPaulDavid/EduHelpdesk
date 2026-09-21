@@ -879,7 +879,7 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // One change applied to many tickets. Operation is status, technician, team, priority, category, comment, close or merge.
+    // One change applied to many tickets. Operation is status, technician, team, priority, category, type, comment, close or merge.
     // Value is the new status, team, priority or category (TicketListQuery.None clears the team); Text is the comment or closing message;
     // TargetNumber is the ticket to merge into.
     public sealed record TicketBulkChange(string Operation, string? Value = null, Guid? TechnicianId = null, string? Text = null, int? TargetNumber = null, bool Internal = false);
@@ -908,6 +908,10 @@ public sealed partial class HelpdeskStore
                 case "category":
                     canonical = _data.Categories.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
                     if (canonical is null) return Fail("Select a valid category.");
+                    break;
+                case "type":
+                    canonical = TicketTypes.All.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (canonical is null) return Fail("Select a valid type.");
                     break;
                 case "team":
                     if (change.Value == TicketListQuery.None) break;
@@ -951,6 +955,10 @@ public sealed partial class HelpdeskStore
                     case "category":
                         if (string.Equals(ticket.Category, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
                         changed = WithCategory(ticket, canonical!);
+                        break;
+                    case "type":
+                        if (string.Equals(ticket.Type, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
+                        changed = ticket with { Type = canonical! };
                         break;
                     case "team":
                     {
@@ -1058,6 +1066,9 @@ public sealed partial class HelpdeskStore
                 var index = _data.Slas.FindIndex(x => x.Id == id);
                 if (index < 0) return "SLA was not found.";
                 _data.Slas.RemoveAt(index);
+                // A template that named this SLA goes back to working the SLA out from the priority and category.
+                for (var i = 0; i < _data.TicketTemplates.Count; i++)
+                    if (_data.TicketTemplates[i].SlaId == id) _data.TicketTemplates[i] = _data.TicketTemplates[i] with { SlaId = null };
                 Save();
                 return "SLA deleted.";
             }
@@ -1731,6 +1742,7 @@ public sealed partial class HelpdeskStore
         if (previous.Status != updated.Status) history.Add(new("Status changed", $"{previous.Status} -> {updated.Status}", now));
         if (previous.Priority != updated.Priority) history.Add(new("Priority changed", $"{previous.Priority} -> {updated.Priority}", now));
         if (previous.Category != updated.Category) history.Add(new("Category changed", $"{previous.Category} -> {updated.Category}", now));
+        if (previous.Type != updated.Type) history.Add(new("Type changed", $"{previous.Type} -> {updated.Type}", now));
         if (previous.RequesterId != updated.RequesterId) history.Add(new("Requester changed", "The ticket requester was updated.", now));
         if (previous.TechnicianId != updated.TechnicianId) history.Add(new("Technician changed", updated.TechnicianId.HasValue ? "A technician was assigned." : "The technician assignment was removed.", now));
         if (previous.TeamName != updated.TeamName) history.Add(new("Team changed", updated.TeamName is null ? "The team assignment was removed." : $"Assigned to team {updated.TeamName}.", now));
@@ -1980,7 +1992,8 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN WarrantyEnd TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN ReplacementDate TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN LoanDueDate TEXT NULL;",
-            "ALTER TABLE TicketComments ADD COLUMN IsInternal INTEGER NOT NULL DEFAULT 0;"
+            "ALTER TABLE TicketComments ADD COLUMN IsInternal INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';"
         })
         {
             using var m = connection.CreateCommand();
@@ -2002,6 +2015,10 @@ public sealed partial class HelpdeskStore
             CREATE TABLE IF NOT EXISTS TicketLinks (TicketNumber INTEGER NOT NULL, LinkedNumber INTEGER NOT NULL, Kind TEXT NOT NULL,
                 PRIMARY KEY (TicketNumber, LinkedNumber),
                 FOREIGN KEY (TicketNumber) REFERENCES Tickets(Number) ON DELETE CASCADE, FOREIGN KEY (LinkedNumber) REFERENCES Tickets(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS TicketTemplates (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, TicketType TEXT NOT NULL, Title TEXT NOT NULL, Description TEXT NOT NULL,
+                Category TEXT NOT NULL, Priority TEXT NOT NULL, SlaId TEXT NULL);
+            CREATE TABLE IF NOT EXISTS TicketTemplateAttributes (TemplateId TEXT NOT NULL, AttributeDefinitionId TEXT NOT NULL, Value TEXT NOT NULL,
+                PRIMARY KEY (TemplateId, AttributeDefinitionId), FOREIGN KEY (TemplateId) REFERENCES TicketTemplates(Id) ON DELETE CASCADE);
             """;
         ticketTables.ExecuteNonQuery();
     }
@@ -2227,6 +2244,20 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
+            command.CommandText = "SELECT Id, Name, TicketType, Title, Description, Category, Priority, SlaId FROM TicketTemplates ORDER BY rowid;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.TicketTemplates.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), TicketTypes.Normalize(reader.GetString(2)), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), NullableGuid(reader, 7)));
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT TemplateId, AttributeDefinitionId, Value FROM TicketTemplateAttributes;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (data.TicketTemplates.FirstOrDefault(x => x.Id == Guid.Parse(reader.GetString(0))) is { } template)
+                    template.AttributeValues[Guid.Parse(reader.GetString(1))] = reader.GetString(2);
+        }
+        using (var command = connection.CreateCommand())
+        {
             command.CommandText = "SELECT Id, TicketNumber, FileName, ContentType, Size, UploadedAt FROM TicketAttachments ORDER BY rowid;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.TicketAttachments.Add(new(Guid.Parse(reader.GetString(0)), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4), Date(reader, 5)));
@@ -2268,7 +2299,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName FROM Tickets;";
+            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType FROM Tickets;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -2280,7 +2311,7 @@ public sealed partial class HelpdeskStore
                 else assetIds = new List<Guid>();
                 var ticket = new TicketRecord(number, reader.GetString(1), reader.GetString(2), Guid.Parse(reader.GetString(3)),
                     assetIds, NullableGuid(reader, 5), reader.GetString(6), reader.GetString(7), reader.GetString(8), Date(reader, 9),
-                    reader.IsDBNull(10) ? null : Date(reader, 10), NullableGuid(reader, 11), reader.IsDBNull(12) ? null : Date(reader, 12), !reader.IsDBNull(13) && reader.GetInt32(13) != 0, !reader.IsDBNull(14) && reader.GetInt32(14) != 0, NullableString(reader, 15));
+                    reader.IsDBNull(10) ? null : Date(reader, 10), NullableGuid(reader, 11), reader.IsDBNull(12) ? null : Date(reader, 12), !reader.IsDBNull(13) && reader.GetInt32(13) != 0, !reader.IsDBNull(14) && reader.GetInt32(14) != 0, NullableString(reader, 15)) { Type = TicketTypes.Normalize(NullableString(reader, 16)) };
                 data.Tickets.Add(ticket);
             }
         }
@@ -2351,7 +2382,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -2418,8 +2449,8 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team);",
-                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName));
+            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type);",
+                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)));
             foreach (var assetId in item.AssetIds.Distinct())
                 if (data.Assets.Any(x => x.Id == assetId))
                     Execute(connection, transaction, "INSERT INTO TicketAssets (TicketNumber, AssetId) VALUES ($number,$asset);", ("$number", item.Number), ("$asset", assetId.ToString()));
@@ -2435,6 +2466,13 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt) VALUES ($id,$number,$name,$type,$size,$uploaded);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)));
             foreach (var activity in item.History)
                 Execute(connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt) VALUES ($number,$action,$details,$created);", ("$number", item.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
+        }
+        foreach (var template in data.TicketTemplates)
+        {
+            Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla);",
+                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()));
+            foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && data.TicketAttributeDefinitions.Any(d => d.Id == x.Key)))
+                Execute(connection, transaction, "INSERT INTO TicketTemplateAttributes (TemplateId, AttributeDefinitionId, Value) VALUES ($template,$definition,$value);", ("$template", template.Id.ToString()), ("$definition", pair.Key.ToString()), ("$value", pair.Value));
         }
         var ticketNumbers = data.Tickets.Select(x => x.Number).ToHashSet();
         foreach (var link in data.TicketLinks.Where(x => ticketNumbers.Contains(x.TicketNumber) && ticketNumbers.Contains(x.LinkedNumber)))
@@ -2504,6 +2542,7 @@ public sealed partial class HelpdeskStore
         public List<SupplierRecord> Suppliers { get; set; } = [];
         public List<PartRecord> Parts { get; set; } = [];
         public List<TicketPartAssignment> TicketParts { get; set; } = [];
+        public List<TicketTemplate> TicketTemplates { get; set; } = [];
         public List<TicketAttachment> TicketAttachments { get; set; } = [];
         public List<TicketLink> TicketLinks { get; set; } = [];
         public List<AssetAttributeDefinition> AssetAttributeDefinitions { get; set; } = [];

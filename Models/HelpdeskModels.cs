@@ -41,6 +41,21 @@ public record TicketAttributeDefinition(Guid Id, string Name, string FieldType =
     public bool AppliesTo(string? category) => Categories.Count == 0 || Categories.Contains(category ?? string.Empty, StringComparer.OrdinalIgnoreCase);
 }
 public record TicketAttributeValue(int TicketNumber, Guid AttributeDefinitionId, string Value);
+// The two kinds of ticket: something that is broken, and something that is being asked for. Used to separate them in lists and reports.
+public static class TicketTypes
+{
+    public const string Incident = "Incident";
+    public const string Request = "Request";
+    public static readonly string[] All = [Incident, Request];
+    // The matching type, or Incident for anything unknown or blank.
+    public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Incident;
+}
+// A saved starting point for a ticket. A blank SlaId means the SLA is worked out from the priority and category as usual.
+public record TicketTemplate(Guid Id, string Name, string Type, string Title, string Description, string Category, string Priority, Guid? SlaId)
+{
+    // Default answers for ticket custom attributes, by attribute definition id.
+    public Dictionary<Guid, string> AttributeValues { get; init; } = [];
+}
 public record TicketRecord(
     int Number,
     string Title,
@@ -61,6 +76,7 @@ public record TicketRecord(
 {
     public List<TicketComment> Comments { get; init; } = [];
     public List<TicketActivity> History { get; init; } = [];
+    public string Type { get; init; } = TicketTypes.Incident;
 
     // The newest of creation, any history entry (field changes, parts, attributes, merges, asset links) and any comment.
     public DateTime LastModifiedAt => Comments.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();

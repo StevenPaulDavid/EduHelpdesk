@@ -77,3 +77,13 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .related-row a { overflow-wrap: anywhere; }
 .related-form { display: flex; align-items: flex-end; gap: 8px; margin: 10px 0; }
 .related-form label { flex: 1; }
+.template-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; margin-bottom: 12px; }
+.template-fields .full { grid-column: 1 / -1; }
+.template-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+.template-item summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.template-item form { margin-top: 12px; }
+.template-picker { margin-bottom: 16px; }
+.type-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+.type-tag.type-request, .badge.type-request { color: #7a5af8; opacity: 1; }
+.report-tabs { margin: 0 0 16px; }
+.report-nav a { color: inherit; }

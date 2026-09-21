@@ -15,11 +15,26 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
     public IReadOnlyList<TicketAttributeDefinition> TicketAttributes => store.TicketAttributeDefinitions;
+    // The template this form was started from, and its default answers for custom attributes.
+    public IReadOnlyList<TicketTemplate> Templates => store.TicketTemplates;
+    public TicketTemplate? AppliedTemplate { get; private set; }
+    public IReadOnlyDictionary<Guid, string> TemplateAttributeValues { get; private set; } = new Dictionary<Guid, string>();
     [BindProperty] public TicketInput Ticket { get; set; } = new();
     [TempData] public string? Message { get; set; }
 
-    public void OnGet()
+    public void OnGet(Guid? template)
     {
+        if (template is { } templateId && store.GetTicketTemplate(templateId) is { } chosen)
+        {
+            AppliedTemplate = chosen;
+            Ticket.Title = chosen.Title;
+            Ticket.Description = chosen.Description;
+            Ticket.Type = chosen.Type;
+            Ticket.Category = chosen.Category;
+            Ticket.Priority = chosen.Priority;
+            Ticket.SlaId = chosen.SlaId is { } sla && store.Slas.Any(x => x.Id == sla) ? sla : null;
+            TemplateAttributeValues = chosen.AttributeValues;
+        }
         if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase))
             Ticket.Category = store.Categories.FirstOrDefault() ?? Ticket.Category;
         if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase))
@@ -33,6 +48,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (Ticket.RequesterId == Guid.Empty) ModelState.AddModelError("Ticket.RequesterId", "Select a requester.");
         if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Category", "Select a valid category.");
         if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Priority", "Select a valid priority.");
+        if (!TicketTypes.All.Contains(Ticket.Type, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Type", "Select a valid type.");
         if (Ticket.SlaId.HasValue && !store.Slas.Any(x => x.Id == Ticket.SlaId)) ModelState.AddModelError("Ticket.SlaId", "Select a valid SLA.");
         if (Ticket.TechnicianId.HasValue && !store.Technicians.Any(x => x.Id == Ticket.TechnicianId)) ModelState.AddModelError("Ticket.TechnicianId", "Select a valid technician.");
         if (!string.IsNullOrWhiteSpace(Ticket.TeamName) && !store.TechnicianTeams.Contains(Ticket.TeamName, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.TeamName", "Select a valid team.");
@@ -55,7 +71,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
             store.Statuses.FirstOrDefault() ?? "Open",
             Ticket.Category,
             DateTime.UtcNow,
-            null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName));
+            null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName) { Type = TicketTypes.Normalize(Ticket.Type) });
         if (!store.UpdateTicketAttributeValues(number, Ticket.Category, Ticket.CustomAttributes)) { }
         Message = $"Ticket #{number} created.";
         return RedirectToPage("/Job", new { number });
@@ -71,6 +87,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         public string? TeamName { get; set; }
         public string Priority { get; set; } = "Normal";
         public string Category { get; set; } = "Hardware";
+        public string Type { get; set; } = TicketTypes.Incident;
         public Guid? SlaId { get; set; }
         public DateTime? DueDate { get; set; }
         public Dictionary<Guid, string>? CustomAttributes { get; set; }

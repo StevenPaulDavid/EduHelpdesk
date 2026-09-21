@@ -1,0 +1,76 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.TicketTemplatesModel
+@{
+    ViewData["Title"] = "Ticket templates";
+
+    // The fields of one template, used for both adding and editing. A null template is a blank one.
+    async Task TemplateFields(TicketTemplate? item)
+    {
+        var category = item?.Category ?? Model.Categories.FirstOrDefault() ?? "";
+        var priority = item?.Priority ?? (Model.Priorities.Contains("Normal") ? "Normal" : Model.Priorities.FirstOrDefault() ?? "");
+        <div class="template-fields">
+            <label>Name<input name="name" value="@item?.Name" maxlength="100" required placeholder="e.g. New starter" /></label>
+            <label>Type<select name="type">@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == (item?.Type ?? TicketTypes.Incident))">@type</option> }</select></label>
+            <label>Category<select name="category">@foreach (var value in Model.Categories) { <option value="@value" selected="@string.Equals(value, category, StringComparison.OrdinalIgnoreCase)">@value</option> }@if (item is not null && !Model.Categories.Contains(item.Category, StringComparer.OrdinalIgnoreCase)) { <option value="" selected>@item.Category (no longer exists)</option> }</select></label>
+            <label>Priority<select name="priority">@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, priority, StringComparison.OrdinalIgnoreCase)">@value</option> }@if (item is not null && !Model.Priorities.Contains(item.Priority, StringComparer.OrdinalIgnoreCase)) { <option value="" selected>@item.Priority (no longer exists)</option> }</select></label>
+            <label>SLA<select name="slaId"><option value="">Automatic (from priority and category)</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == item?.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select></label>
+            <label class="full">Ticket title<input name="title" value="@item?.Title" maxlength="200" placeholder="Filled into the ticket title, which can be changed" /></label>
+            <label class="full">Description<textarea name="description" rows="5" placeholder="Starter wording or a checklist for the description">@item?.Description</textarea></label>
+        </div>
+        @if (Model.Attributes.Count > 0)
+        {
+            <p class="eyebrow">Custom attribute defaults</p>
+            <div class="template-fields">
+                @foreach (var field in Model.Attributes)
+                {
+                    var current = item is not null && item.AttributeValues.TryGetValue(field.Id, out var stored) ? stored : "";
+                    var applies = field.Categories.Count == 0 ? "all categories" : string.Join(", ", field.Categories);
+                    if (field.FieldType == "dropdown")
+                    {
+                        <label>@field.Name<select name="attributes[@field.Id]"><option value="">No default</option>@foreach (var choice in HelpdeskStore.GetChoices(field)) { <option value="@choice" selected="@(choice == current)">@choice</option> }</select><small class="muted">Used for @applies</small></label>
+                    }
+                    else if (field.FieldType == "checkbox")
+                    {
+                        <label class="toggle-label"><input type="checkbox" name="attributes[@field.Id]" value="true" checked="@current.Equals("true", StringComparison.OrdinalIgnoreCase)" /> @field.Name<small class="muted">Ticked by default. Used for @applies</small></label>
+                    }
+                    else if (field.FieldType == "multi-line")
+                    {
+                        <label>@field.Name<textarea name="attributes[@field.Id]" rows="2">@current</textarea><small class="muted">Used for @applies</small></label>
+                    }
+                    else
+                    {
+                        <label>@field.Name<input name="attributes[@field.Id]" value="@current" /><small class="muted">Used for @applies</small></label>
+                    }
+                }
+            </div>
+            <small class="muted">A default only fills in on tickets in a category the attribute applies to.</small>
+        }
+    }
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Ticket templates</h1><p class="hero-copy">Saved starting points for repeat jobs. When logging a ticket, choose a template to fill in the title, description, type, category, priority, SLA and custom attribute defaults. Everything can still be changed on the ticket.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel">
+    <div class="panel-heading"><h2>Add a template</h2></div>
+    <form method="post" asp-page-handler="Save" class="settings-form">
+        @{ await TemplateFields(null); }
+        <button class="button button-primary" type="submit">Add template</button>
+    </form>
+</section>
+<section class="panel">
+    <div class="panel-heading"><h2>Templates</h2><span class="badge">@Model.Templates.Count</span></div>
+    @foreach (var item in Model.Templates)
+    {
+        <details class="template-item">
+            <summary><strong>@item.Name</strong> <span class="badge @(item.Type == TicketTypes.Request ? "type-request" : "")">@item.Type</span> <span class="muted">@item.Category · @item.Priority@(string.IsNullOrWhiteSpace(item.Title) ? "" : " · " + item.Title)</span></summary>
+            <form method="post" asp-page-handler="Save" class="settings-form">
+                <input type="hidden" name="id" value="@item.Id" />
+                @{ await TemplateFields(item); }
+                <div class="heading-actions"><button class="button button-primary" type="submit">Save changes</button><a class="button button-secondary" asp-page="/NewTicket" asp-route-template="@item.Id">Try it: log a ticket from this</a></div>
+            </form>
+            <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Delete this template? Tickets already created from it are not affected.');"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete template</button></form>
+        </details>
+    }
+    @if (Model.Templates.Count == 0) { <p class="empty">No templates have been added yet.</p> }
+</section>

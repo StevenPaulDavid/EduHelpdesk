@@ -1,0 +1,139 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.TicketReportsModel
+@{
+    ViewData["Title"] = "Ticket reports";
+
+    // One table of on-time figures for a grouping of tickets.
+    async Task SlaTable(string heading, string firstColumn, IReadOnlyList<TicketReports.SlaRow> rows)
+    {
+        <h3>@heading</h3>
+        <div class="table-wrap"><table><thead><tr><th>@firstColumn</th><th>Tickets</th><th>On time</th><th>Late</th><th>Open and overdue</th><th>No due date</th><th>On-time rate</th><th>Average resolution</th></tr></thead><tbody>
+        @foreach (var row in rows)
+        {
+            <tr>
+                <td>@row.Name</td><td>@row.Tickets</td><td>@row.OnTime</td><td>@row.Late</td>
+                <td>@if (row.OpenOverdue > 0) { <span class="badge badge-warning">@row.OpenOverdue</span> } else { <span>0</span> }</td>
+                <td>@row.NoDueDate</td>
+                <td>@if (row.OnTimeRate is { } rate) { <strong>@TicketReportsModel.Percent(rate)</strong> <small class="muted">of @row.Judged</small> } else { <span class="muted">—</span> }</td>
+                <td>@TicketReports.Duration(row.AverageResolutionHours)</td>
+            </tr>
+        }
+        @if (rows.Count == 0) { <tr><td colspan="8" class="empty">No tickets in this period.</td></tr> }
+        </tbody></table></div>
+    }
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Ticket reports</h1><p class="hero-copy">How well tickets are being dealt with: whether deadlines are met, how the work is shared out, and what keeps coming back.</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Overview</a>
+</div>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab active" asp-page="/Reports/Tickets">Ticket reports</a></nav>
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Period<select name="period">@foreach (var period in TicketReportsModel.Periods) { <option value="@period.Key" selected="@(period.Key == Model.PeriodKey)">@period.Label</option> }</select></label>
+        <label>Ticket type<select name="type"><option value="">Incidents and requests</option>@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Type)">@(type == TicketTypes.Incident ? "Incidents only" : "Requests only")</option> }</select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Tickets">Reset</a></div>
+    </form>
+    <p class="muted">Showing <strong>@Model.TypeLabel</strong>, tickets created in the <strong>@Model.PeriodLabel.ToLowerInvariant()</strong>. Open ticket counts are as they stand now.</p>
+    <div class="report-nav"><a href="#sla">Deadlines (SLA)</a><a href="#workload">Technician workload</a><a href="#repeat">Repeat problems</a></div>
+</section>
+
+<div class="metrics">
+    <div class="metric"><span>Tickets in period</span><strong>@Model.TicketsInPeriod</strong><small>@Model.Overall.Closed closed</small></div>
+    <div class="metric"><span>On-time rate</span><strong>@TicketReportsModel.Percent(Model.Overall.OnTimeRate)</strong><small>@(Model.Overall.Judged == 0 ? "No deadlines judged yet" : $"{Model.Overall.OnTime} of {Model.Overall.Judged} met their due date")</small></div>
+    <div class="metric"><span>Average resolution</span><strong>@TicketReports.Duration(Model.Overall.AverageResolutionHours)</strong><small>@(Model.Overall.MedianResolutionHours.HasValue ? $"Median {TicketReports.Duration(Model.Overall.MedianResolutionHours)}" : "Nothing closed yet")</small></div>
+    <div class="metric"><span>Open now</span><strong>@Model.OpenNow</strong><small>@Model.OverdueNow overdue</small></div>
+</div>
+
+<section class="panel" id="sla">
+    <div class="panel-heading"><div><p class="eyebrow">DEADLINES</p><h2>SLA performance</h2></div><span class="badge @(Model.Overall.Breached > 0 ? "badge-warning" : "")">@Model.Overall.Breached missed</span></div>
+    <p class="muted">A ticket is <strong>on time</strong> when it was closed by its due date, <strong>late</strong> when it was closed after it, and <strong>open and overdue</strong> when it is still open past its due date. The on-time rate leaves out tickets that are open but not yet due, and tickets with no due date. The worst-performing rows come first. Resolution time runs from creation to closing.</p>
+    @{ await SlaTable("By ticket type", "Type", Model.ByType); }
+    @{ await SlaTable("By priority", "Priority", Model.ByPriority); }
+    @{ await SlaTable("By category", "Category", Model.ByCategory); }
+    @{ await SlaTable("By technician", "Technician", Model.ByTechnician); }
+    <h3>Open tickets past their due date <span class="badge @(Model.OverdueNow > 0 ? "badge-warning" : "")">@Model.OverdueNow</span></h3>
+    <div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Priority</th><th>Technician</th><th>Due</th><th>How late</th></tr></thead><tbody>
+    @foreach (var ticket in Model.OverdueOpen)
+    {
+        <tr>
+            <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">#@ticket.Number</a></strong> <span class="muted">@ticket.Title</span></td>
+            <td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td>
+            <td>@(ticket.TechnicianId is { } techId ? Model.Workload.FirstOrDefault(w => w.TechnicianId == techId)?.Name ?? "Unassigned" : "Unassigned")</td>
+            <td>@ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+            <td><span class="badge badge-warning">@TicketInsights.DueText(ticket, Model.Now)</span></td>
+        </tr>
+    }
+    @if (Model.OverdueOpen.Count == 0) { <tr><td colspan="5" class="empty">Nothing is overdue.</td></tr> }
+    </tbody></table></div>
+    @if (Model.OverdueNow > Model.OverdueOpen.Count) { <p class="muted">Showing the @Model.OverdueOpen.Count longest overdue of @Model.OverdueNow. <a asp-page="/Jobs" asp-route-view="overdue">See them all in the ticket list</a>.</p> }
+</section>
+
+<section class="panel" id="workload">
+    <div class="panel-heading"><div><p class="eyebrow">WORKLOAD</p><h2>Technician workload</h2></div><span class="badge">@Model.OpenNow open now</span></div>
+    <p class="muted">Open tickets are counted now; closed tickets are those closed in the @Model.PeriodLabel.ToLowerInvariant(). Tickets no one has picked up are under Unassigned.</p>
+    <div class="table-wrap"><table><thead><tr><th>Technician</th><th>Open</th><th>Incidents</th><th>Requests</th><th>Overdue</th><th>Oldest open</th><th>Closed in period</th><th>Average resolution</th></tr></thead><tbody>
+    @foreach (var row in Model.Workload)
+    {
+        <tr>
+            <td>@if (row.TechnicianId is { } id) { <strong><a asp-page="/Jobs" asp-route-tech="@id">@row.Name</a></strong> @if (!string.IsNullOrWhiteSpace(row.Team)) { <br /><span class="muted">@row.Team</span> } } else { <strong><a asp-page="/Jobs" asp-route-view="unassigned">Unassigned</a></strong> }</td>
+            <td><strong>@row.Open</strong></td><td>@row.OpenIncidents</td><td>@row.OpenRequests</td>
+            <td>@if (row.Overdue > 0) { <span class="badge badge-warning">@row.Overdue</span> } else { <span>0</span> }</td>
+            <td>@(row.OldestOpen is { } oldest ? oldest.ToLocalTime().ToString("dd MMM yyyy") : "—")</td>
+            <td>@row.ClosedInPeriod</td><td>@TicketReports.Duration(row.AverageResolutionHours)</td>
+        </tr>
+    }
+    </tbody></table></div>
+    <h3>By team</h3>
+    <div class="table-wrap"><table><thead><tr><th>Team</th><th>Technicians</th><th>Open (including waiting for the team)</th><th>Overdue</th><th>Closed in period</th></tr></thead><tbody>
+    @foreach (var team in Model.Teams)
+    {
+        <tr><td><strong>@team.Team</strong></td><td>@team.Technicians</td><td>@team.Open</td><td>@if (team.Overdue > 0) { <span class="badge badge-warning">@team.Overdue</span> } else { <span>0</span> }</td><td>@team.ClosedInPeriod</td></tr>
+    }
+    @if (Model.Teams.Count == 0) { <tr><td colspan="5" class="empty">No teams have been set up.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="repeat">
+    <div class="panel-heading"><div><p class="eyebrow">REPEAT PROBLEMS</p><h2>What keeps coming back</h2></div><span class="badge">@Model.PeriodLabel</span></div>
+    <h3>Devices with repeat faults</h3>
+    <p class="muted">The same device with tickets in the same category more than once. A first fix that did not hold, or a device that is on its way out.</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Category</th><th>Tickets</th><th>First</th><th>Most recent</th></tr></thead><tbody>
+    @foreach (var row in Model.RepeatFaults)
+    {
+        <tr><td><a asp-page="/Asset" asp-route-id="@row.Asset.Id">@row.Asset.AssetTag</a><br /><span class="muted">@row.Asset.Make @row.Asset.Model</span></td><td>@row.Category</td><td><strong>@row.Tickets</strong></td><td>@row.First.ToLocalTime().ToString("dd MMM yyyy")</td><td>@row.Last.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+    }
+    @if (Model.RepeatFaults.Count == 0) { <tr><td colspan="5" class="empty">No device has had the same kind of ticket more than once.</td></tr> }
+    </tbody></table></div>
+    <h3>Assets with the most tickets</h3>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Tickets</th><th>Incidents</th><th>Open now</th><th>Most recent</th></tr></thead><tbody>
+    @foreach (var row in Model.Assets)
+    {
+        <tr><td><a asp-page="/Jobs" asp-route-asset="@row.Asset.Id" asp-route-view="all">@row.Asset.AssetTag</a><br /><span class="muted">@row.Asset.Make @row.Asset.Model</span></td><td>@row.Asset.Type</td><td><strong>@row.Tickets</strong></td><td>@row.Incidents</td><td>@row.Open</td><td>@row.LastTicket.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+    }
+    @if (Model.Assets.Count == 0) { <tr><td colspan="6" class="empty">No tickets are linked to assets in this period.</td></tr> }
+    </tbody></table></div>
+    <h3>Requesters with the most tickets</h3>
+    <div class="table-wrap"><table><thead><tr><th>Requester</th><th>Department</th><th>Tickets</th><th>Open now</th><th>Most recent</th></tr></thead><tbody>
+    @foreach (var row in Model.Requesters)
+    {
+        <tr><td><a asp-page="/Jobs" asp-route-requester="@row.User.Id" asp-route-view="all">@row.User.Name</a></td><td>@row.User.Department</td><td><strong>@row.Tickets</strong></td><td>@row.Open</td><td>@row.LastTicket.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+    }
+    @if (Model.Requesters.Count == 0) { <tr><td colspan="5" class="empty">No tickets in this period.</td></tr> }
+    </tbody></table></div>
+    <h3>Categories</h3>
+    <p class="muted">@(Model.HasPreviousPeriod ? "Tickets per category, compared with the same length of time just before this period." : "Tickets per category over all time.")</p>
+    <div class="table-wrap"><table><thead><tr><th>Category</th><th>Tickets</th><th>Share</th>@if (Model.HasPreviousPeriod) { <th>Before</th><th>Change</th> }</tr></thead><tbody>
+    @foreach (var row in Model.Categories)
+    {
+        <tr>
+            <td>@row.Category</td><td><strong>@row.Tickets</strong></td>
+            <td class="report-share"><div class="bar"><span style="width:@row.SharePercent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)%"></span></div><small class="muted">@row.SharePercent.ToString("0")%</small></td>
+            @if (Model.HasPreviousPeriod) { <td>@row.Previous</td><td><span class="badge @(row.Tickets > row.Previous ? "badge-warning" : "")">@TicketReportsModel.Change(row.Tickets, row.Previous)</span></td> }
+        </tr>
+    }
+    @if (Model.Categories.Count == 0) { <tr><td colspan="@(Model.HasPreviousPeriod ? 5 : 3)" class="empty">No tickets in this period.</td></tr> }
+    </tbody></table></div>
+</section>

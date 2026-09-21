@@ -57,6 +57,8 @@ public sealed class TicketListQuery
     public List<string> Status { get; set; } = [];
     public List<string> Priority { get; set; } = [];
     public List<string> Category { get; set; } = [];
+    // Incident or Request.
+    public List<string> Type { get; set; } = [];
     // "none" for unassigned, "me" for the current technician, or a technician id.
     public string? Technician { get; set; }
     // A team name, or "(none)" for tickets with no team.
@@ -93,6 +95,7 @@ public sealed class TicketListQuery
         if (Status.Count > 0) query = query.Where(t => Status.Any(s => Same(t.Status, s)));
         if (Priority.Count > 0) query = query.Where(t => Priority.Any(s => Same(t.Priority, s)));
         if (Category.Count > 0) query = query.Where(t => Category.Any(s => Same(t.Category, s)));
+        if (Type.Count > 0) query = query.Where(t => Type.Any(s => Same(t.Type, s)));
         if (!string.IsNullOrWhiteSpace(Technician))
         {
             if (string.Equals(Technician, "none", StringComparison.OrdinalIgnoreCase)) query = query.Where(t => t.TechnicianId is null);
@@ -123,7 +126,7 @@ public sealed class TicketListQuery
 
     private static string SearchText(TicketRecord ticket, Dictionary<Guid, UserRecord> users, Dictionary<Guid, TechnicianRecord> technicians, Dictionary<Guid, AssetRecord> assets)
     {
-        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.Status, ticket.Priority, ticket.TeamName ?? "" };
+        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "" };
         if (users.TryGetValue(ticket.RequesterId, out var user)) { parts.Add(user.Name); parts.Add(user.Department); parts.Add(user.Email); }
         if (ticket.TechnicianId is { } techId && technicians.TryGetValue(techId, out var technician)) parts.Add(technician.Name);
         foreach (var id in ticket.AssetIds)

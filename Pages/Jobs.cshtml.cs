@@ -17,6 +17,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "status")] public List<string> Status { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "priority")] public List<string> Priority { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "category")] public List<string> Category { get; set; } = [];
+    [BindProperty(SupportsGet = true, Name = "type")] public List<string> Type { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "tech")] public string? Technician { get; set; }
     [BindProperty(SupportsGet = true, Name = "team")] public string? Team { get; set; }
     [BindProperty(SupportsGet = true, Name = "requester")] public string? Requester { get; set; }
@@ -34,6 +35,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Categories => store.Categories;
+    public IReadOnlyList<string> Types => TicketTypes.All;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
     public string StatusDescriptionsJson => System.Text.Json.JsonSerializer.Serialize(StatusDescriptions).Replace("</", "<\\/");
     public int DueSoonHours => store.TicketDueSoonHours;
@@ -51,7 +53,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public Guid? CurrentTechnicianId { get; private set; }
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
     public bool Descending => Dir == "desc";
-    public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
+    public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
         || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Asset);
 
     public void OnGet()
@@ -71,7 +73,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         AssetsById = context.Assets.ToDictionary(x => x.Id);
     }
 
-    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, int? mergeTarget)
+    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newType, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, int? mergeTarget)
     {
         Prepare();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
@@ -97,6 +99,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             "status" => new("status", newStatus),
             "priority" => new("priority", newPriority),
             "category" => new("category", newCategory),
+            "type" => new("type", newType),
             "team" => new("team", string.IsNullOrWhiteSpace(newTeam) ? TicketListQuery.None : newTeam),
             "technician" => new("technician", TechnicianId: technicianId),
             "comment" => new("comment", Text: commentText, Internal: commentInternal),
@@ -161,7 +164,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
 
     private TicketListQuery BuildQuery() => new()
     {
-        View = View, Search = Search, Status = Status, Priority = Priority, Category = Category, Technician = Technician, Team = Team,
+        View = View, Search = Search, Status = Status, Priority = Priority, Category = Category, Type = Type, Technician = Technician, Team = Team,
         Requester = Guid.TryParse(Requester, out var requesterId) ? requesterId : null,
         Department = Department,
         Asset = Guid.TryParse(Asset, out var assetId) ? assetId : null,
@@ -177,7 +180,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         else Dir = string.Equals(Dir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
-        Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category);
+        Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category); Type = Clean(Type);
         CurrentTechnicianId = Guid.TryParse(Request.Cookies[MeCookie], out var me) && store.Technicians.Any(x => x.Id == me) ? me : null;
     }
 
@@ -191,6 +194,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         foreach (var value in Status) yield return ("status", value);
         foreach (var value in Priority) yield return ("priority", value);
         foreach (var value in Category) yield return ("category", value);
+        foreach (var value in Type) yield return ("type", value);
         if (!string.IsNullOrWhiteSpace(Technician)) yield return ("tech", Technician);
         if (!string.IsNullOrWhiteSpace(Team)) yield return ("team", Team);
         if (!string.IsNullOrWhiteSpace(Requester)) yield return ("requester", Requester);
@@ -216,6 +220,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["status"] = Status.Count == 0 ? null : Status.ToArray(),
             ["priority"] = Priority.Count == 0 ? null : Priority.ToArray(),
             ["category"] = Category.Count == 0 ? null : Category.ToArray(),
+            ["type"] = Type.Count == 0 ? null : Type.ToArray(),
             ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["asset"] = Blank(Asset),
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,

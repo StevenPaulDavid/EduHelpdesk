@@ -7,7 +7,7 @@ namespace EduHelpdesk.Pages.Settings;
 public class AuditModel(HelpdeskStore store) : PageModel
 {
     public const int PageSize = 50;
-    public static readonly IReadOnlyList<string> Areas = ["Tickets", "Assets", "Users", "Technicians", "Suppliers", "Parts", "Lists", "SLAs", "Custom attributes", "Settings", "System"];
+    public static readonly IReadOnlyList<string> Areas = ["Tickets", "Assets", "Users", "Technicians", "Suppliers", "Parts", "Lists", "SLAs", "Ticket templates", "Custom attributes", "Settings", "System"];
 
     // "area" and "action" are reserved routing names, so the query string uses section and act.
     [BindProperty(SupportsGet = true, Name = "section")] public string? Section { get; set; }

@@ -1,5 +1,6 @@
 @page
 @using EduHelpdesk.Services
+@using EduHelpdesk.Models
 @model JobsModel
 @{
     ViewData["Title"] = "Tickets";
@@ -61,7 +62,7 @@
         <label>Per page<select name="size">@foreach (var size in JobsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
         <div class="filter-checks">
             <fieldset><legend>Status</legend>@foreach (var item in Model.Statuses) { <label class="toggle-label"><input type="checkbox" name="status" value="@item" checked="@Model.Status.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
-            <fieldset><legend>Priority</legend>@foreach (var item in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priority" value="@item" checked="@Model.Priority.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
+            <fieldset><legend>Type</legend>@foreach (var item in Model.Types) { <label class="toggle-label"><input type="checkbox" name="type" value="@item" checked="@Model.Type.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset><fieldset><legend>Priority</legend>@foreach (var item in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priority" value="@item" checked="@Model.Priority.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
             <fieldset><legend>Category</legend>@foreach (var item in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="category" value="@item" checked="@Model.Category.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
         </div>
         @if (filteredAsset is not null) { <p class="muted filter-chip">Showing tickets linked to asset <strong>@filteredAsset.AssetTag</strong> (@filteredAsset.Make @filteredAsset.Model)</p> }
@@ -93,7 +94,7 @@
             var urgent = !TicketInsights.IsClosed(ticket) && string.Equals(ticket.Priority, "Urgent", StringComparison.OrdinalIgnoreCase);
             <tr class="clickable-row @(due == DueState.Overdue ? "row-overdue" : due == DueState.Soon ? "row-soon" : "") @(urgent ? "row-urgent" : "")" onclick="if(!event.target.closest('a,input,label')) window.location.href='@Url.Page("/Job", new { number = ticket.Number })'">
                 <td><input class="ticket-select" type="checkbox" name="ids" value="@ticket.Number" aria-label="Select ticket @ticket.Number" onchange="ticketSelectionChanged()" /></td>
-                <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">#@ticket.Number</a></strong><br /><span class="muted">@ticket.Title</span></td>
+                <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">#@ticket.Number</a></strong> <span class="type-tag @(ticket.Type == TicketTypes.Request ? "type-request" : "")">@ticket.Type</span><br /><span class="muted">@ticket.Title</span></td>
                 <td>@(Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "—")</td>
                 <td>@if (linkedAssets.Count == 0) { <span class="muted">—</span> } else { @string.Join(", ", linkedAssets.Select(a => $"{a!.AssetTag} · {a.Model}")) }</td>
                 <td>@(ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned")@if (!string.IsNullOrWhiteSpace(ticket.TeamName)) { <br /><span class="muted">@ticket.TeamName</span> }</td>
@@ -113,7 +114,7 @@
                 <span class="muted" id="selected-count">None selected</span>
                 <label>Action<select name="operation" id="bulk-operation" onchange="switchTicketOperation()">
                     <option value="status">Change status</option><option value="technician">Assign technician</option><option value="team">Assign team</option>
-                    <option value="priority">Change priority</option><option value="category">Change category</option><option value="comment">Add a comment</option>
+                    <option value="priority">Change priority</option><option value="category">Change category</option><option value="type">Change type</option><option value="comment">Add a comment</option>
                     <option value="close">Close with a message</option><option value="merge">Merge into a ticket</option><option value="export">Export to CSV</option>
                 </select></label>
                 <label id="bulk-status-field">New status<select name="newStatus" onchange="updateBulkStatusDescription(this.value)">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select><small id="bulk-status-description" class="status-description-hint">@(Model.Statuses.Count > 0 && Model.StatusDescriptions.TryGetValue(Model.Statuses[0], out var firstStatusDescription) ? firstStatusDescription : "")</small></label>
@@ -121,6 +122,7 @@
                 <label id="bulk-team-field" hidden>Team<select name="newTeam" disabled><option value="@TicketListQuery.None">No team</option>@foreach (var item in Model.Teams) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-priority-field" hidden>New priority<select name="newPriority" disabled>@foreach (var item in Model.Priorities) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-category-field" hidden>New category<select name="newCategory" disabled>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
+                <label id="bulk-type-field" hidden>New type<select name="newType" disabled>@foreach (var item in Model.Types) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-comment-field" class="bulk-wide" hidden>Comment for every selected ticket<textarea name="commentText" rows="2" disabled></textarea><span class="toggle-label"><input type="checkbox" name="commentInternal" value="true" disabled /> Internal note (left off printed tickets)</span></label>
                 <label id="bulk-close-field" class="bulk-wide" hidden>Closing message (required for some priorities and categories)<textarea name="closingMessage" rows="2" disabled></textarea></label>
                 <label id="bulk-merge-field" hidden>Merge into ticket number<input type="number" name="mergeTarget" min="1" step="1" disabled /></label>
@@ -191,7 +193,7 @@ function clearTicketSelection() {
     selectAllField.value = "false";
     ticketSelectionChanged(true);
 }
-const operationFields = { status: "bulk-status-field", technician: "bulk-technician-field", team: "bulk-team-field", priority: "bulk-priority-field", category: "bulk-category-field", comment: "bulk-comment-field", close: "bulk-close-field", merge: "bulk-merge-field" };
+const operationFields = { status: "bulk-status-field", technician: "bulk-technician-field", team: "bulk-team-field", priority: "bulk-priority-field", category: "bulk-category-field", type: "bulk-type-field", comment: "bulk-comment-field", close: "bulk-close-field", merge: "bulk-merge-field" };
 const operationHints = {
     technician: "A technician who is not in a ticket's team is skipped for that ticket.",
     team: "A technician who is not in the new team is unassigned from the ticket.",

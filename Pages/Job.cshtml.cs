@@ -76,6 +76,16 @@ public class JobModel(HelpdeskStore store) : PageModel
                 _ => store.WithCategory(ticket, value)
             };
         }
+        else if (field == "type")
+        {
+            var type = TicketTypes.All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (type is null)
+            {
+                Message = "Select a valid type.";
+                return RedirectToPage(new { number });
+            }
+            ticket = ticket with { Type = type };
+        }
         else if (field == "technician")
         {
             Guid? technicianId = string.IsNullOrWhiteSpace(value) ? null : Guid.TryParse(value, out var parsedTechnicianId) ? parsedTechnicianId : null;
