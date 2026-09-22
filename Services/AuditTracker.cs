@@ -43,6 +43,18 @@ internal static class AuditTracker
                 ("Suppliers", Joined(x.SupplierIds.Select(id => supplierNamesById.GetValueOrDefault(id, "")).Where(n => n.Length > 0))),
                 ("Compatible asset types", Joined(x.AssetTypes)));
 
+        foreach (var x in d.LoanKits)
+            Add(s, "Loan kits", "Loan kit", x.Id.ToString(), x.Name, Track.All,
+                ("Name", x.Name), ("Notes", x.Notes), ("Contents", x.AssetIds.Count.ToString()), ("Retired", Yn(x.IsRetired)));
+        var kitNamesById = d.LoanKits.ToDictionary(x => x.Id, x => x.Name);
+        foreach (var x in d.KitLoans)
+            // Issue and return are the two things that happen to a loan, so Update covers the return.
+            Add(s, "Loan kits", "Kit loan", x.Id.ToString(), $"{kitNamesById.GetValueOrDefault(x.KitId, "Kit")} to {x.BorrowerName}",
+                "Loan kit", x.KitId.ToString(), Track.Create | Track.Update, false,
+                ("Borrower", x.BorrowerName), ("Reason", x.Reason), ("Due back", x.DueBack.ToString("yyyy-MM-dd")),
+                ("Returned", x.ReturnedAt is null ? "Still out" : x.ReturnedAt.Value.ToString("yyyy-MM-dd HH:mm")),
+                ("Issued by", x.IssuedBy), ("Notes", x.Notes));
+
         foreach (var x in d.Assets)
             Add(s, "Assets", "Asset", x.Id.ToString(), x.AssetTag, Track.Create | Track.Delete,
                 ("Asset tag", x.AssetTag), ("Make", x.Make), ("Model", x.Model), ("Type", x.Type), ("Serial number", x.SerialNumber), ("Location", x.Location), ("Status", x.Status));
@@ -87,6 +99,8 @@ internal static class AuditTracker
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
         Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
         Add(s, "Settings", "Parts reorder threshold", "parts-reorder-threshold", "Parts default reorder threshold", Track.Update, ("Threshold", d.PartsDefaultReorderThreshold.ToString()));
+        Add(s, "Settings", "Loan repeat threshold", "loan-repeat-threshold", "Loan repeat borrower threshold", Track.Update,
+            ("Loans", d.LoanRepeatCount.ToString()), ("Within days", d.LoanRepeatDays.ToString()));
 
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);
@@ -100,6 +114,7 @@ internal static class AuditTracker
         AddList(s, "Lists", "Priority", d.Priorities);
         AddList(s, "Lists", "Part category", d.PartCategories);
         AddList(s, "Lists", "Part location", d.PartLocations);
+        AddList(s, "Lists", "Loan reason", d.LoanReasons);
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);
         return s;

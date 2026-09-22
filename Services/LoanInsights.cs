@@ -12,9 +12,6 @@ public static class LoanInsights
         public DateTime FirstIssued => Loans.Min(x => x.IssuedAt);
         public DateTime LastIssued => Loans.Max(x => x.IssuedAt);
         public int StillOut => Loans.Count(x => x.ReturnedAt is null);
-        // Counted separately so legitimate loans don't inflate the number the manager sees.
-        public int Flaggable(IReadOnlyCollection<string> excludedReasons) =>
-            Loans.Count(x => !excludedReasons.Contains(x.Reason, StringComparer.OrdinalIgnoreCase));
         public IReadOnlyList<(string Reason, int Count)> ByReason => Loans
             .GroupBy(x => x.Reason, StringComparer.OrdinalIgnoreCase)
             .Select(g => (g.Key, g.Count()))
