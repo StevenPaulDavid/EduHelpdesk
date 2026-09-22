@@ -8,10 +8,10 @@
     <div class="directory-row">
         <div class="directory-person">
             <div class="avatar">@(item.Name.Length > 0 ? item.Name[..1].ToUpperInvariant() : "P")</div>
-            <div><strong><a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a></strong><span>@(string.IsNullOrWhiteSpace(item.Sku) ? "No SKU" : item.Sku) · @(string.IsNullOrWhiteSpace(item.Category) ? "Uncategorized" : item.Category)</span></div>
+            <div><strong><a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a></strong><span>@(string.IsNullOrWhiteSpace(item.Sku) ? "No SKU" : item.Sku) · @(string.IsNullOrWhiteSpace(item.Category) ? "Uncategorized" : item.Category)@(string.IsNullOrWhiteSpace(item.Location) ? "" : $" · {item.Location}")</span></div>
         </div>
         <div class="row-actions">
-            <span class="badge @(item.QuantityOnHand <= 0 ? "badge-warning" : "")">@item.QuantityOnHand in stock</span>
+            <span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span>
             <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id">✎</a>
             <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id">♜</a>
         </div>

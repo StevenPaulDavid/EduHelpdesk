@@ -49,6 +49,13 @@ public sealed partial class HelpdeskStore
             PostalCode = x.PostalCode?.Trim() ?? string.Empty, Country = x.Country?.Trim() ?? string.Empty,
             Website = x.Website?.Trim() ?? string.Empty, Notes = x.Notes?.Trim() ?? string.Empty
         }).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
+        _data.Parts ??= [];
+        var supplierIds = _data.Suppliers.Select(x => x.Id).ToHashSet();
+        _data.Parts = _data.Parts.Select(x => x with
+        {
+            Location = x.Location ?? string.Empty,
+            SupplierIds = (x.SupplierIds ?? []).Where(supplierIds.Contains).Distinct().ToList()
+        }).ToList();
         _data.Users = _data.Users.Select(x => x with
         {
             Department = x.Department ?? string.Empty,
@@ -85,9 +92,12 @@ public sealed partial class HelpdeskStore
         _data.AssetModelMakes = new Dictionary<string, string>(_data.AssetModelMakes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         EnsureFactoryOptions();
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
+        EnsureOptions(_data.PartCategories, _data.Parts.Select(x => x.Category).Where(x => !string.IsNullOrWhiteSpace(x))!);
+        EnsureOptions(_data.PartLocations, _data.Parts.Select(x => x.Location).Where(x => !string.IsNullOrWhiteSpace(x)));
         _data.AssetTypeLifespans = new Dictionary<string, int>(_data.AssetTypeLifespans ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
         if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
         if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
+        if (_data.PartsDefaultReorderThreshold < 0) _data.PartsDefaultReorderThreshold = 5;
         // Assets that already had a holder before ownership was tracked get an open period with an unknown start.
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
@@ -147,9 +157,13 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<string> AssetMakes { get { lock (_sync) return _data.AssetMakes.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> AssetModels { get { lock (_sync) return _data.AssetModels.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> AssetStatuses { get { lock (_sync) return _data.AssetStatuses.ToList(); } }
+    public IReadOnlyList<string> PartCategories { get { lock (_sync) return _data.PartCategories.OrderBy(x => x).ToList(); } }
+    public IReadOnlyList<string> PartLocations { get { lock (_sync) return _data.PartLocations.OrderBy(x => x).ToList(); } }
     public IReadOnlyDictionary<string, int> AssetTypeLifespans { get { lock (_sync) return new Dictionary<string, int>(_data.AssetTypeLifespans, StringComparer.OrdinalIgnoreCase); } }
     public int AssetReviewDays { get { lock (_sync) return _data.AssetReviewDays; } }
     public int TicketDueSoonHours { get { lock (_sync) return _data.TicketDueSoonHours; } }
+    // Default minimum stock level used when a part has no ReorderThreshold of its own.
+    public int PartsDefaultReorderThreshold { get { lock (_sync) return _data.PartsDefaultReorderThreshold; } }
     public IReadOnlyList<TicketAttributeValue> TicketAttributeValues { get { lock (_sync) return _data.TicketAttributeValues.ToList(); } }
     // Model name -> the make it belongs to. A model with no entry can be used with any make.
     public IReadOnlyDictionary<string, string> AssetModelMakes { get { lock (_sync) return new Dictionary<string, string>(_data.AssetModelMakes, StringComparer.OrdinalIgnoreCase); } }
@@ -417,6 +431,16 @@ public sealed partial class HelpdeskStore
                 foreach (var model in _data.AssetModelMakes.Where(x => string.Equals(x.Value, oldValue, StringComparison.OrdinalIgnoreCase)).Select(x => x.Key).ToList())
                     _data.AssetModelMakes[model] = newValue;
             }
+            for (var i = 0; i < _data.Parts.Count; i++)
+            {
+                var part = _data.Parts[i];
+                _data.Parts[i] = kind switch
+                {
+                    "Part category" when string.Equals(part.Category, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Category = newValue },
+                    "Part location" when string.Equals(part.Location, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Location = newValue },
+                    _ => part
+                };
+            }
             Save();
             return $"{kind} updated.";
         }
@@ -439,6 +463,8 @@ public sealed partial class HelpdeskStore
                 "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)),
                 "Asset model" => _data.Assets.Any(x => string.Equals(x.Model, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset status" => _data.Assets.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
+                "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
+                "Part location" => _data.Parts.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
                 _ => false
             };
             if (inUse) return $"That {kind.ToLowerInvariant()} cannot be deleted because it is in use.";
@@ -505,6 +531,16 @@ public sealed partial class HelpdeskStore
             _data.TicketDueSoonHours = hours;
             Save();
             return "Due soon window saved.";
+        }
+    }
+    public string SetPartsDefaultReorderThreshold(int threshold)
+    {
+        lock (_sync)
+        {
+            if (threshold < 0) return "Enter a reorder threshold of 0 or more.";
+            _data.PartsDefaultReorderThreshold = threshold;
+            Save();
+            return "Parts reorder threshold saved.";
         }
     }
     public string AddAssetModel(string name, string? make)
@@ -780,6 +816,15 @@ public sealed partial class HelpdeskStore
             return value.Length == 0 ? null : _data.Assets.FirstOrDefault(x => x.Id != excludeAssetId && string.Equals(x.SerialNumber, value, StringComparison.OrdinalIgnoreCase));
         }
     }
+    // A repeated part SKU is allowed but worth a warning; returns the other part that has it.
+    public PartRecord? FindDuplicateSku(string? sku, Guid? excludePartId)
+    {
+        lock (_sync)
+        {
+            var value = (sku ?? string.Empty).Trim();
+            return value.Length == 0 ? null : _data.Parts.FirstOrDefault(x => x.Id != excludePartId && string.Equals(x.Sku, value, StringComparison.OrdinalIgnoreCase));
+        }
+    }
     private string UserName(Guid userId) => _data.Users.FirstOrDefault(x => x.Id == userId)?.Name ?? "Unknown user";
     public string LoanAsset(Guid assetId, Guid userId, DateOnly dueBack)
     {
@@ -821,6 +866,7 @@ public sealed partial class HelpdeskStore
         lock (_sync)
         {
             if (_data.Assets.Any(x => x.SupplierId == id)) return "This supplier is linked to assets and cannot be deleted.";
+            if (_data.Parts.Any(x => x.SupplierIds.Contains(id))) return "This supplier is linked to parts and cannot be deleted.";
             var item = _data.Suppliers.FirstOrDefault(x => x.Id == id);
             if (item is null) return "Supplier was not found.";
             _data.Suppliers.Remove(item); Save(); return null;
@@ -2135,7 +2181,9 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Technicians ADD COLUMN Role TEXT NOT NULL DEFAULT 'Technician';",
             "ALTER TABLE Technicians ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
-            "ALTER TABLE Technicians ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;"
+            "ALTER TABLE Technicians ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
+            "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Parts ADD COLUMN ReorderThreshold INTEGER NULL;"
         })
         {
             using var m = connection.CreateCommand();
@@ -2145,6 +2193,8 @@ public sealed partial class HelpdeskStore
         using var assetTables = connection.CreateCommand();
         assetTables.CommandText = """
             CREATE TABLE IF NOT EXISTS AssetStatuses (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS PartCategories (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS PartLocations (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS AssetTypeLifespans (AssetType TEXT PRIMARY KEY, Years INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS AssetAssignments (Id INTEGER PRIMARY KEY AUTOINCREMENT, AssetId TEXT NOT NULL, UserId TEXT NULL, UserName TEXT NOT NULL,
                 StartedAt TEXT NULL, EndedAt TEXT NULL, DueBack TEXT NULL, FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE);
@@ -2163,6 +2213,14 @@ public sealed partial class HelpdeskStore
                 PRIMARY KEY (TemplateId, AttributeDefinitionId), FOREIGN KEY (TemplateId) REFERENCES TicketTemplates(Id) ON DELETE CASCADE);
             """;
         ticketTables.ExecuteNonQuery();
+        using var partTables = connection.CreateCommand();
+        partTables.CommandText = """
+            CREATE TABLE IF NOT EXISTS PartSuppliers (PartId TEXT NOT NULL, SupplierId TEXT NOT NULL,
+                PRIMARY KEY (PartId, SupplierId),
+                FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE,
+                FOREIGN KEY (SupplierId) REFERENCES Suppliers(Id) ON DELETE CASCADE);
+            """;
+        partTables.ExecuteNonQuery();
         using var roleTable = connection.CreateCommand();
         roleTable.CommandText = """
             CREATE TABLE IF NOT EXISTS Roles (Name TEXT PRIMARY KEY, AllowSettings INTEGER NOT NULL DEFAULT 0, AllowManageRoles INTEGER NOT NULL DEFAULT 0,
@@ -2260,6 +2318,8 @@ public sealed partial class HelpdeskStore
             while (reader.Read()) data.AssetModelMakes[reader.GetString(0)] = reader.GetString(1);
         }
         ReadStrings(connection, "AssetStatuses", data.AssetStatuses);
+        ReadStrings(connection, "PartCategories", data.PartCategories);
+        ReadStrings(connection, "PartLocations", data.PartLocations);
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT AssetType, Years FROM AssetTypeLifespans;";
@@ -2268,6 +2328,7 @@ public sealed partial class HelpdeskStore
         }
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         ReadStrings(connection, "Categories", data.Categories);
         ReadStrings(connection, "Statuses", data.Statuses);
         using (var command = connection.CreateCommand())
@@ -2393,9 +2454,24 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Sku, Category, QuantityOnHand, CreatedAt FROM Parts;";
+            command.CommandText = "SELECT Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold FROM Parts;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Parts.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), Date(reader, 5)));
+            while (reader.Read())
+                data.Parts.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), Date(reader, 5))
+                {
+                    Location = NullableString(reader, 6) ?? "",
+                    ReorderThreshold = reader.IsDBNull(7) ? null : reader.GetInt32(7)
+                });
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT PartId, SupplierId FROM PartSuppliers;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var index = data.Parts.FindIndex(x => x.Id == Guid.Parse(reader.GetString(0)));
+                if (index >= 0) data.Parts[index] = data.Parts[index] with { SupplierIds = [.. data.Parts[index].SupplierIds, Guid.Parse(reader.GetString(1))] };
+            }
         }
         using (var command = connection.CreateCommand())
         {
@@ -2543,7 +2619,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -2553,10 +2629,13 @@ public sealed partial class HelpdeskStore
         InsertStrings(connection, transaction, "AssetMakes", data.AssetMakes);
         InsertStrings(connection, transaction, "AssetModels", data.AssetModels);
         InsertStrings(connection, transaction, "AssetStatuses", data.AssetStatuses);
+        InsertStrings(connection, transaction, "PartCategories", data.PartCategories);
+        InsertStrings(connection, transaction, "PartLocations", data.PartLocations);
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));
         InsertStrings(connection, transaction, "Categories", data.Categories);
@@ -2587,7 +2666,13 @@ public sealed partial class HelpdeskStore
         foreach (var item in data.Suppliers)
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         foreach (var item in data.Parts)
-            Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt) VALUES ($id,$name,$sku,$category,$quantity,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$sku", item.Sku), ("$category", item.Category), ("$quantity", item.QuantityOnHand), ("$created", Iso(item.CreatedAt)));
+        {
+            Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
+                ("$id", item.Id.ToString()), ("$name", item.Name), ("$sku", item.Sku), ("$category", item.Category), ("$quantity", item.QuantityOnHand), ("$created", Iso(item.CreatedAt)), ("$location", item.Location ?? string.Empty), ("$reorder", item.ReorderThreshold));
+            foreach (var supplierId in item.SupplierIds.Distinct())
+                if (data.Suppliers.Any(x => x.Id == supplierId))
+                    Execute(connection, transaction, "INSERT INTO PartSuppliers (PartId, SupplierId) VALUES ($part,$supplier);", ("$part", item.Id.ToString()), ("$supplier", supplierId.ToString()));
+        }
         foreach (var item in data.Assets)
         {
             Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()),
@@ -2692,12 +2777,16 @@ public sealed partial class HelpdeskStore
         public List<string> AssetModels { get; set; } = [];
         public Dictionary<string, string> AssetModelMakes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> AssetStatuses { get; set; } = [];
+        public List<string> PartCategories { get; set; } = [];
+        public List<string> PartLocations { get; set; } = [];
         // Expected life in years per asset type, used to work out replacement dates.
         public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Warranty ends and replacement dates inside this many days go on the overview review list.
         public int AssetReviewDays { get; set; } = 60;
         // Open tickets due within this many hours count as "due soon" on the ticket list.
         public int TicketDueSoonHours { get; set; } = 24;
+        // Default minimum stock level for a part with no ReorderThreshold of its own.
+        public int PartsDefaultReorderThreshold { get; set; } = 5;
         public List<string> Categories { get; set; } = [];
         public List<string> Statuses { get; set; } = [];
         public Dictionary<string, string> StatusDescriptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -2739,6 +2828,8 @@ public sealed partial class HelpdeskStore
         "AssetMakes" => "Asset make",
         "AssetModels" => "Asset model",
         "AssetStatuses" => "Asset status",
+        "PartCategories" => "Part category",
+        "PartLocations" => "Part location",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -2751,10 +2842,12 @@ public sealed partial class HelpdeskStore
         "Asset make" => _data.AssetMakes,
         "Asset model" => _data.AssetModels,
         "Asset status" => _data.AssetStatuses,
+        "Part category" => _data.PartCategories,
+        "Part location" => _data.PartLocations,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 

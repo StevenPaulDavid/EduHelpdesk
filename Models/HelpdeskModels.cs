@@ -68,7 +68,14 @@ public static class Permissions
     ];
 }
 public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
-public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt);
+public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt)
+{
+    // Where it's physically kept (shelf, cupboard, room) - free text, not the shared building-level Locations list.
+    public string Location { get; init; } = "";
+    // Minimum stock level before this part is flagged low. Null means use the store-wide default (HelpdeskStore.PartsDefaultReorderThreshold).
+    public int? ReorderThreshold { get; init; }
+    public List<Guid> SupplierIds { get; init; } = [];
+}
 public record TicketPartAssignment(int TicketNumber, Guid PartId, int Quantity);
 public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, string Type, string SerialNumber, string Location, Guid? AssignedUserId, Guid? SupplierId = null)
 {

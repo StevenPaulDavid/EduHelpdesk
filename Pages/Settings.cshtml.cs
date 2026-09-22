@@ -60,6 +60,14 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public int PartsDefaultReorderThreshold => store.PartsDefaultReorderThreshold;
+
+    public IActionResult OnPostSavePartsReorderThreshold(int threshold)
+    {
+        Message = store.SetPartsDefaultReorderThreshold(threshold);
+        return RedirectToPage();
+    }
+
     public string BackupFolder => store.BackupFolder;
 
     public IActionResult OnPostResetFactory(string? confirmation, bool keepBackup, bool eraseAudit)

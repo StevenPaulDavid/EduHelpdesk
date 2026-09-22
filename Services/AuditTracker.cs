@@ -35,8 +35,12 @@ internal static class AuditTracker
             Add(s, "Suppliers", "Supplier", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Contact", x.ContactName), ("Email", x.Email), ("Phone", x.Phone), ("Address line 1", x.AddressLine1), ("Address line 2", x.AddressLine2),
                 ("City", x.City), ("State / region", x.StateRegion), ("Postal code", x.PostalCode), ("Country", x.Country), ("Website", x.Website), ("Notes", x.Notes));
+        var supplierNamesById = d.Suppliers.ToDictionary(x => x.Id, x => x.Name);
         foreach (var x in d.Parts)
-            Add(s, "Parts", "Part", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("SKU", x.Sku), ("Category", x.Category), ("Quantity on hand", x.QuantityOnHand.ToString()));
+            Add(s, "Parts", "Part", x.Id.ToString(), x.Name, Track.All,
+                ("Name", x.Name), ("SKU", x.Sku), ("Category", x.Category), ("Quantity on hand", x.QuantityOnHand.ToString()),
+                ("Location", x.Location), ("Reorder threshold", x.ReorderThreshold?.ToString() ?? ""),
+                ("Suppliers", Joined(x.SupplierIds.Select(id => supplierNamesById.GetValueOrDefault(id, "")).Where(n => n.Length > 0))));
 
         foreach (var x in d.Assets)
             Add(s, "Assets", "Asset", x.Id.ToString(), x.AssetTag, Track.Create | Track.Delete,
@@ -81,6 +85,7 @@ internal static class AuditTracker
             Add(s, "Lists", "Asset type lifespan", pair.Key.ToLowerInvariant(), $"Lifespan for asset type: {pair.Key}", Track.All, ("Years", pair.Value.ToString()));
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
         Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
+        Add(s, "Settings", "Parts reorder threshold", "parts-reorder-threshold", "Parts default reorder threshold", Track.Update, ("Threshold", d.PartsDefaultReorderThreshold.ToString()));
 
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);
@@ -92,6 +97,8 @@ internal static class AuditTracker
         AddList(s, "Lists", "Category", d.Categories);
         AddList(s, "Lists", "Status", d.Statuses);
         AddList(s, "Lists", "Priority", d.Priorities);
+        AddList(s, "Lists", "Part category", d.PartCategories);
+        AddList(s, "Lists", "Part location", d.PartLocations);
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);
         return s;
