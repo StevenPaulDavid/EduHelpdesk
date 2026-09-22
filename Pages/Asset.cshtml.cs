@@ -52,6 +52,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
         DateOnly? replacementDate,
         DateOnly? loanDueDate)
     {
+        if (!User.IsStaffLevel()) return Forbid();
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
         {
             Message = "Asset tag, type, and model are required.";
@@ -131,6 +132,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostLoan(Guid id, Guid? userId, DateOnly? dueBack)
     {
+        if (!User.IsStaffLevel()) return Forbid();
         Message = userId is null || dueBack is null
             ? "Choose who the device is loaned to and the date it is due back."
             : store.LoanAsset(id, userId.Value, dueBack.Value);
@@ -139,6 +141,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostReturn(Guid id, string? status)
     {
+        if (!User.IsStaffLevel()) return Forbid();
         Message = store.ReturnAsset(id, status);
         return RedirectToPage(new { id });
     }

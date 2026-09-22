@@ -15,76 +15,7 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
 
+    // Adding/editing/deleting users and technicians is handled by the dedicated pages under /People (linked from the
+    // view below), each with its own authorization - so this page only reads.
     public void OnGet() { }
-
-    public IActionResult OnPostAddUser(string name, string email, string? department, string? location)
-    {
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
-        {
-            Message = "User name and email are required.";
-            return RedirectToPage();
-        }
-
-        if (!string.IsNullOrWhiteSpace(department) && !store.Departments.Contains(department.Trim(), StringComparer.OrdinalIgnoreCase))
-        {
-            Message = "Select a valid department.";
-            return RedirectToPage();
-        }
-        store.AddUser(new UserRecord(Guid.NewGuid(), name.Trim(), email.Trim(), (department ?? string.Empty).Trim(), (location ?? string.Empty).Trim()));
-        Message = "User added.";
-        return RedirectToPage();
-    }
-
-    public IActionResult OnPostSaveUser(Guid id, string name, string email, string? department, string? location)
-    {
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
-        {
-            Message = "User name and email are required.";
-            return RedirectToPage();
-        }
-
-        Message = store.UpdateUser(new UserRecord(id, name.Trim(), email.Trim(), (department ?? string.Empty).Trim(), (location ?? string.Empty).Trim()))
-            ? "User updated."
-            : "User was not found.";
-        return RedirectToPage();
-    }
-
-    public IActionResult OnPostAddTechnician(string name, string email, string team)
-    {
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
-        {
-            Message = "Technician name and email are required.";
-            return RedirectToPage();
-        }
-
-        store.AddTechnician(new TechnicianRecord(Guid.NewGuid(), name.Trim(), email.Trim(), team.Trim()));
-        Message = "Technician added.";
-        return RedirectToPage();
-    }
-
-    public IActionResult OnPostSaveTechnician(Guid id, string name, string email, string team)
-    {
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
-        {
-            Message = "Technician name and email are required.";
-            return RedirectToPage();
-        }
-
-        Message = store.UpdateTechnician(new TechnicianRecord(id, name.Trim(), email.Trim(), team.Trim()))
-            ? "Technician updated."
-            : "Technician was not found.";
-        return RedirectToPage();
-    }
-
-    public IActionResult OnPostDeleteUser(Guid id)
-    {
-        Message = store.DeleteUser(id) ?? "User deleted.";
-        return RedirectToPage();
-    }
-
-    public IActionResult OnPostDeleteTechnician(Guid id)
-    {
-        Message = store.DeleteTechnician(id) ?? "Technician deleted.";
-        return RedirectToPage();
-    }
 }

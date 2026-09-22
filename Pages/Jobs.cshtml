@@ -22,15 +22,22 @@
                 <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)">@JobsModel.ViewLabel(view) <span class="badge @(view == "overdue" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
             }
         </nav>
-        <form method="post" asp-page-handler="WhoAmI" class="whoami">
-            @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
-            <label>Working as<select name="technicianId" onchange="this.form.submit()"><option value="">Not set</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.CurrentTechnicianId)">@tech.Name</option> }</select></label>
-            <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
-        </form>
+        @if (Model.CanChangeWorkingAs)
+        {
+            <form method="post" asp-page-handler="WhoAmI" class="whoami">
+                @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
+                <label>Working as<select name="technicianId" onchange="this.form.submit()"><option value="">Not set</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.CurrentTechnicianId)">@tech.Name</option> }</select></label>
+                <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
+            </form>
+        }
+        else
+        {
+            <p class="whoami muted">Working as <strong>@(currentTechnician?.Name ?? "you")</strong></p>
+        }
     </div>
     @if (Model.View == "mine" && currentTechnician is null)
     {
-        <p class="muted queue-hint">Choose your name under <strong>Working as</strong> to see the tickets assigned to you. It is remembered in this browser only.</p>
+        <p class="muted queue-hint">@(Model.CanChangeWorkingAs ? "Choose your name under Working as to see the tickets assigned to you. It is remembered in this browser only." : "Your account isn't linked to a technician record, so there are no tickets to show here.")</p>
     }
     else if (Model.View == "overdue")
     {

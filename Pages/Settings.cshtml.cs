@@ -198,7 +198,7 @@ public class SettingsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGetTechnicianImportTemplate()
     {
-        const string csv = "Name,Email,Team\r\nJohn Smith,john.smith@example.com,IT Support\r\n";
+        const string csv = "Name,Email,Team,Role\r\nJohn Smith,john.smith@example.com,IT Support,Technician\r\n";
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "technicians-import-template.csv");
     }
 
@@ -241,7 +241,8 @@ public class SettingsModel(HelpdeskStore store) : PageModel
             var email = cells.ElementAtOrDefault(1) ?? "";
             if (string.IsNullOrWhiteSpace(name) || !Mail(email)) { invalidRows++; continue; }
             var team = cells.ElementAtOrDefault(2) ?? "";
-            records.Add(new(Guid.NewGuid(), name, email, team));
+            var role = StaffRoles.Normalize(cells.ElementAtOrDefault(3));
+            records.Add(new(Guid.NewGuid(), name, email, team, role));
         }
         var (imported, duplicates) = store.ImportTechnicians(records);
         var skipped = invalidRows + duplicates;

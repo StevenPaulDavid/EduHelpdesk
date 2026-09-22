@@ -99,6 +99,24 @@ public sealed partial class HelpdeskStore
         {
             SaveBaseline();
         }
+        EnsureBootstrapAdministrator();
+    }
+
+    // Bootstrap credentials for a brand-new install, or an existing database with no login configured yet.
+    // Documented in README.md - change the password immediately after the first sign-in (RequirePasswordChange enforces this).
+    public const string BootstrapAdminEmail = "admin@eduhelpdesk.local";
+    public const string BootstrapAdminPassword = "ChangeMe123!";
+
+    // Guarantees there is always at least one way to sign in as an Administrator - whether this is a brand-new
+    // database (nothing seeded yet) or an existing one being upgraded to include logins for the first time.
+    private void EnsureBootstrapAdministrator()
+    {
+        lock (_sync)
+        {
+            if (_data.Technicians.Any(x => x.Role == StaffRoles.Administrator)) return;
+            _data.Technicians.Add(new TechnicianRecord(Guid.NewGuid(), "Administrator", BootstrapAdminEmail, "", StaffRoles.Administrator, PasswordHasher.Hash(BootstrapAdminPassword), true, true));
+            SaveBaseline();
+        }
     }
 
     public IReadOnlyList<UserRecord> Users { get { lock (_sync) return _data.Users; } }
@@ -635,6 +653,18 @@ public sealed partial class HelpdeskStore
             var value = (tag ?? string.Empty).Trim();
             return _data.Assets.Any(x => x.Id != excludeAssetId && string.Equals(x.AssetTag, value, StringComparison.OrdinalIgnoreCase))
                 ? $"Asset tag {value} is already used by another asset."
+                : null;
+        }
+    }
+    // Null when the email is free to use as a technician login; otherwise the reason it can't be. Email doubles as the sign-in username.
+    public string? CheckTechnicianEmail(string? email, Guid? excludeTechnicianId)
+    {
+        lock (_sync)
+        {
+            var value = (email ?? string.Empty).Trim();
+            if (value.Length == 0) return "Email is required.";
+            return _data.Technicians.Any(x => x.Id != excludeTechnicianId && string.Equals(x.Email, value, StringComparison.OrdinalIgnoreCase))
+                ? $"{value} is already used by another technician."
                 : null;
         }
     }
@@ -1630,6 +1660,8 @@ public sealed partial class HelpdeskStore
                 return "This technician is assigned to a ticket and cannot be deleted.";
             var item = _data.Technicians.FirstOrDefault(x => x.Id == id);
             if (item is null) return "Technician was not found.";
+            if (item.Role == StaffRoles.Administrator && !_data.Technicians.Any(x => x.Id != id && x.Role == StaffRoles.Administrator && x.IsActive))
+                return "At least one active Administrator must remain.";
             _data.Technicians.Remove(item);
             Save();
             return null;
@@ -1993,7 +2025,11 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN ReplacementDate TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN LoanDueDate TEXT NULL;",
             "ALTER TABLE TicketComments ADD COLUMN IsInternal INTEGER NOT NULL DEFAULT 0;",
-            "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';"
+            "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';",
+            "ALTER TABLE Technicians ADD COLUMN Role TEXT NOT NULL DEFAULT 'Technician';",
+            "ALTER TABLE Technicians ADD COLUMN PasswordHash TEXT NULL;",
+            "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE Technicians ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;"
         })
         {
             using var m = connection.CreateCommand();
@@ -2214,9 +2250,10 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Team FROM Technicians;";
+            command.CommandText = "SELECT Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive FROM Technicians;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Technicians.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? ""));
+            while (reader.Read()) data.Technicians.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "",
+                StaffRoles.Normalize(NullableString(reader, 4)), NullableString(reader, 5), reader.GetInt32(6) != 0, reader.GetInt32(7) != 0));
         }
         using (var command = connection.CreateCommand())
         {
@@ -2416,7 +2453,9 @@ public sealed partial class HelpdeskStore
         foreach (var item in data.Users)
             Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location) VALUES ($id,$name,$email,$department,$location);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location));
         foreach (var item in data.Technicians)
-            Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team) VALUES ($id,$name,$email,$team);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", item.Team));
+            // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
+            Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",
+                ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", string.IsNullOrWhiteSpace(item.Team) ? null : item.Team), ("$role", StaffRoles.Normalize(item.Role)), ("$hash", item.PasswordHash), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$active", item.IsActive ? 1 : 0));
         foreach (var item in data.Suppliers)
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         foreach (var item in data.Parts)

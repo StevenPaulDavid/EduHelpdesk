@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using EduHelpdesk.Models;
 using EduHelpdesk.Services;
@@ -52,6 +53,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public DateTime Now { get; } = DateTime.UtcNow;
     public Guid? CurrentTechnicianId { get; private set; }
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
+    // Only Administrator and Senior Technician can work as someone other than themselves; everyone else is fixed to their own account.
+    public bool CanChangeWorkingAs => User.IsInRole(StaffRoles.Administrator) || User.IsInRole(StaffRoles.SeniorTechnician);
+    private Guid? SignedInTechnicianId =>
+        Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     public bool Descending => Dir == "desc";
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
         || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Asset);
@@ -149,9 +154,11 @@ public class JobsModel(HelpdeskStore store) : PageModel
         return text.ToString().Trim();
     }
 
-    // Remembers, in this browser only, which technician is using it, for the My tickets queue.
+    // Remembers, in this browser only, which technician is using it, for the My tickets queue. Only Administrator
+    // and Senior Technician can work as someone else - everyone else is always themselves (see Prepare()).
     public IActionResult OnPostWhoAmI(string? technicianId)
     {
+        if (!CanChangeWorkingAs) return Forbid();
         Prepare();
         if (Guid.TryParse(technicianId, out var id) && store.Technicians.Any(x => x.Id == id))
             Response.Cookies.Append(MeCookie, id.ToString(), new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Lax, Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true });
@@ -181,7 +188,11 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
         Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category); Type = Clean(Type);
-        CurrentTechnicianId = Guid.TryParse(Request.Cookies[MeCookie], out var me) && store.Technicians.Any(x => x.Id == me) ? me : null;
+        // Technician and Junior Technician are always themselves. Administrator and Senior Technician default to
+        // themselves too, but can pick someone else via "Working as" (remembered in this browser's cookie).
+        CurrentTechnicianId = CanChangeWorkingAs && Guid.TryParse(Request.Cookies[MeCookie], out var me) && store.Technicians.Any(x => x.Id == me)
+            ? me
+            : SignedInTechnicianId;
     }
 
     private static List<string> Clean(List<string>? values) => (values ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

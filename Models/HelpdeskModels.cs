@@ -1,7 +1,21 @@
 namespace EduHelpdesk.Models;
 
 public record UserRecord(Guid Id, string Name, string Email, string Department, string Location);
-public record TechnicianRecord(Guid Id, string Name, string Email, string Team);
+public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = StaffRoles.Technician, string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
+// The four staff roles a technician account can hold. Distinct permission sets, not a strict hierarchy - see Program.cs authorization policies.
+public static class StaffRoles
+{
+    public const string Administrator = "Administrator";
+    public const string SeniorTechnician = "Senior Technician";
+    public const string Technician = "Technician";
+    public const string JuniorTechnician = "Junior Technician";
+    public static readonly string[] All = [Administrator, SeniorTechnician, Technician, JuniorTechnician];
+    // The matching role, or Technician for anything unknown or blank.
+    public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Technician;
+    // Everyone except Junior Technician - the role split used for asset/ticket management actions.
+    public static bool IsStaffLevel(this System.Security.Claims.ClaimsPrincipal user) =>
+        user.IsInRole(Administrator) || user.IsInRole(SeniorTechnician) || user.IsInRole(Technician);
+}
 public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
 public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt);
 public record TicketPartAssignment(int TicketNumber, Guid PartId, int Quantity);
