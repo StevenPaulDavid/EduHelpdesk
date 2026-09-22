@@ -99,6 +99,11 @@ public sealed partial class HelpdeskStore
         if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
         if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
         if (_data.PartsDefaultReorderThreshold < 0) _data.PartsDefaultReorderThreshold = 5;
+        if (_data.LoanRepeatCount is < 1 or > 100) _data.LoanRepeatCount = 3;
+        if (_data.LoanRepeatDays is < 1 or > 3650) _data.LoanRepeatDays = 30;
+        _data.LoanKits ??= [];
+        _data.KitLoans ??= [];
+        _data.LoanKits = _data.LoanKits.Select(x => x with { AssetIds = (x.AssetIds ?? []).Where(id => _data.Assets.Any(a => a.Id == id)).Distinct().ToList() }).ToList();
         // Assets that already had a holder before ownership was tracked get an open period with an unknown start.
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
@@ -160,6 +165,11 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<string> AssetStatuses { get { lock (_sync) return _data.AssetStatuses.ToList(); } }
     public IReadOnlyList<string> PartCategories { get { lock (_sync) return _data.PartCategories.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> PartLocations { get { lock (_sync) return _data.PartLocations.OrderBy(x => x).ToList(); } }
+    public IReadOnlyList<string> LoanReasons { get { lock (_sync) return _data.LoanReasons.ToList(); } }
+    public IReadOnlyList<LoanKit> LoanKits { get { lock (_sync) return _data.LoanKits.OrderBy(x => x.Name, NaturalComparer.Instance).ToList(); } }
+    public IReadOnlyList<KitLoan> KitLoans { get { lock (_sync) return _data.KitLoans.OrderByDescending(x => x.IssuedAt).ToList(); } }
+    public int LoanRepeatCount { get { lock (_sync) return _data.LoanRepeatCount; } }
+    public int LoanRepeatDays { get { lock (_sync) return _data.LoanRepeatDays; } }
     public IReadOnlyDictionary<string, int> AssetTypeLifespans { get { lock (_sync) return new Dictionary<string, int>(_data.AssetTypeLifespans, StringComparer.OrdinalIgnoreCase); } }
     public int AssetReviewDays { get { lock (_sync) return _data.AssetReviewDays; } }
     public int TicketDueSoonHours { get { lock (_sync) return _data.TicketDueSoonHours; } }
@@ -444,6 +454,12 @@ public sealed partial class HelpdeskStore
                     _ => part
                 };
             }
+            if (kind == "Loan reason")
+            {
+                for (var i = 0; i < _data.KitLoans.Count; i++)
+                    if (string.Equals(_data.KitLoans[i].Reason, oldValue, StringComparison.OrdinalIgnoreCase))
+                        _data.KitLoans[i] = _data.KitLoans[i] with { Reason = newValue };
+            }
             Save();
             return $"{kind} updated.";
         }
@@ -468,6 +484,7 @@ public sealed partial class HelpdeskStore
                 "Asset status" => _data.Assets.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
                 "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
                 "Part location" => _data.Parts.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
+                "Loan reason" => _data.KitLoans.Any(x => string.Equals(x.Reason, item, StringComparison.OrdinalIgnoreCase)),
                 _ => false
             };
             if (inUse) return $"That {kind.ToLowerInvariant()} cannot be deleted because it is in use.";
@@ -966,6 +983,124 @@ public sealed partial class HelpdeskStore
             return null;
         }
     }
+    // ---- Loan kits ---------------------------------------------------------
+    // Kit contents are held for reference (so you can see which laptop is in a kit). Issuing a kit deliberately does
+    // not touch the assets' own AssignedUserId/LoanDueDate, so kit loans and per-asset loans can't fight each other.
+    public (bool Ok, string Message) AddLoanKit(string name, string? notes, IEnumerable<Guid>? assetIds)
+    {
+        lock (_sync)
+        {
+            var value = (name ?? string.Empty).Trim();
+            if (value.Length == 0) return (false, "Kit name is required.");
+            if (_data.LoanKits.Any(x => string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase))) return (false, "A kit with that name already exists.");
+            _data.LoanKits.Add(new LoanKit(Guid.NewGuid(), value, (notes ?? string.Empty).Trim(), DateTime.UtcNow)
+            {
+                AssetIds = ValidAssetIds(assetIds)
+            });
+            Save();
+            return (true, $"{value} added.");
+        }
+    }
+
+    public (bool Ok, string Message) UpdateLoanKit(Guid id, string name, string? notes, IEnumerable<Guid>? assetIds, bool retired)
+    {
+        lock (_sync)
+        {
+            var value = (name ?? string.Empty).Trim();
+            if (value.Length == 0) return (false, "Kit name is required.");
+            var index = _data.LoanKits.FindIndex(x => x.Id == id);
+            if (index < 0) return (false, "Loan kit was not found.");
+            if (_data.LoanKits.Any(x => x.Id != id && string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase))) return (false, "A kit with that name already exists.");
+            if (retired && _data.KitLoans.Any(x => x.KitId == id && x.ReturnedAt is null)) return (false, "That kit is out on loan. Book it back in before retiring it.");
+            _data.LoanKits[index] = _data.LoanKits[index] with
+            {
+                Name = value,
+                Notes = (notes ?? string.Empty).Trim(),
+                AssetIds = ValidAssetIds(assetIds),
+                IsRetired = retired
+            };
+            Save();
+            return (true, $"{value} updated.");
+        }
+    }
+
+    // Kits with loan history are kept, so the report doesn't lose the past. Retire them instead.
+    public (bool Ok, string Message) DeleteLoanKit(Guid id)
+    {
+        lock (_sync)
+        {
+            var kit = _data.LoanKits.FirstOrDefault(x => x.Id == id);
+            if (kit is null) return (false, "Loan kit was not found.");
+            if (_data.KitLoans.Any(x => x.KitId == id)) return (false, "That kit has loan history and cannot be deleted. Retire it instead, and it will stay out of the issue list.");
+            _data.LoanKits.Remove(kit);
+            Save();
+            return (true, $"{kit.Name} deleted.");
+        }
+    }
+
+    private List<Guid> ValidAssetIds(IEnumerable<Guid>? assetIds) =>
+        (assetIds ?? []).Where(id => _data.Assets.Any(a => a.Id == id)).Distinct().ToList();
+
+    public (bool Ok, string Message) IssueKit(Guid kitId, Guid? borrowerUserId, string? borrowerName, string? reason, DateOnly dueBack, string? issuedBy, string? notes)
+    {
+        lock (_sync)
+        {
+            var kit = _data.LoanKits.FirstOrDefault(x => x.Id == kitId);
+            if (kit is null) return (false, "Loan kit was not found.");
+            if (kit.IsRetired) return (false, "That kit is retired and cannot be issued.");
+            if (_data.KitLoans.Any(x => x.KitId == kitId && x.ReturnedAt is null)) return (false, "That kit is already out on loan.");
+
+            var name = (borrowerName ?? string.Empty).Trim();
+            if (borrowerUserId is { } userId)
+            {
+                var user = _data.Users.FirstOrDefault(x => x.Id == userId);
+                if (user is null) return (false, "Select a valid person.");
+                name = user.Name;
+            }
+            else if (name.Length == 0) return (false, "Choose who is borrowing it, or type a name.");
+
+            var chosenReason = _data.LoanReasons.FirstOrDefault(x => string.Equals(x, (reason ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
+            if (chosenReason is null) return (false, "Choose a reason for the loan.");
+
+            _data.KitLoans.Add(new KitLoan(Guid.NewGuid(), kitId, borrowerUserId, name, chosenReason,
+                DateTime.UtcNow, dueBack, null, (issuedBy ?? string.Empty).Trim(), (notes ?? string.Empty).Trim()));
+            Save();
+            return (true, $"{kit.Name} issued to {name}, due back {AssetInsights.Format(dueBack)}.");
+        }
+    }
+
+    public (bool Ok, string Message) ReturnKit(Guid kitId, string? notes)
+    {
+        lock (_sync)
+        {
+            var index = _data.KitLoans.FindIndex(x => x.KitId == kitId && x.ReturnedAt is null);
+            if (index < 0) return (false, "That kit is not currently out on loan.");
+            var loan = _data.KitLoans[index];
+            var extra = (notes ?? string.Empty).Trim();
+            _data.KitLoans[index] = loan with
+            {
+                ReturnedAt = DateTime.UtcNow,
+                Notes = extra.Length == 0 ? loan.Notes : (loan.Notes.Length == 0 ? extra : $"{loan.Notes} | Returned: {extra}")
+            };
+            Save();
+            var kitName = _data.LoanKits.FirstOrDefault(x => x.Id == kitId)?.Name ?? "Kit";
+            return (true, $"{kitName} booked back in from {loan.BorrowerName}.");
+        }
+    }
+
+    public string SetLoanRepeatThreshold(int count, int days)
+    {
+        lock (_sync)
+        {
+            if (count is < 1 or > 100) return "Enter a number of loans between 1 and 100.";
+            if (days is < 1 or > 3650) return "Enter a number of days between 1 and 3650.";
+            _data.LoanRepeatCount = count;
+            _data.LoanRepeatDays = days;
+            Save();
+            return "Repeat borrower threshold saved.";
+        }
+    }
+
     public IReadOnlyList<(PartRecord Part, int Quantity)> GetTicketParts(int number)
     {
         lock (_sync)
@@ -1725,6 +1860,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
         EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
         EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
+        EnsureOptions(_data.LoanReasons, ["Forgot own device", "Supply or visitor", "Own device in repair", "Other"]);
     }
 
     public string BackupFolder => Path.Combine(Path.GetDirectoryName(_path)!, "backups");
@@ -2312,6 +2448,21 @@ public sealed partial class HelpdeskStore
                 Action TEXT NOT NULL, Details TEXT NOT NULL, CreatedAt TEXT NOT NULL, FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE);
             """;
         partTables.ExecuteNonQuery();
+        using var loanTables = connection.CreateCommand();
+        loanTables.CommandText = """
+            CREATE TABLE IF NOT EXISTS LoanReasons (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS LoanKits (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, Notes TEXT NOT NULL DEFAULT '',
+                CreatedAt TEXT NOT NULL, IsRetired INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS LoanKitAssets (KitId TEXT NOT NULL, AssetId TEXT NOT NULL,
+                PRIMARY KEY (KitId, AssetId),
+                FOREIGN KEY (KitId) REFERENCES LoanKits(Id) ON DELETE CASCADE,
+                FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS KitLoans (Id TEXT PRIMARY KEY, KitId TEXT NOT NULL, BorrowerUserId TEXT NULL,
+                BorrowerName TEXT NOT NULL, Reason TEXT NOT NULL, IssuedAt TEXT NOT NULL, DueBack TEXT NOT NULL,
+                ReturnedAt TEXT NULL, IssuedBy TEXT NOT NULL DEFAULT '', Notes TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (KitId) REFERENCES LoanKits(Id) ON DELETE CASCADE);
+            """;
+        loanTables.ExecuteNonQuery();
         using var roleTable = connection.CreateCommand();
         roleTable.CommandText = """
             CREATE TABLE IF NOT EXISTS Roles (Name TEXT PRIMARY KEY, AllowSettings INTEGER NOT NULL DEFAULT 0, AllowManageRoles INTEGER NOT NULL DEFAULT 0,
@@ -2411,6 +2562,36 @@ public sealed partial class HelpdeskStore
         ReadStrings(connection, "AssetStatuses", data.AssetStatuses);
         ReadStrings(connection, "PartCategories", data.PartCategories);
         ReadStrings(connection, "PartLocations", data.PartLocations);
+        ReadStrings(connection, "LoanReasons", data.LoanReasons);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Id, Name, Notes, CreatedAt, IsRetired FROM LoanKits;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                data.LoanKits.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), Date(reader, 3))
+                {
+                    IsRetired = reader.GetInt32(4) != 0
+                });
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT KitId, AssetId FROM LoanKitAssets;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var index = data.LoanKits.FindIndex(x => x.Id == Guid.Parse(reader.GetString(0)));
+                if (index >= 0) data.LoanKits[index] = data.LoanKits[index] with { AssetIds = [.. data.LoanKits[index].AssetIds, Guid.Parse(reader.GetString(1))] };
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Id, KitId, BorrowerUserId, BorrowerName, Reason, IssuedAt, DueBack, ReturnedAt, IssuedBy, Notes FROM KitLoans;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                data.KitLoans.Add(new(Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1)), NullableGuid(reader, 2),
+                    reader.GetString(3), reader.GetString(4), Date(reader, 5), NullableDateOnly(reader, 6) ?? AssetInsights.Today,
+                    reader.IsDBNull(7) ? null : Date(reader, 7), reader.GetString(8), reader.GetString(9)));
+        }
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT AssetType, Years FROM AssetTypeLifespans;";
@@ -2420,6 +2601,8 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
         ReadStrings(connection, "Categories", data.Categories);
         ReadStrings(connection, "Statuses", data.Statuses);
         using (var command = connection.CreateCommand())
@@ -2730,7 +2913,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -2742,6 +2925,22 @@ public sealed partial class HelpdeskStore
         InsertStrings(connection, transaction, "AssetStatuses", data.AssetStatuses);
         InsertStrings(connection, transaction, "PartCategories", data.PartCategories);
         InsertStrings(connection, transaction, "PartLocations", data.PartLocations);
+        InsertStrings(connection, transaction, "LoanReasons", data.LoanReasons);
+        SetMetadata(connection, transaction, "LoanRepeatCount", data.LoanRepeatCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "LoanRepeatDays", data.LoanRepeatDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        foreach (var kit in data.LoanKits)
+        {
+            Execute(connection, transaction, "INSERT INTO LoanKits (Id, Name, Notes, CreatedAt, IsRetired) VALUES ($id,$name,$notes,$created,$retired);",
+                ("$id", kit.Id.ToString()), ("$name", kit.Name), ("$notes", kit.Notes ?? string.Empty), ("$created", Iso(kit.CreatedAt)), ("$retired", kit.IsRetired ? 1 : 0));
+            foreach (var assetId in kit.AssetIds.Distinct())
+                if (data.Assets.Any(x => x.Id == assetId))
+                    Execute(connection, transaction, "INSERT INTO LoanKitAssets (KitId, AssetId) VALUES ($kit,$asset);", ("$kit", kit.Id.ToString()), ("$asset", assetId.ToString()));
+        }
+        foreach (var loan in data.KitLoans.Where(x => data.LoanKits.Any(k => k.Id == x.KitId)))
+            Execute(connection, transaction, "INSERT INTO KitLoans (Id, KitId, BorrowerUserId, BorrowerName, Reason, IssuedAt, DueBack, ReturnedAt, IssuedBy, Notes) VALUES ($id,$kit,$user,$name,$reason,$issued,$due,$returned,$by,$notes);",
+                ("$id", loan.Id.ToString()), ("$kit", loan.KitId.ToString()), ("$user", loan.BorrowerUserId?.ToString()), ("$name", loan.BorrowerName),
+                ("$reason", loan.Reason), ("$issued", Iso(loan.IssuedAt)), ("$due", IsoDay(loan.DueBack)),
+                ("$returned", loan.ReturnedAt.HasValue ? Iso(loan.ReturnedAt.Value) : null), ("$by", loan.IssuedBy ?? string.Empty), ("$notes", loan.Notes ?? string.Empty));
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -2894,6 +3093,12 @@ public sealed partial class HelpdeskStore
         public List<string> AssetStatuses { get; set; } = [];
         public List<string> PartCategories { get; set; } = [];
         public List<string> PartLocations { get; set; } = [];
+        public List<string> LoanReasons { get; set; } = [];
+        public List<LoanKit> LoanKits { get; set; } = [];
+        public List<KitLoan> KitLoans { get; set; } = [];
+        // A borrower with this many loans inside this many days is flagged on the loan report.
+        public int LoanRepeatCount { get; set; } = 3;
+        public int LoanRepeatDays { get; set; } = 30;
         // Expected life in years per asset type, used to work out replacement dates.
         public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Warranty ends and replacement dates inside this many days go on the overview review list.
@@ -2945,6 +3150,7 @@ public sealed partial class HelpdeskStore
         "AssetStatuses" => "Asset status",
         "PartCategories" => "Part category",
         "PartLocations" => "Part location",
+        "LoanReasons" => "Loan reason",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -2959,10 +3165,11 @@ public sealed partial class HelpdeskStore
         "Asset status" => _data.AssetStatuses,
         "Part category" => _data.PartCategories,
         "Part location" => _data.PartLocations,
+        "Loan reason" => _data.LoanReasons,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 

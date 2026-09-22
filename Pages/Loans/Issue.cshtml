@@ -1,0 +1,55 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Loans.IssueModel
+@{ ViewData["Title"] = $"Issue {Model.Kit!.Name}"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>Issue @Model.Kit.Name</h1></div>
+    <a class="button button-secondary" asp-page="/Loans">← Back</a>
+</div>
+<section class="panel">
+    <form method="post" class="settings-form">
+        <input type="hidden" name="id" value="@Model.Kit.Id" />
+        <div asp-validation-summary="All" class="validation-summary-errors"></div>
+
+        <label>Who is borrowing it?
+            <select name="borrowerUserId" id="borrower-user">
+                <option value="">Not listed — type a name below</option>
+                @foreach (var user in Model.Users)
+                {
+                    <option value="@user.Id">@user.Name@(string.IsNullOrWhiteSpace(user.Department) ? "" : " · " + user.Department)</option>
+                }
+            </select>
+        </label>
+        <label>Name (for supply staff and visitors who aren't listed)
+            <input name="borrowerName" id="borrower-name" placeholder="e.g. J. Smith (supply)" />
+        </label>
+
+        <label>Why do they need it? <span class="required-marker">*</span>
+            <select name="reason" required>
+                @foreach (var reason in Model.Reasons)
+                {
+                    <option value="@reason">@reason</option>
+                }
+            </select>
+        </label>
+
+        <label>Due back
+            <input name="dueBack" type="date" value="@Model.DefaultDueBack.ToString("yyyy-MM-dd")" required />
+            <small class="muted">Defaults to today. Push it out if they need it for longer.</small>
+        </label>
+
+        <label>Notes (optional)<input name="notes" placeholder="e.g. charger not included" /></label>
+
+        <button class="button button-primary">Issue kit</button>
+    </form>
+</section>
+
+@section Scripts {
+<script>
+// Picking a person clears the typed name, and vice versa, so only one borrower can be sent.
+const userSelect = document.getElementById("borrower-user");
+const nameInput = document.getElementById("borrower-name");
+userSelect.addEventListener("change", () => { if (userSelect.value) nameInput.value = ""; });
+nameInput.addEventListener("input", () => { if (nameInput.value.trim()) userSelect.value = ""; });
+</script>
+}

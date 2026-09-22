@@ -1,0 +1,155 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Loans.ReportPrintModel
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Loan kit report — @Model.PeriodLabel</title>
+<style>
+    @@page { size: A4 portrait; margin: 14mm 13mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Calibri, Arial, Helvetica, sans-serif; color: #17252f; font-size: 10.5pt; line-height: 1.45; }
+    h1 { font-size: 20pt; margin: 0; letter-spacing: -.01em; }
+    h2 { font-size: 12.5pt; margin: 0 0 2mm; color: #07585b; page-break-after: avoid; }
+    p { margin: 0 0 2.5mm; }
+    .head { border-bottom: 2px solid #07585b; padding-bottom: 3mm; margin-bottom: 4mm; display: flex; justify-content: space-between; align-items: baseline; gap: 8mm; }
+    .head .meta { text-align: right; font-size: 9pt; color: #5c6e75; white-space: nowrap; }
+    .sub { color: #5c6e75; font-size: 9.5pt; margin-top: 1mm; }
+    section { margin-bottom: 6mm; page-break-inside: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin-top: 2mm; }
+    th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .06em; color: #5c6e75; border-bottom: 1px solid #b9cbcd; padding: 0 3mm 1.5mm 0; }
+    td { padding: 1.8mm 3mm 1.8mm 0; border-bottom: 1px solid #e3ecec; vertical-align: top; }
+    tr { page-break-inside: avoid; }
+    .flag { background: #fbf0e2; }
+    .count { font-weight: 700; }
+    .pill { display: inline-block; font-size: 8.5pt; font-weight: 700; padding: .4mm 2mm; border-radius: 3mm; background: #e6f0ef; color: #07585b; }
+    .pill-warn { background: #f5dfc4; color: #8a5210; }
+    .note { background: #f2f6f6; border-left: 3px solid #07585b; padding: 3mm 3.5mm; margin-bottom: 4mm; font-size: 9.5pt; }
+    .person { margin-bottom: 3.5mm; page-break-inside: avoid; }
+    .person-head { font-weight: 700; border-bottom: 1px solid #b9cbcd; padding-bottom: 1mm; margin-bottom: 1mm; }
+    .empty { color: #5c6e75; font-style: italic; }
+    .foot { margin-top: 6mm; border-top: 1px solid #b9cbcd; padding-top: 2.5mm; font-size: 8.5pt; color: #5c6e75; }
+    .no-print { margin: 6mm 0; display: flex; gap: 8px; }
+    .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
+    @@media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body onload="window.print()">
+
+<div class="head">
+    <div>
+        <h1>Loan kit report</h1>
+        <div class="sub">@Model.BrandName · @Model.PeriodLabel@(string.IsNullOrWhiteSpace(Model.Reason) ? "" : " · " + Model.Reason)</div>
+    </div>
+    <div class="meta">Generated @Model.GeneratedAt.ToString("dd MMM yyyy, HH:mm")</div>
+</div>
+
+<div class="note">
+    <strong>@Model.Loans.Count loan@(Model.Loans.Count == 1 ? "" : "s")</strong> to <strong>@Model.Borrowers.Count</strong> different
+    @(Model.Borrowers.Count == 1 ? "person" : "people") in this period.
+    <strong>@Model.Flagged.Count</strong> @(Model.Flagged.Count == 1 ? "person has" : "people have") reached the repeat threshold of
+    @Model.RepeatCount or more loans in @Model.RepeatDays days.
+    Reasons are listed against every loan so that supply cover and genuine repairs can be told apart from repeatedly forgetting a device.
+</div>
+
+<section>
+    <h2>Repeat borrowers — @Model.RepeatCount or more loans in @Model.RepeatDays days</h2>
+    <table>
+        <thead><tr><th>Person</th><th>Loans</th><th>Reasons</th><th>Most recent</th><th>Still out</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Flagged)
+        {
+            <tr class="flag">
+                <td><strong>@row.Name</strong></td>
+                <td class="count">@row.Count</td>
+                <td>@string.Join(", ", row.ByReason.Select(x => $"{x.Reason} ({x.Count})"))</td>
+                <td>@row.LastIssued.ToLocalTime().ToString("dd MMM yyyy")</td>
+                <td>@(row.StillOut > 0 ? row.StillOut.ToString() : "—")</td>
+            </tr>
+        }
+        @if (Model.Flagged.Count == 0) { <tr><td colspan="5" class="empty">Nobody reached the threshold in the last @Model.RepeatDays days.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Every borrower in this period</h2>
+    @foreach (var row in Model.Borrowers)
+    {
+        <div class="person">
+            <div class="person-head">
+                @row.Name
+                <span class="pill @(Model.IsFlagged(row) ? "pill-warn" : "")">@row.Count loan@(row.Count == 1 ? "" : "s")</span>
+            </div>
+            <table>
+                <thead><tr><th>Issued</th><th>Kit</th><th>Reason</th><th>Due back</th><th>Returned</th><th>Kept</th></tr></thead>
+                <tbody>
+                @foreach (var loan in row.Loans)
+                {
+                    <tr>
+                        <td>@loan.IssuedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                        <td>@Model.KitName(loan.KitId)</td>
+                        <td>@loan.Reason</td>
+                        <td>@AssetInsights.Format(loan.DueBack)</td>
+                        <td>@(loan.ReturnedAt is null ? "still out" : loan.ReturnedAt.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm"))</td>
+                        <td>@Model.Duration(loan)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (Model.Borrowers.Count == 0) { <p class="empty">No kits were issued in this period.</p> }
+</section>
+
+<section>
+    <h2>Why kits were issued</h2>
+    <table>
+        <thead><tr><th>Reason</th><th>Loans</th><th>Share</th></tr></thead>
+        <tbody>
+        @foreach (var (reason, count) in Model.ReasonBreakdown)
+        {
+            var share = Model.Loans.Count == 0 ? 0 : count * 100.0 / Model.Loans.Count;
+            <tr><td>@reason</td><td class="count">@count</td><td>@share.ToString("0")%</td></tr>
+        }
+        @if (Model.ReasonBreakdown.Count == 0) { <tr><td colspan="3" class="empty">No loans in this period.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Kits still out@(Model.OverdueCount > 0 ? $" — {Model.OverdueCount} overdue" : "")</h2>
+    <table>
+        <thead><tr><th>Kit</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Due back</th><th>Out for</th></tr></thead>
+        <tbody>
+        @foreach (var loan in Model.Out)
+        {
+            var overdue = loan.DueBack < Model.Today;
+            <tr class="@(overdue ? "flag" : "")">
+                <td><strong>@Model.KitName(loan.KitId)</strong></td>
+                <td>@loan.BorrowerName</td>
+                <td>@loan.Reason</td>
+                <td>@loan.IssuedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                <td>@AssetInsights.Format(loan.DueBack)@(overdue ? " (overdue)" : "")</td>
+                <td>@Model.Duration(loan)</td>
+            </tr>
+        }
+        @if (Model.Out.Count == 0) { <tr><td colspan="6" class="empty">Every kit is back in.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<div class="foot">
+    Produced from @Model.BrandName EduHelpdesk. Figures cover loan kits issued from the IT office and recorded at the time of issue.
+    This report is about equipment use; please handle it in line with your school's staff data and HR procedures.
+</div>
+
+<div class="no-print">
+    <button type="button" onclick="window.print()">Print again</button>
+    <button type="button" onclick="window.close()">Close</button>
+</div>
+
+</body>
+</html>

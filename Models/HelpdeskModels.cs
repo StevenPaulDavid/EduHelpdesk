@@ -83,6 +83,31 @@ public record PartRecord(Guid Id, string Name, string? Sku, string? Category, in
 }
 public record PartActivity(string Action, string Details, DateTime CreatedAt);
 public record TicketPartAssignment(int TicketNumber, Guid PartId, int Quantity);
+// A named loan kit handed out when someone has no device. The kit keeps its identity and its loan history while the
+// equipment inside it can be swapped out, so AssetIds is "what is in it now", not a permanent bundle.
+public record LoanKit(Guid Id, string Name, string Notes, DateTime CreatedAt)
+{
+    public List<Guid> AssetIds { get; init; } = [];
+    // Retired kits stay in the history but can no longer be issued.
+    public bool IsRetired { get; init; }
+}
+// One issue-and-return cycle. BorrowerName is always stored, so history still reads correctly if the user record is
+// later deleted, and so one-off borrowers (supply staff, visitors) who are not in the directory can be recorded at all.
+public record KitLoan(
+    Guid Id,
+    Guid KitId,
+    Guid? BorrowerUserId,
+    string BorrowerName,
+    string Reason,
+    DateTime IssuedAt,
+    DateOnly DueBack,
+    DateTime? ReturnedAt,
+    string IssuedBy,
+    string Notes)
+{
+    public bool IsOut => ReturnedAt is null;
+    public bool IsOverdue(DateOnly today) => ReturnedAt is null && DueBack < today;
+}
 public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, string Type, string SerialNumber, string Location, Guid? AssignedUserId, Guid? SupplierId = null)
 {
     public List<AssetComment> Comments { get; init; } = [];

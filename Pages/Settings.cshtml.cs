@@ -68,6 +68,15 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public int LoanRepeatCount => store.LoanRepeatCount;
+    public int LoanRepeatDays => store.LoanRepeatDays;
+
+    public IActionResult OnPostSaveLoanThreshold(int count, int days)
+    {
+        Message = store.SetLoanRepeatThreshold(count, days);
+        return RedirectToPage();
+    }
+
     public string BackupFolder => store.BackupFolder;
 
     public IActionResult OnPostResetFactory(string? confirmation, bool keepBackup, bool eraseAudit)

@@ -1,0 +1,90 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Loans.KitModel
+@{
+    var editing = Model.Kit is not null;
+    ViewData["Title"] = editing ? $"Edit {Model.Kit!.Name}" : "Add loan kit";
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>@ViewData["Title"]</h1></div>
+    <a class="button button-secondary" asp-page="/Loans">← Back</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <form method="post" class="settings-form">
+        @if (editing) { <input type="hidden" name="id" value="@Model.Kit!.Id" /> }
+        <div asp-validation-summary="All" class="validation-summary-errors"></div>
+
+        <label>Kit name <span class="required-marker">*</span>
+            <input name="name" value="@Model.Kit?.Name" placeholder="e.g. Loan Kit 3" required autofocus />
+        </label>
+        <label>Notes<input name="notes" value="@Model.Kit?.Notes" placeholder="e.g. Dell laptop, charger and mouse in a grey case" /></label>
+
+        <div>
+            <p class="eyebrow">What's in it</p>
+            <small class="muted">Tick the assets currently in this kit. You can swap them later without losing the kit's loan history. Leave it empty if you don't track the contents.</small>
+            @if (Model.Assets.Count == 0)
+            {
+                <p class="empty">No assets in the register yet.</p>
+            }
+            else
+            {
+                <div class="checkbox-grid">
+                    @foreach (var asset in Model.Assets)
+                    {
+                        <label class="toggle-label">
+                            <input type="checkbox" name="assetIds" value="@asset.Id" checked="@Model.SelectedAssetIds.Contains(asset.Id)" />
+                            @asset.AssetTag<span class="muted"> · @asset.Make @asset.Model</span>
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (editing)
+        {
+            <label class="toggle-label">
+                <input type="checkbox" name="retired" value="true" checked="@Model.Kit!.IsRetired" />
+                Retired — keep its history, but stop offering it for new loans
+            </label>
+        }
+
+        <button class="button button-primary">@(editing ? "Save kit" : "Add kit")</button>
+    </form>
+</section>
+
+@if (editing)
+{
+    <section class="panel directory-panel">
+        <div class="panel-heading"><div><p class="eyebrow">HISTORY</p><h2>Loans of this kit</h2></div><span class="badge">@Model.History.Count</span></div>
+        <div class="table-wrap"><table><thead><tr>
+            <th>Borrower</th><th>Reason</th><th>Issued</th><th>Due back</th><th>Returned</th><th>Kept</th>
+        </tr></thead><tbody>
+        @foreach (var loan in Model.History)
+        {
+            <tr>
+                <td><strong>@loan.BorrowerName</strong>@if (!string.IsNullOrWhiteSpace(loan.IssuedBy)) { <br /><span class="muted">issued by @loan.IssuedBy</span> }</td>
+                <td>@loan.Reason</td>
+                <td>@loan.IssuedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                <td>@AssetInsights.Format(loan.DueBack)</td>
+                <td>@(loan.ReturnedAt is null ? "—" : loan.ReturnedAt.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm"))</td>
+                <td>@Model.Duration(loan)@if (loan.ReturnedAt is null) { <text> </text><span class="badge badge-warning">still out</span> }</td>
+            </tr>
+        }
+        @if (Model.History.Count == 0) { <tr><td colspan="6" class="empty">This kit hasn't been issued yet.</td></tr> }
+        </tbody></table></div>
+
+        @if (Model.History.Count == 0)
+        {
+            <form method="post" asp-page-handler="Delete" class="import-row" onsubmit="return confirm('Delete this kit?');">
+                <input type="hidden" name="id" value="@Model.Kit!.Id" />
+                <button class="button button-danger">Delete kit</button>
+            </form>
+        }
+        else
+        {
+            <p class="muted">Kits with loan history can't be deleted, so the report keeps the full picture. Tick <strong>Retired</strong> above to take it out of use.</p>
+        }
+    </section>
+}
