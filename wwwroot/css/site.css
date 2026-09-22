@@ -103,3 +103,21 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .type-tag.type-request, .badge.type-request { color: #7a5af8; opacity: 1; }
 .report-tabs { margin: 0 0 16px; }
 .report-nav a { color: inherit; }
+
+/* Header menus: Inventory grouping and the account menu. Uses <details>, so it works without JavaScript. */
+.topbar nav > a.active, .topbar nav summary.active { color: var(--teal); }
+.nav-menu { position: relative; }
+.nav-menu > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.nav-menu > summary::-webkit-details-marker { display: none; }
+.nav-menu > summary:hover { color: var(--teal); }
+.nav-menu > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 4px; }
+.nav-menu .chev { font-size: 9px; line-height: 1; transition: transform .15s ease; }
+.nav-menu[open] .chev { transform: rotate(180deg); }
+.nav-panel { position: absolute; top: calc(100% + 16px); left: 0; z-index: 30; min-width: 195px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 26px rgba(23,37,47,.14); padding: 6px; display: grid; gap: 2px; }
+.nav-panel-right { left: auto; right: 0; }
+.nav-panel a, .nav-panel button { display: block; width: 100%; text-align: left; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: none; padding: 9px 11px; border: 0; border-radius: 7px; background: none; cursor: pointer; font-family: inherit; }
+.nav-panel a:hover, .nav-panel button:hover { background: var(--accent); color: var(--teal-dark); }
+.nav-panel form { margin: 0; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+.user-menu > summary .user-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .nav-menu .chev { transition: none; } }
+@media (max-width: 1100px) { .user-menu > summary .user-name { max-width: 110px; } }
