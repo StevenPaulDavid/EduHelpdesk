@@ -109,7 +109,7 @@ public sealed partial class HelpdeskStore
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {
-            Seed();
+            SeedStarterData();
         }
         else
         {
@@ -1867,12 +1867,12 @@ public sealed partial class HelpdeskStore
 
     // Removes everything and puts the system back to how a new install starts (the same demo records Seed creates).
     // The audit log survives unless eraseAudit is set; either way the reset itself is recorded as the first entry.
-    public string ResetFactory(string? confirmation, bool keepBackup = true, bool eraseAudit = false)
+    public (bool Ok, string Message) ResetFactory(string? confirmation, bool keepBackup = true, bool eraseAudit = false)
     {
         lock (_sync)
         {
             if (!string.Equals(confirmation?.Trim(), "DELETE", StringComparison.Ordinal))
-                return "Nothing was changed. Type DELETE in capitals to reset the system.";
+                return (false, "Nothing was changed. Type DELETE in capitals to reset the system.");
 
             string? backupName = null;
             if (keepBackup)
@@ -1880,7 +1880,7 @@ public sealed partial class HelpdeskStore
                 try { backupName = BackUpBeforeReset(); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
                 {
-                    return $"Nothing was changed. The backup could not be saved ({ex.Message}). Fix that, or untick the backup option to reset without one.";
+                    return (false, $"Nothing was changed. The backup could not be saved ({ex.Message}). Fix that, or untick the backup option to reset without one.");
                 }
             }
 
@@ -1898,8 +1898,11 @@ public sealed partial class HelpdeskStore
             _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "System", null, null, "Helpdesk", "Factory reset",
                 "All data was reset to factory settings." + (eraseAudit ? " The previous audit log was erased." : "") + (backupName is null ? " No backup was kept." : $" A backup was saved as {backupName}.")));
             _data = new StoreData();
-            EnsureFactoryOptions();
-            Seed();
+            SeedStarterData();
+            // Without these two the reset leaves no Administrator role and no account that can sign in, which locked
+            // the system until the app was restarted. They only ran at startup before.
+            EnsureSeedRoles();
+            EnsureBootstrapAdministrator();
             // Deleted rows otherwise linger in the file's free pages, which defeats the point of a purge.
             using (var connection = new SqliteConnection($"Data Source={_path}"))
             {
@@ -1913,7 +1916,8 @@ public sealed partial class HelpdeskStore
             if (File.Exists(_legacyPath))
                 File.Delete(_legacyPath);
             DeleteAllAttachmentFiles();
-            return "System reset to factory settings." + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in App_Data\\backups.");
+            return (true, $"System reset to factory settings. Sign in again as {BootstrapAdminEmail} with the password {BootstrapAdminPassword}, and change it straight away."
+                + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in App_Data\\backups."));
         }
     }
 
@@ -3065,18 +3069,13 @@ public sealed partial class HelpdeskStore
         command.ExecuteNonQuery();
     }
 
-    private void Seed()
+    // What a brand-new system and a factory reset both start from: the option lists a working system needs, plus one
+    // team so technicians have something to belong to. Deliberately no sample records - schools start with their own
+    // data, and other schools shouldn't have to delete a fake laptop before they begin.
+    private void SeedStarterData()
     {
-        var technician = new TechnicianRecord(Guid.NewGuid(), "Alex Morgan", "alex.morgan@school.example", "IT Support");
-        var user = new UserRecord(Guid.NewGuid(), "Jordan Lee", "jordan.lee@school.example", "Science", "Main Campus");
-        _data.Technicians.Add(technician);
-        _data.TechnicianTeams.Add(technician.Team);
-        _data.Users.Add(user);
-        _data.Assets.Add(new AssetRecord(Guid.NewGuid(), "LT-1001", "Dell", "Dell Latitude 5440", "Laptop", "SN-DEMO-001", "Main Campus", user.Id));
-        _data.Locations.Add(user.Location);
-        _data.AssetTypes.Add("Laptop");
-        _data.AssetMakes.Add("Dell");
-        _data.AssetModels.Add("Dell Latitude 5440");
+        EnsureFactoryOptions();
+        EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         SaveBaseline();
     }
 

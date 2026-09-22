@@ -1,5 +1,6 @@
 using EduHelpdesk.Models;
 using EduHelpdesk.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -79,10 +80,15 @@ public class SettingsModel(HelpdeskStore store) : PageModel
 
     public string BackupFolder => store.BackupFolder;
 
-    public IActionResult OnPostResetFactory(string? confirmation, bool keepBackup, bool eraseAudit)
+    // A successful reset replaces every account with the bootstrap administrator, so the signed-in user no longer
+    // exists and has to be signed out rather than left holding a cookie for a deleted account.
+    public async Task<IActionResult> OnPostResetFactoryAsync(string? confirmation, bool keepBackup, bool eraseAudit)
     {
-        Message = store.ResetFactory(confirmation, keepBackup, eraseAudit);
-        return RedirectToPage();
+        var (ok, message) = store.ResetFactory(confirmation, keepBackup, eraseAudit);
+        Message = message;
+        if (!ok) return RedirectToPage();
+        await HttpContext.SignOutAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
+        return RedirectToPage("/Login");
     }
 
     public IActionResult OnPostAddTechnicianTeam(string team)

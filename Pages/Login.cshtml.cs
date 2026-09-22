@@ -12,6 +12,8 @@ public class LoginModel(HelpdeskStore store) : PageModel
     [BindProperty] public string Email { get; set; } = "";
     [BindProperty] public string Password { get; set; } = "";
     public string? ReturnUrl { get; set; }
+    // Carries the outcome of a factory reset, which signs the user out and lands them here.
+    [TempData] public string? Message { get; set; }
 
     public void OnGet(string? returnUrl) => ReturnUrl = returnUrl;
 
