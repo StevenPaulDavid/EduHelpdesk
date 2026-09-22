@@ -2928,19 +2928,7 @@ public sealed partial class HelpdeskStore
         InsertStrings(connection, transaction, "LoanReasons", data.LoanReasons);
         SetMetadata(connection, transaction, "LoanRepeatCount", data.LoanRepeatCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "LoanRepeatDays", data.LoanRepeatDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        foreach (var kit in data.LoanKits)
-        {
-            Execute(connection, transaction, "INSERT INTO LoanKits (Id, Name, Notes, CreatedAt, IsRetired) VALUES ($id,$name,$notes,$created,$retired);",
-                ("$id", kit.Id.ToString()), ("$name", kit.Name), ("$notes", kit.Notes ?? string.Empty), ("$created", Iso(kit.CreatedAt)), ("$retired", kit.IsRetired ? 1 : 0));
-            foreach (var assetId in kit.AssetIds.Distinct())
-                if (data.Assets.Any(x => x.Id == assetId))
-                    Execute(connection, transaction, "INSERT INTO LoanKitAssets (KitId, AssetId) VALUES ($kit,$asset);", ("$kit", kit.Id.ToString()), ("$asset", assetId.ToString()));
-        }
-        foreach (var loan in data.KitLoans.Where(x => data.LoanKits.Any(k => k.Id == x.KitId)))
-            Execute(connection, transaction, "INSERT INTO KitLoans (Id, KitId, BorrowerUserId, BorrowerName, Reason, IssuedAt, DueBack, ReturnedAt, IssuedBy, Notes) VALUES ($id,$kit,$user,$name,$reason,$issued,$due,$returned,$by,$notes);",
-                ("$id", loan.Id.ToString()), ("$kit", loan.KitId.ToString()), ("$user", loan.BorrowerUserId?.ToString()), ("$name", loan.BorrowerName),
-                ("$reason", loan.Reason), ("$issued", Iso(loan.IssuedAt)), ("$due", IsoDay(loan.DueBack)),
-                ("$returned", loan.ReturnedAt.HasValue ? Iso(loan.ReturnedAt.Value) : null), ("$by", loan.IssuedBy ?? string.Empty), ("$notes", loan.Notes ?? string.Empty));
+        // Loan kits are written after the Assets loop below, because LoanKitAssets has a foreign key to Assets.
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -2998,6 +2986,20 @@ public sealed partial class HelpdeskStore
             foreach (var activity in item.History)
                 Execute(connection, transaction, "INSERT INTO AssetActivities (AssetId, Action, Details, CreatedAt) VALUES ($id,$action,$details,$created);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
         }
+        // After Assets: LoanKitAssets references Assets(Id), and KitLoans references LoanKits(Id).
+        foreach (var kit in data.LoanKits)
+        {
+            Execute(connection, transaction, "INSERT INTO LoanKits (Id, Name, Notes, CreatedAt, IsRetired) VALUES ($id,$name,$notes,$created,$retired);",
+                ("$id", kit.Id.ToString()), ("$name", kit.Name), ("$notes", kit.Notes ?? string.Empty), ("$created", Iso(kit.CreatedAt)), ("$retired", kit.IsRetired ? 1 : 0));
+            foreach (var assetId in kit.AssetIds.Distinct())
+                if (data.Assets.Any(x => x.Id == assetId))
+                    Execute(connection, transaction, "INSERT INTO LoanKitAssets (KitId, AssetId) VALUES ($kit,$asset);", ("$kit", kit.Id.ToString()), ("$asset", assetId.ToString()));
+        }
+        foreach (var loan in data.KitLoans.Where(x => data.LoanKits.Any(k => k.Id == x.KitId)))
+            Execute(connection, transaction, "INSERT INTO KitLoans (Id, KitId, BorrowerUserId, BorrowerName, Reason, IssuedAt, DueBack, ReturnedAt, IssuedBy, Notes) VALUES ($id,$kit,$user,$name,$reason,$issued,$due,$returned,$by,$notes);",
+                ("$id", loan.Id.ToString()), ("$kit", loan.KitId.ToString()), ("$user", loan.BorrowerUserId?.ToString()), ("$name", loan.BorrowerName),
+                ("$reason", loan.Reason), ("$issued", Iso(loan.IssuedAt)), ("$due", IsoDay(loan.DueBack)),
+                ("$returned", loan.ReturnedAt.HasValue ? Iso(loan.ReturnedAt.Value) : null), ("$by", loan.IssuedBy ?? string.Empty), ("$notes", loan.Notes ?? string.Empty));
         foreach (var item in data.AssetAttributeDefinitions)
         {
             Execute(connection, transaction, "INSERT INTO AssetAttributeDefinitions (Id, Name, FieldType, Choices) VALUES ($id,$name,$fieldType,$choices);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$fieldType", NormalizeAttributeType(item.FieldType)), ("$choices", NormalizeChoices(item.Choices)));
