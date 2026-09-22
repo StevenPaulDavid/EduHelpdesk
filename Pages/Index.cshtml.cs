@@ -22,5 +22,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public int OpenTickets => Tickets.Count(x => x.Status is not "Closed");
     [TempData] public string? Message { get; set; }
 
-    public void OnGet() { }
+    // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
+    // staff portal instead of straight to the technician login - a technician still ends up here once signed in.
+    public IActionResult OnGet() => User.Identity?.IsAuthenticated == true ? Page() : RedirectToPage("/Portal/Index");
 }

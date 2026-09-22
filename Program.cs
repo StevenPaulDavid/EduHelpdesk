@@ -13,6 +13,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/");
     options.Conventions.AllowAnonymousToPage("/Login");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
+    // The root page allows anonymous access so it can redirect signed-out visitors to the portal itself (see
+    // IndexModel.OnGet) instead of bouncing them straight to the technician login.
+    options.Conventions.AllowAnonymousToPage("/Index");
     // The staff self-service portal - reachable with no login at all, by design (see the plan/README).
     options.Conventions.AllowAnonymousToFolder("/Portal");
 

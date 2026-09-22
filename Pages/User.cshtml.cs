@@ -19,7 +19,7 @@ public class UserModel(HelpdeskStore store) : PageModel
         return Person is null ? NotFound() : Page();
     }
 
-    public IActionResult OnPostSave(Guid id, string name, string email, string? department, string? location, int[]? selectedNumbers)
+    public IActionResult OnPostSave(Guid id, string name, string email, string? department, string? location, string? password, bool active, int[]? selectedNumbers)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
         {
@@ -31,7 +31,27 @@ public class UserModel(HelpdeskStore store) : PageModel
             Message = "Select a valid department.";
             return RedirectToPage(new { id });
         }
-        var user = new UserRecord(id, name.Trim(), email.Trim(), (department ?? string.Empty).Trim(), (location ?? string.Empty).Trim());
+        var emailError = store.CheckUserEmail(email, id);
+        if (emailError is not null)
+        {
+            Message = emailError;
+            return RedirectToPage(new { id });
+        }
+        var existing = store.Users.FirstOrDefault(x => x.Id == id);
+        if (existing is null)
+        {
+            Message = "User was not found.";
+            return RedirectToPage(new { id });
+        }
+        var user = existing with
+        {
+            Name = name.Trim(),
+            Email = email.Trim(),
+            Department = (department ?? string.Empty).Trim(),
+            Location = (location ?? string.Empty).Trim(),
+            PasswordHash = !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing.PasswordHash,
+            IsActive = active
+        };
         Message = store.UpdateUserAndTickets(user, selectedNumbers ?? []) ? "User and linked tickets updated." : "User was not found.";
         return RedirectToPage(new { id });
     }

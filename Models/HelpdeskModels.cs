@@ -1,6 +1,6 @@
 namespace EduHelpdesk.Models;
 
-public record UserRecord(Guid Id, string Name, string Email, string Department, string Location);
+public record UserRecord(Guid Id, string Name, string Email, string Department, string Location, string? PasswordHash = null, bool IsActive = true);
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
 // A named set of permissions a technician account can hold. Roles are user-defined (see HelpdeskStore.Roles); Administrator
 // is the one hardcoded, protected exception - see StaffRoles below and HelpdeskStore.RoleGrants.

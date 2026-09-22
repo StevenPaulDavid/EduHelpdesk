@@ -91,6 +91,7 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .portal-button { padding: 16px 22px; font-size: 15px; }
 .portal-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
 .portal-actions .button { text-align: center; }
+.portal-tech-link { text-align: center; margin-top: 28px; }
 @media(max-width:800px) { .portal-shell { max-width: 100%; } }
 .form-section { margin-bottom: 30px; }
 .form-section:last-of-type { margin-bottom: 0; }

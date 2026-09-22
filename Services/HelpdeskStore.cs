@@ -759,6 +759,18 @@ public sealed partial class HelpdeskStore
                 : null;
         }
     }
+    // Null when the email is free to use as a portal login; otherwise the reason it can't be. Email doubles as the portal sign-in username.
+    public string? CheckUserEmail(string? email, Guid? excludeUserId)
+    {
+        lock (_sync)
+        {
+            var value = (email ?? string.Empty).Trim();
+            if (value.Length == 0) return "Email is required.";
+            return _data.Users.Any(x => x.Id != excludeUserId && string.Equals(x.Email, value, StringComparison.OrdinalIgnoreCase))
+                ? $"{value} is already used by another user."
+                : null;
+        }
+    }
     // A repeated serial number is allowed but worth a warning; returns the other asset that has it.
     public AssetRecord? FindDuplicateSerial(string? serialNumber, Guid? excludeAssetId)
     {
@@ -2118,6 +2130,8 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE TicketComments ADD COLUMN IsInternal INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';",
             "ALTER TABLE Tickets ADD COLUMN Location TEXT NULL;",
+            "ALTER TABLE Users ADD COLUMN PasswordHash TEXT NULL;",
+            "ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
             "ALTER TABLE Technicians ADD COLUMN Role TEXT NOT NULL DEFAULT 'Technician';",
             "ALTER TABLE Technicians ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
@@ -2229,9 +2243,9 @@ public sealed partial class HelpdeskStore
         var data = new StoreData();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Department, Location FROM Users;";
+            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive FROM Users;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? ""));
+            while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5), reader.GetInt32(6) != 0));
         }
         ReadStrings(connection, "TechnicianTeams", data.TechnicianTeams);
         ReadStrings(connection, "Departments", data.Departments);
@@ -2561,7 +2575,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
         }
         foreach (var item in data.Users)
-            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location) VALUES ($id,$name,$email,$department,$location);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location));
+            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive) VALUES ($id,$name,$email,$department,$location,$hash,$active);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0));
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",

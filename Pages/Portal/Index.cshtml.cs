@@ -7,8 +7,9 @@ namespace EduHelpdesk.Pages.Portal;
 
 public class IndexModel(HelpdeskStore store) : PageModel
 {
-    public IReadOnlyList<UserRecord> Users => store.Users.OrderBy(x => x.Name).ToList();
     public UserRecord? CurrentUser { get; private set; }
+    [BindProperty] public string Email { get; set; } = "";
+    [BindProperty] public string Password { get; set; } = "";
     [TempData] public string? Message { get; set; }
 
     public void OnGet()
@@ -17,14 +18,16 @@ public class IndexModel(HelpdeskStore store) : PageModel
         CurrentUser = id is { } userId ? store.Users.FirstOrDefault(x => x.Id == userId) : null;
     }
 
-    public IActionResult OnPostChoose(Guid userId)
+    public IActionResult OnPostLogin()
     {
-        if (!store.Users.Any(x => x.Id == userId))
+        var user = store.Users.FirstOrDefault(x => string.Equals(x.Email, (Email ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
+        // Same generic message whether the account is missing, inactive, or has no password set yet - avoids leaking which.
+        if (user is null || !user.IsActive || !PasswordHasher.Verify(user.PasswordHash, Password ?? ""))
         {
-            Message = "Select your name from the list.";
-            return RedirectToPage();
+            ModelState.AddModelError("", "Incorrect email or password.");
+            return Page();
         }
-        PortalIdentity.Set(Response, userId);
+        PortalIdentity.Set(Response, user.Id);
         return RedirectToPage();
     }
 

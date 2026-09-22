@@ -35,4 +35,6 @@ Technicians: `name,email,team,role` (role is optional, defaults to Technician; m
 
 ## Staff portal
 
-Anyone on the network can reach `/Portal` - no login required. Staff pick their name from the directory (no password), then can report a problem, see the status of tickets they've submitted, and add a follow-up comment. It's deliberately minimal: no requester/technician/team/SLA/asset pickers, and staff can never see internal notes or another person's ticket. New staff need a **People → Add user** entry before they can use it (the same directory technicians already pick a requester from when logging a ticket).
+Anyone on the network can reach `/Portal`, and signs in with their own email and password - a separate, much lighter login than the technician one (no roles, no permissions, just "is this really them"). Once signed in, staff can report a problem, see the status of tickets they've submitted, and add a follow-up comment. It's deliberately minimal: no requester/technician/team/SLA/asset pickers, and staff can never see internal notes or another person's ticket.
+
+New staff need a **People → Add user** entry with a password set before they can sign in (requires the "manage requesters" permission) - a user with no password set can't log in yet. Passwords are reset the same way; there's no self-service "forgot password" flow.

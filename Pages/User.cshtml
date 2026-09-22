@@ -21,6 +21,8 @@
                 <label>Email<input name="email" type="email" value="@Model.Person.Email" required /></label>
                 <label>Department<select name="department"><option value="">Unassigned</option>@foreach (var department in Model.Departments) { <option value="@department" selected="@(string.Equals(department, Model.Person.Department, StringComparison.OrdinalIgnoreCase))">@department</option> }</select></label>
                 <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, Model.Person.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
+                <label>Active account?<select name="active"><option value="true" selected="@Model.Person.IsActive">Active - can sign in to the staff portal</option><option value="false" selected="@(!Model.Person.IsActive)">Inactive - blocked from the staff portal</option></select></label>
+                <label>Reset password<input name="password" type="password" placeholder="Leave blank to keep the current password" /><small class="muted">Used to sign in to the staff portal at /Portal.</small></label>
             </div>
         </section>
         <section class="panel">
