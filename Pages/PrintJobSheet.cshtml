@@ -1,0 +1,43 @@
+@page
+@model PrintJobSheetModel
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Job sheet #@Model.Ticket!.Number</title>
+<style>
+    @@page { size: 80mm auto; margin: 3mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 2mm; width: 74mm; font-family: Arial, Helvetica, sans-serif; color: #000; font-size: 10pt; line-height: 1.35; }
+    .sheet-header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #000; padding-bottom: 2mm; margin-bottom: 3mm; }
+    .sheet-number { font-size: 20pt; font-weight: 800; }
+    .sheet-priority { font-size: 9pt; font-weight: 700; text-transform: uppercase; }
+    .sheet-title { font-size: 12pt; font-weight: 700; margin: 0 0 3mm; word-break: break-word; }
+    .sheet-row { margin: 0 0 2.5mm; }
+    .sheet-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .05em; color: #444; display: block; }
+    .sheet-desc { border-top: 1px dashed #999; margin-top: 3mm; padding-top: 3mm; white-space: pre-wrap; }
+    .no-print { margin-top: 8mm; display: flex; gap: 8px; }
+    .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
+    @@media print { .no-print { display: none !important; } body { width: auto; } }
+</style>
+</head>
+<body onload="window.print()">
+    <div class="sheet-header"><span class="sheet-number">#@Model.Ticket.Number</span><span class="sheet-priority">@Model.Ticket.Priority</span></div>
+    <p class="sheet-title">@Model.Ticket.Title</p>
+    <p class="sheet-row"><span class="sheet-label">Requester</span>@(Model.Requester?.Name ?? "Unknown")</p>
+    <p class="sheet-row"><span class="sheet-label">Category</span>@Model.Ticket.Category</p>
+    @if (Model.LinkedAssets.Count > 0)
+    {
+        <p class="sheet-row"><span class="sheet-label">Asset@(Model.LinkedAssets.Count > 1 ? "s" : "")</span>@string.Join(", ", Model.LinkedAssets.Select(x => x.AssetTag))</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ShortDescription))
+    {
+        <p class="sheet-desc">@Model.ShortDescription</p>
+    }
+    <div class="no-print">
+        <button type="button" onclick="window.print()">Print again</button>
+        <button type="button" onclick="window.close()">Close</button>
+    </div>
+</body>
+</html>

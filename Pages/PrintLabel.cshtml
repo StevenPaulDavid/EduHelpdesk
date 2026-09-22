@@ -1,0 +1,30 @@
+@page
+@model PrintLabelModel
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Label #@Model.Ticket!.Number</title>
+<style>
+    @@page { size: 62mm auto; margin: 3mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 2mm; width: 56mm; font-family: Arial, Helvetica, sans-serif; color: #000; }
+    .label-number { font-size: 34pt; font-weight: 800; line-height: 1; margin: 0 0 3mm; }
+    .label-title { font-size: 12pt; font-weight: 700; margin: 0 0 3mm; word-break: break-word; }
+    .label-date { font-size: 8.5pt; color: #444; border-top: 1px dashed #999; padding-top: 2mm; margin: 0; }
+    .no-print { margin-top: 8mm; display: flex; gap: 8px; }
+    .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
+    @@media print { .no-print { display: none !important; } body { width: auto; } }
+</style>
+</head>
+<body onload="window.print()">
+    <p class="label-number">#@Model.Ticket.Number</p>
+    <p class="label-title">@Model.Ticket.Title</p>
+    <p class="label-date">Logged @Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</p>
+    <div class="no-print">
+        <button type="button" onclick="window.print()">Print again</button>
+        <button type="button" onclick="window.close()">Close</button>
+    </div>
+</body>
+</html>

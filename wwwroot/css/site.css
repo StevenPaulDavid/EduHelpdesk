@@ -85,8 +85,10 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .template-picker { margin-bottom: 16px; }
 .form-section { margin-bottom: 30px; }
 .form-section:last-of-type { margin-bottom: 0; }
-.form-section h2 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: var(--teal-dark); margin: 0 0 18px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+.form-section h2, .section-heading { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: var(--teal-dark); margin: 0 0 18px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
 @media(max-width:800px) { .form-section { margin-bottom: 24px; } }
+.job-main .section-heading { margin: 28px 0 0; }
+.detail-sidebar .section-heading { margin: 0; padding: 20px 24px 11px; }
 .type-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
 .type-tag.type-request, .badge.type-request { color: #7a5af8; opacity: 1; }
 .report-tabs { margin: 0 0 16px; }
