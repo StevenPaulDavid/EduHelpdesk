@@ -2,6 +2,7 @@
 @using EduHelpdesk.Services
 @using EduHelpdesk.Models
 @model JobModel
+@inject HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = $"Job #{Model.Ticket!.Number}";
 }
@@ -48,8 +49,61 @@
         </form>
     </div>
 </div>
-<div class="print-brand"><span class="brand-mark">EH</span><strong>@(Model.ViewData["Title"]?.ToString()?.Split('·').LastOrDefault()?.Trim() ?? "EduHelpdesk")</strong><span>Job record</span></div>
-@if (!string.IsNullOrWhiteSpace(Model.TemplateHtml)) { <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div> }
+<div class="print-brand"><span class="brand-mark">EH</span><strong>@Helpdesk.Branding.BrandName</strong><span>Job sheet</span></div>
+@if (!string.IsNullOrWhiteSpace(Model.TemplateHtml))
+{
+    <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div>
+}
+else
+{
+    <div class="print-only print-worksheet">
+        <div class="print-header"><span class="print-job-number">#@Model.Ticket.Number</span><span class="status">@Model.Ticket.Status</span></div>
+        <h1 class="print-title">@Model.Ticket.Title</h1>
+        <table class="print-facts">
+            <tr><th>Priority</th><td>@Model.Ticket.Priority</td><th>Type</th><td>@Model.Ticket.Type</td></tr>
+            <tr><th>Category</th><td>@Model.Ticket.Category</td><th>Team</th><td>@(Model.Ticket.TeamName ?? "No team")</td></tr>
+            <tr><th>Technician</th><td>@(Model.Technician?.Name ?? "Unassigned")</td><th>SLA</th><td>@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</td></tr>
+            <tr><th>Created</th><td>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td><th>Due</th><td>@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")</td></tr>
+        </table>
+        <div class="print-section"><h2>Description</h2><p>@Model.Ticket.Description</p></div>
+        <div class="print-section"><h2>Requester</h2><p>@(Model.Requester?.Name ?? "Unknown")<br />@Model.Requester?.Email<br />@Model.Requester?.Department · @Model.Requester?.Location</p></div>
+        @if (Model.LinkedAssets.Count > 0)
+        {
+            <div class="print-section">
+                <h2>Assets</h2>
+                <table class="print-assets">
+                    <tr><th>Tag</th><th>Type</th><th>Model</th><th>Serial</th></tr>
+                    @foreach (var asset in Model.LinkedAssets) { <tr><td>@asset.AssetTag</td><td>@asset.Type</td><td>@asset.Model</td><td>@asset.SerialNumber</td></tr> }
+                </table>
+            </div>
+        }
+        @if (Model.Relations.Count > 0)
+        {
+            <div class="print-section">
+                <h2>Related tickets</h2>
+                @foreach (var relation in Model.Relations) { <p>@relation.Label: #@relation.Number @relation.Title (@relation.Status)</p> }
+            </div>
+        }
+        @{ var printedAttributes = Model.TicketAttributes.Where(x => !string.IsNullOrWhiteSpace(Model.TicketAttributeValues.GetValueOrDefault(x.Id, ""))).ToList(); }
+        @if (printedAttributes.Count > 0)
+        {
+            <div class="print-section">
+                <h2>Additional details</h2>
+                @foreach (var field in printedAttributes) { <p><strong>@field.Name:</strong> @Model.TicketAttributeValues[field.Id]</p> }
+            </div>
+        }
+        <div class="print-section">
+            <h2>Comments</h2>
+            @{ var printedComments = Model.Ticket.Comments.Where(x => !x.IsInternal).OrderBy(x => x.CreatedAt).ToList(); }
+            @if (printedComments.Count == 0) { <p class="muted">No comments.</p> }
+            @foreach (var comment in printedComments) { <p><strong>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong> — @comment.Text</p> }
+        </div>
+        <div class="print-signoff">
+            <div class="signature-block"><span class="signature-line"></span><small>Technician signature &amp; date</small></div>
+            <div class="signature-block"><span class="signature-line"></span><small>Requester signature &amp; date</small></div>
+        </div>
+    </div>
+}
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="job-detail-grid">
@@ -209,12 +263,6 @@
                     <button class="button button-primary" type="submit">Upload</button>
                 </form>
             </div>
-        </div>
-        <div class="print-only print-comments">
-            <h3>Comments</h3>
-            @{ var printedComments = Model.Ticket.Comments.Where(x => !x.IsInternal).OrderBy(x => x.CreatedAt).ToList(); }
-            @if (printedComments.Count == 0) { <p>No comments.</p> }
-            @foreach (var comment in printedComments) { <p><strong>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong> — @comment.Text</p> }
         </div>
     </section>
     <aside class="panel detail-sidebar printable-job">
