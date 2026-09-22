@@ -23,6 +23,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "team")] public string? Team { get; set; }
     [BindProperty(SupportsGet = true, Name = "requester")] public string? Requester { get; set; }
     [BindProperty(SupportsGet = true, Name = "dept")] public string? Department { get; set; }
+    [BindProperty(SupportsGet = true, Name = "loc")] public string? Location { get; set; }
     [BindProperty(SupportsGet = true, Name = "asset")] public string? Asset { get; set; }
     [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
@@ -33,6 +34,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<string> Teams => store.TechnicianTeams;
     public IReadOnlyList<string> Departments => store.Departments;
+    public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Categories => store.Categories;
@@ -59,7 +61,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     public bool Descending => Dir == "desc";
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
-        || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Asset);
+        || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset);
 
     public void OnGet()
     {
@@ -174,6 +176,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         View = View, Search = Search, Status = Status, Priority = Priority, Category = Category, Type = Type, Technician = Technician, Team = Team,
         Requester = Guid.TryParse(Requester, out var requesterId) ? requesterId : null,
         Department = Department,
+        Location = Location,
         Asset = Guid.TryParse(Asset, out var assetId) ? assetId : null,
         Sort = Sort!, Descending = Descending
     };
@@ -210,6 +213,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Team)) yield return ("team", Team);
         if (!string.IsNullOrWhiteSpace(Requester)) yield return ("requester", Requester);
         if (!string.IsNullOrWhiteSpace(Department)) yield return ("dept", Department);
+        if (!string.IsNullOrWhiteSpace(Location)) yield return ("loc", Location);
         if (!string.IsNullOrWhiteSpace(Asset)) yield return ("asset", Asset);
         yield return ("sort", Sort!);
         yield return ("dir", Dir!);
@@ -232,7 +236,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["priority"] = Priority.Count == 0 ? null : Priority.ToArray(),
             ["category"] = Category.Count == 0 ? null : Category.ToArray(),
             ["type"] = Type.Count == 0 ? null : Type.ToArray(),
-            ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["asset"] = Blank(Asset),
+            ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["loc"] = Blank(Location), ["asset"] = Blank(Asset),
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,
             ["p"] = page > 1 ? page : null,

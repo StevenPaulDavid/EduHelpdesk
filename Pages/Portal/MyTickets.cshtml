@@ -1,0 +1,18 @@
+@page
+@model EduHelpdesk.Pages.Portal.MyTicketsModel
+@{ ViewData["Title"] = "My tickets"; }
+<div class="portal-shell">
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>My tickets</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+    <section class="panel portal-panel directory-panel">
+        @foreach (var ticket in Model.Tickets)
+        {
+            <a class="directory-row user-ticket-row" asp-page="/Portal/Ticket" asp-route-number="@ticket.Number">
+                <div class="directory-person">
+                    <div><strong>#@ticket.Number · @ticket.Title</strong><span>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")@(string.IsNullOrWhiteSpace(ticket.Location) ? "" : " · " + ticket.Location)</span></div>
+                </div>
+                <span class="status">@ticket.Status</span>
+            </a>
+        }
+        @if (Model.Tickets.Count == 0) { <p class="empty">You haven't reported anything yet.</p> }
+    </section>
+</div>

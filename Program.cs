@@ -13,6 +13,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/");
     options.Conventions.AllowAnonymousToPage("/Login");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
+    // The staff self-service portal - reachable with no login at all, by design (see the plan/README).
+    options.Conventions.AllowAnonymousToFolder("/Portal");
 
     // Role definitions themselves - who can create/edit/delete roles.
     options.Conventions.AuthorizePage("/People/Role", "RequireManageRoles");

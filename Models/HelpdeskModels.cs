@@ -137,7 +137,8 @@ public record TicketRecord(
     DateTime? DueDate = null,
     bool DueDateOverridden = false,
     bool SlaOverridden = false,
-    string? TeamName = null)
+    string? TeamName = null,
+    string? Location = null)
 {
     public List<TicketComment> Comments { get; init; } = [];
     public List<TicketActivity> History { get; init; } = [];

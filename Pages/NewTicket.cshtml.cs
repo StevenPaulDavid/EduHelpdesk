@@ -13,6 +13,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Priorities => store.Priorities;
+    public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
     public IReadOnlyList<TicketAttributeDefinition> TicketAttributes => store.TicketAttributeDefinitions;
     // The template this form was started from, and its default answers for custom attributes.
@@ -54,6 +55,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Ticket.TeamName) && !store.TechnicianTeams.Contains(Ticket.TeamName, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.TeamName", "Select a valid team.");
         if (Ticket.TechnicianId.HasValue && !string.IsNullOrWhiteSpace(Ticket.TeamName) && store.Technicians.FirstOrDefault(x => x.Id == Ticket.TechnicianId) is { } technician && !HelpdeskStore.TechnicianInTeam(technician, Ticket.TeamName)) ModelState.AddModelError("Ticket.TechnicianId", $"Select a technician from the {Ticket.TeamName} team.");
         if (Ticket.DueDate.HasValue && Ticket.DueDate < DateTime.UtcNow.Date) ModelState.AddModelError("Ticket.DueDate", "Due date cannot be in the past.");
+        if (!string.IsNullOrWhiteSpace(Ticket.Location) && !store.Locations.Contains(Ticket.Location, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Location", "Select a valid location.");
         if (!ModelState.IsValid) return Page();
 
         var createdAt = DateTime.UtcNow;
@@ -71,7 +73,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
             store.Statuses.FirstOrDefault() ?? "Open",
             Ticket.Category,
             DateTime.UtcNow,
-            null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName) { Type = TicketTypes.Normalize(Ticket.Type) });
+            null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName, string.IsNullOrWhiteSpace(Ticket.Location) ? null : Ticket.Location.Trim()) { Type = TicketTypes.Normalize(Ticket.Type) });
         if (!store.UpdateTicketAttributeValues(number, Ticket.Category, Ticket.CustomAttributes)) { }
         Message = $"Ticket #{number} created.";
         return RedirectToPage("/Job", new { number });
@@ -87,6 +89,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         public string? TeamName { get; set; }
         public string Priority { get; set; } = "Normal";
         public string Category { get; set; } = "Hardware";
+        public string? Location { get; set; }
         public string Type { get; set; } = TicketTypes.Incident;
         public Guid? SlaId { get; set; }
         public DateTime? DueDate { get; set; }

@@ -1,0 +1,16 @@
+@page
+@model EduHelpdesk.Pages.Portal.NewTicketModel
+@{ ViewData["Title"] = "Report a problem"; }
+<div class="portal-shell">
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Report a problem</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+    <section class="panel portal-panel">
+        <form method="post" class="settings-form">
+            <div asp-validation-summary="All" class="validation-summary-errors"></div>
+            <label>What's the problem?<input asp-for="Title" placeholder="e.g. Projector has no signal" required autofocus /></label>
+            <label>Tell us more (optional)<textarea asp-for="Description" rows="5" placeholder="Anything that might help - what you tried, when it started…"></textarea></label>
+            <label>What kind of problem is it?<select asp-for="Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+            <label>Where is it?<select asp-for="Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
+            <button class="button button-primary portal-button" type="submit">Submit</button>
+        </form>
+    </section>
+</div>

@@ -83,6 +83,15 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .template-item summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .template-item form { margin-top: 12px; }
 .template-picker { margin-bottom: 16px; }
+.portal-shell { max-width: 640px; margin: 0 auto; }
+.portal-shell .page-heading h1 { font-size: clamp(28px, 5vw, 40px); }
+.portal-panel { font-size: 15px; }
+.portal-panel .settings-form label { font-size: 14px; }
+.portal-panel input, .portal-panel select, .portal-panel textarea { font-size: 15px; padding: 13px; }
+.portal-button { padding: 16px 22px; font-size: 15px; }
+.portal-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+.portal-actions .button { text-align: center; }
+@media(max-width:800px) { .portal-shell { max-width: 100%; } }
 .form-section { margin-bottom: 30px; }
 .form-section:last-of-type { margin-bottom: 0; }
 .form-section h2, .section-heading { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: var(--teal-dark); margin: 0 0 18px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }

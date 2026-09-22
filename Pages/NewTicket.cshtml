@@ -36,6 +36,7 @@
             <label>Type<select asp-for="Ticket.Type">@foreach (var type in TicketTypes.All) { <option value="@type">@type</option> }</select><small>An incident is something broken; a request is something being asked for.</small></label>
             <label>Priority<select asp-for="Ticket.Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
             <label>Category<select asp-for="Ticket.Category" id="ticket-category-select" onchange="filterTicketAttributes(this.value)">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+            <label>Location<select asp-for="Ticket.Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
             <label>Assets<select asp-for="Ticket.AssetIds" multiple size="5">@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><small>Hold Ctrl (Windows) or Cmd (Mac) to link more than one asset. Leave unselected for a general request.</small></label>
         </div>
     </div>

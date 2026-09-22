@@ -50,7 +50,7 @@ internal static class AuditTracker
         }
 
         foreach (var x in d.Tickets)
-            Add(s, "Tickets", "Ticket", x.Number.ToString(), $"#{x.Number} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category));
+            Add(s, "Tickets", "Ticket", x.Number.ToString(), $"#{x.Number} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category), ("Location", x.Location ?? ""));
 
         foreach (var x in d.Slas)
             Add(s, "SLAs", "SLA", x.Id.ToString(), x.Name, Track.All,

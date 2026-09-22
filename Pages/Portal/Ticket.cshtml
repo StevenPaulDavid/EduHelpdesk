@@ -1,0 +1,35 @@
+@page "{number:int}"
+@model EduHelpdesk.Pages.Portal.TicketModel
+@{ ViewData["Title"] = $"Ticket #{Model.Ticket!.Number}"; }
+<div class="portal-shell">
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div><a class="button button-secondary" asp-page="/Portal/MyTickets">← My tickets</a></div>
+    @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+    <section class="panel portal-panel">
+        <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()">@Model.Ticket.Status</strong></div>
+        <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@Model.Ticket.Priority</p></div>
+        <div class="detail-block"><p class="eyebrow">CATEGORY</p><p>@Model.Ticket.Category</p></div>
+        @if (!string.IsNullOrWhiteSpace(Model.Ticket.Location))
+        {
+            <div class="detail-block"><p class="eyebrow">LOCATION</p><p>@Model.Ticket.Location</p></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.Ticket.Description))
+        {
+            <div class="detail-block"><p class="eyebrow">WHAT YOU TOLD US</p><p class="job-description">@Model.Ticket.Description</p></div>
+        }
+        <div class="detail-block">
+            <p class="eyebrow">UPDATES</p>
+            @if (Model.Comments.Count == 0) { <p class="muted">No updates yet.</p> }
+            <div class="comment-list">
+                @foreach (var comment in Model.Comments)
+                {
+                    <article class="comment"><p>@comment.Text</p><small>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                }
+            </div>
+            <form method="post" asp-page-handler="Comment" asp-route-number="@Model.Ticket.Number" class="comment-form">
+                <label for="portal-comment">Add a message</label>
+                <textarea id="portal-comment" asp-for="Comment" rows="3" placeholder="e.g. it's still not working, or here's some more detail…"></textarea>
+                <button class="button button-primary" type="submit">Send</button>
+            </form>
+        </div>
+    </section>
+</div>

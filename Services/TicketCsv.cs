@@ -29,7 +29,7 @@ public static class TicketCsv
 
         var headers = new List<string>
         {
-            "Ticket number", "Title", "Description", "Type", "Status", "Priority", "Category", "Requester", "Requester email", "Department",
+            "Ticket number", "Title", "Description", "Type", "Status", "Priority", "Category", "Location", "Requester", "Requester email", "Department",
             "Technician", "Team", "Assets", "SLA", "Created", "Due", "Closed", "Last updated", "Comments"
         };
         // Two attributes can share a name (they apply to different categories); keep the columns distinct.
@@ -50,7 +50,7 @@ public static class TicketCsv
             var values = valuesByTicket.GetValueOrDefault(ticket.Number);
             var cells = new List<string>
             {
-                ticket.Number.ToString(CultureInfo.InvariantCulture), ticket.Title, ticket.Description, ticket.Type, ticket.Status, ticket.Priority, ticket.Category,
+                ticket.Number.ToString(CultureInfo.InvariantCulture), ticket.Title, ticket.Description, ticket.Type, ticket.Status, ticket.Priority, ticket.Category, ticket.Location ?? "",
                 requester?.Name ?? "", requester?.Email ?? "", requester?.Department ?? "",
                 ticket.TechnicianId is { } technician ? technicianNames.GetValueOrDefault(technician, "") : "",
                 ticket.TeamName ?? "",

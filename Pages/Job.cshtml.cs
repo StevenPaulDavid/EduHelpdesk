@@ -21,6 +21,7 @@ public class JobModel(HelpdeskStore store) : PageModel
     public string StatusDescriptionsJson => System.Text.Json.JsonSerializer.Serialize(StatusDescriptions).Replace("</", "<\\/");
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Categories => store.Categories;
+    public IReadOnlyList<string> Locations => store.Locations;
     public bool RequiresCloseMessage => Ticket is not null && store.RequiresCloseMessage(Ticket);
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
     public IReadOnlyList<TicketAttributeDefinition> TicketAttributes => Ticket is null ? [] : store.GetTicketAttributes(Ticket.Category);
@@ -120,6 +121,12 @@ public class JobModel(HelpdeskStore store) : PageModel
             ticket = ticket with { SlaId = slaId, SlaOverridden = slaId.HasValue, DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(slaId, ticket.CreatedAt), DueDateOverridden = ticket.DueDateOverridden };
         }
 
+        else if (field == "location")
+        {
+            var location = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (location is not null && !store.Locations.Contains(location, StringComparer.OrdinalIgnoreCase)) { Message = "Select a valid location."; return RedirectToPage(new { number }); }
+            ticket = ticket with { Location = location };
+        }
         else if (field == "dueDate")
         {
             DateTime? dueDate = string.IsNullOrWhiteSpace(value) ? null : DateTime.TryParse(value, out var parsedDueDate) ? parsedDueDate.ToUniversalTime() : null;

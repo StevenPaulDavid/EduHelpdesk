@@ -33,4 +33,6 @@ Users: `name,email,department,location`
 
 Technicians: `name,email,team,role` (role is optional, defaults to Technician; must match the name of an existing role, seeded or custom). Imported technician accounts have no password until someone sets one.
 
-The first version deliberately has no staff-facing portal. Technicians use the workspace to create jobs, assign ownership, link an asset, add assets, and import directory records.
+## Staff portal
+
+Anyone on the network can reach `/Portal` - no login required. Staff pick their name from the directory (no password), then can report a problem, see the status of tickets they've submitted, and add a follow-up comment. It's deliberately minimal: no requester/technician/team/SLA/asset pickers, and staff can never see internal notes or another person's ticket. New staff need a **People → Add user** entry before they can use it (the same directory technicians already pick a requester from when logging a ticket).

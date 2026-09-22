@@ -65,6 +65,8 @@ public sealed class TicketListQuery
     public string? Team { get; set; }
     public Guid? Requester { get; set; }
     public string? Department { get; set; }
+    // "(none)" for tickets with no location.
+    public string? Location { get; set; }
     public Guid? Asset { get; set; }
     public string Sort { get; set; } = "number";
     public bool Descending { get; set; } = true;
@@ -108,6 +110,8 @@ public sealed class TicketListQuery
         if (!string.IsNullOrWhiteSpace(Department))
             query = query.Where(t => users.TryGetValue(t.RequesterId, out var user)
                 && (Department == None ? string.IsNullOrWhiteSpace(user.Department) : Same(user.Department, Department)));
+        if (!string.IsNullOrWhiteSpace(Location))
+            query = query.Where(t => Location == None ? string.IsNullOrWhiteSpace(t.Location) : Same(t.Location, Location));
         if (Asset is { } assetId) query = query.Where(t => t.AssetIds.Contains(assetId));
         if (!string.IsNullOrWhiteSpace(Search))
         {
@@ -126,7 +130,7 @@ public sealed class TicketListQuery
 
     private static string SearchText(TicketRecord ticket, Dictionary<Guid, UserRecord> users, Dictionary<Guid, TechnicianRecord> technicians, Dictionary<Guid, AssetRecord> assets)
     {
-        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "" };
+        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "", ticket.Location ?? "" };
         if (users.TryGetValue(ticket.RequesterId, out var user)) { parts.Add(user.Name); parts.Add(user.Department); parts.Add(user.Email); }
         if (ticket.TechnicianId is { } techId && technicians.TryGetValue(techId, out var technician)) parts.Add(technician.Name);
         foreach (var id in ticket.AssetIds)

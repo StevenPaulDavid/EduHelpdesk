@@ -2117,6 +2117,7 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN LoanDueDate TEXT NULL;",
             "ALTER TABLE TicketComments ADD COLUMN IsInternal INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';",
+            "ALTER TABLE Tickets ADD COLUMN Location TEXT NULL;",
             "ALTER TABLE Technicians ADD COLUMN Role TEXT NOT NULL DEFAULT 'Technician';",
             "ALTER TABLE Technicians ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
@@ -2445,7 +2446,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType FROM Tickets;";
+            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location FROM Tickets;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -2457,7 +2458,7 @@ public sealed partial class HelpdeskStore
                 else assetIds = new List<Guid>();
                 var ticket = new TicketRecord(number, reader.GetString(1), reader.GetString(2), Guid.Parse(reader.GetString(3)),
                     assetIds, NullableGuid(reader, 5), reader.GetString(6), reader.GetString(7), reader.GetString(8), Date(reader, 9),
-                    reader.IsDBNull(10) ? null : Date(reader, 10), NullableGuid(reader, 11), reader.IsDBNull(12) ? null : Date(reader, 12), !reader.IsDBNull(13) && reader.GetInt32(13) != 0, !reader.IsDBNull(14) && reader.GetInt32(14) != 0, NullableString(reader, 15)) { Type = TicketTypes.Normalize(NullableString(reader, 16)) };
+                    reader.IsDBNull(10) ? null : Date(reader, 10), NullableGuid(reader, 11), reader.IsDBNull(12) ? null : Date(reader, 12), !reader.IsDBNull(13) && reader.GetInt32(13) != 0, !reader.IsDBNull(14) && reader.GetInt32(14) != 0, NullableString(reader, 15), NullableString(reader, 17)) { Type = TicketTypes.Normalize(NullableString(reader, 16)) };
                 data.Tickets.Add(ticket);
             }
         }
@@ -2601,8 +2602,8 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type);",
-                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)));
+            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location);",
+                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)), ("$location", item.Location));
             foreach (var assetId in item.AssetIds.Distinct())
                 if (data.Assets.Any(x => x.Id == assetId))
                     Execute(connection, transaction, "INSERT INTO TicketAssets (TicketNumber, AssetId) VALUES ($number,$asset);", ("$number", item.Number), ("$asset", assetId.ToString()));
