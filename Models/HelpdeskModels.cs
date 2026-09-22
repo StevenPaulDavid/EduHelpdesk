@@ -1,20 +1,71 @@
 namespace EduHelpdesk.Models;
 
 public record UserRecord(Guid Id, string Name, string Email, string Department, string Location);
-public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = StaffRoles.Technician, string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
-// The four staff roles a technician account can hold. Distinct permission sets, not a strict hierarchy - see Program.cs authorization policies.
+public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
+// A named set of permissions a technician account can hold. Roles are user-defined (see HelpdeskStore.Roles); Administrator
+// is the one hardcoded, protected exception - see StaffRoles below and HelpdeskStore.RoleGrants.
+public record RoleRecord(
+    string Name,
+    bool AllowSettings,
+    bool AllowManageRoles,
+    bool AllowManageStaff,
+    bool AllowManageRequesters,
+    bool AllowManageAssets,
+    bool AllowManageSuppliers,
+    bool AllowManageParts,
+    bool AllowTicketDestructive,
+    bool AllowChangeWorkingAs,
+    bool IsProtected = false)
+{
+    // The one place a permission key maps to the matching flag - HelpdeskStore.RoleGrants and the role editor summary both use this.
+    public bool Grants(string permission) => permission switch
+    {
+        Permissions.Settings => AllowSettings,
+        Permissions.ManageRoles => AllowManageRoles,
+        Permissions.ManageStaff => AllowManageStaff,
+        Permissions.ManageRequesters => AllowManageRequesters,
+        Permissions.ManageAssets => AllowManageAssets,
+        Permissions.ManageSuppliers => AllowManageSuppliers,
+        Permissions.ManageParts => AllowManageParts,
+        Permissions.TicketDestructive => AllowTicketDestructive,
+        Permissions.ChangeWorkingAs => AllowChangeWorkingAs,
+        _ => false
+    };
+}
+// The one role name that is hardcoded rather than data-driven: always has every permission, can't be edited or deleted,
+// and is guaranteed to exist (see HelpdeskStore.EnsureBootstrapAdministrator) so there is always a way into the system.
 public static class StaffRoles
 {
     public const string Administrator = "Administrator";
-    public const string SeniorTechnician = "Senior Technician";
-    public const string Technician = "Technician";
-    public const string JuniorTechnician = "Junior Technician";
-    public static readonly string[] All = [Administrator, SeniorTechnician, Technician, JuniorTechnician];
-    // The matching role, or Technician for anything unknown or blank.
-    public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Technician;
-    // Everyone except Junior Technician - the role split used for asset/ticket management actions.
-    public static bool IsStaffLevel(this System.Security.Claims.ClaimsPrincipal user) =>
-        user.IsInRole(Administrator) || user.IsInRole(SeniorTechnician) || user.IsInRole(Technician);
+    // Fallback used when a stored Role value doesn't match any known role (e.g. legacy data).
+    public const string DefaultRole = "Technician";
+}
+// The permissions a role can grant. Keys match RoleRecord's bool properties (HelpdeskStore.RoleGrants switches on them);
+// Label/Description drive the role editor UI - see Pages/People/Role.cshtml.
+public static class Permissions
+{
+    public const string Settings = "AllowSettings";
+    public const string ManageRoles = "AllowManageRoles";
+    public const string ManageStaff = "AllowManageStaff";
+    public const string ManageRequesters = "AllowManageRequesters";
+    public const string ManageAssets = "AllowManageAssets";
+    public const string ManageSuppliers = "AllowManageSuppliers";
+    public const string ManageParts = "AllowManageParts";
+    public const string TicketDestructive = "AllowTicketDestructive";
+    public const string ChangeWorkingAs = "AllowChangeWorkingAs";
+
+    public static readonly (string Key, string Label, string Description)[] All =
+    [
+        (Settings, "Settings", "Branding, option lists, CSV import, audit log, factory reset."),
+        (ManageRoles, "Manage roles", "Create, edit and delete role definitions."),
+        (ManageStaff, "Manage staff accounts", "Add/edit technician accounts, assign roles, reset passwords."),
+        (ManageRequesters, "Manage requesters", "Add/edit the requester directory on the People page."),
+        (ManageAssets, "Manage assets", "Add/edit/delete assets, loan and return."),
+        (ManageSuppliers, "Manage suppliers", "Add/edit suppliers."),
+        (ManageParts, "Manage parts", "Add/edit parts."),
+        (TicketDestructive, "Delete/merge tickets", "The two destructive ticket actions - everyone signed in can already do everything else with a ticket."),
+        (ChangeWorkingAs, "Change \"Working as\"", "Pick who \"Working as\" resolves to on the Tickets page, instead of always being yourself.")
+    ];
 }
 public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
 public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt);

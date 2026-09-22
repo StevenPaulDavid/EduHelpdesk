@@ -26,6 +26,10 @@ internal static class AuditTracker
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
             Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"));
+        foreach (var x in d.Roles)
+            Add(s, "Roles", "Role", x.Name.ToLowerInvariant(), x.Name, x.IsProtected ? Track.None : Track.All,
+                ("Settings", Yn(x.AllowSettings)), ("Manage roles", Yn(x.AllowManageRoles)), ("Manage staff accounts", Yn(x.AllowManageStaff)), ("Manage requesters", Yn(x.AllowManageRequesters)),
+                ("Manage assets", Yn(x.AllowManageAssets)), ("Manage suppliers", Yn(x.AllowManageSuppliers)), ("Manage parts", Yn(x.AllowManageParts)), ("Delete/merge tickets", Yn(x.AllowTicketDestructive)), ("Change \"Working as\"", Yn(x.AllowChangeWorkingAs)));
         foreach (var x in d.Suppliers)
             Add(s, "Suppliers", "Supplier", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Contact", x.ContactName), ("Email", x.Email), ("Phone", x.Phone), ("Address line 1", x.AddressLine1), ("Address line 2", x.AddressLine2),
@@ -166,4 +170,6 @@ internal static class AuditTracker
     private static string Show(string value) => value.Length == 0 ? "(empty)" : Short(value);
 
     private static string Short(string value) => value.Length <= 120 ? value : value[..117] + "...";
+
+    private static string Yn(bool value) => value ? "Yes" : "No";
 }

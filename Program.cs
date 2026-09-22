@@ -1,5 +1,7 @@
 using EduHelpdesk.Models;
+using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,21 +14,25 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Login");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
 
-    // Staff account/role management (part of the technician roster, but sensitive): Administrator or Senior Technician.
-    options.Conventions.AuthorizePage("/People/Technician", "RequireSeniorLevel");
-    options.Conventions.AuthorizePage("/People/DeleteTechnician", "RequireSeniorLevel");
-    // Requester directory maintenance, assets, suppliers and parts: anyone but Junior Technician.
-    options.Conventions.AuthorizePage("/People/User", "RequireStaffLevel");
-    options.Conventions.AuthorizePage("/People/DeleteUser", "RequireStaffLevel");
-    options.Conventions.AuthorizeFolder("/Assets", "RequireStaffLevel");
-    options.Conventions.AuthorizeFolder("/Suppliers", "RequireStaffLevel");
-    options.Conventions.AuthorizeFolder("/Parts", "RequireStaffLevel");
-    // The Settings area (branding, option lists, CSV import, factory reset, audit log) is Administrator-only.
-    options.Conventions.AuthorizePage("/Settings", "RequireAdministrator");
-    options.Conventions.AuthorizeFolder("/Settings", "RequireAdministrator");
+    // Role definitions themselves - who can create/edit/delete roles.
+    options.Conventions.AuthorizePage("/People/Role", "RequireManageRoles");
+    options.Conventions.AuthorizePage("/People/DeleteRole", "RequireManageRoles");
+    // Staff account/role management (assigning an existing role to a technician account).
+    options.Conventions.AuthorizePage("/People/Technician", "RequireManageStaff");
+    options.Conventions.AuthorizePage("/People/DeleteTechnician", "RequireManageStaff");
+    // Requester directory maintenance, assets, suppliers and parts.
+    options.Conventions.AuthorizePage("/People/User", "RequireManageRequesters");
+    options.Conventions.AuthorizePage("/People/DeleteUser", "RequireManageRequesters");
+    options.Conventions.AuthorizeFolder("/Assets", "RequireManageAssets");
+    options.Conventions.AuthorizeFolder("/Suppliers", "RequireManageSuppliers");
+    options.Conventions.AuthorizeFolder("/Parts", "RequireManageParts");
+    // The Settings area (branding, option lists, CSV import, factory reset, audit log).
+    options.Conventions.AuthorizePage("/Settings", "RequireSettings");
+    options.Conventions.AuthorizeFolder("/Settings", "RequireSettings");
 });
 builder.Services.AddMemoryCache();
-builder.Services.AddSingleton<EduHelpdesk.Services.HelpdeskStore>();
+builder.Services.AddSingleton<HelpdeskStore>();
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -47,11 +53,18 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
             return Task.CompletedTask;
         };
     });
+// Each policy is a permission requirement, checked live against the signed-in account's role (see
+// PermissionAuthorizationHandler and HelpdeskStore.RoleGrants) rather than a fixed set of role names - roles and
+// their permissions are user-defined (see the Roles panel on the People page), except Administrator, which is
+// hardcoded to always pass every check.
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequireAdministrator", policy => policy.RequireRole(StaffRoles.Administrator))
-    // Senior Technician has every permission Administrator has except Settings access (see the Settings page/folder policies above).
-    .AddPolicy("RequireSeniorLevel", policy => policy.RequireRole(StaffRoles.Administrator, StaffRoles.SeniorTechnician))
-    .AddPolicy("RequireStaffLevel", policy => policy.RequireRole(StaffRoles.Administrator, StaffRoles.SeniorTechnician, StaffRoles.Technician));
+    .AddPolicy("RequireSettings", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.Settings)))
+    .AddPolicy("RequireManageRoles", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageRoles)))
+    .AddPolicy("RequireManageStaff", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageStaff)))
+    .AddPolicy("RequireManageRequesters", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageRequesters)))
+    .AddPolicy("RequireManageAssets", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageAssets)))
+    .AddPolicy("RequireManageSuppliers", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageSuppliers)))
+    .AddPolicy("RequireManageParts", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageParts)));
 
 var app = builder.Build();
 

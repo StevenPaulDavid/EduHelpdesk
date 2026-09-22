@@ -1,0 +1,11 @@
+@page
+@model EduHelpdesk.Pages.People.RoleModel
+@{ ViewData["Title"] = Model.CurrentName is null ? "Add role" : "Edit role"; }
+<div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/People">← Back</a></div>
+<section class="panel"><form method="post" class="settings-form">
+    <input type="hidden" name="currentName" value="@Model.CurrentName" />
+    <div asp-validation-summary="All" class="validation-summary-errors"></div>
+    <label>Name<input name="name" value="@Model.Role?.Name" required /></label>
+    <div><p class="eyebrow">Permissions</p>@foreach (var p in Model.AllPermissions) { <label class="toggle-label"><input type="checkbox" name="permission" value="@p.Key" checked="@(Model.Role?.Grants(p.Key) ?? false)" /> @p.Label<small class="muted">@p.Description</small></label> }</div>
+    <button class="button button-primary">Save role</button>
+</form></section>

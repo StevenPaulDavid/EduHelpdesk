@@ -8,7 +8,7 @@ namespace EduHelpdesk.Pages.People;
 public class TechnicianModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<string> Teams => store.TechnicianTeams;
-    public IReadOnlyList<string> Roles => StaffRoles.All;
+    public IReadOnlyList<string> Roles => store.Roles.Select(x => x.Name).ToList();
     public TechnicianRecord? Technician { get; private set; }
 
     public void OnGet(Guid? id)
@@ -32,7 +32,7 @@ public class TechnicianModel(HelpdeskStore store) : PageModel
             ModelState.AddModelError("", emailError);
             return Page();
         }
-        var normalizedRole = StaffRoles.Normalize(role);
+        var normalizedRole = store.NormalizeRoleName(role);
         if (existing is { Role: StaffRoles.Administrator } && (normalizedRole != StaffRoles.Administrator || !active)
             && !store.Technicians.Any(x => x.Id != existing.Id && x.Role == StaffRoles.Administrator && x.IsActive))
         {

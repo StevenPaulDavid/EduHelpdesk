@@ -99,6 +99,7 @@ public sealed partial class HelpdeskStore
         {
             SaveBaseline();
         }
+        EnsureSeedRoles();
         EnsureBootstrapAdministrator();
     }
 
@@ -119,8 +120,26 @@ public sealed partial class HelpdeskStore
         }
     }
 
+    // Seeds the built-in Administrator role plus three starter roles matching what earlier versions hardcoded, so
+    // upgrading doesn't change anyone's effective access. Runs before EnsureBootstrapAdministrator so the
+    // Administrator role row already exists when the bootstrap account is created. Covers fresh installs too.
+    private void EnsureSeedRoles()
+    {
+        lock (_sync)
+        {
+            if (_data.Roles.Count > 0) return;
+            _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, true, true, true, true, true, true, true, true, true, IsProtected: true));
+            _data.Roles.Add(new RoleRecord("Senior Technician", false, true, true, true, true, true, true, true, true));
+            _data.Roles.Add(new RoleRecord("Technician", false, false, false, true, true, true, true, true, false));
+            _data.Roles.Add(new RoleRecord("Junior Technician", false, false, false, false, false, false, false, false, false));
+            SaveBaseline();
+        }
+    }
+
     public IReadOnlyList<UserRecord> Users { get { lock (_sync) return _data.Users; } }
     public IReadOnlyList<TechnicianRecord> Technicians { get { lock (_sync) return _data.Technicians; } }
+    // Administrator (protected) first, then alphabetical.
+    public IReadOnlyList<RoleRecord> Roles { get { lock (_sync) return _data.Roles.OrderByDescending(x => x.IsProtected).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList(); } }
     public IReadOnlyList<string> TechnicianTeams { get { lock (_sync) return _data.TechnicianTeams.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> Departments { get { lock (_sync) return _data.Departments.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> Locations { get { lock (_sync) return _data.Locations.OrderBy(x => x).ToList(); } }
@@ -218,6 +237,78 @@ public sealed partial class HelpdeskStore
             Save();
             return "Technician team deleted.";
         }
+    }
+    public string AddRole(RoleRecord role)
+    {
+        lock (_sync)
+        {
+            var name = (role.Name ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(name)) return "Role name is required.";
+            if (string.Equals(name, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return "That name is reserved for the built-in Administrator role.";
+            if (_data.Roles.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return "That role already exists.";
+            _data.Roles.Add(role with { Name = name, IsProtected = false });
+            Save();
+            return "Role added.";
+        }
+    }
+    // Renaming a role cascades onto every technician holding it, the same way UpdateTechnicianTeam does for teams.
+    public string UpdateRole(string currentName, RoleRecord role)
+    {
+        lock (_sync)
+        {
+            var oldValue = (currentName ?? string.Empty).Trim();
+            var newValue = (role.Name ?? string.Empty).Trim();
+            var index = _data.Roles.FindIndex(x => string.Equals(x.Name, oldValue, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return "Role was not found.";
+            if (_data.Roles[index].IsProtected) return "The Administrator role cannot be changed.";
+            if (string.IsNullOrWhiteSpace(newValue)) return "Role name is required.";
+            var renamed = !string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase);
+            if (renamed && string.Equals(newValue, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return "That name is reserved for the built-in Administrator role.";
+            if (renamed && _data.Roles.Any(x => string.Equals(x.Name, newValue, StringComparison.OrdinalIgnoreCase))) return "That role already exists.";
+            _data.Roles[index] = role with { Name = newValue, IsProtected = false };
+            if (renamed)
+            {
+                for (var i = 0; i < _data.Technicians.Count; i++)
+                    if (string.Equals(_data.Technicians[i].Role, oldValue, StringComparison.OrdinalIgnoreCase))
+                        _data.Technicians[i] = _data.Technicians[i] with { Role = newValue };
+            }
+            Save();
+            return "Role updated.";
+        }
+    }
+    public string DeleteRole(string name)
+    {
+        lock (_sync)
+        {
+            var value = (name ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(value)) return "Role name is required.";
+            var index = _data.Roles.FindIndex(x => string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return "Role was not found.";
+            if (_data.Roles[index].IsProtected) return "The Administrator role cannot be deleted.";
+            if (_data.Technicians.Any(x => string.Equals(x.Role, value, StringComparison.OrdinalIgnoreCase))) return "That role cannot be deleted because technicians use it.";
+            _data.Roles.RemoveAt(index);
+            Save();
+            return "Role deleted.";
+        }
+    }
+    // Administrator always has every permission, regardless of what the Roles table says - the one hardcoded exception.
+    public bool RoleGrants(string? roleName, string permission)
+    {
+        lock (_sync)
+        {
+            if (string.Equals(roleName, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return true;
+            var role = _data.Roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
+            return role?.Grants(permission) ?? false;
+        }
+    }
+    public bool UserHasPermission(System.Security.Claims.ClaimsPrincipal user, string permission) =>
+        RoleGrants(user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, permission);
+    // The matching stored role name (case-insensitive), or the default role for anything unrecognized (e.g. legacy data).
+    public string NormalizeRoleName(string? value) { lock (_sync) return NormalizeRoleNameCore(_data, value); }
+    private static string NormalizeRoleNameCore(StoreData data, string? value)
+    {
+        var v = (value ?? string.Empty).Trim();
+        return data.Roles.FirstOrDefault(x => string.Equals(x.Name, v, StringComparison.OrdinalIgnoreCase))?.Name ?? StaffRoles.DefaultRole;
     }
     public string AddDepartment(string department)
     {
@@ -2057,6 +2148,14 @@ public sealed partial class HelpdeskStore
                 PRIMARY KEY (TemplateId, AttributeDefinitionId), FOREIGN KEY (TemplateId) REFERENCES TicketTemplates(Id) ON DELETE CASCADE);
             """;
         ticketTables.ExecuteNonQuery();
+        using var roleTable = connection.CreateCommand();
+        roleTable.CommandText = """
+            CREATE TABLE IF NOT EXISTS Roles (Name TEXT PRIMARY KEY, AllowSettings INTEGER NOT NULL DEFAULT 0, AllowManageRoles INTEGER NOT NULL DEFAULT 0,
+                AllowManageStaff INTEGER NOT NULL DEFAULT 0, AllowManageRequesters INTEGER NOT NULL DEFAULT 0, AllowManageAssets INTEGER NOT NULL DEFAULT 0,
+                AllowManageSuppliers INTEGER NOT NULL DEFAULT 0, AllowManageParts INTEGER NOT NULL DEFAULT 0, AllowTicketDestructive INTEGER NOT NULL DEFAULT 0,
+                AllowChangeWorkingAs INTEGER NOT NULL DEFAULT 0, IsProtected INTEGER NOT NULL DEFAULT 0);
+            """;
+        roleTable.ExecuteNonQuery();
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -2250,10 +2349,20 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
+            command.CommandText = "SELECT Name, AllowSettings, AllowManageRoles, AllowManageStaff, AllowManageRequesters, AllowManageAssets, AllowManageSuppliers, AllowManageParts, AllowTicketDestructive, AllowChangeWorkingAs, IsProtected FROM Roles ORDER BY rowid;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.Roles.Add(new(reader.GetString(0), reader.GetInt32(1) != 0, reader.GetInt32(2) != 0, reader.GetInt32(3) != 0, reader.GetInt32(4) != 0,
+                reader.GetInt32(5) != 0, reader.GetInt32(6) != 0, reader.GetInt32(7) != 0, reader.GetInt32(8) != 0, reader.GetInt32(9) != 0, reader.GetInt32(10) != 0));
+        }
+        using (var command = connection.CreateCommand())
+        {
             command.CommandText = "SELECT Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive FROM Technicians;";
             using var reader = command.ExecuteReader();
+            // Trusts the stored value as-is rather than validating against Roles here: on first run after an upgrade the
+            // Roles table is still being seeded (see EnsureSeedRoles, called after Load()), so it can't be checked yet.
+            // Permission lookups (RoleGrants) are case-insensitive, so this doesn't need to be exact.
             while (reader.Read()) data.Technicians.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "",
-                StaffRoles.Normalize(NullableString(reader, 4)), NullableString(reader, 5), reader.GetInt32(6) != 0, reader.GetInt32(7) != 0));
+                NullableString(reader, 4) is { Length: > 0 } role ? role : StaffRoles.DefaultRole, NullableString(reader, 5), reader.GetInt32(6) != 0, reader.GetInt32(7) != 0));
         }
         using (var command = connection.CreateCommand())
         {
@@ -2419,7 +2528,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -2455,7 +2564,11 @@ public sealed partial class HelpdeskStore
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",
-                ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", string.IsNullOrWhiteSpace(item.Team) ? null : item.Team), ("$role", StaffRoles.Normalize(item.Role)), ("$hash", item.PasswordHash), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$active", item.IsActive ? 1 : 0));
+                ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", string.IsNullOrWhiteSpace(item.Team) ? null : item.Team), ("$role", string.IsNullOrWhiteSpace(item.Role) ? StaffRoles.DefaultRole : item.Role), ("$hash", item.PasswordHash), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$active", item.IsActive ? 1 : 0));
+        foreach (var item in data.Roles)
+            Execute(connection, transaction, "INSERT INTO Roles (Name, AllowSettings, AllowManageRoles, AllowManageStaff, AllowManageRequesters, AllowManageAssets, AllowManageSuppliers, AllowManageParts, AllowTicketDestructive, AllowChangeWorkingAs, IsProtected) VALUES ($name,$settings,$roles,$staff,$requesters,$assets,$suppliers,$parts,$destructive,$workingas,$protected);",
+                ("$name", item.Name), ("$settings", item.AllowSettings ? 1 : 0), ("$roles", item.AllowManageRoles ? 1 : 0), ("$staff", item.AllowManageStaff ? 1 : 0), ("$requesters", item.AllowManageRequesters ? 1 : 0),
+                ("$assets", item.AllowManageAssets ? 1 : 0), ("$suppliers", item.AllowManageSuppliers ? 1 : 0), ("$parts", item.AllowManageParts ? 1 : 0), ("$destructive", item.AllowTicketDestructive ? 1 : 0), ("$workingas", item.AllowChangeWorkingAs ? 1 : 0), ("$protected", item.IsProtected ? 1 : 0));
         foreach (var item in data.Suppliers)
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         foreach (var item in data.Parts)
@@ -2555,6 +2668,7 @@ public sealed partial class HelpdeskStore
     {
         public List<UserRecord> Users { get; set; } = [];
         public List<TechnicianRecord> Technicians { get; set; } = [];
+        public List<RoleRecord> Roles { get; set; } = [];
         public List<string> TechnicianTeams { get; set; } = [];
         public List<string> Departments { get; set; } = [];
         public List<string> Locations { get; set; } = [];

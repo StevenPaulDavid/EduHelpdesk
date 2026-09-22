@@ -53,8 +53,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public DateTime Now { get; } = DateTime.UtcNow;
     public Guid? CurrentTechnicianId { get; private set; }
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
-    // Only Administrator and Senior Technician can work as someone other than themselves; everyone else is fixed to their own account.
-    public bool CanChangeWorkingAs => User.IsInRole(StaffRoles.Administrator) || User.IsInRole(StaffRoles.SeniorTechnician);
+    // Only roles granted ChangeWorkingAs can work as someone other than themselves; everyone else is fixed to their own account.
+    public bool CanChangeWorkingAs => store.UserHasPermission(User, Permissions.ChangeWorkingAs);
     private Guid? SignedInTechnicianId =>
         Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     public bool Descending => Dir == "desc";

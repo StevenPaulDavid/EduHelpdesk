@@ -241,7 +241,7 @@ public class SettingsModel(HelpdeskStore store) : PageModel
             var email = cells.ElementAtOrDefault(1) ?? "";
             if (string.IsNullOrWhiteSpace(name) || !Mail(email)) { invalidRows++; continue; }
             var team = cells.ElementAtOrDefault(2) ?? "";
-            var role = StaffRoles.Normalize(cells.ElementAtOrDefault(3));
+            var role = store.NormalizeRoleName(cells.ElementAtOrDefault(3));
             records.Add(new(Guid.NewGuid(), name, email, team, role));
         }
         var (imported, duplicates) = store.ImportTechnicians(records);
