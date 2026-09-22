@@ -1,0 +1,27 @@
+@page
+@model EduHelpdesk.Pages.Reports.PartReportsModel
+@{ ViewData["Title"] = "Parts reports"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Parts reports</h1><p class="hero-copy">Which parts are low or out of stock, so restocking happens before a technician is blocked.</p></div>
+    <a class="button button-secondary" asp-page="/Index">← Overview</a>
+</div>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab active" asp-page="/Reports/Parts">Parts reports</a></nav>
+
+<section class="panel" id="low-stock">
+    <div class="panel-heading"><div><p class="eyebrow">LOW STOCK</p><h2>Parts at or below their reorder threshold</h2></div><span class="badge @(Model.LowStock.Count > 0 ? "badge-warning" : "")">@Model.LowStock.Count of @Model.TotalParts</span></div>
+    <p class="muted">A part is low once its quantity on hand drops to its reorder threshold or below (default @Model.DefaultReorderThreshold, set in Settings). @Model.OutOfStockCount completely out of stock. <a asp-page="/Parts" asp-route-flag="low">Open these in the parts list</a> to restock or adjust them.</p>
+    <div class="table-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Location</th><th>Suppliers</th><th>Quantity</th><th>Threshold</th></tr></thead><tbody>
+    @foreach (var part in Model.LowStock)
+    {
+        <tr>
+            <td><strong><a asp-page="/Parts/Edit" asp-route-id="@part.Id">@part.Name</a></strong>@if (!string.IsNullOrWhiteSpace(part.Sku)) { <br /><span class="muted">@part.Sku</span> }</td>
+            <td>@(string.IsNullOrWhiteSpace(part.Category) ? "—" : part.Category)</td>
+            <td>@(string.IsNullOrWhiteSpace(part.Location) ? "—" : part.Location)</td>
+            <td>@{ var suppliers = Model.SupplierNames(part); }@(suppliers.Length == 0 ? "—" : suppliers)</td>
+            <td><span class="badge @(part.QuantityOnHand == 0 ? "badge-warning" : "")">@part.QuantityOnHand</span></td>
+            <td>@Model.Threshold(part)</td>
+        </tr>
+    }
+    @if (Model.LowStock.Count == 0) { <tr><td colspan="6" class="empty">No parts are low on stock right now.</td></tr> }
+    </tbody></table></div>
+</section>

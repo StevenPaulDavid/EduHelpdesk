@@ -1,21 +1,149 @@
 @page
+@using EduHelpdesk.Services
 @model PartsModel
-@{ ViewData["Title"] = "Parts"; }<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div><a class="button button-primary" asp-page="/Parts/Edit">＋ Add part</a></div>
+@{ ViewData["Title"] = "Parts"; }
+<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div><a class="button button-primary" asp-page="/Parts/Edit">＋ Add part</a></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
-<section class="panel directory-panel"><div class="panel-heading"><h2>Parts inventory</h2><span class="badge">@Model.Parts.Count</span></div>
-@foreach (var item in Model.Parts)
-{
-    <div class="directory-row">
-        <div class="directory-person">
-            <div class="avatar">@(item.Name.Length > 0 ? item.Name[..1].ToUpperInvariant() : "P")</div>
-            <div><strong><a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a></strong><span>@(string.IsNullOrWhiteSpace(item.Sku) ? "No SKU" : item.Sku) · @(string.IsNullOrWhiteSpace(item.Category) ? "Uncategorized" : item.Category)@(string.IsNullOrWhiteSpace(item.Location) ? "" : $" · {item.Location}")</span></div>
-        </div>
-        <div class="row-actions">
-            <span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span>
-            <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id">✎</a>
-            <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id">♜</a>
-        </div>
-    </div>
-}
-@if (Model.Parts.Count == 0) { <p class="empty">No parts have been added yet.</p> }
+
+<section class="panel">
+    <form method="get" class="audit-filters part-filters">
+        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, SKU, category, location, supplier" /></label>
+        <label>Category<select name="category"><option value="">Any category</option><option value="@PartListQuery.None" selected="@(Model.Category == PartListQuery.None)">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item" selected="@string.Equals(item, Model.Category, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Location<select name="location"><option value="">Any location</option><option value="@PartListQuery.None" selected="@(Model.Location == PartListQuery.None)">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Supplier<select name="supplier"><option value="">Any supplier</option><option value="none" selected="@(Model.Supplier == "none")">No supplier</option>@foreach (var item in Model.Suppliers) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Supplier)">@item.Name</option> }</select></label>
+        <label>Show<select name="flag"><option value="">All parts</option><option value="low" selected="@(Model.Flag == "low")">Low stock only</option></select></label>
+        <label>Per page<select name="size">@foreach (var size in PartsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+        <input type="hidden" name="sort" value="@(Model.Sort == "name" ? "" : Model.Sort)" />
+        <input type="hidden" name="dir" value="@(Model.Descending ? "desc" : "")" />
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" asp-page="/Parts">Clear</a></div>
+    </form>
 </section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">STOCK</p><h2>Parts inventory</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalParts}" : Model.TotalParts.ToString())</span></div>
+    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount">
+        <input type="hidden" name="q" value="@Model.Search" />
+        <input type="hidden" name="category" value="@Model.Category" />
+        <input type="hidden" name="location" value="@Model.Location" />
+        <input type="hidden" name="supplier" value="@Model.Supplier" />
+        <input type="hidden" name="flag" value="@Model.Flag" />
+        <input type="hidden" name="sort" value="@Model.Sort" />
+        <input type="hidden" name="dir" value="@Model.Dir" />
+        <input type="hidden" name="p" value="@Model.PageNumber" />
+        <input type="hidden" name="size" value="@Model.Size" />
+        <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
+        <div class="select-banner" id="select-banner" hidden></div>
+        <div class="table-wrap"><table><thead><tr>
+            <th><input id="select-page" type="checkbox" aria-label="Select all parts on this page" onchange="togglePartPage(this)" /></th>
+            <th><a class="sort-link" href="@Model.SortUrl("name")">Part@(Model.SortMark("name"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("sku")">SKU@(Model.SortMark("sku"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("category")">Category@(Model.SortMark("category"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th>
+            <th>Suppliers</th>
+            <th><a class="sort-link" href="@Model.SortUrl("quantity")">Quantity@(Model.SortMark("quantity"))</a></th>
+            <th></th>
+        </tr></thead><tbody>
+        @foreach (var item in Model.Rows)
+        {
+            <tr>
+                <td><input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" onchange="partSelectionChanged()" /></td>
+                <td><strong><a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a></strong></td>
+                <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
+                <td>@(string.IsNullOrWhiteSpace(item.Category) ? "—" : item.Category)</td>
+                <td>@(string.IsNullOrWhiteSpace(item.Location) ? "—" : item.Location)</td>
+                <td>@{ var suppliers = Model.SupplierNames(item); }@(suppliers.Length == 0 ? "—" : suppliers)</td>
+                <td><span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span></td>
+                <td class="asset-row-actions"><a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" title="Edit part">✎</a><a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part">♜</a></td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="8" class="empty">@(Model.IsFiltered ? "No parts match these filters." : "No parts have been added yet.")</td></tr> }
+        </tbody></table></div>
+
+        @if (Model.Rows.Count > 0)
+        {
+            <div class="bulk-actions">
+                <strong>With selected parts</strong>
+                <span class="muted" id="selected-count">None selected</span>
+                <label>Action<select name="operation" id="bulk-operation" onchange="switchPartOperation()"><option value="category">Change category</option><option value="location">Change location</option><option value="delete">Delete</option><option value="export">Export to CSV</option></select></label>
+                <label id="bulk-category-field">New category<select name="newCategory"><option value="@PartListQuery.None">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
+                <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@PartListQuery.None">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
+            </div>
+        }
+    </form>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="audit-pager">
+            @if (Model.PageNumber > 1) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber - 1)">← Previous</a> } else { <span></span> }
+            <span class="muted">Showing @((Model.PageNumber - 1) * Model.Size + 1)–@Math.Min(Model.PageNumber * Model.Size, Model.MatchCount) of @Model.MatchCount · page @Model.PageNumber of @Model.TotalPages</span>
+            @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber + 1)">Next →</a> } else { <span></span> }
+        </div>
+    }
+</section>
+
+@section Scripts {
+<script>
+const partForm = document.getElementById("bulk-form");
+const partMatchCount = parseInt(partForm.dataset.matchCount || "0", 10);
+const partSelectAllField = document.getElementById("select-all-matching");
+const partBanner = document.getElementById("select-banner");
+const partRowBoxes = () => [...document.querySelectorAll(".part-select")];
+
+function partSelectedTotal() {
+    return partSelectAllField.value === "true" ? partMatchCount : partRowBoxes().filter(b => b.checked).length;
+}
+function partSelectionChanged(fromToggle) {
+    if (!fromToggle) partSelectAllField.value = "false";
+    const boxes = partRowBoxes();
+    const checked = boxes.filter(b => b.checked).length;
+    const pageBox = document.getElementById("select-page");
+    if (pageBox) pageBox.checked = boxes.length > 0 && checked === boxes.length;
+    const all = partSelectAllField.value === "true";
+    const total = partSelectedTotal();
+    const counter = document.getElementById("selected-count");
+    if (counter) counter.textContent = total === 0 ? "None selected" : total + " selected";
+    // Offer to extend the selection to every match once the whole page is ticked and there are more matches than fit on it.
+    if (all) {
+        partBanner.hidden = false;
+        partBanner.innerHTML = "All " + partMatchCount + " matching parts are selected. <button type=\"button\" class=\"link-button\" onclick=\"clearPartSelection()\">Clear selection</button>";
+    } else if (boxes.length > 0 && checked === boxes.length && partMatchCount > boxes.length) {
+        partBanner.hidden = false;
+        partBanner.innerHTML = "All " + boxes.length + " parts on this page are selected. <button type=\"button\" class=\"link-button\" onclick=\"selectAllMatchingParts()\">Select all " + partMatchCount + " matching parts</button>";
+    } else {
+        partBanner.hidden = true;
+    }
+}
+function togglePartPage(box) {
+    partRowBoxes().forEach(b => b.checked = box.checked);
+    partSelectAllField.value = "false";
+    partSelectionChanged(true);
+}
+function selectAllMatchingParts() {
+    partSelectAllField.value = "true";
+    partSelectionChanged(true);
+}
+function clearPartSelection() {
+    partRowBoxes().forEach(b => b.checked = false);
+    partSelectAllField.value = "false";
+    partSelectionChanged(true);
+}
+function switchPartOperation() {
+    const op = document.getElementById("bulk-operation").value;
+    for (const [name, id] of [["category", "bulk-category-field"], ["location", "bulk-location-field"]]) {
+        const field = document.getElementById(id);
+        field.hidden = op !== name;
+        field.querySelector("select").disabled = op !== name;
+    }
+    document.getElementById("bulk-apply").textContent = op === "export" ? "Export selected" : op === "delete" ? "Delete selected" : "Apply to selected";
+}
+partForm.addEventListener("submit", event => {
+    const total = partSelectedTotal();
+    if (total === 0) { event.preventDefault(); alert("Select at least one part first."); return; }
+    const op = document.getElementById("bulk-operation").value;
+    if (op !== "export" && total > 20 && !confirm((op === "delete" ? "Delete " : "Change ") + total + " parts?")) event.preventDefault();
+});
+switchPartOperation();
+partSelectionChanged();
+</script>
+}

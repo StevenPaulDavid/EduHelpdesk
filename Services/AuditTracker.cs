@@ -40,7 +40,8 @@ internal static class AuditTracker
             Add(s, "Parts", "Part", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("SKU", x.Sku), ("Category", x.Category), ("Quantity on hand", x.QuantityOnHand.ToString()),
                 ("Location", x.Location), ("Reorder threshold", x.ReorderThreshold?.ToString() ?? ""),
-                ("Suppliers", Joined(x.SupplierIds.Select(id => supplierNamesById.GetValueOrDefault(id, "")).Where(n => n.Length > 0))));
+                ("Suppliers", Joined(x.SupplierIds.Select(id => supplierNamesById.GetValueOrDefault(id, "")).Where(n => n.Length > 0))),
+                ("Compatible asset types", Joined(x.AssetTypes)));
 
         foreach (var x in d.Assets)
             Add(s, "Assets", "Asset", x.Id.ToString(), x.AssetTag, Track.Create | Track.Delete,

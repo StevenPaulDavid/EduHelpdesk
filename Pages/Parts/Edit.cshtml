@@ -1,5 +1,28 @@
 @page
 @model EduHelpdesk.Pages.Parts.EditModel
-@{ViewData["Title"]=Model.Part.Id==Guid.Empty?"Add part":"Edit part";}<div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/Parts">← Back</a></div><section class="panel"><form method="post" class="settings-form"><input type="hidden" asp-for="Part.Id"/><input type="hidden" asp-for="Part.CreatedAt"/><div asp-validation-summary="All" class="validation-summary-errors"></div><p class="muted required-legend">Only <strong>Name</strong> is required — every other field is optional.</p><label>Name <span class="required-marker">*</span><input asp-for="Part.Name" required /></label><label>SKU / part number<input asp-for="Part.Sku"/></label><label>Category<select asp-for="Part.Category"><option value="">Uncategorized</option>@foreach (var x in Model.Categories) { <option value="@x">@x</option> }</select></label><label>Location / bin<select asp-for="Part.Location"><option value="">Unassigned</option>@foreach (var x in Model.Locations) { <option value="@x">@x</option> }</select></label><label>Quantity on hand<input asp-for="Part.QuantityOnHand" type="number" min="0" step="1"/></label><label>Reorder threshold<input asp-for="Part.ReorderThreshold" type="number" min="0" step="1" placeholder="Use default (@Model.DefaultReorderThreshold)"/></label>
+@{ ViewData["Title"] = Model.Part.Id == Guid.Empty ? "Add part" : "Edit part"; var editing = Model.Part.Id != Guid.Empty; }
+<div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/Parts">← Back</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+<section class="panel"><form method="post" class="settings-form"><input type="hidden" asp-for="Part.Id"/><input type="hidden" asp-for="Part.CreatedAt"/><div asp-validation-summary="All" class="validation-summary-errors"></div><p class="muted required-legend">Only <strong>Name</strong> is required — every other field is optional.</p><label>Name <span class="required-marker">*</span><input asp-for="Part.Name" required /></label><label>SKU / part number<input asp-for="Part.Sku"/></label><label>Category<select asp-for="Part.Category"><option value="">Uncategorized</option>@foreach (var x in Model.Categories) { <option value="@x">@x</option> }</select></label><label>Location / bin<select asp-for="Part.Location"><option value="">Unassigned</option>@foreach (var x in Model.Locations) { <option value="@x">@x</option> }</select></label><label>Quantity on hand<input asp-for="Part.QuantityOnHand" type="number" min="0" step="1" readonly="@editing"/>@if (editing) { <small class="muted">Use "Adjust stock" below to change this, so the reason is recorded.</small> }</label><label>Reorder threshold<input asp-for="Part.ReorderThreshold" type="number" min="0" step="1" placeholder="Use default (@Model.DefaultReorderThreshold)"/></label>
 <div><p class="eyebrow">Suppliers</p>@if (Model.Suppliers.Count == 0) { <p class="empty">No suppliers set up yet.</p> } else { <div class="checkbox-grid">@foreach (var supplier in Model.Suppliers) { <label class="toggle-label"><input type="checkbox" name="SupplierIds" value="@supplier.Id" checked="@Model.SupplierIds.Contains(supplier.Id)" /> @supplier.Name</label> }</div> }</div>
+<div><p class="eyebrow">Compatible asset types (optional)</p>@if (Model.AssetTypeOptions.Count == 0) { <p class="empty">No asset types configured yet.</p> } else { <div class="checkbox-grid">@foreach (var type in Model.AssetTypeOptions) { <label class="toggle-label"><input type="checkbox" name="AssetTypes" value="@type" checked="@Model.AssetTypes.Contains(type, StringComparer.OrdinalIgnoreCase)" /> @type</label> }</div> }</div>
 <button class="button button-primary">Save part</button></form></section>
+@if (editing)
+{
+    <section class="panel">
+        <div class="panel-heading"><h2>Stock</h2><span class="badge">@Model.Part.QuantityOnHand in stock</span></div>
+        <form method="post" asp-page-handler="AdjustStock" class="import-row">
+            <input type="hidden" name="id" value="@Model.Part.Id" />
+            <label>New quantity<input name="newQuantity" type="number" min="0" step="1" value="@Model.Part.QuantityOnHand" required /></label>
+            <label>Reason<input name="reason" placeholder="e.g. Restocked from supplier, stocktake correction" required /></label>
+            <button class="button button-primary">Adjust stock</button>
+        </form>
+        <div class="table-wrap"><table><thead><tr><th>When</th><th>Change</th></tr></thead><tbody>
+        @foreach (var entry in Model.StockHistory)
+        {
+            <tr><td>@entry.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td><td>@entry.Details</td></tr>
+        }
+        @if (Model.StockHistory.Count == 0) { <tr><td colspan="2" class="empty">No stock adjustments recorded yet.</td></tr> }
+        </tbody></table></div>
+    </section>
+}

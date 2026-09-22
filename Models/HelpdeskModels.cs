@@ -75,7 +75,13 @@ public record PartRecord(Guid Id, string Name, string? Sku, string? Category, in
     // Minimum stock level before this part is flagged low. Null means use the store-wide default (HelpdeskStore.PartsDefaultReorderThreshold).
     public int? ReorderThreshold { get; init; }
     public List<Guid> SupplierIds { get; init; } = [];
+    // Optional: the asset type(s) this part is compatible with/used on. Empty means no compatibility recorded, not "fits everything".
+    public List<string> AssetTypes { get; init; } = [];
+    // Logged stock changes (via HelpdeskStore.AdjustPartStock) - separate from the plain field-change diffing every other
+    // Part field gets, because the whole point is to keep the reason alongside the number.
+    public List<PartActivity> History { get; init; } = [];
 }
+public record PartActivity(string Action, string Details, DateTime CreatedAt);
 public record TicketPartAssignment(int TicketNumber, Guid PartId, int Quantity);
 public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, string Type, string SerialNumber, string Location, Guid? AssignedUserId, Guid? SupplierId = null)
 {

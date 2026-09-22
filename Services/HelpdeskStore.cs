@@ -94,6 +94,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
         EnsureOptions(_data.PartCategories, _data.Parts.Select(x => x.Category).Where(x => !string.IsNullOrWhiteSpace(x))!);
         EnsureOptions(_data.PartLocations, _data.Parts.Select(x => x.Location).Where(x => !string.IsNullOrWhiteSpace(x)));
+        _data.Parts = _data.Parts.Select(x => x with { AssetTypes = NormalizeScope(x.AssetTypes).Where(t => _data.AssetTypes.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList() }).ToList();
         _data.AssetTypeLifespans = new Dictionary<string, int>(_data.AssetTypeLifespans ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
         if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
         if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
@@ -421,6 +422,8 @@ public sealed partial class HelpdeskStore
             {
                 for (var i = 0; i < _data.AssetAttributeDefinitions.Count; i++)
                     _data.AssetAttributeDefinitions[i] = _data.AssetAttributeDefinitions[i] with { AssetTypes = RenameInScope(_data.AssetAttributeDefinitions[i].AssetTypes, oldValue, newValue) };
+                for (var i = 0; i < _data.Parts.Count; i++)
+                    _data.Parts[i] = _data.Parts[i] with { AssetTypes = RenameInScope(_data.Parts[i].AssetTypes, oldValue, newValue) };
             }
             if (kind == "Asset model" && _data.AssetModelMakes.Remove(oldValue, out var linkedMake))
                 _data.AssetModelMakes[newValue] = linkedMake;
@@ -460,7 +463,7 @@ public sealed partial class HelpdeskStore
             {
                 "Location" => _data.Users.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)) || _data.Assets.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset make" => _data.Assets.Any(x => string.Equals(x.Make, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetModelMakes.Values.Any(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase)),
-                "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)),
+                "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)) || _data.Parts.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)),
                 "Asset model" => _data.Assets.Any(x => string.Equals(x.Model, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset status" => _data.Assets.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
                 "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
@@ -882,6 +885,85 @@ public sealed partial class HelpdeskStore
             var item = _data.Parts.FirstOrDefault(x => x.Id == id);
             if (item is null) return "Part was not found.";
             _data.Parts.Remove(item); Save(); return null;
+        }
+    }
+    public sealed record PartBulkChange(bool ChangeCategory, string? Category, bool ChangeLocation, string? Location);
+
+    // Applies the same change to many parts and saves once, however many there are. Parts the change would not alter are counted, not touched.
+    public (int Updated, int Unchanged, string? Error) BulkUpdateParts(IEnumerable<Guid> partIds, PartBulkChange change)
+    {
+        lock (_sync)
+        {
+            if (!change.ChangeCategory && !change.ChangeLocation) return (0, 0, "Choose what to change.");
+            var category = string.Empty;
+            if (change.ChangeCategory && !string.IsNullOrWhiteSpace(change.Category) && change.Category != PartListQuery.None)
+            {
+                var match = _data.PartCategories.FirstOrDefault(x => string.Equals(x, change.Category.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (match is null) return (0, 0, "Select a valid category.");
+                category = match;
+            }
+            var location = string.Empty;
+            if (change.ChangeLocation && !string.IsNullOrWhiteSpace(change.Location) && change.Location != PartListQuery.None)
+            {
+                var match = _data.PartLocations.FirstOrDefault(x => string.Equals(x, change.Location.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (match is null) return (0, 0, "Select a valid location.");
+                location = match;
+            }
+
+            var updated = 0;
+            var unchanged = 0;
+            foreach (var id in partIds.Distinct())
+            {
+                var index = _data.Parts.FindIndex(x => x.Id == id);
+                if (index < 0) continue;
+                var part = _data.Parts[index];
+                var next = part;
+                if (change.ChangeCategory) next = next with { Category = category };
+                if (change.ChangeLocation) next = next with { Location = location };
+                if (next == part) { unchanged++; continue; }
+                _data.Parts[index] = next;
+                updated++;
+            }
+            if (updated > 0) Save();
+            return (updated, unchanged, null);
+        }
+    }
+    // Deletes many parts and saves once. A part still assigned to a ticket is skipped, same guard as DeletePart.
+    public (int Deleted, int Skipped) BulkDeleteParts(IEnumerable<Guid> partIds)
+    {
+        lock (_sync)
+        {
+            var deleted = 0;
+            var skipped = 0;
+            foreach (var id in partIds.Distinct())
+            {
+                var item = _data.Parts.FirstOrDefault(x => x.Id == id);
+                if (item is null) continue;
+                if (_data.TicketParts.Any(x => x.PartId == id)) { skipped++; continue; }
+                _data.Parts.Remove(item);
+                deleted++;
+            }
+            if (deleted > 0) Save();
+            return (deleted, skipped);
+        }
+    }
+    // A dedicated, reasoned way to change QuantityOnHand, logged on the part's own History - unlike every other Part
+    // field, which is just quietly diffed for the audit log. Replaces free editing of the field on the Edit page.
+    public string? AdjustPartStock(Guid id, int newQuantity, string? reason)
+    {
+        lock (_sync)
+        {
+            if (newQuantity < 0) return "Enter a quantity of 0 or more.";
+            if (string.IsNullOrWhiteSpace(reason)) return "Enter a reason for the adjustment.";
+            var index = _data.Parts.FindIndex(x => x.Id == id);
+            if (index < 0) return "Part was not found.";
+            var part = _data.Parts[index];
+            if (newQuantity == part.QuantityOnHand) return "That's already the quantity on hand.";
+            var history = part.History.ToList();
+            history.Add(new PartActivity("Stock adjusted", $"{part.QuantityOnHand} -> {newQuantity} ({reason.Trim()})", DateTime.UtcNow));
+            _data.Parts[index] = part with { QuantityOnHand = newQuantity, History = history };
+            Save();
+            return null;
         }
     }
     public IReadOnlyList<(PartRecord Part, int Quantity)> GetTicketParts(int number)
@@ -2065,6 +2147,11 @@ public sealed partial class HelpdeskStore
                 entries.AddRange(asset.History.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, x.Action, x.Details)));
                 entries.AddRange(asset.Comments.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, "Comment added", x.Text)));
             }
+            foreach (var part in _data.Parts)
+            {
+                var key = part.Id.ToString();
+                entries.AddRange(part.History.Select(x => new AuditEntry(x.CreatedAt, "Parts", "Part", key, part.Name, x.Action, x.Details)));
+            }
             return entries.OrderByDescending(x => x.At).ToList();
         }
     }
@@ -2219,6 +2306,10 @@ public sealed partial class HelpdeskStore
                 PRIMARY KEY (PartId, SupplierId),
                 FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE,
                 FOREIGN KEY (SupplierId) REFERENCES Suppliers(Id) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS PartAssetTypes (PartId TEXT NOT NULL, AssetType TEXT NOT NULL,
+                PRIMARY KEY (PartId, AssetType), FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS PartActivities (Id INTEGER PRIMARY KEY AUTOINCREMENT, PartId TEXT NOT NULL,
+                Action TEXT NOT NULL, Details TEXT NOT NULL, CreatedAt TEXT NOT NULL, FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE);
             """;
         partTables.ExecuteNonQuery();
         using var roleTable = connection.CreateCommand();
@@ -2475,6 +2566,26 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
+            command.CommandText = "SELECT PartId, AssetType FROM PartAssetTypes;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var index = data.Parts.FindIndex(x => x.Id == Guid.Parse(reader.GetString(0)));
+                if (index >= 0) data.Parts[index] = data.Parts[index] with { AssetTypes = [.. data.Parts[index].AssetTypes, reader.GetString(1)] };
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT PartId, Action, Details, CreatedAt FROM PartActivities ORDER BY Id;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var index = data.Parts.FindIndex(x => x.Id == Guid.Parse(reader.GetString(0)));
+                if (index >= 0) data.Parts[index].History.Add(new(reader.GetString(1), reader.GetString(2), Date(reader, 3)));
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
             command.CommandText = "SELECT TicketNumber, PartId, Quantity FROM TicketParts;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.TicketParts.Add(new(reader.GetInt32(0), Guid.Parse(reader.GetString(1)), reader.GetInt32(2)));
@@ -2619,7 +2730,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -2672,6 +2783,10 @@ public sealed partial class HelpdeskStore
             foreach (var supplierId in item.SupplierIds.Distinct())
                 if (data.Suppliers.Any(x => x.Id == supplierId))
                     Execute(connection, transaction, "INSERT INTO PartSuppliers (PartId, SupplierId) VALUES ($part,$supplier);", ("$part", item.Id.ToString()), ("$supplier", supplierId.ToString()));
+            foreach (var assetType in item.AssetTypes.Distinct(StringComparer.OrdinalIgnoreCase))
+                Execute(connection, transaction, "INSERT INTO PartAssetTypes (PartId, AssetType) VALUES ($part,$type);", ("$part", item.Id.ToString()), ("$type", assetType));
+            foreach (var activity in item.History)
+                Execute(connection, transaction, "INSERT INTO PartActivities (PartId, Action, Details, CreatedAt) VALUES ($id,$action,$details,$created);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
         }
         foreach (var item in data.Assets)
         {
