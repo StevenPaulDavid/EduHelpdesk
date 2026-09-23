@@ -121,3 +121,7 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .user-menu > summary .user-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .nav-menu .chev { transition: none; } }
 @media (max-width: 1100px) { .user-menu > summary .user-name { max-width: 110px; } }
+
+/* Warning variant of .notice: used where an action is blocked and the reason needs explaining, not celebrating. */
+.notice-warning { background: #fdf0ee; border-color: #f3ccc6; color: #8a2f22; }
+.notice-warning a { color: inherit; font-weight: 700; }

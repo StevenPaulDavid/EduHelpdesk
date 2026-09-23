@@ -67,6 +67,18 @@ public static class Permissions
         (ChangeWorkingAs, "Change \"Working as\"", "Pick who \"Working as\" resolves to on the Tickets page, instead of always being yourself.")
     ];
 }
+// Who performed a change. Name is the display name captured at the time, so a history line still reads correctly after
+// someone is renamed or their account is deleted - the same reasoning as KitLoan.BorrowerName. Id is the technician
+// account behind it and is what reporting groups on; it is null for the staff portal, which identifies people by
+// cookie rather than by login, and for anything the system did itself.
+// Every record that carries one exposes it as a nullable "By": null means the change predates actor attribution.
+public readonly record struct Actor(Guid? Id, string Name)
+{
+    public static readonly Actor System = new(null, "System");
+    // What the views show. An em dash rather than a guess for anything recorded before attribution existed - the
+    // system genuinely does not know who did it, and saying so is better than implying it was nobody or the system.
+    public static string Label(Actor? actor) => actor?.Name ?? "—";
+}
 public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
 public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt)
 {
@@ -81,7 +93,10 @@ public record PartRecord(Guid Id, string Name, string? Sku, string? Category, in
     // Part field gets, because the whole point is to keep the reason alongside the number.
     public List<PartActivity> History { get; init; } = [];
 }
-public record PartActivity(string Action, string Details, DateTime CreatedAt);
+public record PartActivity(string Action, string Details, DateTime CreatedAt)
+{
+    public Actor? By { get; init; }
+}
 public record TicketPartAssignment(int TicketNumber, Guid PartId, int Quantity);
 // A named loan kit handed out when someone has no device. The kit keeps its identity and its loan history while the
 // equipment inside it can be swapped out, so AssetIds is "what is in it now", not a permanent bundle.
@@ -125,8 +140,14 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
 }
 // One period in which an asset was held by someone. StartedAt is null for holders recorded before assignments were tracked.
 public record AssetAssignment(Guid? UserId, string UserName, DateTime? StartedAt, DateTime? EndedAt, DateOnly? DueBack);
-public record AssetComment(string Text, DateTime CreatedAt);
-public record AssetActivity(string Action, string Details, DateTime CreatedAt);
+public record AssetComment(string Text, DateTime CreatedAt)
+{
+    public Actor? By { get; init; }
+}
+public record AssetActivity(string Action, string Details, DateTime CreatedAt)
+{
+    public Actor? By { get; init; }
+}
 public record AssetAttributeDefinition(Guid Id, string Name, string FieldType = "single-line", string Choices = "")
 {
     public List<string> AssetTypes { get; init; } = [];
@@ -186,12 +207,26 @@ public record TicketRecord(
     public DateTime LastModifiedAt => Comments.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();
 }
 
+// A record created by SeedDemoData, remembered so "Go live" can remove exactly what the system seeded. Matching on
+// names instead would be guesswork: a school can rename a demo record, and a real one can legitimately contain "demo".
+// EntityType uses the same names as AuditEntry.EntityType where they overlap.
+public record DemoRecord(string EntityType, string EntityKey);
+
 // One line of the system audit. EntityType and EntityKey identify the record it concerns (for linking); they are null for lists and settings.
-public record AuditEntry(DateTime At, string Area, string? EntityType, string? EntityKey, string Entity, string Action, string Details);
+public record AuditEntry(DateTime At, string Area, string? EntityType, string? EntityKey, string Entity, string Action, string Details)
+{
+    public Actor? By { get; init; }
+}
 
 // An internal note is for technicians: it is left off the printed ticket.
-public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = false);
-public record TicketActivity(string Action, string Details, DateTime CreatedAt);
+public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = false)
+{
+    public Actor? By { get; init; }
+}
+public record TicketActivity(string Action, string Details, DateTime CreatedAt)
+{
+    public Actor? By { get; init; }
+}
 // A file uploaded to a ticket. The file itself is kept on disk under App_Data/attachments, named by Id.
 public record TicketAttachment(Guid Id, int TicketNumber, string FileName, string ContentType, long Size, DateTime UploadedAt);
 // Kind is "related" (either direction) or "follow-up" (TicketNumber is the original ticket, LinkedNumber the follow-up).

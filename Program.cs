@@ -39,6 +39,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Settings", "RequireSettings");
 });
 builder.Services.AddMemoryCache();
+// The store reads the signed-in account off the current request to attribute changes - see HelpdeskStore.CurrentActor.
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<HelpdeskStore>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

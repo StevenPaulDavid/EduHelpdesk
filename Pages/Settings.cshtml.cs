@@ -78,6 +78,16 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    // The "Go live" panel only appears while the seeded example is still there, so an established system never shows it.
+    public bool HasDemoData => store.HasDemoData;
+    public IReadOnlyList<(string Kind, string Name)> DemoRecords => store.DemoDataSummary();
+
+    public IActionResult OnPostRemoveDemoData()
+    {
+        Message = store.RemoveDemoData().Message;
+        return RedirectToPage();
+    }
+
     public string BackupFolder => store.BackupFolder;
 
     // A successful reset replaces every account with the bootstrap administrator, so the signed-in user no longer

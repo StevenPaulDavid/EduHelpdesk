@@ -19,9 +19,13 @@ public sealed partial class HelpdeskStore
     private readonly List<AuditEntry> _audit;
     private readonly List<AuditEntry> _pendingAudit = [];
     private AuditTracker.Snapshot? _snapshot;
+    // How the store works out who is making the current change (see CurrentActor). Optional so the store can still be
+    // constructed outside a web request - then there is no actor and changes are recorded against the system.
+    private readonly IHttpContextAccessor? _httpContext;
 
-    public HelpdeskStore(IHostEnvironment environment)
+    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null)
     {
+        _httpContext = httpContext;
         _path = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.db");
         _legacyPath = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.json");
         _templatePath = Path.Combine(environment.ContentRootPath, "App_Data", "print-template.docx");
@@ -328,6 +332,46 @@ public sealed partial class HelpdeskStore
     }
     public bool UserHasPermission(System.Security.Claims.ClaimsPrincipal user, string permission) =>
         RoleGrants(user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, permission);
+
+    // Who is behind the request being handled right now. Everything the store records - history lines, comments and
+    // audit entries - is stamped with this, so no mutator needs an extra parameter and nothing can be recorded
+    // anonymously by accident. Outside a request (startup, seeding, migrations) there is no actor and it reads "System".
+    public Actor CurrentActor()
+    {
+        var context = _httpContext?.HttpContext;
+        if (context is null) return Actor.System;
+        var user = context.User;
+        if (user?.Identity?.IsAuthenticated == true)
+        {
+            var name = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+            if (!string.IsNullOrWhiteSpace(name))
+                return new Actor(Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null, name.Trim());
+        }
+        // The staff portal has no login at all, so a ticket raised there would otherwise be attributed to nobody. Its
+        // cookie is self-declared rather than authenticated, which is why the actor carries no id - see PortalIdentity.
+        if (Guid.TryParse(context.Request.Cookies[PortalIdentity.CookieName], out var portalId))
+        {
+            lock (_sync)
+            {
+                if (_data.Users.FirstOrDefault(x => x.Id == portalId) is { } requester)
+                    return new Actor(null, requester.Name);
+            }
+        }
+        return Actor.System;
+    }
+
+    // Stamps the current actor onto history lines added since `from`. The activity builders stay focused on working out
+    // what changed; this puts the same name on everything one action produced, without touching each line individually.
+    private void StampActor(List<TicketActivity> history, int from)
+    {
+        var actor = CurrentActor();
+        for (var i = from; i < history.Count; i++) history[i] = history[i] with { By = actor };
+    }
+    private void StampActor(List<AssetActivity> history, int from)
+    {
+        var actor = CurrentActor();
+        for (var i = from; i < history.Count; i++) history[i] = history[i] with { By = actor };
+    }
     // The matching stored role name (case-insensitive), or the default role for anything unrecognized (e.g. legacy data).
     public string NormalizeRoleName(string? value) { lock (_sync) return NormalizeRoleNameCore(_data, value); }
     private static string NormalizeRoleNameCore(StoreData data, string? value)
@@ -846,12 +890,35 @@ public sealed partial class HelpdeskStore
         }
     }
     private string UserName(Guid userId) => _data.Users.FirstOrDefault(x => x.Id == userId)?.Name ?? "Unknown user";
+    // The two statuses the loan kit feature sets by itself. Looked up rather than assumed, because a school can rename
+    // or delete any asset status - if one is missing, the asset keeps the status it already had.
+    private const string OnLoanStatus = "On loan";
+    private const string InStockStatus = "In stock or spare";
+    private string? ResolveAssetStatus(string name) => _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+
+    // The kit currently holding this asset, if a kit containing it is out on loan. An asset that went out inside a kit
+    // has to come back the same way: booking it in on its own would leave the kit saying it still has the equipment.
+    public (LoanKit Kit, KitLoan Loan)? KitLoanHolding(Guid assetId)
+    {
+        lock (_sync) return KitLoanHoldingCore(assetId);
+    }
+    private (LoanKit Kit, KitLoan Loan)? KitLoanHoldingCore(Guid assetId)
+    {
+        foreach (var kit in _data.LoanKits.Where(x => x.AssetIds.Contains(assetId)))
+            if (_data.KitLoans.FirstOrDefault(x => x.KitId == kit.Id && x.ReturnedAt is null) is { } loan)
+                return (kit, loan);
+        return null;
+    }
     public string LoanAsset(Guid assetId, Guid userId, DateOnly dueBack)
     {
         lock (_sync)
         {
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             if (asset is null) return "Asset was not found.";
+            // Same reasoning as ReturnAsset: it is already out with a kit, and loaning it to a second person here would
+            // also be a way round that block - loan it out, then book it back in.
+            if (KitLoanHoldingCore(assetId) is { } held)
+                return $"This asset is out on loan with {held.Kit.Name} ({held.Loan.BorrowerName}). Book the kit back in from the Loans page before loaning it separately.";
             if (!_data.Users.Any(x => x.Id == userId)) return "Select who the device is loaned to.";
             if (dueBack < AssetInsights.Today) return "The due-back date cannot be in the past.";
             var status = _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, "In use", StringComparison.OrdinalIgnoreCase)) ?? asset.Status;
@@ -866,6 +933,10 @@ public sealed partial class HelpdeskStore
         {
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             if (asset is null) return "Asset was not found.";
+            // Checked before the "not assigned" test: a kit issued to someone outside the directory leaves no holder on
+            // the asset, so that check alone would let this one through with a misleading message.
+            if (KitLoanHoldingCore(assetId) is { } held)
+                return $"This asset is out on loan with {held.Kit.Name} ({held.Loan.BorrowerName}). Book the kit back in from the Loans page instead.";
             if (!asset.AssignedUserId.HasValue) return "This asset is not currently assigned to anyone.";
             var newStatus = asset.Status;
             if (!string.IsNullOrWhiteSpace(status))
@@ -977,7 +1048,7 @@ public sealed partial class HelpdeskStore
             var part = _data.Parts[index];
             if (newQuantity == part.QuantityOnHand) return "That's already the quantity on hand.";
             var history = part.History.ToList();
-            history.Add(new PartActivity("Stock adjusted", $"{part.QuantityOnHand} -> {newQuantity} ({reason.Trim()})", DateTime.UtcNow));
+            history.Add(new PartActivity("Stock adjusted", $"{part.QuantityOnHand} -> {newQuantity} ({reason.Trim()})", DateTime.UtcNow) { By = CurrentActor() });
             _data.Parts[index] = part with { QuantityOnHand = newQuantity, History = history };
             Save();
             return null;
@@ -1064,8 +1135,33 @@ public sealed partial class HelpdeskStore
 
             _data.KitLoans.Add(new KitLoan(Guid.NewGuid(), kitId, borrowerUserId, name, chosenReason,
                 DateTime.UtcNow, dueBack, null, (issuedBy ?? string.Empty).Trim(), (notes ?? string.Empty).Trim()));
+
+            // The equipment goes out with the kit, so each asset is marked out too - otherwise the asset list still
+            // shows a laptop sitting in stock that is actually in somebody's bag.
+            var onLoan = ResolveAssetStatus(OnLoanStatus);
+            var takenOver = new List<string>();
+            foreach (var assetId in kit.AssetIds)
+            {
+                var index = _data.Assets.FindIndex(x => x.Id == assetId);
+                if (index < 0) continue;
+                var asset = _data.Assets[index];
+                // Worth saying out loud rather than silently moving someone's device. The change itself is recorded in
+                // the asset's own history either way.
+                if (asset.AssignedUserId is { } current && current != borrowerUserId) takenOver.Add($"{asset.AssetTag} (was with {UserName(current)})");
+                // A borrower who isn't in the directory can't be recorded as the holder, so for them the status is the
+                // only marker - which is exactly why the status is set for every loan and not just named ones.
+                ApplyAssetUpdate(index, asset with
+                {
+                    AssignedUserId = borrowerUserId,
+                    LoanDueDate = borrowerUserId.HasValue ? dueBack : null,
+                    Status = onLoan ?? asset.Status
+                });
+            }
+
             Save();
-            return (true, $"{kit.Name} issued to {name}, due back {AssetInsights.Format(dueBack)}.");
+            var message = $"{kit.Name} issued to {name}, due back {AssetInsights.Format(dueBack)}.";
+            if (takenOver.Count > 0) message += $" Note: {string.Join(", ", takenOver)} {(takenOver.Count == 1 ? "was" : "were")} assigned to someone else and {(takenOver.Count == 1 ? "has" : "have")} been moved onto this loan.";
+            return (true, message);
         }
     }
 
@@ -1082,9 +1178,22 @@ public sealed partial class HelpdeskStore
                 ReturnedAt = DateTime.UtcNow,
                 Notes = extra.Length == 0 ? loan.Notes : (loan.Notes.Length == 0 ? extra : $"{loan.Notes} | Returned: {extra}")
             };
+
+            var kit = _data.LoanKits.FirstOrDefault(x => x.Id == kitId);
+            var inStock = ResolveAssetStatus(InStockStatus);
+            foreach (var assetId in kit?.AssetIds ?? [])
+            {
+                var assetIndex = _data.Assets.FindIndex(x => x.Id == assetId);
+                if (assetIndex < 0) continue;
+                var asset = _data.Assets[assetIndex];
+                // Only the status this feature set is reversed. If someone has since marked the laptop as in repair or
+                // lost, that is a deliberate decision and booking the kit in should not quietly undo it.
+                var status = inStock is not null && string.Equals(asset.Status, OnLoanStatus, StringComparison.OrdinalIgnoreCase) ? inStock : asset.Status;
+                ApplyAssetUpdate(assetIndex, asset with { AssignedUserId = null, LoanDueDate = null, Status = status });
+            }
+
             Save();
-            var kitName = _data.LoanKits.FirstOrDefault(x => x.Id == kitId)?.Name ?? "Kit";
-            return (true, $"{kitName} booked back in from {loan.BorrowerName}.");
+            return (true, $"{kit?.Name ?? "Kit"} booked back in from {loan.BorrowerName}.");
         }
     }
 
@@ -1131,6 +1240,7 @@ public sealed partial class HelpdeskStore
             _data.Parts[partIndex] = part with { QuantityOnHand = part.QuantityOnHand - delta };
 
             var history = _data.Tickets[ticketIndex].History.ToList();
+            var from = history.Count;
             if (quantity <= 0)
             {
                 if (assignmentIndex >= 0)
@@ -1149,6 +1259,7 @@ public sealed partial class HelpdeskStore
                 _data.TicketParts.Add(new(number, partId, quantity));
                 history.Add(new("Part assigned", $"Assigned {quantity}x {part.Name}.", DateTime.UtcNow));
             }
+            StampActor(history, from);
             _data.Tickets[ticketIndex] = _data.Tickets[ticketIndex] with { History = history };
 
             Save();
@@ -1162,7 +1273,7 @@ public sealed partial class HelpdeskStore
             var number = ++_data.LastTicketNumber;
             var history = new List<TicketActivity>
             {
-                new("Ticket created", "The ticket was created.", DateTime.UtcNow)
+                new("Ticket created", "The ticket was created.", DateTime.UtcNow) { By = CurrentActor() }
             };
             _data.Tickets.Add(item with { Number = number, History = history });
             Save();
@@ -1211,12 +1322,13 @@ public sealed partial class HelpdeskStore
         var now = DateTime.UtcNow;
 
         var mergedComments = target.Comments.ToList();
-        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt, c.IsInternal)));
+        // Carried comments keep their original author, not whoever performed the merge.
+        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt, c.IsInternal) { By = c.By }));
 
         var mergedAssetIds = target.AssetIds.Concat(source.AssetIds).Distinct().ToList();
 
         var targetHistory = target.History.ToList();
-        targetHistory.Add(new("Ticket merged", $"Merged ticket #{source.Number} - {source.Title} into this ticket.", now));
+        targetHistory.Add(new("Ticket merged", $"Merged ticket #{source.Number} - {source.Title} into this ticket.", now) { By = CurrentActor() });
 
         _data.Tickets[targetIndex] = target with
         {
@@ -1244,7 +1356,7 @@ public sealed partial class HelpdeskStore
         MoveTicketExtras(sourceNumber, targetNumber);
 
         var sourceHistory = source.History.ToList();
-        sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now));
+        sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now) { By = CurrentActor() });
         _data.Tickets[sourceIndex] = source with
         {
             Status = "Closed",
@@ -1375,7 +1487,7 @@ public sealed partial class HelpdeskStore
                     case "comment":
                     {
                         var comments = ticket.Comments.ToList();
-                        comments.Add(new TicketComment(text!, DateTime.UtcNow, change.Internal));
+                        comments.Add(new TicketComment(text!, DateTime.UtcNow, change.Internal) { By = CurrentActor() });
                         _data.Tickets[index] = ticket with { Comments = comments };
                         updated++;
                         continue;
@@ -1385,7 +1497,7 @@ public sealed partial class HelpdeskStore
                         if (TicketInsights.IsClosed(ticket)) { unchanged++; continue; }
                         if (text is null && RequiresCloseMessage(ticket)) { Skip("A closing message is required for some of these tickets."); continue; }
                         var comments = ticket.Comments.ToList();
-                        if (text is not null) comments.Add(new TicketComment(text, DateTime.UtcNow));
+                        if (text is not null) comments.Add(new TicketComment(text, DateTime.UtcNow) { By = CurrentActor() });
                         changed = ticket with { Status = TicketInsights.ClosedStatus, ClosedAt = ticket.ClosedAt ?? DateTime.UtcNow, Comments = comments };
                         break;
                     }
@@ -1398,7 +1510,9 @@ public sealed partial class HelpdeskStore
                     }
                 }
                 var history = ticket.History.ToList();
+                var from = history.Count;
                 AddTicketActivities(history, ticket, changed);
+                StampActor(history, from);
                 _data.Tickets[index] = changed with { History = history };
                 updated++;
             }
@@ -1414,7 +1528,7 @@ public sealed partial class HelpdeskStore
             var index = _data.Tickets.FindIndex(x => x.Number == number);
             if (index < 0) return false;
             var comments = _data.Tickets[index].Comments.ToList();
-            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow, isInternal));
+            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow, isInternal) { By = CurrentActor() });
             _data.Tickets[index] = _data.Tickets[index] with { Comments = comments };
             Save();
             return true;
@@ -1516,7 +1630,9 @@ public sealed partial class HelpdeskStore
         if (string.IsNullOrWhiteSpace(item.Status)) item = item with { Status = previous.Status };
         if (!item.AssignedUserId.HasValue) item = item with { LoanDueDate = null };
         var history = previous.History.ToList();
+        var from = history.Count;
         AddAssetActivities(history, previous, item, _data.Users);
+        StampActor(history, from);
         var assignments = previous.Assignments.ToList();
         var now = DateTime.UtcNow;
         if (previous.AssignedUserId != item.AssignedUserId)
@@ -1588,7 +1704,7 @@ public sealed partial class HelpdeskStore
             var index = _data.Assets.FindIndex(x => x.Id == assetId);
             if (index < 0) return false;
             var comments = _data.Assets[index].Comments.ToList();
-            comments.Add(new AssetComment(text.Trim(), DateTime.UtcNow));
+            comments.Add(new AssetComment(text.Trim(), DateTime.UtcNow) { By = CurrentActor() });
             _data.Assets[index] = _data.Assets[index] with { Comments = comments };
             Save();
             return true;
@@ -1605,13 +1721,13 @@ public sealed partial class HelpdeskStore
             var ticket = _data.Tickets[index];
             if (ticket.AssetIds.Contains(assetId)) return true;
             var history = ticket.History.ToList();
-            history.Add(new("Asset changed", $"Asset {asset.AssetTag} was linked.", DateTime.UtcNow));
+            history.Add(new("Asset changed", $"Asset {asset.AssetTag} was linked.", DateTime.UtcNow) { By = CurrentActor() });
             _data.Tickets[index] = ticket with { AssetIds = ticket.AssetIds.Append(assetId).ToList(), History = history };
             var assetIndex = _data.Assets.FindIndex(x => x.Id == assetId);
             if (assetIndex >= 0)
             {
                 var assetHistory = _data.Assets[assetIndex].History.ToList();
-                assetHistory.Add(new("Ticket linked", $"Linked to ticket #{ticket.Number} - {ticket.Title}", DateTime.UtcNow));
+                assetHistory.Add(new("Ticket linked", $"Linked to ticket #{ticket.Number} - {ticket.Title}", DateTime.UtcNow) { By = CurrentActor() });
                 _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
             }
             Save();
@@ -1628,13 +1744,13 @@ public sealed partial class HelpdeskStore
             if (!ticket.AssetIds.Contains(assetId)) return true;
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             var history = ticket.History.ToList();
-            history.Add(new("Asset changed", $"Asset {asset?.AssetTag ?? "Unknown"} was unlinked.", DateTime.UtcNow));
+            history.Add(new("Asset changed", $"Asset {asset?.AssetTag ?? "Unknown"} was unlinked.", DateTime.UtcNow) { By = CurrentActor() });
             _data.Tickets[index] = ticket with { AssetIds = ticket.AssetIds.Where(x => x != assetId).ToList(), History = history };
             var assetIndex = _data.Assets.FindIndex(x => x.Id == assetId);
             if (assetIndex >= 0)
             {
                 var assetHistory = _data.Assets[assetIndex].History.ToList();
-                assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket #{ticket.Number} - {ticket.Title}", DateTime.UtcNow));
+                assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket #{ticket.Number} - {ticket.Title}", DateTime.UtcNow) { By = CurrentActor() });
                 _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
             }
             Save();
@@ -1807,7 +1923,7 @@ public sealed partial class HelpdeskStore
                     if (changes.Count > 0)
                     {
                         var history = _data.Tickets[ticketIndex].History.ToList();
-                        history.Add(new TicketActivity("Custom attributes changed", string.Join("; ", changes), DateTime.UtcNow));
+                        history.Add(new TicketActivity("Custom attributes changed", string.Join("; ", changes), DateTime.UtcNow) { By = CurrentActor() });
                         _data.Tickets[ticketIndex] = _data.Tickets[ticketIndex] with { History = history };
                     }
                     Save(); return true;
@@ -1822,7 +1938,9 @@ public sealed partial class HelpdeskStore
 
             var previous = _data.Tickets[index];
             var history = previous.History.ToList();
+            var from = history.Count;
             AddTicketActivities(history, previous, item);
+            StampActor(history, from);
             _data.Tickets[index] = item with { History = history };
 
             var previousAssetIds = previous.AssetIds.ToHashSet();
@@ -1835,7 +1953,7 @@ public sealed partial class HelpdeskStore
                     var assetIndex = _data.Assets.FindIndex(x => x.Id == addedAssetId);
                     if (assetIndex < 0) continue;
                     var assetHistory = _data.Assets[assetIndex].History.ToList();
-                    assetHistory.Add(new("Ticket linked", $"Linked to ticket #{item.Number} - {item.Title}", now));
+                    assetHistory.Add(new("Ticket linked", $"Linked to ticket #{item.Number} - {item.Title}", now) { By = CurrentActor() });
                     _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
                 }
                 foreach (var removedAssetId in previousAssetIds.Except(updatedAssetIds))
@@ -1843,7 +1961,7 @@ public sealed partial class HelpdeskStore
                     var assetIndex = _data.Assets.FindIndex(x => x.Id == removedAssetId);
                     if (assetIndex < 0) continue;
                     var assetHistory = _data.Assets[assetIndex].History.ToList();
-                    assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket #{item.Number} - {item.Title}", now));
+                    assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket #{item.Number} - {item.Title}", now) { By = CurrentActor() });
                     _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
                 }
             }
@@ -1856,11 +1974,159 @@ public sealed partial class HelpdeskStore
     // The lists a brand new install starts with. Anything already in use is added on top of these when data is loaded.
     private void EnsureFactoryOptions()
     {
-        EnsureOptions(_data.AssetStatuses, ["In use", "In stock or spare", "In repair", "Lost or stolen"]);
+        // "On loan" is set by the system itself when a kit goes out (see IssueKit), so unlike the others it has to exist
+        // in every database rather than only in newly seeded ones.
+        EnsureOptions(_data.AssetStatuses, ["In use", "On loan", "In stock or spare", "In repair", "Lost or stolen"]);
         EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
         EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
         EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
         EnsureOptions(_data.LoanReasons, ["Forgot own device", "Supply or visitor", "Own device in repair", "Other"]);
+    }
+
+    // The demo records that are still there, as (kind, name) for the "Go live" panel to list. Ids that no longer
+    // resolve are skipped: the admin deleted that one by hand, which is fine.
+    public IReadOnlyList<(string Kind, string Name)> DemoDataSummary()
+    {
+        lock (_sync) return _data.DemoRecords.Select(DescribeDemoRecord).OfType<(string, string)>().ToList();
+    }
+    public bool HasDemoData { get { lock (_sync) return _data.DemoRecords.Any(x => DescribeDemoRecord(x) is not null); } }
+
+    private (string Kind, string Name)? DescribeDemoRecord(DemoRecord record)
+    {
+        switch (record.EntityType)
+        {
+            case "Ticket" when int.TryParse(record.EntityKey, out var number):
+                return _data.Tickets.FirstOrDefault(x => x.Number == number) is { } ticket ? ("Ticket", $"#{ticket.Number} {ticket.Title}") : null;
+            case "Asset" when Guid.TryParse(record.EntityKey, out var assetId):
+                return _data.Assets.FirstOrDefault(x => x.Id == assetId) is { } asset ? ("Asset", asset.AssetTag) : null;
+            case "User" when Guid.TryParse(record.EntityKey, out var userId):
+                return _data.Users.FirstOrDefault(x => x.Id == userId) is { } user ? ("Requester", user.Name) : null;
+            case "Technician" when Guid.TryParse(record.EntityKey, out var technicianId):
+                return _data.Technicians.FirstOrDefault(x => x.Id == technicianId) is { } tech ? ("Technician", tech.Name) : null;
+            case "Supplier" when Guid.TryParse(record.EntityKey, out var supplierId):
+                return _data.Suppliers.FirstOrDefault(x => x.Id == supplierId) is { } supplier ? ("Supplier", supplier.Name) : null;
+            case "Part" when Guid.TryParse(record.EntityKey, out var partId):
+                return _data.Parts.FirstOrDefault(x => x.Id == partId) is { } part ? ("Part", part.Name) : null;
+            case "Sla" when Guid.TryParse(record.EntityKey, out var slaId):
+                return _data.Slas.FirstOrDefault(x => x.Id == slaId) is { } sla ? ("SLA", sla.Name) : null;
+            case "TicketTemplate" when Guid.TryParse(record.EntityKey, out var templateId):
+                return _data.TicketTemplates.FirstOrDefault(x => x.Id == templateId) is { } template ? ("Ticket template", template.Name) : null;
+            case "LoanKit" when Guid.TryParse(record.EntityKey, out var kitId):
+                return _data.LoanKits.FirstOrDefault(x => x.Id == kitId) is { } kit ? ("Loan kit", kit.Name) : null;
+            case "AssetAttribute" when Guid.TryParse(record.EntityKey, out var assetAttributeId):
+                return _data.AssetAttributeDefinitions.FirstOrDefault(x => x.Id == assetAttributeId) is { } definition ? ("Asset attribute", definition.Name) : null;
+            case "TicketAttribute" when Guid.TryParse(record.EntityKey, out var ticketAttributeId):
+                return _data.TicketAttributeDefinitions.FirstOrDefault(x => x.Id == ticketAttributeId) is { } ticketDefinition ? ("Ticket attribute", ticketDefinition.Name) : null;
+            default:
+                return null;
+        }
+    }
+
+    // "Go live": removes the records SeedDemoData created and nothing else. Option-list values it added (Teaching,
+    // Dell, Consumables and so on) are deliberately kept - they are ordinary values a school may already be using,
+    // and each can be deleted from its own Settings page if it isn't wanted.
+    // Real records that point at demo ones are unpicked rather than deleted: a ticket loses its demo technician, SLA
+    // and asset links instead of disappearing. The one thing that cannot be unpicked is a ticket's requester, so that
+    // case refuses the whole operation rather than deleting someone's ticket or leaving a row that breaks the save.
+    public (bool Ok, string Message) RemoveDemoData()
+    {
+        lock (_sync)
+        {
+            if (!_data.DemoRecords.Any(x => DescribeDemoRecord(x) is not null))
+            {
+                if (_data.DemoRecords.Count > 0) { _data.DemoRecords.Clear(); Save(); }
+                return (false, "There is no demo data left to remove.");
+            }
+
+            HashSet<Guid> Ids(string type) => _data.DemoRecords.Where(x => x.EntityType == type)
+                .Select(x => Guid.TryParse(x.EntityKey, out var id) ? id : Guid.Empty).Where(x => x != Guid.Empty).ToHashSet();
+            var ticketNumbers = _data.DemoRecords.Where(x => x.EntityType == "Ticket")
+                .Select(x => int.TryParse(x.EntityKey, out var n) ? n : 0).Where(x => x != 0).ToHashSet();
+            var assetIds = Ids("Asset");
+            var userIds = Ids("User");
+            var technicianIds = Ids("Technician");
+            var supplierIds = Ids("Supplier");
+            var partIds = Ids("Part");
+            var slaIds = Ids("Sla");
+            var templateIds = Ids("TicketTemplate");
+            var kitIds = Ids("LoanKit");
+            var assetAttributeIds = Ids("AssetAttribute");
+            var ticketAttributeIds = Ids("TicketAttribute");
+
+            var blocking = _data.Tickets.Where(x => userIds.Contains(x.RequesterId) && !ticketNumbers.Contains(x.Number)).ToList();
+            if (blocking.Count > 0)
+            {
+                var names = string.Join(", ", blocking.Take(5).Select(x => $"#{x.Number}"));
+                var one = blocking.Count == 1;
+                return (false, $"Nothing was changed. {(one ? "Ticket" : "Tickets")} {names}{(blocking.Count > 5 ? " and others" : "")} "
+                    + $"still {(one ? "lists" : "list")} a demo requester. Change the requester on {(one ? "that ticket" : "those tickets")}, or delete "
+                    + $"{(one ? "it" : "them")}, and try again.");
+            }
+
+            var removed = _data.DemoRecords.Select(DescribeDemoRecord).OfType<(string Kind, string Name)>().Count();
+
+            // Demo tickets and everything hanging off them.
+            foreach (var number in ticketNumbers) RemoveTicketExtras(number);
+            _data.TicketParts.RemoveAll(x => ticketNumbers.Contains(x.TicketNumber) || partIds.Contains(x.PartId));
+            _data.TicketAttributeValues.RemoveAll(x => ticketNumbers.Contains(x.TicketNumber) || ticketAttributeIds.Contains(x.AttributeDefinitionId));
+            _data.Tickets.RemoveAll(x => ticketNumbers.Contains(x.Number));
+            // Real tickets keep everything they can: only the pointers at demo records go.
+            for (var i = 0; i < _data.Tickets.Count; i++)
+            {
+                var ticket = _data.Tickets[i];
+                if (ticket.TechnicianId is { } assigned && technicianIds.Contains(assigned)) ticket = ticket with { TechnicianId = null };
+                if (ticket.SlaId is { } sla && slaIds.Contains(sla)) ticket = ticket with { SlaId = null };
+                if (ticket.AssetIds.Any(assetIds.Contains)) ticket = ticket with { AssetIds = ticket.AssetIds.Where(x => !assetIds.Contains(x)).ToList() };
+                _data.Tickets[i] = ticket;
+            }
+
+            _data.AssetAttributeValues.RemoveAll(x => assetIds.Contains(x.AssetId) || assetAttributeIds.Contains(x.AttributeDefinitionId));
+            _data.Assets.RemoveAll(x => assetIds.Contains(x.Id));
+            for (var i = 0; i < _data.Assets.Count; i++)
+            {
+                var asset = _data.Assets[i];
+                if (asset.AssignedUserId is { } holder && userIds.Contains(holder)) asset = asset with { AssignedUserId = null, LoanDueDate = null };
+                if (asset.SupplierId is { } supplier && supplierIds.Contains(supplier)) asset = asset with { SupplierId = null };
+                _data.Assets[i] = asset;
+            }
+
+            _data.KitLoans.RemoveAll(x => kitIds.Contains(x.KitId));
+            _data.LoanKits.RemoveAll(x => kitIds.Contains(x.Id));
+            for (var i = 0; i < _data.LoanKits.Count; i++)
+                _data.LoanKits[i] = _data.LoanKits[i] with { AssetIds = _data.LoanKits[i].AssetIds.Where(x => !assetIds.Contains(x)).ToList() };
+            // The borrower's name stays on the loan - that is exactly why it is stored alongside the id.
+            for (var i = 0; i < _data.KitLoans.Count; i++)
+                if (_data.KitLoans[i].BorrowerUserId is { } borrower && userIds.Contains(borrower))
+                    _data.KitLoans[i] = _data.KitLoans[i] with { BorrowerUserId = null };
+
+            _data.Parts.RemoveAll(x => partIds.Contains(x.Id));
+            for (var i = 0; i < _data.Parts.Count; i++)
+                _data.Parts[i] = _data.Parts[i] with { SupplierIds = _data.Parts[i].SupplierIds.Where(x => !supplierIds.Contains(x)).ToList() };
+
+            _data.AssetAttributeDefinitions.RemoveAll(x => assetAttributeIds.Contains(x.Id));
+            _data.TicketAttributeDefinitions.RemoveAll(x => ticketAttributeIds.Contains(x.Id));
+
+            _data.TicketTemplates.RemoveAll(x => templateIds.Contains(x.Id));
+            for (var i = 0; i < _data.TicketTemplates.Count; i++)
+            {
+                var template = _data.TicketTemplates[i];
+                if (template.SlaId is { } sla && slaIds.Contains(sla)) template = template with { SlaId = null };
+                foreach (var key in template.AttributeValues.Keys.Where(ticketAttributeIds.Contains).ToList()) template.AttributeValues.Remove(key);
+                _data.TicketTemplates[i] = template;
+            }
+            _data.Slas.RemoveAll(x => slaIds.Contains(x.Id));
+
+            _data.Suppliers.RemoveAll(x => supplierIds.Contains(x.Id));
+            _data.Users.RemoveAll(x => userIds.Contains(x.Id));
+            _data.Technicians.RemoveAll(x => technicianIds.Contains(x.Id));
+
+            _data.DemoRecords.Clear();
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "System", null, null, "Helpdesk", "Demo data removed",
+                $"The system went live: {removed} demo {(removed == 1 ? "record was" : "records were")} removed. Option list values were kept."));
+            Save();
+            return (true, $"Demo data removed - {removed} {(removed == 1 ? "record is" : "records are")} gone and the system is live. "
+                + "The option lists it added (departments, makes, part categories) were kept; delete any you don't want from their own settings pages.");
+        }
     }
 
     public string BackupFolder => Path.Combine(Path.GetDirectoryName(_path)!, "backups");
@@ -2238,6 +2504,12 @@ public sealed partial class HelpdeskStore
         var current = AuditTracker.Take(_data);
         var entries = new List<AuditEntry>(_pendingAudit);
         if (auditChanges && _snapshot is not null) entries.AddRange(AuditTracker.Diff(_snapshot, current, DateTime.UtcNow));
+        // Every audit entry funnels through here, whether it came from diffing or was queued by a mutator, so this is
+        // the one place attribution has to happen. It applies to baseline saves too: a factory reset does not diff, but
+        // it is still very much something a person did. An entry that already named its actor keeps it.
+        var actor = CurrentActor();
+        for (var i = 0; i < entries.Count; i++)
+            if (entries[i].By is null) entries[i] = entries[i] with { By = actor };
 
         using var connection = new SqliteConnection($"Data Source={_path}");
         connection.Open();
@@ -2245,8 +2517,9 @@ public sealed partial class HelpdeskStore
         WriteData(connection, transaction, _data);
         SetMetadata(connection, transaction, "SchemaVersion", "5");
         foreach (var entry in entries)
-            Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details) VALUES ($at,$area,$type,$key,$entity,$action,$details);",
-                ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details));
+            Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId) VALUES ($at,$area,$type,$key,$entity,$action,$details,$actor,$actorid);",
+                ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details),
+                ("$actor", entry.By?.Name), ("$actorid", entry.By?.Id?.ToString()));
         transaction.Commit();
 
         _audit.AddRange(entries);
@@ -2260,10 +2533,13 @@ public sealed partial class HelpdeskStore
         using var connection = new SqliteConnection($"Data Source={_path}");
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT At, Area, EntityType, EntityKey, Entity, Action, Details FROM AuditLog ORDER BY Id;";
+        command.CommandText = "SELECT At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId FROM AuditLog ORDER BY Id;";
         using var reader = command.ExecuteReader();
         while (reader.Read())
-            entries.Add(new AuditEntry(Date(reader, 0), reader.GetString(1), NullableString(reader, 2), NullableString(reader, 3), reader.GetString(4), reader.GetString(5), reader.GetString(6)));
+            entries.Add(new AuditEntry(Date(reader, 0), reader.GetString(1), NullableString(reader, 2), NullableString(reader, 3), reader.GetString(4), reader.GetString(5), reader.GetString(6))
+            {
+                By = ReadActor(reader, 7, 8)
+            });
         return entries;
     }
 
@@ -2277,20 +2553,20 @@ public sealed partial class HelpdeskStore
             {
                 var label = $"#{ticket.Number} {ticket.Title}";
                 var key = ticket.Number.ToString();
-                entries.AddRange(ticket.History.Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.Action, x.Details)));
+                entries.AddRange(ticket.History.Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.Action, x.Details) { By = x.By }));
                 entries.AddRange(ticket.Comments.Where(x => !x.Text.StartsWith("(Merged from #", StringComparison.Ordinal))
-                    .Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.IsInternal ? "Internal note added" : "Comment added", x.Text)));
+                    .Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.IsInternal ? "Internal note added" : "Comment added", x.Text) { By = x.By }));
             }
             foreach (var asset in _data.Assets)
             {
                 var key = asset.Id.ToString();
-                entries.AddRange(asset.History.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, x.Action, x.Details)));
-                entries.AddRange(asset.Comments.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, "Comment added", x.Text)));
+                entries.AddRange(asset.History.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, x.Action, x.Details) { By = x.By }));
+                entries.AddRange(asset.Comments.Select(x => new AuditEntry(x.CreatedAt, "Assets", "Asset", key, asset.AssetTag, "Comment added", x.Text) { By = x.By }));
             }
             foreach (var part in _data.Parts)
             {
                 var key = part.Id.ToString();
-                entries.AddRange(part.History.Select(x => new AuditEntry(x.CreatedAt, "Parts", "Part", key, part.Name, x.Action, x.Details)));
+                entries.AddRange(part.History.Select(x => new AuditEntry(x.CreatedAt, "Parts", "Part", key, part.Name, x.Action, x.Details) { By = x.By }));
             }
             return entries.OrderByDescending(x => x.At).ToList();
         }
@@ -2389,8 +2665,13 @@ public sealed partial class HelpdeskStore
             """;
         scopeTables.ExecuteNonQuery();
         using var auditTable = connection.CreateCommand();
-        auditTable.CommandText = "CREATE TABLE IF NOT EXISTS AuditLog (Id INTEGER PRIMARY KEY AUTOINCREMENT, At TEXT NOT NULL, Area TEXT NOT NULL, EntityType TEXT NULL, EntityKey TEXT NULL, Entity TEXT NOT NULL, Action TEXT NOT NULL, Details TEXT NOT NULL);";
+        auditTable.CommandText = "CREATE TABLE IF NOT EXISTS AuditLog (Id INTEGER PRIMARY KEY AUTOINCREMENT, At TEXT NOT NULL, Area TEXT NOT NULL, EntityType TEXT NULL, EntityKey TEXT NULL, Entity TEXT NOT NULL, Action TEXT NOT NULL, Details TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL);";
         auditTable.ExecuteNonQuery();
+        using var demoTable = connection.CreateCommand();
+        // No foreign keys on purpose: deleting a demo record by hand should leave a harmless stale pointer here, not
+        // break the next save. RemoveDemoData and the Settings panel both ignore ids that no longer resolve.
+        demoTable.CommandText = "CREATE TABLE IF NOT EXISTS DemoRecords (EntityType TEXT NOT NULL, EntityKey TEXT NOT NULL, PRIMARY KEY (EntityType, EntityKey));";
+        demoTable.ExecuteNonQuery();
         foreach (var sql in new[]
         {
             "ALTER TABLE Assets ADD COLUMN Status TEXT NOT NULL DEFAULT 'In use';",
@@ -2410,7 +2691,23 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Technicians ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
             "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",
-            "ALTER TABLE Parts ADD COLUMN ReorderThreshold INTEGER NULL;"
+            "ALTER TABLE Parts ADD COLUMN ReorderThreshold INTEGER NULL;",
+            // Actor attribution. Nullable on purpose: everything recorded before this existed keeps no actor rather
+            // than being backfilled with a guess, so "no name shown" honestly means "we did not record it".
+            "ALTER TABLE AuditLog ADD COLUMN Actor TEXT NULL;",
+            "ALTER TABLE AuditLog ADD COLUMN ActorId TEXT NULL;",
+            "ALTER TABLE TicketActivities ADD COLUMN Actor TEXT NULL;",
+            "ALTER TABLE TicketActivities ADD COLUMN ActorId TEXT NULL;",
+            "ALTER TABLE TicketComments ADD COLUMN Actor TEXT NULL;",
+            "ALTER TABLE TicketComments ADD COLUMN ActorId TEXT NULL;",
+            "ALTER TABLE AssetActivities ADD COLUMN Actor TEXT NULL;",
+            "ALTER TABLE AssetActivities ADD COLUMN ActorId TEXT NULL;",
+            "ALTER TABLE AssetComments ADD COLUMN Actor TEXT NULL;",
+            "ALTER TABLE AssetComments ADD COLUMN ActorId TEXT NULL;",
+            // PartActivities is created further down, after this loop, so these two only ever upgrade a database that
+            // already has the table - a brand-new one gets the columns from its CREATE instead.
+            "ALTER TABLE PartActivities ADD COLUMN Actor TEXT NULL;",
+            "ALTER TABLE PartActivities ADD COLUMN ActorId TEXT NULL;"
         })
         {
             using var m = connection.CreateCommand();
@@ -2449,7 +2746,8 @@ public sealed partial class HelpdeskStore
             CREATE TABLE IF NOT EXISTS PartAssetTypes (PartId TEXT NOT NULL, AssetType TEXT NOT NULL,
                 PRIMARY KEY (PartId, AssetType), FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE);
             CREATE TABLE IF NOT EXISTS PartActivities (Id INTEGER PRIMARY KEY AUTOINCREMENT, PartId TEXT NOT NULL,
-                Action TEXT NOT NULL, Details TEXT NOT NULL, CreatedAt TEXT NOT NULL, FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE);
+                Action TEXT NOT NULL, Details TEXT NOT NULL, CreatedAt TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL,
+                FOREIGN KEY (PartId) REFERENCES Parts(Id) ON DELETE CASCADE);
             """;
         partTables.ExecuteNonQuery();
         using var loanTables = connection.CreateCommand();
@@ -2541,6 +2839,10 @@ public sealed partial class HelpdeskStore
     private static DateTime Date(SqliteDataReader reader, int index) => DateTime.Parse(reader.GetString(index), null, System.Globalization.DateTimeStyles.RoundtripKind);
     private static string? NullableString(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
     private static Guid? NullableGuid(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : Guid.Parse(reader.GetString(index));
+    // The name column is what decides whether there is an actor at all: rows written before attribution was added have
+    // neither, and a portal action has a name but no account id.
+    private static Actor? ReadActor(SqliteDataReader reader, int nameIndex, int idIndex) =>
+        NullableString(reader, nameIndex) is { Length: > 0 } name ? new Actor(NullableGuid(reader, idIndex), name) : null;
 
     private static StoreData ReadData(SqliteConnection connection)
     {
@@ -2763,12 +3065,18 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT PartId, Action, Details, CreatedAt FROM PartActivities ORDER BY Id;";
+            command.CommandText = "SELECT EntityType, EntityKey FROM DemoRecords;";
+            using var demoReader = command.ExecuteReader();
+            while (demoReader.Read()) data.DemoRecords.Add(new DemoRecord(demoReader.GetString(0), demoReader.GetString(1)));
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT PartId, Action, Details, CreatedAt, Actor, ActorId FROM PartActivities ORDER BY Id;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
                 var index = data.Parts.FindIndex(x => x.Id == Guid.Parse(reader.GetString(0)));
-                if (index >= 0) data.Parts[index].History.Add(new(reader.GetString(1), reader.GetString(2), Date(reader, 3)));
+                if (index >= 0) data.Parts[index].History.Add(new(reader.GetString(1), reader.GetString(2), Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
             }
         }
         using (var command = connection.CreateCommand())
@@ -2880,29 +3188,29 @@ public sealed partial class HelpdeskStore
     private static void ReadTicketChildren(SqliteConnection connection, TicketRecord ticket)
     {
         using var comments = connection.CreateCommand();
-        comments.CommandText = "SELECT Text, CreatedAt, IsInternal FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
+        comments.CommandText = "SELECT Text, CreatedAt, IsInternal, Actor, ActorId FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
         comments.Parameters.AddWithValue("$number", ticket.Number);
         using var commentReader = comments.ExecuteReader();
-        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1), commentReader.GetInt32(2) != 0));
+        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1), commentReader.GetInt32(2) != 0) { By = ReadActor(commentReader, 3, 4) });
         using var activities = connection.CreateCommand();
-        activities.CommandText = "SELECT Action, Details, CreatedAt FROM TicketActivities WHERE TicketNumber = $number ORDER BY Id;";
+        activities.CommandText = "SELECT Action, Details, CreatedAt, Actor, ActorId FROM TicketActivities WHERE TicketNumber = $number ORDER BY Id;";
         activities.Parameters.AddWithValue("$number", ticket.Number);
         using var activityReader = activities.ExecuteReader();
-        while (activityReader.Read()) ticket.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)));
+        while (activityReader.Read()) ticket.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)) { By = ReadActor(activityReader, 3, 4) });
     }
 
     private static void ReadAssetChildren(SqliteConnection connection, AssetRecord asset)
     {
         using var comments = connection.CreateCommand();
-        comments.CommandText = "SELECT Text, CreatedAt FROM AssetComments WHERE AssetId = $id ORDER BY Id;";
+        comments.CommandText = "SELECT Text, CreatedAt, Actor, ActorId FROM AssetComments WHERE AssetId = $id ORDER BY Id;";
         comments.Parameters.AddWithValue("$id", asset.Id.ToString());
         using var commentReader = comments.ExecuteReader();
-        while (commentReader.Read()) asset.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1)));
+        while (commentReader.Read()) asset.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1)) { By = ReadActor(commentReader, 2, 3) });
         using var activities = connection.CreateCommand();
-        activities.CommandText = "SELECT Action, Details, CreatedAt FROM AssetActivities WHERE AssetId = $id ORDER BY Id;";
+        activities.CommandText = "SELECT Action, Details, CreatedAt, Actor, ActorId FROM AssetActivities WHERE AssetId = $id ORDER BY Id;";
         activities.Parameters.AddWithValue("$id", asset.Id.ToString());
         using var activityReader = activities.ExecuteReader();
-        while (activityReader.Read()) asset.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)));
+        while (activityReader.Read()) asset.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)) { By = ReadActor(activityReader, 3, 4) });
         using var assignments = connection.CreateCommand();
         assignments.CommandText = "SELECT UserId, UserName, StartedAt, EndedAt, DueBack FROM AssetAssignments WHERE AssetId = $id ORDER BY Id;";
         assignments.Parameters.AddWithValue("$id", asset.Id.ToString());
@@ -2917,9 +3225,11 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
+        foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
+            Execute(connection, transaction, "INSERT INTO DemoRecords (EntityType, EntityKey) VALUES ($type,$key);", ("$type", demo.EntityType), ("$key", demo.EntityKey));
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
         InsertStrings(connection, transaction, "Departments", data.Departments);
         InsertStrings(connection, transaction, "Locations", data.Locations);
@@ -2977,7 +3287,7 @@ public sealed partial class HelpdeskStore
             foreach (var assetType in item.AssetTypes.Distinct(StringComparer.OrdinalIgnoreCase))
                 Execute(connection, transaction, "INSERT INTO PartAssetTypes (PartId, AssetType) VALUES ($part,$type);", ("$part", item.Id.ToString()), ("$type", assetType));
             foreach (var activity in item.History)
-                Execute(connection, transaction, "INSERT INTO PartActivities (PartId, Action, Details, CreatedAt) VALUES ($id,$action,$details,$created);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
+                Execute(connection, transaction, "INSERT INTO PartActivities (PartId, Action, Details, CreatedAt, Actor, ActorId) VALUES ($id,$action,$details,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
         }
         foreach (var item in data.Assets)
         {
@@ -2986,9 +3296,9 @@ public sealed partial class HelpdeskStore
             foreach (var assignment in item.Assignments)
                 Execute(connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack) VALUES ($id,$user,$name,$started,$ended,$due);", ("$id", item.Id.ToString()), ("$user", assignment.UserId?.ToString()), ("$name", assignment.UserName), ("$started", assignment.StartedAt.HasValue ? Iso(assignment.StartedAt.Value) : null), ("$ended", assignment.EndedAt.HasValue ? Iso(assignment.EndedAt.Value) : null), ("$due", IsoDay(assignment.DueBack)));
             foreach (var comment in item.Comments)
-                Execute(connection, transaction, "INSERT INTO AssetComments (AssetId, Text, CreatedAt) VALUES ($id,$text,$created);", ("$id", item.Id.ToString()), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)));
+                Execute(connection, transaction, "INSERT INTO AssetComments (AssetId, Text, CreatedAt, Actor, ActorId) VALUES ($id,$text,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()));
             foreach (var activity in item.History)
-                Execute(connection, transaction, "INSERT INTO AssetActivities (AssetId, Action, Details, CreatedAt) VALUES ($id,$action,$details,$created);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
+                Execute(connection, transaction, "INSERT INTO AssetActivities (AssetId, Action, Details, CreatedAt, Actor, ActorId) VALUES ($id,$action,$details,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
         }
         // After Assets: LoanKitAssets references Assets(Id), and KitLoans references LoanKits(Id).
         foreach (var kit in data.LoanKits)
@@ -3033,11 +3343,11 @@ public sealed partial class HelpdeskStore
                 if (data.TicketAttributeDefinitions.Any(x => x.Id == value.AttributeDefinitionId))
                     Execute(connection, transaction, "INSERT INTO TicketAttributeValues (TicketNumber, AttributeDefinitionId, Value) VALUES ($number,$definition,$value);", ("$number", value.TicketNumber), ("$definition", value.AttributeDefinitionId.ToString()), ("$value", value.Value));
             foreach (var comment in item.Comments)
-                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal) VALUES ($number,$text,$created,$internal);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0));
+                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId) VALUES ($number,$text,$created,$internal,$actor,$actorid);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()));
             foreach (var attachment in data.TicketAttachments.Where(x => x.TicketNumber == item.Number))
                 Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt) VALUES ($id,$number,$name,$type,$size,$uploaded);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)));
             foreach (var activity in item.History)
-                Execute(connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt) VALUES ($number,$action,$details,$created);", ("$number", item.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)));
+                Execute(connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);", ("$number", item.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
         }
         foreach (var template in data.TicketTemplates)
         {
@@ -3069,14 +3379,158 @@ public sealed partial class HelpdeskStore
         command.ExecuteNonQuery();
     }
 
-    // What a brand-new system and a factory reset both start from: the option lists a working system needs, plus one
-    // team so technicians have something to belong to. Deliberately no sample records - schools start with their own
-    // data, and other schools shouldn't have to delete a fake laptop before they begin.
+    // What a brand-new system and a factory reset both start from: the option lists a working system needs, one team so
+    // technicians have something to belong to, and a worked demo example (see SeedDemoData).
+    // The lists here are seeded rather than put in EnsureFactoryOptions because that runs on every startup: a school
+    // that deletes an asset type it does not own should not find it back the next morning.
     private void SeedStarterData()
     {
         EnsureFactoryOptions();
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
+        EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
+            "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);
+        SeedDemoData();
         SaveBaseline();
+    }
+
+    // Marks every seeded record so a school can find the lot by searching "demo" and delete it once they are ready to
+    // start for real. Option-list values (departments, makes, part categories) are deliberately NOT marked: those are
+    // meant to be kept and edited, while these records are meant to be thrown away.
+    private const string DemoSuffix = " (demo)";
+
+    // One worked example of everything, so a new system can be shown to someone rather than described. Records point at
+    // each other on purpose - the ticket has the asset, the asset has the requester and supplier, the part is on the
+    // ticket - because a pile of disconnected rows demonstrates nothing.
+    // Not seeded: attachments (they need a real file on disk) and ticket links (they need a second ticket).
+    private void SeedDemoData()
+    {
+        var now = DateTime.UtcNow;
+        var today = DateOnly.FromDateTime(now);
+        void Remember(string type, string key) => _data.DemoRecords.Add(new DemoRecord(type, key));
+
+        // Option-list values the demo records need. Realistic and worth keeping, unlike the records themselves.
+        EnsureOptions(_data.Departments, ["Teaching"]);
+        EnsureOptions(_data.Locations, ["Main Building"]);
+        EnsureOptions(_data.AssetMakes, ["Dell"]);
+        EnsureOptions(_data.AssetModels, ["Latitude 5440"]);
+        _data.AssetModelMakes["Latitude 5440"] = "Dell";
+        _data.AssetTypeLifespans["Laptop"] = 4;
+        EnsureOptions(_data.PartCategories, ["Consumables"]);
+        EnsureOptions(_data.PartLocations, ["IT Store"]);
+        _data.StatusDescriptions["On Hold"] = "Waiting on the requester, a part, or a third party.";
+
+        var supplier = new SupplierRecord(Guid.NewGuid(), "Demo Supplies Ltd", "Pat Brennan", "sales@demo-supplies.test",
+            "01234 567890", "Unit 4, Trade Park", "", "Exampleton", "", "EX1 2AB", "United Kingdom",
+            "https://demo-supplies.test", "Seeded as a demo record - safe to delete.", now.AddDays(-120));
+        _data.Suppliers.Add(supplier);
+        Remember("Supplier", supplier.Id.ToString());
+
+        var requester = new UserRecord(Guid.NewGuid(), "Sam Taylor" + DemoSuffix, "sam.taylor@demo.local", "Teaching", "Main Building");
+        _data.Users.Add(requester);
+        Remember("User", requester.Id.ToString());
+
+        // No password, so the demo technician cannot be signed in as - it exists to be assigned work, not to be a
+        // second way into the system. The bootstrap administrator stays the only account with credentials.
+        var technician = new TechnicianRecord(Guid.NewGuid(), "Jo Bennett" + DemoSuffix, "jo.bennett@demo.local", "IT Support", StaffRoles.DefaultRole);
+        _data.Technicians.Add(technician);
+        Remember("Technician", technician.Id.ToString());
+        var actor = new Actor(technician.Id, technician.Name);
+
+        var sla = new SlaDefinition(Guid.NewGuid(), "Demo SLA - respond in 8 hours", 8, "hours", "Seeded as a demo record - safe to delete.")
+        {
+            Categories = ["Hardware"]
+        };
+        _data.Slas.Add(sla);
+        Remember("Sla", sla.Id.ToString());
+
+        var ticketAttribute = new TicketAttributeDefinition(Guid.NewGuid(), "Room number" + DemoSuffix, "single-line") { Categories = ["Hardware"] };
+        _data.TicketAttributeDefinitions.Add(ticketAttribute);
+        Remember("TicketAttribute", ticketAttribute.Id.ToString());
+        var assetAttribute = new AssetAttributeDefinition(Guid.NewGuid(), "Warranty provider" + DemoSuffix, "dropdown", "Manufacturer, Supplier, None") { AssetTypes = ["Laptop"] };
+        _data.AssetAttributeDefinitions.Add(assetAttribute);
+        Remember("AssetAttribute", assetAttribute.Id.ToString());
+
+        var asset = new AssetRecord(Guid.NewGuid(), "DEMO-LT-001", "Dell", "Latitude 5440", "Laptop", "DEMO-SN-0001", "Main Building", requester.Id, supplier.Id)
+        {
+            Status = "In use",
+            PurchaseDate = today.AddYears(-2),
+            PurchasePrice = 649.00m,
+            PurchaseOrder = "PO-DEMO-001",
+            WarrantyEnd = today.AddDays(45),
+            Assignments = { new AssetAssignment(requester.Id, requester.Name, now.AddDays(-400), null, null) },
+            History = { new AssetActivity("Assigned user changed", $"Assigned to {requester.Name}.", now.AddDays(-400)) { By = actor } },
+            Comments = { new AssetComment("Battery health checked at the last service.", now.AddDays(-30)) { By = actor } }
+        };
+        _data.Assets.Add(asset);
+        Remember("Asset", asset.Id.ToString());
+        _data.AssetAttributeValues.Add(new AssetAttributeValue(asset.Id, assetAttribute.Id, "Supplier"));
+
+        // A second asset so the demo loan kit has something in it. A kit with no contents would show the feature
+        // without showing what it is for - and an empty child collection is exactly what hid an earlier foreign key bug.
+        // Out with the demo kit below, so its status and holder match the open loan - the same state IssueKit produces.
+        var loanAsset = new AssetRecord(Guid.NewGuid(), "DEMO-LT-002", "Dell", "Latitude 5440", "Laptop", "DEMO-SN-0002", "Main Building", requester.Id, supplier.Id)
+        {
+            Status = OnLoanStatus,
+            LoanDueDate = today.AddDays(4),
+            Assignments = { new AssetAssignment(requester.Id, requester.Name, now.AddDays(-3), null, today.AddDays(4)) },
+            History = { new AssetActivity("Assigned user changed", $"Assigned to {requester.Name}.", now.AddDays(-3)) { By = actor } },
+            PurchaseDate = today.AddYears(-1),
+            PurchasePrice = 649.00m,
+            PurchaseOrder = "PO-DEMO-001",
+            WarrantyEnd = today.AddYears(2)
+        };
+        _data.Assets.Add(loanAsset);
+        Remember("Asset", loanAsset.Id.ToString());
+
+        // Five received, one fitted to the demo ticket below, so the stock history and the ticket agree with each other.
+        var part = new PartRecord(Guid.NewGuid(), "Demo laptop charger", "DEMO-CHG-65W", "Consumables", 4, now.AddDays(-60))
+        {
+            Location = "IT Store",
+            ReorderThreshold = 2,
+            SupplierIds = [supplier.Id],
+            AssetTypes = ["Laptop"],
+            History = { new PartActivity("Stock adjusted", "0 -> 5 (Opening stock)", now.AddDays(-60)) { By = actor } }
+        };
+        _data.Parts.Add(part);
+        Remember("Part", part.Id.ToString());
+
+        var createdAt = now.AddDays(-2);
+        var number = ++_data.LastTicketNumber;
+        var ticket = new TicketRecord(number, "Demo ticket - laptop will not charge",
+            "Sam reports the laptop runs from the battery but will not charge from the mains.",
+            requester.Id, [asset.Id], technician.Id, "High", "Open", "Hardware", createdAt, null,
+            sla.Id, CalculateDueDate(sla.Id, createdAt), false, false, "IT Support", "Main Building")
+        {
+            Type = TicketTypes.Incident,
+            History =
+            {
+                new TicketActivity("Ticket created", "The ticket was created.", createdAt) { By = actor },
+                new TicketActivity("Part assigned", $"Assigned 1x {part.Name}.", createdAt.AddHours(3)) { By = actor }
+            },
+            Comments = { new TicketComment("Swapped the charger, monitoring before closing.", createdAt.AddHours(3)) { By = actor } }
+        };
+        _data.Tickets.Add(ticket);
+        Remember("Ticket", number.ToString());
+        _data.TicketParts.Add(new TicketPartAssignment(number, part.Id, 1));
+        _data.TicketAttributeValues.Add(new TicketAttributeValue(number, ticketAttribute.Id, "12"));
+
+        var template = new TicketTemplate(Guid.NewGuid(), "Demo template - new starter laptop", TicketTypes.Request,
+            "Laptop for new starter", "Please prepare and hand over a laptop for a new member of staff.", "Hardware", "Normal", sla.Id)
+        {
+            AttributeValues = { [ticketAttribute.Id] = "" }
+        };
+        _data.TicketTemplates.Add(template);
+        Remember("TicketTemplate", template.Id.ToString());
+
+        var kit = new LoanKit(Guid.NewGuid(), "Demo loan kit A", "Laptop and charger for anyone without a device.", now.AddDays(-90))
+        {
+            AssetIds = [loanAsset.Id]
+        };
+        _data.LoanKits.Add(kit);
+        Remember("LoanKit", kit.Id.ToString());
+        // Currently out and due back shortly, so the loan list and the repeat-borrower report both have something to show.
+        _data.KitLoans.Add(new KitLoan(Guid.NewGuid(), kit.Id, requester.Id, requester.Name, "Forgot own device",
+            now.AddDays(-3), today.AddDays(4), null, technician.Name, "Seeded as a demo record - safe to delete."));
     }
 
     public sealed class StoreData
@@ -3129,6 +3583,9 @@ public sealed partial class HelpdeskStore
         public List<TicketAttributeDefinition> TicketAttributeDefinitions { get; set; } = [];
         public List<TicketAttributeValue> TicketAttributeValues { get; set; } = [];
         public List<TicketRecord> Tickets { get; set; } = [];
+        // What SeedDemoData created, so the "Go live" button knows exactly what to remove. Empty on a system that has
+        // already gone live, or one upgraded from before demo data existed.
+        public List<DemoRecord> DemoRecords { get; set; } = [];
         public int LastTicketNumber { get; set; } = 1000;
         public BrandingSettings Branding { get; set; } = new();
     }

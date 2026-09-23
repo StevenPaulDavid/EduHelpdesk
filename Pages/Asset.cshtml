@@ -89,9 +89,21 @@
 </div>
 <section class="panel">
     <div class="panel-heading">
-        <div><p class="eyebrow">OWNERSHIP AND LOANS</p><h2>@(Model.HolderName is null ? "Not assigned" : $"Held by {Model.HolderName}")</h2></div>
+        @* A kit issued to someone outside the directory leaves no holder on the asset, so "Not assigned" would be wrong. *@
+        <div><p class="eyebrow">OWNERSHIP AND LOANS</p><h2>@(Model.HolderName is not null ? $"Held by {Model.HolderName}" : Model.HeldByKit is { } outWith ? $"Out with {outWith.Loan.BorrowerName}" : "Not assigned")</h2></div>
         @if (Model.Asset.AssignedUserId is not null && Model.Asset.LoanDueDate is { } loanDue) { <span class="badge @(Model.LoanOverdue ? "badge-warning" : "")">On loan, due back @AssetInsights.Format(loanDue)@(Model.LoanOverdue ? " (overdue)" : "")</span> }
     </div>
+    @if (Model.HeldByKit is { } held)
+    {
+        <div class="notice notice-warning">
+            <strong>On loan with @held.Kit.Name.</strong>
+            Out with @held.Loan.BorrowerName since @AssetInsights.Format(DateOnly.FromDateTime(held.Loan.IssuedAt.ToLocalTime())), due back @AssetInsights.Format(held.Loan.DueBack)@(held.Loan.IsOverdue(AssetInsights.Today) ? " (overdue)" : "").
+            It went out as part of a kit, so it has to be booked back in as one - returning it here would leave the kit still showing the equipment.
+            <a asp-page="/Loans">Book the kit back in on the Loans page</a>.
+        </div>
+    }
+    else
+    {
     <div class="ownership-actions">
         <form method="post" asp-page-handler="Loan" class="import-row">
             <input type="hidden" name="id" value="@Model.Asset.Id" />
@@ -108,6 +120,7 @@
             </form>
         }
     </div>
+    }
     <div class="table-wrap"><table><thead><tr><th>Held by</th><th>From</th><th>Until</th><th>Due back</th></tr></thead><tbody>
     @foreach (var period in Model.Ownership)
     {
@@ -133,7 +146,7 @@
                 <div class="comment-list">
                     @foreach (var comment in Model.Asset.Comments.OrderByDescending(x => x.CreatedAt))
                     {
-                        <article class="comment"><p>@comment.Text</p><small>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                        <article class="comment"><p>@comment.Text</p><small><strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                     }
                 </div>
             }
@@ -154,7 +167,7 @@
                 <div class="history-list">
                     @foreach (var activity in Model.Asset.History.OrderByDescending(x => x.CreatedAt))
                     {
-                        <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                        <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                     }
                 </div>
             }

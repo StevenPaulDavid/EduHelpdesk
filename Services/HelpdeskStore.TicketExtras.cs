@@ -79,7 +79,7 @@ public sealed partial class HelpdeskStore
 
             _data.TicketAttachments.Add(new TicketAttachment(id, number, name, contentType, written, DateTime.UtcNow));
             var history = _data.Tickets[index].History.ToList();
-            history.Add(new("Attachment added", $"{name} ({FormatSize(written)}) was attached.", DateTime.UtcNow));
+            history.Add(new("Attachment added", $"{name} ({FormatSize(written)}) was attached.", DateTime.UtcNow) { By = CurrentActor() });
             _data.Tickets[index] = _data.Tickets[index] with { History = history };
             Save();
             return null;
@@ -96,7 +96,7 @@ public sealed partial class HelpdeskStore
             _data.TicketAttachments.Remove(attachment);
             TryDelete(AttachmentFile(id));
             var history = _data.Tickets[index].History.ToList();
-            history.Add(new("Attachment removed", $"{attachment.FileName} was removed.", DateTime.UtcNow));
+            history.Add(new("Attachment removed", $"{attachment.FileName} was removed.", DateTime.UtcNow) { By = CurrentActor() });
             _data.Tickets[index] = _data.Tickets[index] with { History = history };
             Save();
             return null;
@@ -216,7 +216,7 @@ public sealed partial class HelpdeskStore
     {
         if (ticketIndex < 0) return;
         var history = _data.Tickets[ticketIndex].History.ToList();
-        history.Add(new(action, details, DateTime.UtcNow));
+        history.Add(new(action, details, DateTime.UtcNow) { By = CurrentActor() });
         _data.Tickets[ticketIndex] = _data.Tickets[ticketIndex] with { History = history };
     }
 

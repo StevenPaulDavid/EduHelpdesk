@@ -141,7 +141,7 @@ else
                     <div class="comment-list">
                         @foreach (var comment in Model.Ticket.Comments.OrderByDescending(x => x.CreatedAt))
                         {
-                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                         }
                     </div>
                 }
@@ -174,7 +174,7 @@ else
                     <div class="history-list">
                         @foreach (var activity in Model.Ticket.History.OrderByDescending(x => x.CreatedAt))
                         {
-                            <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                            <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                         }
                     </div>
                 }

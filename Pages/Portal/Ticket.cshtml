@@ -22,7 +22,7 @@
             <div class="comment-list">
                 @foreach (var comment in Model.Comments)
                 {
-                    <article class="comment"><p>@comment.Text</p><small>@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                    <article class="comment"><p>@comment.Text</p><small>@(comment.By is { } by ? $"{by.Name} · " : "")@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                 }
             </div>
             <form method="post" asp-page-handler="Comment" asp-route-number="@Model.Ticket.Number" class="comment-form">
