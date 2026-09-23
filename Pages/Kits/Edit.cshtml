@@ -1,13 +1,13 @@
 @page
 @using EduHelpdesk.Services
-@model EduHelpdesk.Pages.Loans.KitModel
+@model EduHelpdesk.Pages.Kits.EditModel
 @{
     var editing = Model.Kit is not null;
     ViewData["Title"] = editing ? $"Edit {Model.Kit!.Name}" : "Add loan kit";
 }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>@ViewData["Title"]</h1></div>
-    <a class="button button-secondary" asp-page="/Loans">← Back</a>
+    <a class="button button-secondary" asp-page="/Kits">← Back</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

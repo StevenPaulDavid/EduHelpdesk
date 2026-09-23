@@ -29,9 +29,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/People/User", "RequireManageRequesters");
     options.Conventions.AuthorizePage("/People/DeleteUser", "RequireManageRequesters");
     options.Conventions.AuthorizeFolder("/Assets", "RequireManageAssets");
-    // Issuing and returning a kit is day-to-day desk work, so /Loans stays open to any signed-in technician.
+    // Issuing and returning is day-to-day desk work, so /Loans stays open to any signed-in technician.
     // Only creating and editing the kits themselves needs the asset permission.
-    options.Conventions.AuthorizePage("/Loans/Kit", "RequireManageAssets");
+    options.Conventions.AuthorizePage("/Kits/Edit", "RequireManageAssets");
     options.Conventions.AuthorizeFolder("/Suppliers", "RequireManageSuppliers");
     options.Conventions.AuthorizeFolder("/Parts", "RequireManageParts");
     // The Settings area (branding, option lists, CSV import, factory reset, audit log).

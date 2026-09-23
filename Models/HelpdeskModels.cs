@@ -139,7 +139,17 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
     public DateOnly? LoanDueDate { get; init; }
 }
 // One period in which an asset was held by someone. StartedAt is null for holders recorded before assignments were tracked.
-public record AssetAssignment(Guid? UserId, string UserName, DateTime? StartedAt, DateTime? EndedAt, DateOnly? DueBack);
+// A period with a DueBack is a loan - something expected back. One without is a permanent allocation (a teacher's own
+// laptop) and is deliberately kept out of every loan list and report.
+public record AssetAssignment(Guid? UserId, string UserName, DateTime? StartedAt, DateTime? EndedAt, DateOnly? DueBack)
+{
+    // Why it went out, from the same list kit loans use. Null means not recorded: it pre-dates reasons being required,
+    // and those rows are shown but never counted toward repeat-borrower flagging.
+    public string? Reason { get; init; }
+    // Set when issuing a kit created this period. Kit loans already appear in their own right, so without this marker
+    // the unified loan list would count one kit loan again for every asset inside the kit.
+    public Guid? KitLoanId { get; init; }
+}
 public record AssetComment(string Text, DateTime CreatedAt)
 {
     public Actor? By { get; init; }

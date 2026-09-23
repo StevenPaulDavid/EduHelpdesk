@@ -5,7 +5,7 @@
     var navPath = Context.Request.Path.Value ?? string.Empty;
     bool NavOn(params string[] prefixes) => prefixes.Any(p =>
         navPath.Equals(p, StringComparison.OrdinalIgnoreCase) || navPath.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase));
-    var onInventory = NavOn("/Assets", "/Asset", "/Loans", "/Parts", "/Suppliers", "/Supplier");
+    var onInventory = NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -53,6 +53,7 @@
                 <summary class="@(onInventory ? "active" : null)">Inventory<span class="chev" aria-hidden="true">▾</span></summary>
                 <div class="nav-panel">
                     <a asp-page="/Assets">Assets</a>
+                    <a asp-page="/Kits">Kits</a>
                     <a asp-page="/Loans">Loans</a>
                     <a asp-page="/Parts">Parts</a>
                     <a asp-page="/Suppliers">Suppliers</a>

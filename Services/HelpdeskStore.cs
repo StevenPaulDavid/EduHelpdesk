@@ -916,24 +916,30 @@ public sealed partial class HelpdeskStore
                 return (kit, loan);
         return null;
     }
-    public string LoanAsset(Guid assetId, Guid userId, DateOnly dueBack)
+    // A reason is required, from the same list kit loans use, so an individual loan can be told apart from a kit one in
+    // the repeat-borrower report. Borrowers must be in the directory here - unlike kit loans, which accept a typed name.
+    public (bool Ok, string Message) LoanAsset(Guid assetId, Guid userId, DateOnly dueBack, string? reason)
     {
         lock (_sync)
         {
+            var chosenReason = _data.LoanReasons.FirstOrDefault(x => string.Equals(x, (reason ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
+            if (chosenReason is null) return (false, "Choose a reason for the loan.");
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
-            if (asset is null) return "Asset was not found.";
+            if (asset is null) return (false, "Asset was not found.");
             // Kit equipment is lent as a kit or not at all, whether or not the kit is currently out. Two reasons: the
             // kit would otherwise show as available while its laptop is on someone's desk, and loaning it separately
             // was also a way round the return block - loan it out, then book it back in.
             if (KitContainingCore(assetId) is { } owningKit)
-                return KitLoanHoldingCore(assetId) is { } held
+                return (false, KitLoanHoldingCore(assetId) is { } held
                     ? $"This asset is out on loan with {owningKit.Name} ({held.Loan.BorrowerName}). Book the kit back in from the Loans page before loaning it separately."
-                    : $"This asset is part of {owningKit.Name} and is only loaned out by issuing that kit from the Loans page. Remove it from the kit first if it needs to be loaned on its own.";
-            if (!_data.Users.Any(x => x.Id == userId)) return "Select who the device is loaned to.";
-            if (dueBack < AssetInsights.Today) return "The due-back date cannot be in the past.";
-            var status = _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, "In use", StringComparison.OrdinalIgnoreCase)) ?? asset.Status;
-            UpdateAsset(asset with { AssignedUserId = userId, LoanDueDate = dueBack, Status = status });
-            return $"Loaned to {UserName(userId)}, due back {AssetInsights.Format(dueBack)}.";
+                    : $"This asset is part of {owningKit.Name} and is only loaned out by issuing that kit from the Loans page. Remove it from the kit first if it needs to be loaned on its own.");
+            if (!_data.Users.Any(x => x.Id == userId)) return (false, "Select who the device is loaned to.");
+            if (dueBack < AssetInsights.Today) return (false, "The due-back date cannot be in the past.");
+            var status = ResolveAssetStatus(OnLoanStatus) ?? asset.Status;
+            var index = _data.Assets.FindIndex(x => x.Id == assetId);
+            ApplyAssetUpdate(index, asset with { AssignedUserId = userId, LoanDueDate = dueBack, Status = status }, chosenReason);
+            Save();
+            return (true, $"{asset.AssetTag} loaned to {UserName(userId)}, due back {AssetInsights.Format(dueBack)}.");
         }
     }
     // Ends the current holder's period. The status can be set at the same time, for example back to stock.
@@ -1122,6 +1128,26 @@ public sealed partial class HelpdeskStore
     private List<Guid> ValidAssetIds(IEnumerable<Guid>? assetIds) =>
         (assetIds ?? []).Where(id => _data.Assets.Any(a => a.Id == id)).Distinct().ToList();
 
+    // Every loan of either kind, for the Loans page and the loan report.
+    // Asset assignments only qualify as loans when they have a due-back date: an assignment without one is a permanent
+    // allocation (a teacher's own laptop) and has no business in a loan report. Assignments carrying a KitLoanId are
+    // left out because the kit loan that created them is already in the list on its own.
+    public IReadOnlyList<LoanInsights.LoanEntry> AllLoans()
+    {
+        lock (_sync)
+        {
+            var entries = _data.KitLoans
+                .Where(x => _data.LoanKits.Any(k => k.Id == x.KitId))
+                .Select(x => LoanInsights.From(x, _data.LoanKits.First(k => k.Id == x.KitId).Name))
+                .ToList();
+            foreach (var asset in _data.Assets)
+                entries.AddRange(asset.Assignments
+                    .Where(x => x.DueBack is not null && x.KitLoanId is null)
+                    .Select(x => LoanInsights.From(x, asset.AssetTag)));
+            return entries;
+        }
+    }
+
     public (bool Ok, string Message) IssueKit(Guid kitId, Guid? borrowerUserId, string? borrowerName, string? reason, DateOnly dueBack, string? issuedBy, string? notes)
     {
         lock (_sync)
@@ -1143,8 +1169,9 @@ public sealed partial class HelpdeskStore
             var chosenReason = _data.LoanReasons.FirstOrDefault(x => string.Equals(x, (reason ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
             if (chosenReason is null) return (false, "Choose a reason for the loan.");
 
-            _data.KitLoans.Add(new KitLoan(Guid.NewGuid(), kitId, borrowerUserId, name, chosenReason,
-                DateTime.UtcNow, dueBack, null, (issuedBy ?? string.Empty).Trim(), (notes ?? string.Empty).Trim()));
+            var loan = new KitLoan(Guid.NewGuid(), kitId, borrowerUserId, name, chosenReason,
+                DateTime.UtcNow, dueBack, null, (issuedBy ?? string.Empty).Trim(), (notes ?? string.Empty).Trim());
+            _data.KitLoans.Add(loan);
 
             // The equipment goes out with the kit, so each asset is marked out too - otherwise the asset list still
             // shows a laptop sitting in stock that is actually in somebody's bag.
@@ -1160,12 +1187,13 @@ public sealed partial class HelpdeskStore
                 if (asset.AssignedUserId is { } current && current != borrowerUserId) takenOver.Add($"{asset.AssetTag} (was with {UserName(current)})");
                 // A borrower who isn't in the directory can't be recorded as the holder, so for them the status is the
                 // only marker - which is exactly why the status is set for every loan and not just named ones.
+                // Stamped with the kit loan's id so the unified loan list counts the kit loan once, not once per asset.
                 ApplyAssetUpdate(index, asset with
                 {
                     AssignedUserId = borrowerUserId,
                     LoanDueDate = borrowerUserId.HasValue ? dueBack : null,
                     Status = onLoan ?? asset.Status
-                });
+                }, chosenReason, loan.Id);
             }
 
             Save();
@@ -1671,7 +1699,9 @@ public sealed partial class HelpdeskStore
         }
     }
     // Replaces the asset at index, recording history and ownership changes. The caller holds the lock and saves.
-    private void ApplyAssetUpdate(int index, AssetRecord item)
+    // loanReason and kitLoanId stamp the assignment period this creates, so the unified loan list can tell why the
+    // asset went out and whether a kit loan already accounts for it. Both are null for an ordinary asset edit.
+    private void ApplyAssetUpdate(int index, AssetRecord item, string? loanReason = null, Guid? kitLoanId = null)
     {
         var previous = _data.Assets[index];
         if (string.IsNullOrWhiteSpace(item.Status)) item = item with { Status = previous.Status };
@@ -1686,7 +1716,8 @@ public sealed partial class HelpdeskStore
         {
             for (var i = 0; i < assignments.Count; i++)
                 if (assignments[i].EndedAt is null) assignments[i] = assignments[i] with { EndedAt = now };
-            if (item.AssignedUserId is { } holder) assignments.Add(new AssetAssignment(holder, UserName(holder), now, null, item.LoanDueDate));
+            if (item.AssignedUserId is { } holder)
+                assignments.Add(new AssetAssignment(holder, UserName(holder), now, null, item.LoanDueDate) { Reason = loanReason, KitLoanId = kitLoanId });
         }
         else if (previous.LoanDueDate != item.LoanDueDate)
         {
@@ -2754,7 +2785,10 @@ public sealed partial class HelpdeskStore
             // PartActivities is created further down, after this loop, so these two only ever upgrade a database that
             // already has the table - a brand-new one gets the columns from its CREATE instead.
             "ALTER TABLE PartActivities ADD COLUMN Actor TEXT NULL;",
-            "ALTER TABLE PartActivities ADD COLUMN ActorId TEXT NULL;"
+            "ALTER TABLE PartActivities ADD COLUMN ActorId TEXT NULL;",
+            // AssetAssignments is created after this loop too, so the same applies - see its CREATE below.
+            "ALTER TABLE AssetAssignments ADD COLUMN Reason TEXT NULL;",
+            "ALTER TABLE AssetAssignments ADD COLUMN KitLoanId TEXT NULL;"
         })
         {
             using var m = connection.CreateCommand();
@@ -2768,7 +2802,8 @@ public sealed partial class HelpdeskStore
             CREATE TABLE IF NOT EXISTS PartLocations (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS AssetTypeLifespans (AssetType TEXT PRIMARY KEY, Years INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS AssetAssignments (Id INTEGER PRIMARY KEY AUTOINCREMENT, AssetId TEXT NOT NULL, UserId TEXT NULL, UserName TEXT NOT NULL,
-                StartedAt TEXT NULL, EndedAt TEXT NULL, DueBack TEXT NULL, FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE);
+                StartedAt TEXT NULL, EndedAt TEXT NULL, DueBack TEXT NULL, Reason TEXT NULL, KitLoanId TEXT NULL,
+                FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE);
             """;
         assetTables.ExecuteNonQuery();
         using var ticketTables = connection.CreateCommand();
@@ -3259,12 +3294,16 @@ public sealed partial class HelpdeskStore
         using var activityReader = activities.ExecuteReader();
         while (activityReader.Read()) asset.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)) { By = ReadActor(activityReader, 3, 4) });
         using var assignments = connection.CreateCommand();
-        assignments.CommandText = "SELECT UserId, UserName, StartedAt, EndedAt, DueBack FROM AssetAssignments WHERE AssetId = $id ORDER BY Id;";
+        assignments.CommandText = "SELECT UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId FROM AssetAssignments WHERE AssetId = $id ORDER BY Id;";
         assignments.Parameters.AddWithValue("$id", asset.Id.ToString());
         using var assignmentReader = assignments.ExecuteReader();
         while (assignmentReader.Read())
             asset.Assignments.Add(new AssetAssignment(NullableGuid(assignmentReader, 0), assignmentReader.GetString(1),
-                assignmentReader.IsDBNull(2) ? null : Date(assignmentReader, 2), assignmentReader.IsDBNull(3) ? null : Date(assignmentReader, 3), NullableDateOnly(assignmentReader, 4)));
+                assignmentReader.IsDBNull(2) ? null : Date(assignmentReader, 2), assignmentReader.IsDBNull(3) ? null : Date(assignmentReader, 3), NullableDateOnly(assignmentReader, 4))
+            {
+                Reason = NullableString(assignmentReader, 5),
+                KitLoanId = NullableGuid(assignmentReader, 6)
+            });
     }
 
     private static void WriteData(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
@@ -3341,7 +3380,7 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()),
                 ("$status", string.IsNullOrWhiteSpace(item.Status) ? "In use" : item.Status), ("$purchased", IsoDay(item.PurchaseDate)), ("$price", item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(item.WarrantyEnd)), ("$replacement", IsoDay(item.ReplacementDate)), ("$loan", IsoDay(item.LoanDueDate)));
             foreach (var assignment in item.Assignments)
-                Execute(connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack) VALUES ($id,$user,$name,$started,$ended,$due);", ("$id", item.Id.ToString()), ("$user", assignment.UserId?.ToString()), ("$name", assignment.UserName), ("$started", assignment.StartedAt.HasValue ? Iso(assignment.StartedAt.Value) : null), ("$ended", assignment.EndedAt.HasValue ? Iso(assignment.EndedAt.Value) : null), ("$due", IsoDay(assignment.DueBack)));
+                Execute(connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", ("$id", item.Id.ToString()), ("$user", assignment.UserId?.ToString()), ("$name", assignment.UserName), ("$started", assignment.StartedAt.HasValue ? Iso(assignment.StartedAt.Value) : null), ("$ended", assignment.EndedAt.HasValue ? Iso(assignment.EndedAt.Value) : null), ("$due", IsoDay(assignment.DueBack)), ("$reason", assignment.Reason), ("$kitloan", assignment.KitLoanId?.ToString()));
             foreach (var comment in item.Comments)
                 Execute(connection, transaction, "INSERT INTO AssetComments (AssetId, Text, CreatedAt, Actor, ActorId) VALUES ($id,$text,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()));
             foreach (var activity in item.History)
@@ -3515,11 +3554,14 @@ public sealed partial class HelpdeskStore
         // A second asset so the demo loan kit has something in it. A kit with no contents would show the feature
         // without showing what it is for - and an empty child collection is exactly what hid an earlier foreign key bug.
         // Out with the demo kit below, so its status and holder match the open loan - the same state IssueKit produces.
+        // The assignment carries the kit loan's id, exactly as IssueKit stamps it, so the loan report counts this as one
+        // kit loan rather than a kit loan plus a separate loan of the laptop inside it.
+        var demoKitLoanId = Guid.NewGuid();
         var loanAsset = new AssetRecord(Guid.NewGuid(), "DEMO-LT-002", "Dell", "Latitude 5440", "Laptop", "DEMO-SN-0002", "Main Building", requester.Id, supplier.Id)
         {
             Status = OnLoanStatus,
             LoanDueDate = today.AddDays(4),
-            Assignments = { new AssetAssignment(requester.Id, requester.Name, now.AddDays(-3), null, today.AddDays(4)) },
+            Assignments = { new AssetAssignment(requester.Id, requester.Name, now.AddDays(-3), null, today.AddDays(4)) { Reason = "Forgot own device", KitLoanId = demoKitLoanId } },
             History = { new AssetActivity("Assigned user changed", $"Assigned to {requester.Name}.", now.AddDays(-3)) { By = actor } },
             PurchaseDate = today.AddYears(-1),
             PurchasePrice = 649.00m,
@@ -3576,7 +3618,7 @@ public sealed partial class HelpdeskStore
         _data.LoanKits.Add(kit);
         Remember("LoanKit", kit.Id.ToString());
         // Currently out and due back shortly, so the loan list and the repeat-borrower report both have something to show.
-        _data.KitLoans.Add(new KitLoan(Guid.NewGuid(), kit.Id, requester.Id, requester.Name, "Forgot own device",
+        _data.KitLoans.Add(new KitLoan(demoKitLoanId, kit.Id, requester.Id, requester.Name, "Forgot own device",
             now.AddDays(-3), today.AddDays(4), null, technician.Name, "Seeded as a demo record - safe to delete."));
     }
 

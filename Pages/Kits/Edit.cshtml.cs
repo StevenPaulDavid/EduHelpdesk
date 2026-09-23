@@ -3,9 +3,9 @@ using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace EduHelpdesk.Pages.Loans;
+namespace EduHelpdesk.Pages.Kits;
 
-public class KitModel(HelpdeskStore store) : PageModel
+public class EditModel(HelpdeskStore store) : PageModel
 {
     public LoanKit? Kit { get; private set; }
     public IReadOnlyList<AssetRecord> Assets => store.Assets.OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
@@ -34,7 +34,7 @@ public class KitModel(HelpdeskStore store) : PageModel
         if (ok)
         {
             TempData["Message"] = message;
-            return RedirectToPage("/Loans");
+            return RedirectToPage("/Kits");
         }
 
         ModelState.AddModelError("", message);
@@ -50,6 +50,6 @@ public class KitModel(HelpdeskStore store) : PageModel
     public IActionResult OnPostDelete(Guid id)
     {
         TempData["Message"] = store.DeleteLoanKit(id).Message;
-        return RedirectToPage("/Loans");
+        return RedirectToPage("/Kits");
     }
 }

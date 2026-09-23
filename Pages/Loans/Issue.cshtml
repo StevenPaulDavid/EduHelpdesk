@@ -1,15 +1,47 @@
 @page
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Loans.IssueModel
-@{ ViewData["Title"] = $"Issue {Model.Kit!.Name}"; }
+@{ ViewData["Title"] = Model.Kit is null ? "Issue a loan" : $"Issue {Model.Kit.Name}"; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>Issue @Model.Kit.Name</h1></div>
+    <div><p class="eyebrow">EDUHELPDESK / LOANS</p><h1>@(Model.Kit is null ? "Issue a loan" : $"Issue {Model.Kit.Name}")</h1></div>
     <a class="button button-secondary" asp-page="/Loans">← Back</a>
 </div>
 <section class="panel">
     <form method="post" class="settings-form">
-        <input type="hidden" name="id" value="@Model.Kit.Id" />
         <div asp-validation-summary="All" class="validation-summary-errors"></div>
+
+        <label>What are you lending?
+            <select name="what" id="loan-what">
+                <option value="kit" selected="@(Model.Kit is not null || true)">A loan kit</option>
+                <option value="asset">A single device</option>
+            </select>
+        </label>
+
+        <div id="kit-block">
+            <label>Kit
+                <select name="kitId">
+                    <option value="">Choose a kit…</option>
+                    @foreach (var kit in Model.AvailableKits)
+                    {
+                        <option value="@kit.Id" selected="@(Model.Kit is not null && kit.Id == Model.Kit.Id)">@kit.Name</option>
+                    }
+                </select>
+                @if (Model.AvailableKits.Count == 0) { <small class="muted">No kits are available — they are all out or retired.</small> }
+            </label>
+        </div>
+
+        <div id="asset-block" hidden>
+            <label>Device
+                <select name="assetId">
+                    <option value="">Choose a device…</option>
+                    @foreach (var asset in Model.AvailableAssets)
+                    {
+                        <option value="@asset.Id">@asset.AssetTag — @asset.Make @asset.Model</option>
+                    }
+                </select>
+                <small class="muted">Devices already held by someone, and anything that belongs to a kit, are left out.</small>
+            </label>
+        </div>
 
         <label>Who is borrowing it?
             <select name="borrowerUserId" id="borrower-user">
@@ -20,8 +52,9 @@
                 }
             </select>
         </label>
-        <label>Name (for supply staff and visitors who aren't listed)
+        <label id="borrower-name-block">Name (for supply staff and visitors who aren't listed)
             <input name="borrowerName" id="borrower-name" placeholder="e.g. J. Smith (supply)" />
+            <small class="muted">Kits only. A single device has to go to somebody in the directory so it can be traced back.</small>
         </label>
 
         <label>Why do they need it? <span class="required-marker">*</span>
@@ -38,9 +71,9 @@
             <small class="muted">Defaults to today. Push it out if they need it for longer.</small>
         </label>
 
-        <label>Notes (optional)<input name="notes" placeholder="e.g. charger not included" /></label>
+        <label id="notes-block">Notes (optional)<input name="notes" placeholder="e.g. charger not included" /></label>
 
-        <button class="button button-primary">Issue kit</button>
+        <button class="button button-primary">Issue</button>
     </form>
 </section>
 
@@ -51,5 +84,23 @@ const userSelect = document.getElementById("borrower-user");
 const nameInput = document.getElementById("borrower-name");
 userSelect.addEventListener("change", () => { if (userSelect.value) nameInput.value = ""; });
 nameInput.addEventListener("input", () => { if (nameInput.value.trim()) userSelect.value = ""; });
+
+// Show only the fields that apply. A single device is directory-only and has no notes field of its own, so both are
+// hidden for it - the server enforces the same rules either way.
+const what = document.getElementById("loan-what");
+const kitBlock = document.getElementById("kit-block");
+const assetBlock = document.getElementById("asset-block");
+const nameBlock = document.getElementById("borrower-name-block");
+const notesBlock = document.getElementById("notes-block");
+function sync() {
+    const asset = what.value === "asset";
+    kitBlock.hidden = asset;
+    assetBlock.hidden = !asset;
+    nameBlock.hidden = asset;
+    notesBlock.hidden = asset;
+    if (asset) nameInput.value = "";
+}
+what.addEventListener("change", sync);
+sync();
 </script>
 }

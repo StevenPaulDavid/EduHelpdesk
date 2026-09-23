@@ -1,0 +1,73 @@
+@page
+@using EduHelpdesk.Services
+@model KitsModel
+@{ ViewData["Title"] = "Kits"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>Kits</h1><p class="hero-copy">The loan kits themselves: what is in each one, which are available, and which are out.</p></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Loans">Loans</a><a class="button button-primary" asp-page="/Kits/Edit">＋ Add kit</a></div>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<div class="metrics">
+    <div class="metric"><span>Available</span><strong>@Model.AvailableCount</strong><small>Ready to issue</small></div>
+    <div class="metric"><span>Out on loan</span><strong>@Model.OutCount</strong><small>With staff now</small></div>
+    <div class="metric"><span>Overdue</span><strong>@Model.OverdueCount</strong><small>Past their due-back date</small></div>
+    <div class="metric"><span>Kits</span><strong>@Model.Kits.Count</strong><small>Including retired</small></div>
+</div>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">KITS</p><h2>Loan kits</h2></div><span class="badge">@Model.Kits.Count</span></div>
+    <div class="table-wrap"><table><thead><tr>
+        <th>Kit</th><th>Contents</th><th>Status</th><th>Borrower</th><th>Due back</th><th></th>
+    </tr></thead><tbody>
+    @foreach (var kit in Model.Kits)
+    {
+        var loan = Model.CurrentLoan(kit.Id);
+        var overdue = loan is not null && loan.DueBack < Model.Today;
+        var contents = Model.KitContents(kit);
+        <tr>
+            <td>
+                <strong><a asp-page="/Kits/Edit" asp-route-id="@kit.Id">@kit.Name</a></strong>
+                @if (!string.IsNullOrWhiteSpace(kit.Notes)) { <br /><span class="muted">@kit.Notes</span> }
+            </td>
+            <td>@(contents.Length == 0 ? "—" : contents)</td>
+            <td>
+                @if (kit.IsRetired) { <span class="badge">Retired</span> }
+                else if (loan is null) { <span class="badge">Available</span> }
+                else { <span class="badge @(overdue ? "badge-warning" : "")">@(overdue ? "Overdue" : "On loan")</span> }
+            </td>
+            <td>
+                @if (loan is not null)
+                {
+                    <strong>@loan.BorrowerName</strong><br />
+                    <span class="muted">@loan.Reason · out @Model.Duration(loan)</span>
+                }
+                else { <span class="muted">—</span> }
+            </td>
+            <td>@(loan is null ? "—" : AssetInsights.Format(loan.DueBack))</td>
+            <td class="asset-row-actions">
+                @if (kit.IsRetired)
+                {
+                    <span class="muted">—</span>
+                }
+                else if (loan is null)
+                {
+                    <a class="button button-primary" asp-page="/Loans/Issue" asp-route-id="@kit.Id">Issue</a>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="Return" class="loan-return-form">
+                        <input type="hidden" name="kitId" value="@kit.Id" />
+                        <input name="notes" placeholder="Anything missing? (optional)" aria-label="Return notes for @kit.Name" />
+                        <button class="button button-secondary">Book back in</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    @if (Model.Kits.Count == 0)
+    {
+        <tr><td colspan="6" class="empty">No loan kits yet. Add one to start tracking who borrows what.</td></tr>
+    }
+    </tbody></table></div>
+</section>

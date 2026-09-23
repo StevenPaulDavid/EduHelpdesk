@@ -17,6 +17,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
+    public IReadOnlyList<string> LoanReasons => store.LoanReasons;
     // The date the asset is due for replacement, from the typed date or the asset type's lifespan.
     public DateOnly? ReplacementDue => Asset is null ? null : AssetInsights.ReplacementDate(Asset, store.AssetTypeLifespans);
     public IReadOnlyList<AssetAssignment> Ownership => Asset is null ? [] : Asset.Assignments.OrderByDescending(x => x.EndedAt is null).ThenByDescending(x => x.StartedAt ?? DateTime.MinValue).ToList();
@@ -55,8 +56,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
         string? purchasePrice,
         string? purchaseOrder,
         DateOnly? warrantyEnd,
-        DateOnly? replacementDate,
-        DateOnly? loanDueDate)
+        DateOnly? replacementDate)
     {
         if (!store.UserHasPermission(User, Permissions.ManageAssets)) return Forbid();
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
@@ -72,11 +72,6 @@ public class AssetModel(HelpdeskStore store) : PageModel
         if (!AssetForm.TryPrice(purchasePrice, out var price))
         {
             Message = "Enter the purchase price as a positive amount, such as 349.99.";
-            return RedirectToPage(new { id });
-        }
-        if (loanDueDate.HasValue && !assignedUserId.HasValue)
-        {
-            Message = "Choose who holds the device before setting a due-back date.";
             return RedirectToPage(new { id });
         }
         var chosenStatus = string.IsNullOrWhiteSpace(status) ? store.Assets.FirstOrDefault(x => x.Id == id)?.Status : store.AssetStatuses.FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -122,7 +117,9 @@ public class AssetModel(HelpdeskStore store) : PageModel
             PurchaseOrder = (purchaseOrder ?? string.Empty).Trim(),
             WarrantyEnd = warrantyEnd,
             ReplacementDate = replacementDate,
-            LoanDueDate = loanDueDate
+            // Deliberately not editable here. A due-back date is what makes an assignment a loan, and loans need a
+            // reason, so they are set by Loan out and cleared by Return rather than typed into the details form.
+            LoanDueDate = current?.LoanDueDate
         };
         if (!store.UpdateAssetAttributeValues(id, type.Trim(), customAttributes))
         {
@@ -136,12 +133,12 @@ public class AssetModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { id });
     }
 
-    public IActionResult OnPostLoan(Guid id, Guid? userId, DateOnly? dueBack)
+    public IActionResult OnPostLoan(Guid id, Guid? userId, DateOnly? dueBack, string? reason)
     {
         if (!store.UserHasPermission(User, Permissions.ManageAssets)) return Forbid();
         Message = userId is null || dueBack is null
             ? "Choose who the device is loaned to and the date it is due back."
-            : store.LoanAsset(id, userId.Value, dueBack.Value);
+            : store.LoanAsset(id, userId.Value, dueBack.Value, reason).Message;
         return RedirectToPage(new { id });
     }
 

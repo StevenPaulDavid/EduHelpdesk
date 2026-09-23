@@ -3,10 +3,10 @@
 @model EduHelpdesk.Pages.Reports.LoanReportsModel
 @{ ViewData["Title"] = "Loan reports"; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Loan reports</h1><p class="hero-copy">Who is borrowing loan kits, how often, and why.</p></div>
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Loan reports</h1><p class="hero-copy">Who is borrowing devices, how often, and why — kits and individual assets together.</p></div>
     <div class="heading-actions">
-        <a class="button button-primary" asp-page="/Reports/LoansPrint" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" target="_blank">🖨 Print / Save as PDF</a>
-        <a class="button button-secondary" asp-page="/Loans">← Loan kits</a>
+        <a class="button button-primary" asp-page="/Reports/LoansPrint" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind" target="_blank">🖨 Print / Save as PDF</a>
+        <a class="button button-secondary" asp-page="/Loans">← Loans</a>
     </div>
 </div>
 <nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab active" asp-page="/Reports/Loans">Loan reports</a></nav>
@@ -14,27 +14,28 @@
 <section class="panel">
     <form method="get" class="audit-filters">
         <label>Period<select name="period">@foreach (var p in EduHelpdesk.Pages.Reports.LoanReportsModel.Periods) { <option value="@p.Key" selected="@(p.Key == Model.PeriodKey)">@p.Label</option> }</select></label>
-        <label>Reason<select name="reason"><option value="">All reasons</option>@foreach (var r in Model.Reasons) { <option value="@r" selected="@string.Equals(r, Model.Reason, StringComparison.OrdinalIgnoreCase)">@r</option> }</select></label>
+        <label>Loan type<select name="kind">@foreach (var k in EduHelpdesk.Pages.Reports.LoanReportsModel.Kinds) { <option value="@k.Key" selected="@(k.Key == (Model.Kind ?? ""))">@k.Label</option> }</select></label>
+        <label>Reason<select name="reason"><option value="">All reasons</option>@foreach (var r in Model.Reasons) { <option value="@r" selected="@string.Equals(r, Model.Reason, StringComparison.OrdinalIgnoreCase)">@r</option> }<option value="@LoanInsights.ReasonNotRecorded" selected="@string.Equals(LoanInsights.ReasonNotRecorded, Model.Reason, StringComparison.OrdinalIgnoreCase)">@LoanInsights.ReasonNotRecorded</option></select></label>
         <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Loans">Reset</a></div>
     </form>
 </section>
 
 <div class="metrics">
-    <div class="metric"><span>Loans in period</span><strong>@Model.Loans.Count</strong><small>@Model.PeriodLabel</small></div>
-    <div class="metric"><span>Different borrowers</span><strong>@Model.Borrowers.Count</strong><small>People who took a kit</small></div>
+    <div class="metric"><span>Loans in period</span><strong>@Model.Loans.Count</strong><small>@Model.PeriodLabel · @Model.KindLabel</small></div>
+    <div class="metric"><span>Different borrowers</span><strong>@Model.Borrowers.Count</strong><small>People who took a device</small></div>
     <div class="metric"><span>Flagged</span><strong>@Model.Flagged.Count</strong><small>@Model.RepeatCount+ in @Model.RepeatDays days</small></div>
     <div class="metric"><span>Out now</span><strong>@Model.Out.Count</strong><small>@Model.OverdueCount overdue</small></div>
 </div>
 
 <section class="panel" id="flagged">
-    <div class="panel-heading"><div><p class="eyebrow">NEEDS A CONVERSATION</p><h2>Repeat borrowers</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="borrowers" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason">⬇ Borrowers CSV</a><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="loans" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason">⬇ Loans CSV</a><span class="badge @(Model.Flagged.Count > 0 ? "badge-warning" : "")">@Model.Flagged.Count</span></div></div>
-    <p class="muted">Anyone who has taken <strong>@Model.RepeatCount or more</strong> kits in the last <strong>@Model.RepeatDays days</strong>. The threshold is set in Settings. Reasons are shown so genuine cases — supply staff, devices in repair — can be told apart from people repeatedly forgetting their own.</p>
+    <div class="panel-heading"><div><p class="eyebrow">NEEDS A CONVERSATION</p><h2>Repeat borrowers</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="borrowers" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ Borrowers CSV</a><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="loans" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ Loans CSV</a><span class="badge @(Model.Flagged.Count > 0 ? "badge-warning" : "")">@Model.Flagged.Count</span></div></div>
+    <p class="muted">Anyone who has taken <strong>@Model.RepeatCount or more</strong> devices in the last <strong>@Model.RepeatDays days</strong>, counting kits and individual assets together. The threshold is set in Settings. Reasons are shown so genuine cases — supply staff, devices in repair — can be told apart from people repeatedly forgetting their own. Loans with no reason recorded are never counted here.</p>
     <div class="table-wrap"><table><thead><tr><th>Person</th><th>Loans</th><th>Reasons</th><th>Most recent</th><th>Still out</th></tr></thead><tbody>
     @foreach (var row in Model.Flagged)
     {
         <tr>
             <td><strong>@row.Name</strong></td>
-            <td><span class="badge badge-warning">@row.Count</span></td>
+            <td><span class="badge badge-warning">@row.CountedLoans</span></td>
             <td>@string.Join(", ", row.ByReason.Select(x => $"{x.Reason} ({x.Count})"))</td>
             <td>@row.LastIssued.ToLocalTime().ToString("dd MMM yyyy")</td>
             <td>@(row.StillOut > 0 ? row.StillOut.ToString() : "—")</td>
@@ -45,7 +46,8 @@
 </section>
 
 <section class="panel" id="borrowers">
-    <div class="panel-heading"><div><p class="eyebrow">BY PERSON</p><h2>Everyone who borrowed a kit</h2></div><span class="badge">@Model.PeriodLabel</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">BY PERSON</p><h2>Everyone who borrowed a device</h2></div><span class="badge">@Model.PeriodLabel</span></div>
+    @if (Model.NotRecordedCount > 0) { <p class="muted">@Model.NotRecordedCount loan@(Model.NotRecordedCount == 1 ? "" : "s") in this period pre-date reasons being recorded. They are listed as <em>@LoanInsights.ReasonNotRecorded</em> and left out of the flagged list above.</p> }
     @foreach (var row in Model.Borrowers)
     {
         <details class="loan-person" open="@(Model.IsFlagged(row))">
@@ -54,26 +56,27 @@
                 <span class="badge @(Model.IsFlagged(row) ? "badge-warning" : "")">@row.Count loan@(row.Count == 1 ? "" : "s")</span>
                 <span class="muted">@string.Join(", ", row.ByReason.Select(x => $"{x.Reason} ({x.Count})"))</span>
             </summary>
-            <div class="table-wrap"><table><thead><tr><th>Issued</th><th>Kit</th><th>Reason</th><th>Due back</th><th>Returned</th><th>Kept</th></tr></thead><tbody>
+            <div class="table-wrap"><table><thead><tr><th>Issued</th><th>Type</th><th>What</th><th>Reason</th><th>Due back</th><th>Returned</th><th>Kept</th></tr></thead><tbody>
             @foreach (var loan in row.Loans)
             {
                 <tr>
-                    <td>@loan.IssuedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
-                    <td>@Model.KitName(loan.KitId)</td>
-                    <td>@loan.Reason</td>
-                    <td>@AssetInsights.Format(loan.DueBack)</td>
+                    <td>@(loan.IssuedAt is { } issued ? issued.ToLocalTime().ToString("dd MMM yyyy, HH:mm") : "—")</td>
+                    <td><span class="badge">@loan.Kind</span></td>
+                    <td>@loan.What</td>
+                    <td>@loan.ReasonLabel</td>
+                    <td>@(loan.DueBack is { } due ? AssetInsights.Format(due) : "—")</td>
                     <td>@(loan.ReturnedAt is null ? "—" : loan.ReturnedAt.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm"))</td>
-                    <td>@Model.Duration(loan)@if (loan.ReturnedAt is null) { <text> </text><span class="badge @(loan.DueBack < Model.Today ? "badge-warning" : "")">still out</span> }</td>
+                    <td>@Model.Duration(loan)@if (loan.IsOut) { <text> </text><span class="badge @(loan.IsOverdue(Model.Today) ? "badge-warning" : "")">still out</span> }</td>
                 </tr>
             }
             </tbody></table></div>
         </details>
     }
-    @if (Model.Borrowers.Count == 0) { <p class="empty">No kits were issued in this period.</p> }
+    @if (Model.Borrowers.Count == 0) { <p class="empty">No devices were lent out in this period.</p> }
 </section>
 
 <section class="panel" id="reasons">
-    <div class="panel-heading"><div><p class="eyebrow">WHY</p><h2>Reason breakdown</h2></div><span class="badge">@Model.Loans.Count loans</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">WHY</p><h2>Reason breakdown</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="reasons" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ CSV</a><span class="badge">@Model.Loans.Count loans</span></div></div>
     <div class="table-wrap"><table><thead><tr><th>Reason</th><th>Loans</th><th>Share</th></tr></thead><tbody>
     @foreach (var (reason, count) in Model.ReasonBreakdown)
     {
@@ -89,20 +92,21 @@
 </section>
 
 <section class="panel" id="out">
-    <div class="panel-heading"><div><p class="eyebrow">STILL OUT</p><h2>Currently on loan</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.Out.Count</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Kit</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Due back</th><th>Out for</th></tr></thead><tbody>
+    <div class="panel-heading"><div><p class="eyebrow">STILL OUT</p><h2>Currently on loan</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="out" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ CSV</a><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.Out.Count</span></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>What</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Due back</th><th>Out for</th></tr></thead><tbody>
     @foreach (var loan in Model.Out)
     {
-        var overdue = loan.DueBack < Model.Today;
+        var overdue = loan.IsOverdue(Model.Today);
         <tr>
-            <td><strong>@Model.KitName(loan.KitId)</strong></td>
+            <td><span class="badge">@loan.Kind</span></td>
+            <td><strong>@loan.What</strong></td>
             <td>@loan.BorrowerName</td>
-            <td>@loan.Reason</td>
-            <td>@loan.IssuedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
-            <td><span class="badge @(overdue ? "badge-warning" : "")">@AssetInsights.Format(loan.DueBack)</span></td>
+            <td>@loan.ReasonLabel</td>
+            <td>@(loan.IssuedAt is { } issued ? issued.ToLocalTime().ToString("dd MMM yyyy") : "—")</td>
+            <td>@(loan.DueBack is { } due ? Html.Raw($"<span class=\"badge {(overdue ? "badge-warning" : "")}\">{AssetInsights.Format(due)}</span>") : Html.Raw("—"))</td>
             <td>@Model.Duration(loan)</td>
         </tr>
     }
-    @if (Model.Out.Count == 0) { <tr><td colspan="6" class="empty">Every kit is back in.</td></tr> }
+    @if (Model.Out.Count == 0) { <tr><td colspan="7" class="empty">Everything is back in.</td></tr> }
     </tbody></table></div>
 </section>
