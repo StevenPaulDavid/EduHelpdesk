@@ -26,9 +26,12 @@
 }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Ticket reports</h1><p class="hero-copy">How well tickets are being dealt with: whether deadlines are met, how the work is shared out, and what keeps coming back.</p></div>
-    <a class="button button-secondary" asp-page="/Index">← Overview</a>
+    <div class="heading-actions">
+        <a class="button button-primary" asp-page="/Reports/TicketsPrint" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" target="_blank">🖨 Print / Save as PDF</a>
+        <a class="button button-secondary" asp-page="/Index">← Overview</a>
+    </div>
 </div>
-<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab active" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a></nav>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab active" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab" asp-page="/Reports/Loans">Loan reports</a></nav>
 
 <section class="panel">
     <form method="get" class="audit-filters">
@@ -48,7 +51,7 @@
 </div>
 
 <section class="panel" id="sla">
-    <div class="panel-heading"><div><p class="eyebrow">DEADLINES</p><h2>SLA performance</h2></div><span class="badge @(Model.Overall.Breached > 0 ? "badge-warning" : "")">@Model.Overall.Breached missed</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">DEADLINES</p><h2>SLA performance</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="sla" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ CSV</a><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="overdue" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ Overdue CSV</a><span class="badge @(Model.Overall.Breached > 0 ? "badge-warning" : "")">@Model.Overall.Breached missed</span></div></div>
     <p class="muted">A ticket is <strong>on time</strong> when it was closed by its due date, <strong>late</strong> when it was closed after it, and <strong>open and overdue</strong> when it is still open past its due date. The on-time rate leaves out tickets that are open but not yet due, and tickets with no due date. The worst-performing rows come first. Resolution time runs from creation to closing.</p>
     @{ await SlaTable("By ticket type", "Type", Model.ByType); }
     @{ await SlaTable("By priority", "Priority", Model.ByPriority); }
@@ -72,7 +75,7 @@
 </section>
 
 <section class="panel" id="workload">
-    <div class="panel-heading"><div><p class="eyebrow">WORKLOAD</p><h2>Technician workload</h2></div><span class="badge">@Model.OpenNow open now</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">WORKLOAD</p><h2>Technician workload</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="workload" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ CSV</a><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="teams" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ Teams CSV</a><span class="badge">@Model.OpenNow open now</span></div></div>
     <p class="muted">Open tickets are counted now; closed tickets are those closed @Model.WhenText. Tickets no one has picked up are under Unassigned.</p>
     <div class="table-wrap"><table><thead><tr><th>Technician</th><th>Open</th><th>Incidents</th><th>Requests</th><th>Overdue</th><th>Oldest open</th><th>Closed in period</th><th>Average resolution</th></tr></thead><tbody>
     @foreach (var row in Model.Workload)
@@ -97,7 +100,7 @@
 </section>
 
 <section class="panel" id="repeat">
-    <div class="panel-heading"><div><p class="eyebrow">REPEAT PROBLEMS</p><h2>What keeps coming back</h2></div><span class="badge">@Model.PeriodLabel</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">REPEAT PROBLEMS</p><h2>What keeps coming back</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="assets" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ Assets CSV</a><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="repeat-faults" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ Faults CSV</a><a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="requesters" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type">⬇ Requesters CSV</a><span class="badge">@Model.PeriodLabel</span></div></div>
     <h3>Devices with repeat faults</h3>
     <p class="muted">The same device with tickets in the same category more than once. A first fix that did not hold, or a device that is on its way out.</p>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Category</th><th>Tickets</th><th>First</th><th>Most recent</th></tr></thead><tbody>

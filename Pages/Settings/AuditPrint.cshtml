@@ -1,0 +1,41 @@
+@page
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Settings.AuditPrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "System audit log";
+    var filters = new List<string>();
+    if (!string.IsNullOrWhiteSpace(Model.Section)) { filters.Add(Model.Section); }
+    if (!string.IsNullOrWhiteSpace(Model.ActionFilter)) { filters.Add(Model.ActionFilter); }
+    if (!string.IsNullOrWhiteSpace(Model.ActorFilter)) { filters.Add("by " + Model.ActorFilter); }
+    if (!string.IsNullOrWhiteSpace(Model.Search)) { filters.Add($"\"{Model.Search}\""); }
+    if (Model.From is { } from) { filters.Add("from " + from.ToString("dd MMM yyyy")); }
+    if (Model.To is { } to) { filters.Add("to " + to.ToString("dd MMM yyyy")); }
+    ViewData["ReportSubtitle"] = filters.Count == 0 ? "All events" : string.Join(" · ", filters);
+    ViewData["ReportFootnote"] = "An append-only record of changes made in the helpdesk. It names individuals - handle it in line with the school's data protection policy.";
+}
+
+<div class="note">
+    <strong>@Model.MatchCount</strong> event@(Model.MatchCount == 1 ? "" : "s")@(Model.IsFiltered ? $" matching these filters, out of {Model.TotalEvents} in total" : " recorded"), newest first.
+    Entries recorded before the system started naming who made each change show a dash.
+</div>
+
+<section>
+    <table>
+        <thead><tr><th>When</th><th>Who</th><th>Area</th><th>Item</th><th>Action</th><th>Details</th></tr></thead>
+        <tbody>
+        @foreach (var entry in Model.Entries)
+        {
+            <tr>
+                <td>@entry.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm:ss")</td>
+                <td>@Actor.Label(entry.By)</td>
+                <td>@entry.Area</td>
+                <td>@entry.Entity</td>
+                <td>@entry.Action</td>
+                <td>@entry.Details</td>
+            </tr>
+        }
+        @if (Model.Entries.Count == 0) { <tr><td colspan="6" class="empty">@(Model.IsFiltered ? "No events match these filters." : "Nothing has been recorded yet.")</td></tr> }
+        </tbody>
+    </table>
+</section>

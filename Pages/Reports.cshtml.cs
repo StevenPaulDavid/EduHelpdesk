@@ -1,12 +1,15 @@
 using EduHelpdesk.Models;
 using EduHelpdesk.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
 public class ReportsModel(HelpdeskStore store) : PageModel
 {
-    public const int RowLimit = 100;
+    // How many rows each long table shows. Virtual so the print view can show every row - a report handed to someone
+    // should not stop at 100 with no way to see the rest.
+    public virtual int RowLimit => 100;
     public static readonly int[] WarrantyWindows = [30, 60, 90, 180, 365];
     public static readonly (string Key, string Label, int? Months)[] Periods = [("all", "All time", null), ("12m", "Last 12 months", 12), ("6m", "Last 6 months", 6), ("3m", "Last 3 months", 3)];
 
@@ -113,6 +116,46 @@ public class ReportsModel(HelpdeskStore store) : PageModel
             .OrderByDescending(x => x.Tickets).ThenByDescending(x => x.LastTicket).ThenBy(x => x.Asset.AssetTag, StringComparer.OrdinalIgnoreCase)
             .Take(15).ToList();
     }
+
+    // One CSV per table rather than one per report: a report has several unrelated tables, and stacking them into one
+    // file makes something no spreadsheet can pivot. OnGet is called explicitly because Razor Pages runs only the
+    // matched handler, so the filters in the query string apply to the export exactly as they do on screen.
+    public IActionResult OnGetExport(string? table)
+    {
+        OnGet();
+        var (name, csv) = (table ?? "").ToLowerInvariant() switch
+        {
+            "review" => ("asset-review", Csv.Table(
+                ["Asset tag", "Make", "Model", "Type", "Held by", "Reason", "Detail", "Overdue"],
+                Review.SelectMany(item => item.Reasons.Select(reason => (item.Asset, reason))),
+                x => [x.Asset.AssetTag, x.Asset.Make, x.Asset.Model, x.Asset.Type, HolderName(x.Asset) ?? "", x.reason.Kind, x.reason.Text, x.reason.Overdue ? "Yes" : "No"])),
+            "counts" => ("asset-counts", Csv.Table(
+                ["Breakdown", "Name", "Assets", "Share %"],
+                CountTables.SelectMany(t => t.Rows.Select(r => (t.Title, r))),
+                x => [x.Title, x.r.Name, x.r.Count.ToString(), TotalAssets == 0 ? "0" : (x.r.Count * 100.0 / TotalAssets).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)])),
+            "age" => ("asset-age", Csv.Table(
+                ["Type", "Assets", "With a purchase date", "Average age (years)", "Oldest (years)", "Due or overdue for replacement"],
+                Age,
+                x => [x.Type, x.Count.ToString(), x.WithPurchaseDate.ToString(), Number(x.AverageYears), Number(x.OldestYears), x.DueOrOverdue.ToString()])),
+            "replacements" => ("asset-replacements", Csv.Table(
+                ["Asset tag", "Type", "Make", "Model", "Age (years)", "Replacement date", "Overdue"],
+                Replacements,
+                x => [x.Asset.AssetTag, x.Asset.Type, x.Asset.Make, x.Asset.Model, Number(x.AgeYears), x.Due.ToString("yyyy-MM-dd"), x.Due < Today ? "Yes" : "No"])),
+            "warranty" => ("asset-warranty", Csv.Table(
+                ["State", "Asset tag", "Type", "Make", "Model", "Held by", "Warranty end"],
+                Expiring.Select(x => ("Expiring", x)).Concat(Expired.Select(x => ("Expired", x))),
+                x => [x.Item1, x.x.Asset.AssetTag, x.x.Asset.Type, x.x.Asset.Make, x.x.Asset.Model, HolderName(x.x.Asset) ?? "", x.x.Ends.ToString("yyyy-MM-dd")])),
+            "problems" => ("asset-problems", Csv.Table(
+                ["Asset tag", "Make", "Model", "Type", "Tickets", "Open now", "Most recent ticket"],
+                Problems,
+                x => [x.Asset.AssetTag, x.Asset.Make, x.Asset.Model, x.Asset.Type, x.Tickets.ToString(), x.Open.ToString(), x.LastTicket?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? ""])),
+            _ => ("", "")
+        };
+        if (name.Length == 0) return NotFound();
+        return File(Csv.ToBytes(csv), Csv.ContentType, Csv.FileName(name, DateTime.Now));
+    }
+
+    private static string Number(double? value) => value?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "";
 
     public string? HolderName(AssetRecord asset) => asset.AssignedUserId is { } id ? store.Users.FirstOrDefault(x => x.Id == id)?.Name : null;
 

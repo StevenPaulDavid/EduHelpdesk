@@ -3,9 +3,11 @@ using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace EduHelpdesk.Pages.Loans;
+namespace EduHelpdesk.Pages.Reports;
 
-public class ReportModel(HelpdeskStore store) : PageModel
+// Lives with the other reports rather than in the Loans module: /Loans is the desk screen for issuing and booking kits
+// back in, and this is a management report about the same data, so it belongs next to the asset, ticket and parts ones.
+public class LoanReportsModel(HelpdeskStore store) : PageModel
 {
     // "4 loan machines in the last 2 weeks" is the conversation this report exists for, so 14 days leads.
     public static readonly (string Key, string Label, int? Days)[] Periods =
@@ -64,6 +66,37 @@ public class ReportModel(HelpdeskStore store) : PageModel
 
         Out = LoanInsights.CurrentlyOut(all);
         OverdueCount = Out.Count(x => x.DueBack < Today);
+    }
+
+    public IActionResult OnGetExport(string? table)
+    {
+        OnGet();
+        var (name, csv) = (table ?? "").ToLowerInvariant() switch
+        {
+            // One row per loan, with the borrower repeated, so it pivots by person or by reason in a spreadsheet.
+            "loans" => ("loans", Csv.Table(
+                ["Borrower", "Kit", "Reason", "Issued (local)", "Due back", "Returned (local)", "Kept", "Issued by", "Notes"],
+                Loans.OrderByDescending(x => x.IssuedAt),
+                x => [x.BorrowerName, KitName(x.KitId), x.Reason, x.IssuedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), x.DueBack.ToString("yyyy-MM-dd"),
+                      x.ReturnedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "", Duration(x), x.IssuedBy, x.Notes])),
+            "borrowers" => ("loan-borrowers", Csv.Table(
+                ["Person", "Loans", "Reasons", "Most recent (local)", "Still out", "Flagged"],
+                Borrowers,
+                x => [x.Name, x.Count.ToString(), string.Join("; ", x.ByReason.Select(r => $"{r.Reason} ({r.Count})")),
+                      x.LastIssued.ToLocalTime().ToString("yyyy-MM-dd"), x.StillOut.ToString(), IsFlagged(x) ? "Yes" : "No"])),
+            "reasons" => ("loan-reasons", Csv.Table(
+                ["Reason", "Loans", "Share %"],
+                ReasonBreakdown,
+                x => [x.Reason, x.Count.ToString(), Loans.Count == 0 ? "0" : (x.Count * 100.0 / Loans.Count).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)])),
+            "out" => ("loans-still-out", Csv.Table(
+                ["Kit", "Borrower", "Reason", "Issued (local)", "Due back", "Overdue", "Out for"],
+                Out,
+                x => [KitName(x.KitId), x.BorrowerName, x.Reason, x.IssuedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), x.DueBack.ToString("yyyy-MM-dd"),
+                      x.DueBack < Today ? "Yes" : "No", Duration(x)])),
+            _ => ("", "")
+        };
+        if (name.Length == 0) return NotFound();
+        return File(Csv.ToBytes(csv), Csv.ContentType, Csv.FileName(name, DateTime.Now));
     }
 
     public string KitName(Guid kitId) => Kits.FirstOrDefault(x => x.Id == kitId)?.Name ?? "Unknown kit";

@@ -1,50 +1,13 @@
 @page
 @using EduHelpdesk.Services
-@model EduHelpdesk.Pages.Loans.ReportPrintModel
-@{ Layout = null; }
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Loan kit report — @Model.PeriodLabel</title>
-<style>
-    @@page { size: A4 portrait; margin: 14mm 13mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Calibri, Arial, Helvetica, sans-serif; color: #17252f; font-size: 10.5pt; line-height: 1.45; }
-    h1 { font-size: 20pt; margin: 0; letter-spacing: -.01em; }
-    h2 { font-size: 12.5pt; margin: 0 0 2mm; color: #07585b; page-break-after: avoid; }
-    p { margin: 0 0 2.5mm; }
-    .head { border-bottom: 2px solid #07585b; padding-bottom: 3mm; margin-bottom: 4mm; display: flex; justify-content: space-between; align-items: baseline; gap: 8mm; }
-    .head .meta { text-align: right; font-size: 9pt; color: #5c6e75; white-space: nowrap; }
-    .sub { color: #5c6e75; font-size: 9.5pt; margin-top: 1mm; }
-    section { margin-bottom: 6mm; page-break-inside: auto; }
-    table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin-top: 2mm; }
-    th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .06em; color: #5c6e75; border-bottom: 1px solid #b9cbcd; padding: 0 3mm 1.5mm 0; }
-    td { padding: 1.8mm 3mm 1.8mm 0; border-bottom: 1px solid #e3ecec; vertical-align: top; }
-    tr { page-break-inside: avoid; }
-    .flag { background: #fbf0e2; }
-    .count { font-weight: 700; }
-    .pill { display: inline-block; font-size: 8.5pt; font-weight: 700; padding: .4mm 2mm; border-radius: 3mm; background: #e6f0ef; color: #07585b; }
-    .pill-warn { background: #f5dfc4; color: #8a5210; }
-    .note { background: #f2f6f6; border-left: 3px solid #07585b; padding: 3mm 3.5mm; margin-bottom: 4mm; font-size: 9.5pt; }
-    .person { margin-bottom: 3.5mm; page-break-inside: avoid; }
-    .person-head { font-weight: 700; border-bottom: 1px solid #b9cbcd; padding-bottom: 1mm; margin-bottom: 1mm; }
-    .empty { color: #5c6e75; font-style: italic; }
-    .foot { margin-top: 6mm; border-top: 1px solid #b9cbcd; padding-top: 2.5mm; font-size: 8.5pt; color: #5c6e75; }
-    .no-print { margin: 6mm 0; display: flex; gap: 8px; }
-    .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
-    @@media print { .no-print { display: none !important; } }
-</style>
-</head>
-<body onload="window.print()">
-
-<div class="head">
-    <div>
-        <h1>Loan kit report</h1>
-        <div class="sub">@Model.BrandName · @Model.PeriodLabel@(string.IsNullOrWhiteSpace(Model.Reason) ? "" : " · " + Model.Reason)</div>
-    </div>
-    <div class="meta">Generated @Model.GeneratedAt.ToString("dd MMM yyyy, HH:mm")</div>
-</div>
+@model EduHelpdesk.Pages.Reports.LoansPrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Loan kit report";
+    ViewData["ReportSubtitle"] = Model.PeriodLabel + (string.IsNullOrWhiteSpace(Model.Reason) ? "" : " · " + Model.Reason);
+    ViewData["ReportFootnote"] = "Figures cover loan kits issued from the IT office and recorded at the time of issue. "
+        + "This report is about equipment use; please handle it in line with the school's staff data and HR procedures.";
+}
 
 <div class="note">
     <strong>@Model.Loans.Count loan@(Model.Loans.Count == 1 ? "" : "s")</strong> to <strong>@Model.Borrowers.Count</strong> different
@@ -140,16 +103,3 @@
         </tbody>
     </table>
 </section>
-
-<div class="foot">
-    Produced from @Model.BrandName. Figures cover loan kits issued from the IT office and recorded at the time of issue.
-    This report is about equipment use; please handle it in line with your school's staff data and HR procedures.
-</div>
-
-<div class="no-print">
-    <button type="button" onclick="window.print()">Print again</button>
-    <button type="button" onclick="window.close()">Close</button>
-</div>
-
-</body>
-</html>

@@ -4,7 +4,7 @@
 @{ ViewData["Title"] = "Loans"; }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>Loans</h1><p class="hero-copy">Issue a loan kit, book it back in, and keep a record of who keeps needing one.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Loans/Report">Loan report</a><a class="button button-primary" asp-page="/Loans/Kit">＋ Add kit</a></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Reports/Loans">Loan report</a><a class="button button-primary" asp-page="/Loans/Kit">＋ Add kit</a></div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

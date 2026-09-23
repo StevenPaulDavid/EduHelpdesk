@@ -1,0 +1,128 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.PrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Asset report";
+    ViewData["ReportSubtitle"] = $"{Model.TotalAssets} assets · warranty window {Model.EffectiveWarrantyDays} days · problem devices {ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label.ToLowerInvariant()}";
+}
+
+<div class="note">
+    <strong>@Model.Review.Count</strong> asset@(Model.Review.Count == 1 ? "" : "s") need@(Model.Review.Count == 1 ? "s" : "") review,
+    <strong>@Model.ReplacementCount</strong> @(Model.ReplacementCount == 1 ? "is" : "are") due for replacement within a year, and
+    <strong>@Model.ExpiringCount</strong> warrant@(Model.ExpiringCount == 1 ? "y ends" : "ies end") within @Model.EffectiveWarrantyDays days.
+</div>
+
+<section>
+    <h2>Assets to review (@Model.Review.Count)</h2>
+    <p>Warranty ending or replacement due within @Model.ReviewWindowDays days or already past, plus overdue loans.</p>
+    <table>
+        <thead><tr><th>Asset</th><th>Make and model</th><th>Held by</th><th>Why it needs review</th></tr></thead>
+        <tbody>
+        @foreach (var item in Model.Review)
+        {
+            <tr>
+                <td class="count">@item.Asset.AssetTag</td>
+                <td>@item.Asset.Make @item.Asset.Model</td>
+                <td>@(Model.HolderName(item.Asset) ?? "—")</td>
+                <td>@foreach (var reason in item.Reasons) { <div><span class="pill @(reason.Overdue ? "pill-warn" : "")">@reason.Kind</span> @reason.Text</div> }</td>
+            </tr>
+        }
+        @if (Model.Review.Count == 0) { <tr><td colspan="4" class="empty">No assets need review right now.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Breakdown — @Model.TotalAssets assets</h2>
+    <div class="columns">
+        @foreach (var (title, rows) in Model.CountTables)
+        {
+            <div>
+                <h3>@title</h3>
+                <table>
+                    <thead><tr><th>Name</th><th class="num">Assets</th><th class="num">Share</th></tr></thead>
+                    <tbody>
+                    @foreach (var row in rows)
+                    {
+                        var share = Model.TotalAssets == 0 ? 0 : row.Count * 100.0 / Model.TotalAssets;
+                        <tr><td>@row.Name</td><td class="num">@row.Count</td><td class="num">@share.ToString("0")%</td></tr>
+                    }
+                    @if (rows.Count == 0) { <tr><td colspan="3" class="empty">No assets yet.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+<section>
+    <h2>Fleet age and refresh</h2>
+    <p>
+        @(Model.FleetAverageYears.HasValue ? $"Average age {Model.FleetAverageYears.Value:0.0} years." : "No purchase dates recorded.")
+        @(Model.MissingPurchaseDate > 0 ? $"{Model.MissingPurchaseDate} of {Model.TotalAssets} assets have no purchase date and are left out of the ages below." : "")
+    </p>
+    <table>
+        <thead><tr><th>Type</th><th class="num">Assets</th><th class="num">With a purchase date</th><th class="num">Average age</th><th class="num">Oldest</th><th class="num">Due or overdue</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Age)
+        {
+            <tr><td>@row.Type</td><td class="num">@row.Count</td><td class="num">@row.WithPurchaseDate</td><td class="num">@ReportsModel.Years(row.AverageYears)</td><td class="num">@ReportsModel.Years(row.OldestYears)</td><td class="num">@row.DueOrOverdue</td></tr>
+        }
+        @if (Model.Age.Count == 0) { <tr><td colspan="6" class="empty">No assets yet.</td></tr> }
+        </tbody>
+    </table>
+
+    <h3>Replacement planning — @Model.ReplacementCount due within a year</h3>
+    <table>
+        <thead><tr><th>Asset</th><th>Type</th><th class="num">Age</th><th>Replacement date</th><th>When</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Replacements)
+        {
+            <tr class="@(row.Due < Model.Today ? "flag" : "")"><td class="count">@row.Asset.AssetTag</td><td>@row.Asset.Type</td><td class="num">@ReportsModel.Years(row.AgeYears)</td><td>@AssetInsights.Format(row.Due)</td><td>@ReportsModel.DaysFrom(row.Due, Model.Today)</td></tr>
+        }
+        @if (Model.Replacements.Count == 0) { <tr><td colspan="5" class="empty">Nothing is due for replacement in the next 12 months.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Warranty ending within @Model.EffectiveWarrantyDays days (@Model.ExpiringCount)</h2>
+    <table>
+        <thead><tr><th>Asset</th><th>Type</th><th>Held by</th><th>Warranty ends</th><th>When</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Expiring)
+        {
+            <tr><td class="count">@row.Asset.AssetTag</td><td>@row.Asset.Type</td><td>@(Model.HolderName(row.Asset) ?? "—")</td><td>@AssetInsights.Format(row.Ends)</td><td>@ReportsModel.DaysFrom(row.Ends, Model.Today)</td></tr>
+        }
+        @if (Model.Expiring.Count == 0) { <tr><td colspan="5" class="empty">No warranties end in this window.</td></tr> }
+        </tbody>
+    </table>
+
+    <h3>Already out of warranty — @Model.ExpiredCount</h3>
+    <table>
+        <thead><tr><th>Asset</th><th>Type</th><th>Held by</th><th>Warranty ended</th><th>When</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Expired)
+        {
+            <tr><td class="count">@row.Asset.AssetTag</td><td>@row.Asset.Type</td><td>@(Model.HolderName(row.Asset) ?? "—")</td><td>@AssetInsights.Format(row.Ends)</td><td>@ReportsModel.DaysFrom(row.Ends, Model.Today)</td></tr>
+        }
+        @if (Model.Expired.Count == 0) { <tr><td colspan="5" class="empty">No assets with a recorded warranty end date are out of warranty.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Assets with the most tickets — @ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label.ToLowerInvariant()</h2>
+    <p>Devices that keep coming back are candidates for replacement.</p>
+    <table>
+        <thead><tr><th>Asset</th><th>Make and model</th><th>Type</th><th class="num">Tickets</th><th class="num">Open now</th><th>Most recent</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Problems)
+        {
+            <tr><td class="count">@row.Asset.AssetTag</td><td>@row.Asset.Make @row.Asset.Model</td><td>@row.Asset.Type</td><td class="num">@row.Tickets</td><td class="num">@row.Open</td><td>@row.LastTicket?.ToLocalTime().ToString("dd MMM yyyy")</td></tr>
+        }
+        @if (Model.Problems.Count == 0) { <tr><td colspan="6" class="empty">No tickets are linked to assets in this period.</td></tr> }
+        </tbody>
+    </table>
+</section>

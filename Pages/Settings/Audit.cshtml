@@ -3,7 +3,11 @@
 @{ ViewData["Title"] = "System audit"; }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>System audit</h1><p class="hero-copy">Every change made in the helpdesk, newest first. Filter by area, action, date or search text.</p></div>
-    <a class="button button-secondary" asp-page="/Settings">← Settings</a>
+    <div class="heading-actions">
+        <a class="button button-primary" asp-page="/Settings/AuditPrint" asp-route-section="@Model.Section" asp-route-act="@Model.ActionFilter" asp-route-who="@Model.ActorFilter" asp-route-q="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" target="_blank">🖨 Print / Save as PDF</a>
+        <a class="button button-secondary" asp-page="/Settings/Audit" asp-page-handler="Export" asp-route-section="@Model.Section" asp-route-act="@Model.ActionFilter" asp-route-who="@Model.ActorFilter" asp-route-q="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")">⬇ CSV</a>
+        <a class="button button-secondary" asp-page="/Settings">← Settings</a>
+    </div>
 </div>
 <section class="panel">
     <form method="get" class="audit-filters">
@@ -37,7 +41,7 @@
     {
         <div class="audit-pager">
             @if (Model.PageNumber > 1) { <a class="button button-secondary" asp-page="/Settings/Audit" asp-route-section="@Model.Section" asp-route-act="@Model.ActionFilter" asp-route-who="@Model.ActorFilter" asp-route-q="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-p="@(Model.PageNumber - 1)">← Newer</a> }
-            <span class="muted">Showing @((Model.PageNumber - 1) * AuditModel.PageSize + 1)–@Math.Min(Model.PageNumber * AuditModel.PageSize, Model.MatchCount) of @Model.MatchCount</span>
+            <span class="muted">Showing @((Model.PageNumber - 1) * Model.PageSize + 1)–@Math.Min(Model.PageNumber * Model.PageSize, Model.MatchCount) of @Model.MatchCount</span>
             @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" asp-page="/Settings/Audit" asp-route-section="@Model.Section" asp-route-act="@Model.ActionFilter" asp-route-who="@Model.ActorFilter" asp-route-q="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-p="@(Model.PageNumber + 1)">Older →</a> }
         </div>
     }

@@ -21,6 +21,16 @@ public class PartReportsModel(HelpdeskStore store) : PageModel
         LowStock = PartInsights.LowStock(parts, DefaultReorderThreshold);
     }
 
+    public Microsoft.AspNetCore.Mvc.IActionResult OnGetExport()
+    {
+        OnGet();
+        var csv = Csv.Table(
+            ["Part", "SKU", "Category", "Location", "Suppliers", "Quantity on hand", "Reorder threshold", "Out of stock"],
+            LowStock,
+            x => [x.Name, x.Sku, x.Category, x.Location, SupplierNames(x), x.QuantityOnHand.ToString(), Threshold(x).ToString(), x.QuantityOnHand == 0 ? "Yes" : "No"]);
+        return File(Csv.ToBytes(csv), Csv.ContentType, Csv.FileName("parts-low-stock", DateTime.Now));
+    }
+
     public int Threshold(PartRecord part) => part.ReorderThreshold ?? DefaultReorderThreshold;
 
     public string SupplierNames(PartRecord part) =>

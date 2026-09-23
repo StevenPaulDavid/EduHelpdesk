@@ -6,7 +6,10 @@ namespace EduHelpdesk.Pages.Settings;
 
 public class AuditModel(HelpdeskStore store) : PageModel
 {
-    public const int PageSize = 50;
+    // Virtual so the print view can take the whole filtered log rather than the page on screen; the CSV export flips
+    // the same switch locally (see OnGetExport).
+    public virtual int PageSize => _exportingEverything ? int.MaxValue : 50;
+    private bool _exportingEverything;
     public static readonly IReadOnlyList<string> Areas = ["Tickets", "Assets", "Users", "Technicians", "Suppliers", "Parts", "Lists", "SLAs", "Ticket templates", "Custom attributes", "Settings", "System"];
 
     // "area" and "action" are reserved routing names, so the query string uses section and act.
@@ -73,6 +76,19 @@ public class AuditModel(HelpdeskStore store) : PageModel
             .Concat(store.Suppliers.Select(x => $"Supplier|{x.Id}"))
             .Concat(store.Parts.Select(x => $"Part|{x.Id}"))
             .ToHashSet();
+    }
+
+    // Exports every row matching the current filters, not the page on screen - the same principle as "select all
+    // matching" on the list pages. PageSize is lifted for the duration so the paging step keeps the whole set.
+    public IActionResult OnGetExport()
+    {
+        _exportingEverything = true;
+        OnGet();
+        var csv = Csv.Table(
+            ["When (local)", "Who", "Area", "Item", "Action", "Details"],
+            Entries,
+            x => [x.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), x.By?.Name ?? "", x.Area, x.Entity, x.Action, x.Details]);
+        return File(Csv.ToBytes(csv), Csv.ContentType, Csv.FileName("audit-log", DateTime.Now));
     }
 
     // Only records that still exist can be linked to.

@@ -1,20 +1,21 @@
 @page
 @using EduHelpdesk.Services
-@model EduHelpdesk.Pages.Loans.ReportModel
-@{ ViewData["Title"] = "Loan report"; }
+@model EduHelpdesk.Pages.Reports.LoanReportsModel
+@{ ViewData["Title"] = "Loan reports"; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>Loan report</h1><p class="hero-copy">Who is borrowing loan kits, how often, and why.</p></div>
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Loan reports</h1><p class="hero-copy">Who is borrowing loan kits, how often, and why.</p></div>
     <div class="heading-actions">
-        <a class="button button-secondary" asp-page="/Loans">← Loans</a>
-        <a class="button button-primary" asp-page="/Loans/ReportPrint" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" target="_blank">🖨 Print / Save as PDF</a>
+        <a class="button button-primary" asp-page="/Reports/LoansPrint" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" target="_blank">🖨 Print / Save as PDF</a>
+        <a class="button button-secondary" asp-page="/Loans">← Loan kits</a>
     </div>
 </div>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab active" asp-page="/Reports/Loans">Loan reports</a></nav>
 
 <section class="panel">
     <form method="get" class="audit-filters">
-        <label>Period<select name="period">@foreach (var p in EduHelpdesk.Pages.Loans.ReportModel.Periods) { <option value="@p.Key" selected="@(p.Key == Model.PeriodKey)">@p.Label</option> }</select></label>
+        <label>Period<select name="period">@foreach (var p in EduHelpdesk.Pages.Reports.LoanReportsModel.Periods) { <option value="@p.Key" selected="@(p.Key == Model.PeriodKey)">@p.Label</option> }</select></label>
         <label>Reason<select name="reason"><option value="">All reasons</option>@foreach (var r in Model.Reasons) { <option value="@r" selected="@string.Equals(r, Model.Reason, StringComparison.OrdinalIgnoreCase)">@r</option> }</select></label>
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Loans/Report">Reset</a></div>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Loans">Reset</a></div>
     </form>
 </section>
 
@@ -26,7 +27,7 @@
 </div>
 
 <section class="panel" id="flagged">
-    <div class="panel-heading"><div><p class="eyebrow">NEEDS A CONVERSATION</p><h2>Repeat borrowers</h2></div><span class="badge @(Model.Flagged.Count > 0 ? "badge-warning" : "")">@Model.Flagged.Count</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">NEEDS A CONVERSATION</p><h2>Repeat borrowers</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="borrowers" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason">⬇ Borrowers CSV</a><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="loans" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason">⬇ Loans CSV</a><span class="badge @(Model.Flagged.Count > 0 ? "badge-warning" : "")">@Model.Flagged.Count</span></div></div>
     <p class="muted">Anyone who has taken <strong>@Model.RepeatCount or more</strong> kits in the last <strong>@Model.RepeatDays days</strong>. The threshold is set in Settings. Reasons are shown so genuine cases — supply staff, devices in repair — can be told apart from people repeatedly forgetting their own.</p>
     <div class="table-wrap"><table><thead><tr><th>Person</th><th>Loans</th><th>Reasons</th><th>Most recent</th><th>Still out</th></tr></thead><tbody>
     @foreach (var row in Model.Flagged)

@@ -149,12 +149,12 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
         if (session is null || !session.Mapped) return RedirectToPage();
         var plan = store.PlanAssetImport(session.Rows, session.Targets, session.Options);
         var csv = new StringBuilder();
-        csv.Append(string.Join(",", session.Headers.Append("Problem").Select(AssetCsv.Escape))).Append("\r\n");
+        csv.Append(string.Join(",", session.Headers.Append("Problem").Select(Csv.Escape))).Append("\r\n");
         foreach (var result in plan.Results.Where(x => x.Action == ImportAction.Error))
         {
             var cells = session.Rows[result.RowNumber - 2];
             var padded = Enumerable.Range(0, session.Headers.Length).Select(i => i < cells.Length ? cells[i] : "");
-            csv.Append(string.Join(",", padded.Append(result.Error ?? "").Select(AssetCsv.Escape))).Append("\r\n");
+            csv.Append(string.Join(",", padded.Append(result.Error ?? "").Select(Csv.Escape))).Append("\r\n");
         }
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
         return File(bytes, "text/csv; charset=utf-8", "import-problems.csv");
@@ -165,7 +165,7 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
     {
         string[] headers = ["Asset tag", "Make", "Model", "Type", "Serial number", "Status", "Location", "Assigned to", "Loan due back", "Supplier", "Purchase date", "Purchase price", "Purchase order", "Warranty end", "Replacement date"];
         string[] example = ["LT-2001", "Dell", "Latitude 5440", "Laptop", "SN-EXAMPLE-01", "In use", "Main Campus", "jordan.lee@school.example", "", "", "2025-09-01", "749.99", "PO-1042", "2028-09-01", ""];
-        var csv = string.Join(",", headers.Select(AssetCsv.Escape)) + "\r\n" + string.Join(",", example.Select(AssetCsv.Escape)) + "\r\n";
+        var csv = string.Join(",", headers.Select(Csv.Escape)) + "\r\n" + string.Join(",", example.Select(Csv.Escape)) + "\r\n";
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray(), "text/csv; charset=utf-8", "assets-import-template.csv");
     }
 

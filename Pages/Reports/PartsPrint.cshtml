@@ -1,0 +1,36 @@
+@page
+@model EduHelpdesk.Pages.Reports.PartsPrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Parts report";
+    ViewData["ReportSubtitle"] = $"{Model.TotalParts} part{(Model.TotalParts == 1 ? "" : "s")} tracked · default reorder threshold {Model.DefaultReorderThreshold}";
+    ViewData["ReportFootnote"] = "Generated from the helpdesk parts inventory.";
+}
+
+<div class="note">
+    <strong>@Model.LowStock.Count</strong> part@(Model.LowStock.Count == 1 ? " is" : "s are") at or below the reorder threshold, of which
+    <strong>@Model.OutOfStockCount</strong> @(Model.OutOfStockCount == 1 ? "is" : "are") completely out of stock.
+    A part is flagged once its quantity on hand drops to its own threshold, or the default of @Model.DefaultReorderThreshold where it has none.
+</div>
+
+<section>
+    <h2>Low stock (@Model.LowStock.Count)</h2>
+    <table>
+        <thead><tr><th>Part</th><th>SKU</th><th>Category</th><th>Location</th><th>Suppliers</th><th class="num">On hand</th><th class="num">Threshold</th></tr></thead>
+        <tbody>
+        @foreach (var part in Model.LowStock)
+        {
+            <tr class="@(part.QuantityOnHand == 0 ? "flag" : "")">
+                <td class="count">@part.Name</td>
+                <td>@part.Sku</td>
+                <td>@(string.IsNullOrWhiteSpace(part.Category) ? "—" : part.Category)</td>
+                <td>@(string.IsNullOrWhiteSpace(part.Location) ? "—" : part.Location)</td>
+                <td>@(string.IsNullOrWhiteSpace(Model.SupplierNames(part)) ? "—" : Model.SupplierNames(part))</td>
+                <td class="num">@part.QuantityOnHand@(part.QuantityOnHand == 0 ? " (out)" : "")</td>
+                <td class="num">@Model.Threshold(part)</td>
+            </tr>
+        }
+        @if (Model.LowStock.Count == 0) { <tr><td colspan="7" class="empty">Nothing is low on stock.</td></tr> }
+        </tbody>
+    </table>
+</section>

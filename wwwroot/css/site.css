@@ -125,3 +125,8 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 /* Warning variant of .notice: used where an action is blocked and the reason needs explaining, not celebrating. */
 .notice-warning { background: #fdf0ee; border-color: #f3ccc6; color: #8a2f22; }
 .notice-warning a { color: inherit; font-weight: 700; }
+
+/* Report exports: a download link that sits quietly beside a panel heading or sub-heading (.heading-actions already exists). */
+.csv-link { font-size: 11px; font-weight: 700; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.csv-link:hover { color: var(--teal); text-decoration: underline; }
+h3 .csv-link { margin-left: 8px; }

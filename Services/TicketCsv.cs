@@ -68,6 +68,5 @@ public static class TicketCsv
 
     private static string Stamp(DateTime? value) => value?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "";
 
-    private static void AppendRow(StringBuilder csv, IEnumerable<string> cells) =>
-        csv.Append(string.Join(",", cells.Select(AssetCsv.Escape))).Append("\r\n");
+    private static void AppendRow(StringBuilder csv, IEnumerable<string> cells) => Csv.AppendRow(csv, cells);
 }

@@ -1,0 +1,70 @@
+@using System.Text.RegularExpressions
+@using EduHelpdesk.Services
+@inject HelpdeskStore Store
+@{
+    // The branding colour reaches the CSS below, so it is checked rather than trusted: the settings form only enforces
+    // the #RRGGBB pattern in the browser, and anything else here would be injected straight into a style block.
+    var configured = Store.Branding.PrimaryColor ?? "";
+    var accent = Regex.IsMatch(configured, "^#[0-9A-Fa-f]{6}$") ? configured : "#07585b";
+    var subtitle = ViewData["ReportSubtitle"] as string;
+    var footnote = ViewData["ReportFootnote"] as string
+        ?? "Generated from the helpdesk. It may contain personal data - handle it in line with the school's data protection policy.";
+}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>@ViewData["ReportTitle"]@(subtitle is null ? "" : " - " + subtitle)</title>
+<style>
+    @@page { size: A4 portrait; margin: 14mm 13mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Calibri, Arial, Helvetica, sans-serif; color: #17252f; font-size: 10.5pt; line-height: 1.45; }
+    h1 { font-size: 20pt; margin: 0; letter-spacing: -.01em; }
+    h2 { font-size: 12.5pt; margin: 0 0 2mm; color: @accent; page-break-after: avoid; }
+    h3 { font-size: 10.5pt; margin: 3mm 0 1mm; page-break-after: avoid; }
+    p { margin: 0 0 2.5mm; }
+    .head { border-bottom: 2px solid @accent; padding-bottom: 3mm; margin-bottom: 4mm; display: flex; justify-content: space-between; align-items: baseline; gap: 8mm; }
+    .head .meta { text-align: right; font-size: 9pt; color: #5c6e75; white-space: nowrap; }
+    .sub { color: #5c6e75; font-size: 9.5pt; margin-top: 1mm; }
+    section { margin-bottom: 6mm; page-break-inside: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin-top: 2mm; }
+    th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .06em; color: #5c6e75; border-bottom: 1px solid #b9cbcd; padding: 0 3mm 1.5mm 0; }
+    td { padding: 1.8mm 3mm 1.8mm 0; border-bottom: 1px solid #e3ecec; vertical-align: top; }
+    tr { page-break-inside: avoid; }
+    .num { text-align: right; }
+    .flag { background: #fbf0e2; }
+    .count { font-weight: 700; }
+    .pill { display: inline-block; font-size: 8.5pt; font-weight: 700; padding: .4mm 2mm; border-radius: 3mm; background: #e6f0ef; color: @accent; }
+    .pill-warn { background: #f5dfc4; color: #8a5210; }
+    .note { background: #f2f6f6; border-left: 3px solid @accent; padding: 3mm 3.5mm; margin-bottom: 4mm; font-size: 9.5pt; }
+    .person { margin-bottom: 3.5mm; page-break-inside: avoid; }
+    .person-head { font-weight: 700; border-bottom: 1px solid #b9cbcd; padding-bottom: 1mm; margin-bottom: 1mm; }
+    .columns { display: flex; gap: 8mm; }
+    .columns > * { flex: 1; }
+    .empty { color: #5c6e75; font-style: italic; }
+    .foot { margin-top: 6mm; border-top: 1px solid #b9cbcd; padding-top: 2.5mm; font-size: 8.5pt; color: #5c6e75; }
+    .no-print { margin: 6mm 0; display: flex; gap: 8px; }
+    .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
+    @@media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body onload="window.print()">
+
+<div class="head">
+    <div>
+        <h1>@ViewData["ReportTitle"]</h1>
+        <div class="sub">@Store.Branding.BrandName@(subtitle is null ? "" : " · " + subtitle)</div>
+    </div>
+    <div class="meta">Generated @DateTime.Now.ToString("dd MMM yyyy, HH:mm")</div>
+</div>
+
+@RenderBody()
+
+<div class="foot">@footnote</div>
+
+<div class="no-print">
+    <button type="button" onclick="window.print()">Print again</button>
+    <button type="button" onclick="window.close()">Close</button>
+</div>
+
+</body>
+</html>
