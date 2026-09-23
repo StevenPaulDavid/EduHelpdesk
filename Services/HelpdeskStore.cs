@@ -902,6 +902,13 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync) return KitLoanHoldingCore(assetId);
     }
+    // Any kit this asset belongs to, loaned out or not. Kit equipment is only ever lent as part of its kit, so the
+    // per-asset loan feature is off for these entirely - not just while the kit happens to be out.
+    public LoanKit? KitContaining(Guid assetId)
+    {
+        lock (_sync) return KitContainingCore(assetId);
+    }
+    private LoanKit? KitContainingCore(Guid assetId) => _data.LoanKits.FirstOrDefault(x => x.AssetIds.Contains(assetId));
     private (LoanKit Kit, KitLoan Loan)? KitLoanHoldingCore(Guid assetId)
     {
         foreach (var kit in _data.LoanKits.Where(x => x.AssetIds.Contains(assetId)))
@@ -915,10 +922,13 @@ public sealed partial class HelpdeskStore
         {
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             if (asset is null) return "Asset was not found.";
-            // Same reasoning as ReturnAsset: it is already out with a kit, and loaning it to a second person here would
-            // also be a way round that block - loan it out, then book it back in.
-            if (KitLoanHoldingCore(assetId) is { } held)
-                return $"This asset is out on loan with {held.Kit.Name} ({held.Loan.BorrowerName}). Book the kit back in from the Loans page before loaning it separately.";
+            // Kit equipment is lent as a kit or not at all, whether or not the kit is currently out. Two reasons: the
+            // kit would otherwise show as available while its laptop is on someone's desk, and loaning it separately
+            // was also a way round the return block - loan it out, then book it back in.
+            if (KitContainingCore(assetId) is { } owningKit)
+                return KitLoanHoldingCore(assetId) is { } held
+                    ? $"This asset is out on loan with {owningKit.Name} ({held.Loan.BorrowerName}). Book the kit back in from the Loans page before loaning it separately."
+                    : $"This asset is part of {owningKit.Name} and is only loaned out by issuing that kit from the Loans page. Remove it from the kit first if it needs to be loaned on its own.";
             if (!_data.Users.Any(x => x.Id == userId)) return "Select who the device is loaned to.";
             if (dueBack < AssetInsights.Today) return "The due-back date cannot be in the past.";
             var status = _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, "In use", StringComparison.OrdinalIgnoreCase)) ?? asset.Status;

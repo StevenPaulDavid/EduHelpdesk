@@ -105,12 +105,25 @@
     else
     {
     <div class="ownership-actions">
-        <form method="post" asp-page-handler="Loan" class="import-row">
-            <input type="hidden" name="id" value="@Model.Asset.Id" />
-            <label>Loan to<select name="userId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name</option> }</select></label>
-            <label>Due back<input name="dueBack" type="date" required /></label>
-            <button class="button button-primary" type="submit">Loan out</button>
-        </form>
+        @if (Model.PartOfKit is { } owningKit)
+        {
+            @* Kit equipment is only lent as a kit, so there is no per-asset loan form at all - not just while it is out. *@
+            <div class="notice">
+                <strong>Part of @owningKit.Name.</strong>
+                This device is loaned out by issuing that kit, so it has no loan of its own.
+                <a asp-page="/Loans">Issue the kit from the Loans page</a>, or take it out of the kit first if it needs to be lent on its own.
+            </div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Loan" class="import-row">
+                <input type="hidden" name="id" value="@Model.Asset.Id" />
+                <label>Loan to<select name="userId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name</option> }</select></label>
+                <label>Due back<input name="dueBack" type="date" required /></label>
+                <button class="button button-primary" type="submit">Loan out</button>
+            </form>
+        }
+        @* Still offered for a kit member that is not out: it can carry a holder from before it joined the kit, and this is the only way to clear that. *@
         @if (Model.Asset.AssignedUserId is not null)
         {
             <form method="post" asp-page-handler="Return" class="import-row">

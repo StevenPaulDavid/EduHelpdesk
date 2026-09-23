@@ -25,6 +25,9 @@ public class AssetModel(HelpdeskStore store) : PageModel
     // Set while a loan kit containing this asset is out. The kit owns the loan, so the per-asset loan and return
     // controls are replaced with a pointer to the Loans page (the store refuses both either way).
     public (LoanKit Kit, KitLoan Loan)? HeldByKit => Asset is null ? null : store.KitLoanHolding(Asset.Id);
+    // Any kit this asset belongs to. Kit equipment is never loaned on its own, so the loan form is hidden for these
+    // whether the kit is out or not.
+    public LoanKit? PartOfKit => Asset is null ? null : store.KitContaining(Asset.Id);
     public IReadOnlyList<AssetAttributeDefinition> CustomAttributes => Asset is null ? [] : store.GetAssetAttributes(Asset.Type);
     public IReadOnlyDictionary<Guid, string> CustomAttributeValues => Asset is null ? new Dictionary<Guid, string>() : store.GetAssetAttributeValues(Asset.Id).ToDictionary(x => x.AttributeDefinitionId, x => x.Value);
     public static IReadOnlyList<string> Choices(AssetAttributeDefinition definition) => HelpdeskStore.GetChoices(definition);
