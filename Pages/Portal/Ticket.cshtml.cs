@@ -9,6 +9,8 @@ public class TicketModel(HelpdeskStore store) : PageModel
 {
     public TicketRecord? Ticket { get; private set; }
     public IReadOnlyList<TicketComment> Comments => Ticket is null ? [] : Ticket.Comments.Where(x => !x.IsInternal).OrderBy(x => x.CreatedAt).ToList();
+    // Drives the note under the message box warning that replying will reopen the ticket.
+    public bool IsClosed => Ticket is not null && TicketInsights.IsClosed(Ticket);
     [BindProperty] public string Comment { get; set; } = "";
     [TempData] public string? Message { get; set; }
 
@@ -33,8 +35,11 @@ public class TicketModel(HelpdeskStore store) : PageModel
             Message = "Enter a message before sending.";
             return RedirectToPage(new { number });
         }
-        store.AddTicketComment(number, Comment, isInternal: false);
-        Message = "Sent.";
+        var (ok, reopened) = store.AddRequesterComment(number, Comment);
+        if (!ok) return NotFound();
+        Message = reopened
+            ? "Sent - and because the ticket had been closed, it has been reopened so the team pick it up again."
+            : "Sent.";
         return RedirectToPage(new { number });
     }
 }

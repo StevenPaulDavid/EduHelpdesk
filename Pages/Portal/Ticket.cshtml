@@ -27,6 +27,10 @@
             </div>
             <form method="post" asp-page-handler="Comment" asp-route-number="@Model.Ticket.Number" class="comment-form">
                 <label for="portal-comment">Add a message</label>
+                @if (Model.IsClosed)
+                {
+                    <p class="muted">This ticket is closed. Sending a message will reopen it, so the team know it still needs looking at.</p>
+                }
                 <textarea id="portal-comment" asp-for="Comment" rows="3" placeholder="e.g. it's still not working, or here's some more detail…"></textarea>
                 <button class="button button-primary" type="submit">Send</button>
             </form>

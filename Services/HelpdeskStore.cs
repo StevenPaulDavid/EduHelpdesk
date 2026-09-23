@@ -1531,6 +1531,43 @@ public sealed partial class HelpdeskStore
             return new TicketBulkResult(updated, unchanged, skipped, skippedReason, null);
         }
     }
+    // A reply from the person who raised the ticket. If it had been closed it is reopened, because otherwise "it is
+    // still not working" lands on a closed ticket that nobody is looking at.
+    // Deliberately separate from AddTicketComment: a technician adding a note to a ticket they have just closed should
+    // not bounce it straight back open, so only this path reopens.
+    public (bool Ok, bool Reopened) AddRequesterComment(int number, string text)
+    {
+        lock (_sync)
+        {
+            var index = _data.Tickets.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, false);
+
+            var actor = CurrentActor();
+            var ticket = _data.Tickets[index];
+            var comments = ticket.Comments.ToList();
+            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow) { By = actor });
+            ticket = ticket with { Comments = comments };
+
+            var reopened = false;
+            // Nothing to reopen to if every status has been renamed away from "Closed"; the comment is still kept.
+            if (TicketInsights.IsClosed(ticket) && _data.Statuses.FirstOrDefault(x => !string.Equals(x, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase)) is { } openStatus)
+            {
+                var history = ticket.History.ToList();
+                history.Add(new TicketActivity("Ticket reopened", $"{actor.Name} replied after the ticket was closed, so it was reopened.", DateTime.UtcNow) { By = actor });
+                ticket = ticket with { Status = openStatus, ClosedAt = null, History = history };
+                // The old due date belongs to the first time round - left alone it would show as overdue the moment the
+                // ticket reopens, which is both wrong and noisy. A manually typed due date is the user's, so it stays.
+                if (!ticket.DueDateOverridden && ticket.SlaId is not null)
+                    ticket = ticket with { DueDate = CalculateDueDate(ticket.SlaId, DateTime.UtcNow) };
+                reopened = true;
+            }
+
+            _data.Tickets[index] = ticket;
+            Save();
+            return (true, reopened);
+        }
+    }
+
     public bool AddTicketComment(int number, string text, bool isInternal = false)
     {
         lock (_sync)
