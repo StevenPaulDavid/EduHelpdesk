@@ -147,9 +147,10 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // Seeds the built-in Administrator role plus three starter roles matching what earlier versions hardcoded, so
-    // upgrading doesn't change anyone's effective access. Runs before EnsureBootstrapAdministrator so the
-    // Administrator role row already exists when the bootstrap account is created. Covers fresh installs too.
+    // Seeds the built-in Administrator role plus the three starter roles. These are the permissions the school settled
+    // on for its own three roles and asked to have as the default, so a fresh install and a factory reset both start
+    // from a working desk rather than from four empty roles. Runs before EnsureBootstrapAdministrator so the
+    // Administrator role row already exists when the bootstrap account is created.
     private void EnsureSeedRoles()
     {
         lock (_sync)
@@ -162,39 +163,47 @@ public sealed partial class HelpdeskStore
             var allFlags = Modules.Flags.All.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Grants = everything, Flags = allFlags });
 
+            // Everything an Administrator has, but as an ordinary editable role rather than the protected one.
             _data.Roles.Add(Role("Senior Technician",
                 new()
                 {
-                    [Modules.Tickets] = Everything, [Modules.Assets] = Everything,
-                    [Modules.Kits] = Everything, [Modules.Loans] = Everything,
-                    [Modules.Parts] = Everything, [Modules.Suppliers] = Everything,
-                    [Modules.Requesters] = Everything, [Modules.StaffAccounts] = Write,
-                    [Modules.Roles] = Read, [Modules.Reports] = ModulePermission.Access
+                    [Modules.Tickets] = Full, [Modules.Assets] = Full,
+                    [Modules.Kits] = Full, [Modules.Loans] = Full,
+                    [Modules.Parts] = Full, [Modules.Suppliers] = Full,
+                    [Modules.Requesters] = Full, [Modules.StaffAccounts] = Full,
+                    [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access,
+                    [Modules.Settings] = ModulePermission.Access | ModulePermission.Edit,
+                    [Modules.AuditLog] = ModulePermission.Access
                 },
                 Modules.Flags.WorkingAs, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
-                Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportExport));
+                Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance,
+                Modules.Flags.ReportExport));
 
+            // Runs the inventory outright, reads the supplier directory, and cannot reach staff accounts, roles,
+            // settings or the audit log.
             _data.Roles.Add(Role("Technician",
                 new()
                 {
-                    [Modules.Tickets] = Write, [Modules.Assets] = Write,
-                    [Modules.Kits] = Write, [Modules.Loans] = Write,
-                    [Modules.Parts] = Write, [Modules.Suppliers] = Read,
-                    [Modules.Requesters] = Write, [Modules.StaffAccounts] = Read,
-                    [Modules.Reports] = ModulePermission.Access
+                    [Modules.Tickets] = Full, [Modules.Assets] = Full,
+                    [Modules.Kits] = Full, [Modules.Loans] = Full,
+                    [Modules.Parts] = Full, [Modules.Suppliers] = Read,
+                    [Modules.Requesters] = Write, [Modules.Reports] = ModulePermission.Access
                 },
-                Modules.Flags.ReportAssets, Modules.Flags.ReportTickets, Modules.Flags.ReportParts, Modules.Flags.ReportLoans));
+                Modules.Flags.ReportAssets, Modules.Flags.ReportTickets, Modules.Flags.ReportParts,
+                Modules.Flags.ReportLoans));
 
-            // Can work tickets and read everything else - the shape of a new starter on the desk.
+            // The shape of a new starter on the desk: works tickets fully, adds and changes inventory but deletes
+            // none of it, and only reads the requester directory.
             _data.Roles.Add(Role("Junior Technician",
                 new()
                 {
-                    [Modules.Tickets] = Write, [Modules.Assets] = Read,
-                    [Modules.Kits] = Read, [Modules.Loans] = Write,
-                    [Modules.Parts] = Read, [Modules.Suppliers] = Read,
-                    [Modules.Requesters] = Read, [Modules.Reports] = ModulePermission.Access
+                    [Modules.Tickets] = Full, [Modules.Assets] = Write,
+                    // Can change what is in a kit but not create or scrap one.
+                    [Modules.Kits] = Read | ModulePermission.Edit, [Modules.Loans] = Write,
+                    [Modules.Parts] = Write, [Modules.Requesters] = Read,
+                    [Modules.Reports] = ModulePermission.Access
                 },
-                Modules.Flags.ReportTickets));
+                Modules.Flags.ReportAssets, Modules.Flags.ReportParts, Modules.Flags.ReportLoans));
 
             SaveBaseline();
         }
@@ -204,7 +213,7 @@ public sealed partial class HelpdeskStore
     // for one exact action.
     private const ModulePermission Read = ModulePermission.Access | ModulePermission.View;
     private const ModulePermission Write = Read | ModulePermission.New | ModulePermission.Edit;
-    private const ModulePermission Everything = Write | ModulePermission.Delete;
+    private const ModulePermission Full = Write | ModulePermission.Delete;
 
     private static RoleRecord Role(string name, Dictionary<string, ModulePermission> grants, params string[] flags) =>
         new(name) { Grants = new(grants, StringComparer.OrdinalIgnoreCase), Flags = flags.ToHashSet(StringComparer.OrdinalIgnoreCase) };
