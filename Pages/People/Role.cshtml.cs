@@ -10,6 +10,8 @@ public class RoleModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<Modules.Definition> AllModules => Modules.All;
     public IReadOnlyList<Modules.Flags.Definition> AllFlags => Modules.Flags.All;
     public static IReadOnlyList<PermissionLevel> LevelsFor(Modules.Definition module) => Modules.LevelsFor(module);
+    // For the legend above the cards: what each level means is said once rather than inside every dropdown.
+    public static IReadOnlyList<PermissionLevel> AllLevels => PermissionLevels.Ordered;
     public static string LevelLabel(PermissionLevel level) => PermissionLevels.Label(level);
     public static string LevelDescription(PermissionLevel level) => PermissionLevels.Describe(level);
 

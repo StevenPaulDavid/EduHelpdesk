@@ -20,16 +20,18 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     // from the view below), each with its own authorization - so this page only reads.
     public void OnGet() { }
 
-    // Reads as "Tickets Edit, Assets View, ..." - the level matters as much as the module, so both are shown.
-    public static string Summary(RoleRecord role)
+    // One entry per thing the role is granted. The level is kept separate from the label so the view can set it in its
+    // own type rather than running the two together - "Tickets Edit" reads as a phrase and scans badly in a long list.
+    public sealed record Grant(string Label, string? Level);
+
+    public static IReadOnlyList<Grant> Grants(RoleRecord role)
     {
-        if (role.IsProtected) return "All permissions (protected)";
-        var granted = Modules.All
-            .Where(m => role.LevelFor(m.Key) != PermissionLevel.None)
-            .Select(m => $"{m.Label} {PermissionLevels.Label(role.LevelFor(m.Key))}")
-            .ToList();
-        var flags = Modules.Flags.All.Where(f => role.Has(f.Key)).Select(f => f.Label).ToList();
-        var parts = granted.Concat(flags).ToList();
-        return parts.Count == 0 ? "No permissions" : string.Join(", ", parts);
+        if (role.IsProtected) return [new Grant("All permissions (protected)", null)];
+        return
+        [
+            .. Modules.All.Where(m => role.LevelFor(m.Key) != PermissionLevel.None)
+                .Select(m => new Grant(m.Label, PermissionLevels.Label(role.LevelFor(m.Key)))),
+            .. Modules.Flags.All.Where(f => role.Has(f.Key)).Select(f => new Grant(f.Label, null)),
+        ];
     }
 }

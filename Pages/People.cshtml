@@ -1,14 +1,39 @@
 @page
 @model PeopleModel
-@{ ViewData["Title"] = "People"; }
+@{
+    ViewData["Title"] = "People";
+    // Blank department, location or team left a dangling " · " on the row.
+    string Detail(params string?[] parts) => string.Join(" · ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
+}
 <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / DIRECTORY</p><h1>People and technicians</h1></div><a class="button button-secondary" asp-page="/Index">← Back</a></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 <section class="panel directory-panel"><div class="panel-heading"><h2>Users</h2><a class="button button-primary" asp-page="/People/User">＋ Add user</a></div>
-@foreach (var user in Model.Users) { <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div><strong><a asp-page="/User" asp-route-id="@user.Id">@user.Name</a></strong><span>@user.Email · @user.Department · @user.Location</span></div></div><div class="row-actions"><a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id">♜</a></div></div> }
+@foreach (var user in Model.Users) { <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong><a asp-page="/User" asp-route-id="@user.Id">@user.Name</a></strong><span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions"><a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id">♜</a></div></div> }
 @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }</section>
 <section class="panel directory-panel"><div class="panel-heading"><h2>Technicians</h2><a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a></div>
-@foreach (var item in Model.Technicians) { <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div><strong><a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a></strong><span>@item.Email · @item.Team</span></div></div><div class="row-actions"><a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id">♜</a></div></div> }
+@foreach (var item in Model.Technicians) { <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong><a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a></strong><span>@Detail(item.Email, item.Team)</span></div></div><div class="row-actions"><a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id">♜</a></div></div> }
 @if (Model.Technicians.Count == 0) { <p class="empty">No technicians have been imported yet.</p> }</section>
 <section class="panel directory-panel"><div class="panel-heading"><h2>Roles</h2><a class="button button-primary" asp-page="/People/Role">＋ Add role</a></div>
-@foreach (var role in Model.Roles) { <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@role.Name[..1].ToUpperInvariant()</div><div><strong>@if (role.IsProtected) { @role.Name } else { <a asp-page="/People/Role" asp-route-name="@role.Name">@role.Name</a> }</strong><span>@PeopleModel.Summary(role)</span></div></div><div class="row-actions">@if (!role.IsProtected) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name">♜</a> }</div></div> }
+@* A role's grants are a list, not a sentence: twelve modules plus flags run to well over a thousand pixels, which used
+   to push the row, the panel and the page wider than the shell. Chips wrap, so the row grows downwards instead. *@
+@foreach (var role in Model.Roles)
+{
+    <div class="directory-row directory-row-stacked">
+        <div class="directory-person">
+            <div class="avatar technician-avatar">@role.Name[..1].ToUpperInvariant()</div>
+            <div class="directory-text">
+                <strong>@if (role.IsProtected) { @role.Name } else { <a asp-page="/People/Role" asp-route-name="@role.Name">@role.Name</a> }</strong>
+                @{ var grants = PeopleModel.Grants(role); }
+                @if (grants.Count == 0) { <span>No permissions</span> }
+                else
+                {
+                    <div class="permission-chips">
+                        @foreach (var grant in grants) { <span class="permission-chip">@grant.Label@if (grant.Level is { } level) { <b>@level</b>}</span> }
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="row-actions">@if (!role.IsProtected) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name">♜</a> }</div>
+    </div>
+}
 @if (Model.Roles.Count == 0) { <p class="empty">No roles yet.</p> }</section>

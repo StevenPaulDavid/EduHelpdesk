@@ -130,3 +130,41 @@ tr.row-urgent td:nth-child(2) strong::after { content: " urgent"; font-size: 11p
 .csv-link { font-size: 11px; font-weight: 700; color: var(--muted); text-decoration: none; white-space: nowrap; }
 .csv-link:hover { color: var(--teal); text-decoration: underline; }
 h3 .csv-link { margin-left: 8px; }
+
+/* --- People directory and the role editor -------------------------------------------------------------------
+   A role's grants run to a dozen modules plus flags. As one line of text they could not shrink, so the row, the
+   panel and finally the page were pushed wider than the shell and the whole layout scrolled sideways. The text
+   column gets min-width:0 so it can, and role grants are chips that wrap onto a second line.
+   .directory-row is shared with Suppliers, the portal and the Settings option lists, so the alignment changes a
+   wrapping row needs are on a modifier rather than the base class. */
+.directory-text{min-width:0}
+.directory-text span{max-width:none}
+.directory-row-stacked{align-items:flex-start;flex-wrap:wrap}
+.directory-person .avatar{flex:none}
+.directory-panel .row-actions{flex:none}
+.permission-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.directory-person .permission-chips span,.permission-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;
+  white-space:normal;overflow:visible;padding:3px 9px;border:1px solid var(--line);border-radius:999px;
+  background:var(--paper);font-size:11px;color:var(--ink);margin-top:0}
+.permission-chip b{font-weight:800;color:var(--teal-dark)}
+.panel-heading{flex-wrap:wrap;gap:12px}
+.page-heading{flex-wrap:wrap}
+
+/* Forms of plain fields stretch to whatever panel they sit in, which at shell width is over a thousand pixels of
+   text box. These hold them to a readable measure without changing the shared .settings-form. */
+.settings-form.field-narrow>label,.settings-form>label.field-narrow{max-width:520px}
+
+/* The role editor. Levels were a two-column table - one wide row per module, a full-width dropdown next to a
+   paragraph - and the flags were a flex row that ran the label and its description together on one line. Both are
+   cards now, so they wrap to the panel instead of setting its width. */
+.permission-form>div{min-width:0}
+.permission-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 0 14px;font-size:12px;color:var(--muted)}
+.permission-legend b{color:var(--ink)}
+.permission-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.permission-card{display:grid;gap:8px;align-content:start;padding:12px 13px;border:1px solid var(--line);border-radius:8px}
+.permission-card>span{display:grid;gap:3px;min-width:0}
+.permission-card strong{font-size:13px}
+.permission-card small{font-size:11px;line-height:1.4}
+.permission-card select{width:100%}
+.permission-toggle{grid-template-columns:auto 1fr;gap:10px;align-items:start;cursor:pointer;font-weight:400}
+.permission-toggle input{width:auto;margin-top:2px}

@@ -209,14 +209,23 @@ public sealed partial class HelpdeskStore
     // The rule is that nobody loses access on the morning of the upgrade. Most lists were open to any signed-in
     // technician, so read access is granted generously here rather than only converting the old flags; anything that
     // was genuinely gated (Settings, the audit log, the finance report) stays gated.
+    // 0 is the nine on/off permissions, 2 is per-module levels. Anything that creates a database already in the new
+    // model stamps this, so the conversion below never runs against it.
+    public const int PermissionModelVersion = 2;
+
     private void MigrateRolePermissions()
     {
-        if (_data.PermissionModelVersion >= 2 || _data.Roles.Count == 0)
+        // The second test repairs databases stamped 0 by the factory-reset bug above: a role holding any level or flag
+        // was loaded from RolePermissions, so the new model is already in use whatever the version says. It is safe as
+        // a signal because the conversion is generous - it gives every role Tickets and Loans - so a converted database
+        // is never empty, and an unconverted one has nothing in that table at all.
+        var alreadyConverted = _data.Roles.Any(x => x.Levels.Count > 0 || x.Flags.Count > 0);
+        if (_data.PermissionModelVersion >= PermissionModelVersion || _data.Roles.Count == 0 || alreadyConverted)
         {
-            _data.PermissionModelVersion = 2;
+            _data.PermissionModelVersion = PermissionModelVersion;
             return;
         }
-        _data.PermissionModelVersion = 2;
+        _data.PermissionModelVersion = PermissionModelVersion;
 
         foreach (var role in _data.Roles)
         {
@@ -3723,6 +3732,11 @@ public sealed partial class HelpdeskStore
     // that deletes an asset type it does not own should not find it back the next morning.
     private void SeedStarterData()
     {
+        // A brand-new set of data is already in the per-module model, so it has to say so. A factory reset replaces
+        // _data with a fresh StoreData, whose version starts at 0, and MigrateRolePermissions only runs at startup -
+        // so without this the database claimed the old model while holding new-model roles, and the next restart
+        // "converted" them from legacy grants that are no longer written, throwing away whatever had been set up.
+        _data.PermissionModelVersion = PermissionModelVersion;
         EnsureFactoryOptions();
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
