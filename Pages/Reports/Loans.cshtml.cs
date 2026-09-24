@@ -11,8 +11,9 @@ namespace EduHelpdesk.Pages.Reports;
 // the technician used.
 public class LoanReportsModel(HelpdeskStore store) : PageModel
 {
-    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
-    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
+    // Taking CSV and print away is a separate decision from taking the report away, so the download links and the print
+    // button hang off this rather than off the report's own flag.
+    public bool CanExport => store.UserHasFlag(User, Modules.Flags.ReportExport);
     // "4 loan machines in the last 2 weeks" is the conversation this report exists for, so 14 days leads.
     public static readonly (string Key, string Label, int? Days)[] Periods =
     [
@@ -96,6 +97,7 @@ public class LoanReportsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGetExport(string? table)
     {
+        if (!CanExport) return Forbid();
         OnGet();
         var (name, csv) = (table ?? "").ToLowerInvariant() switch
         {

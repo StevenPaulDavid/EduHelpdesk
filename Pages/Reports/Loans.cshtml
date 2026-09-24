@@ -5,11 +5,11 @@
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Loan reports</h1><p class="hero-copy">Who is borrowing devices, how often, and why — kits and individual assets together.</p></div>
     <div class="heading-actions">
-        <a class="button button-primary" asp-page="/Reports/LoansPrint" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind" target="_blank">🖨 Print / Save as PDF</a>
+        @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/LoansPrint" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind" target="_blank">🖨 Print / Save as PDF</a> }
         <a class="button button-secondary" asp-page="/Loans">← Loans</a>
     </div>
 </div>
-<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab active" asp-page="/Reports/Loans">Loan reports</a>@if (Model.CanSeeFinance) { <a class="queue-tab" asp-page="/Reports/Finance">Finance</a> }</nav>
+<partial name="_ReportTabs" model="@("/Reports/Loans")" />
 
 <section class="panel">
     <form method="get" class="audit-filters">
@@ -28,7 +28,7 @@
 </div>
 
 <section class="panel" id="flagged">
-    <div class="panel-heading"><div><p class="eyebrow">NEEDS A CONVERSATION</p><h2>Repeat borrowers</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="borrowers" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ Borrowers CSV</a><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="loans" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ Loans CSV</a><span class="badge @(Model.Flagged.Count > 0 ? "badge-warning" : "")">@Model.Flagged.Count</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">NEEDS A CONVERSATION</p><h2>Repeat borrowers</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="borrowers" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ Borrowers CSV</a> }@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="loans" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ Loans CSV</a> }<span class="badge @(Model.Flagged.Count > 0 ? "badge-warning" : "")">@Model.Flagged.Count</span></div></div>
     <p class="muted">Anyone who has taken <strong>@Model.RepeatCount or more</strong> devices in the last <strong>@Model.RepeatDays days</strong>, counting kits and individual assets together. The threshold is set in Settings. Reasons are shown so genuine cases — supply staff, devices in repair — can be told apart from people repeatedly forgetting their own. Loans with no reason recorded are never counted here.</p>
     <div class="table-wrap"><table><thead><tr><th>Person</th><th>Loans</th><th>Reasons</th><th>Most recent</th><th>Still out</th></tr></thead><tbody>
     @foreach (var row in Model.Flagged)
@@ -76,7 +76,7 @@
 </section>
 
 <section class="panel" id="reasons">
-    <div class="panel-heading"><div><p class="eyebrow">WHY</p><h2>Reason breakdown</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="reasons" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ CSV</a><span class="badge">@Model.Loans.Count loans</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">WHY</p><h2>Reason breakdown</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="reasons" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ CSV</a> }<span class="badge">@Model.Loans.Count loans</span></div></div>
     <div class="table-wrap"><table><thead><tr><th>Reason</th><th>Loans</th><th>Share</th></tr></thead><tbody>
     @foreach (var (reason, count) in Model.ReasonBreakdown)
     {
@@ -92,7 +92,7 @@
 </section>
 
 <section class="panel" id="out">
-    <div class="panel-heading"><div><p class="eyebrow">STILL OUT</p><h2>Currently on loan</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="out" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ CSV</a><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.Out.Count</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">STILL OUT</p><h2>Currently on loan</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Loans" asp-page-handler="Export" asp-route-table="out" asp-route-period="@Model.PeriodKey" asp-route-reason="@Model.Reason" asp-route-kind="@Model.Kind">⬇ CSV</a> }<span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.Out.Count</span></div></div>
     <div class="table-wrap"><table><thead><tr><th>Type</th><th>What</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Due back</th><th>Out for</th></tr></thead><tbody>
     @foreach (var loan in Model.Out)
     {

@@ -2,6 +2,7 @@ using EduHelpdesk.Models;
 using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,29 +20,85 @@ builder.Services.AddRazorPages(options =>
     // The staff self-service portal - reachable with no login at all, by design (see the plan/README).
     options.Conventions.AllowAnonymousToFolder("/Portal");
 
-    // Role definitions themselves - who can create/edit/delete roles.
-    options.Conventions.AuthorizePage("/People/Role", "RequireManageRoles");
-    options.Conventions.AuthorizePage("/People/DeleteRole", "RequireManageRoles");
-    // Staff account/role management (assigning an existing role to a technician account).
-    options.Conventions.AuthorizePage("/People/Technician", "RequireManageStaff");
-    options.Conventions.AuthorizePage("/People/DeleteTechnician", "RequireManageStaff");
-    // Requester directory maintenance, assets, suppliers and parts.
-    options.Conventions.AuthorizePage("/People/User", "RequireManageRequesters");
-    options.Conventions.AuthorizePage("/People/DeleteUser", "RequireManageRequesters");
-    options.Conventions.AuthorizeFolder("/Assets", "RequireManageAssets");
-    // Issuing and returning is day-to-day desk work, so /Loans stays open to any signed-in technician.
-    // Only creating and editing the kits themselves needs the asset permission.
-    options.Conventions.AuthorizePage("/Kits/Edit", "RequireManageAssets");
-    options.Conventions.AuthorizeFolder("/Suppliers", "RequireManageSuppliers");
-    options.Conventions.AuthorizeFolder("/Parts", "RequireManageParts");
-    // The finance and audit report shows purchase prices, order references and disposal proceeds together, which is a
-    // sharper picture than the other reports give. /Reports has no folder convention, so both pages are named here -
-    // the CSV export handler lives on the screen page and is covered with it.
-    options.Conventions.AuthorizePage("/Reports/Finance", "RequireSettings");
-    options.Conventions.AuthorizePage("/Reports/FinancePrint", "RequireSettings");
-    // The Settings area (branding, option lists, CSV import, factory reset, audit log).
-    options.Conventions.AuthorizePage("/Settings", "RequireSettings");
-    options.Conventions.AuthorizeFolder("/Settings", "RequireSettings");
+    // A list page and its folder are two different things to ASP.NET: AuthorizeFolder("/Assets") matches /Assets/Add
+    // but never /Assets itself. Assets, Parts and Suppliers were folder-only, which left their list pages - including
+    // bulk edit and delete - open to any signed-in technician. Everything below names the page AND the folder.
+    static string Policy(string module, PermissionLevel level) => PermissionRequirement.PolicyName(module, level);
+
+    // Tickets: the queues and detail. Deleting and merging are checked in the handlers, because the same page serves
+    // both reading and destroying.
+    options.Conventions.AuthorizePage("/Jobs", Policy(Modules.Tickets, PermissionLevel.Access));
+    options.Conventions.AuthorizePage("/Job", Policy(Modules.Tickets, PermissionLevel.View));
+    options.Conventions.AuthorizePage("/NewTicket", Policy(Modules.Tickets, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/PrintLabel", Policy(Modules.Tickets, PermissionLevel.View));
+    options.Conventions.AuthorizePage("/PrintJobSheet", Policy(Modules.Tickets, PermissionLevel.View));
+
+    // Assets. The list needs Access; everything under /Assets/ creates, imports or deletes, so it needs Edit.
+    options.Conventions.AuthorizePage("/Assets", Policy(Modules.Assets, PermissionLevel.Access));
+    options.Conventions.AuthorizeFolder("/Assets", Policy(Modules.Assets, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/Asset", Policy(Modules.Assets, PermissionLevel.View));
+
+    options.Conventions.AuthorizePage("/Kits", Policy(Modules.Kits, PermissionLevel.Access));
+    options.Conventions.AuthorizeFolder("/Kits", Policy(Modules.Kits, PermissionLevel.Edit));
+
+    // Issuing and booking back in is day-to-day desk work, so the level for it is Edit rather than anything higher.
+    options.Conventions.AuthorizePage("/Loans", Policy(Modules.Loans, PermissionLevel.Access));
+    options.Conventions.AuthorizeFolder("/Loans", Policy(Modules.Loans, PermissionLevel.Edit));
+
+    options.Conventions.AuthorizePage("/Parts", Policy(Modules.Parts, PermissionLevel.Access));
+    options.Conventions.AuthorizeFolder("/Parts", Policy(Modules.Parts, PermissionLevel.Edit));
+
+    // The list is Access like the other registers - it was briefly Edit, which would have taken the supplier list away
+    // from roles that can read it today.
+    options.Conventions.AuthorizePage("/Suppliers", Policy(Modules.Suppliers, PermissionLevel.Access));
+    options.Conventions.AuthorizeFolder("/Suppliers", Policy(Modules.Suppliers, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/Supplier", Policy(Modules.Suppliers, PermissionLevel.View));
+
+    // People is three directories on one page, so the page itself only needs to reach one of them; each maintenance
+    // page carries its own level. /User is the requester detail page and was the one duplicating /People/User without
+    // its permission - it edits names, emails, portal passwords and ticket ownership.
+    options.Conventions.AuthorizePage("/People", Policy(Modules.Requesters, PermissionLevel.Access));
+    options.Conventions.AuthorizePage("/User", Policy(Modules.Requesters, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/People/User", Policy(Modules.Requesters, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/People/DeleteUser", Policy(Modules.Requesters, PermissionLevel.Delete));
+    options.Conventions.AuthorizePage("/People/Technician", Policy(Modules.StaffAccounts, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/People/DeleteTechnician", Policy(Modules.StaffAccounts, PermissionLevel.Delete));
+    options.Conventions.AuthorizePage("/People/Role", Policy(Modules.Roles, PermissionLevel.Edit));
+    options.Conventions.AuthorizePage("/People/DeleteRole", Policy(Modules.Roles, PermissionLevel.Edit));
+
+    // Reports: the area needs Access, and each report needs its own flag. A print view carries two AuthorizePage calls -
+    // its report's flag and the export flag - and ASP.NET combines them, so taking export away closes the print route
+    // without touching who can read the report on screen. The CSV handlers check the same flag themselves.
+    options.Conventions.AuthorizeFolder("/Reports", Policy(Modules.Reports, PermissionLevel.Access));
+    options.Conventions.AuthorizePage("/Reports", Modules.Flags.ReportAssets);
+    options.Conventions.AuthorizePage("/Reports/Print", Modules.Flags.ReportAssets);
+    options.Conventions.AuthorizePage("/Reports/Print", Modules.Flags.ReportExport);
+    options.Conventions.AuthorizePage("/Reports/Tickets", Modules.Flags.ReportTickets);
+    options.Conventions.AuthorizePage("/Reports/TicketsPrint", Modules.Flags.ReportTickets);
+    options.Conventions.AuthorizePage("/Reports/TicketsPrint", Modules.Flags.ReportExport);
+    options.Conventions.AuthorizePage("/Reports/Parts", Modules.Flags.ReportParts);
+    options.Conventions.AuthorizePage("/Reports/PartsPrint", Modules.Flags.ReportParts);
+    options.Conventions.AuthorizePage("/Reports/PartsPrint", Modules.Flags.ReportExport);
+    options.Conventions.AuthorizePage("/Reports/Loans", Modules.Flags.ReportLoans);
+    options.Conventions.AuthorizePage("/Reports/LoansPrint", Modules.Flags.ReportLoans);
+    options.Conventions.AuthorizePage("/Reports/LoansPrint", Modules.Flags.ReportExport);
+    // The finance report shows purchase prices, order references and disposal proceeds together.
+    options.Conventions.AuthorizePage("/Reports/Finance", Modules.Flags.ReportFinance);
+    options.Conventions.AuthorizePage("/Reports/FinancePrint", Modules.Flags.ReportFinance);
+    options.Conventions.AuthorizePage("/Reports/FinancePrint", Modules.Flags.ReportExport);
+
+    // The Settings area (branding, option lists, CSV import, factory reset). The audit log lives under /Settings in the
+    // tree but is its own module, so this cannot use AuthorizeFolder: a page rule does not replace a folder rule, it is
+    // added to it, and a DPO given only the audit log would be stopped by the folder's Settings level. The option-list
+    // pages are named individually instead.
+    options.Conventions.AuthorizePage("/Settings", Policy(Modules.Settings, PermissionLevel.Access));
+    options.Conventions.AddFolderApplicationModelConvention("/Settings", model =>
+    {
+        if (model.ViewEnginePath is "/Settings/Audit" or "/Settings/AuditPrint") return;
+        model.Filters.Add(new AuthorizeFilter(Policy(Modules.Settings, PermissionLevel.Edit)));
+    });
+    options.Conventions.AuthorizePage("/Settings/Audit", Policy(Modules.AuditLog, PermissionLevel.Access));
+    options.Conventions.AuthorizePage("/Settings/AuditPrint", Policy(Modules.AuditLog, PermissionLevel.Access));
 });
 builder.Services.AddMemoryCache();
 // The store reads the signed-in account off the current request to attribute changes - see HelpdeskStore.CurrentActor.
@@ -72,14 +129,17 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 // PermissionAuthorizationHandler and HelpdeskStore.RoleGrants) rather than a fixed set of role names - roles and
 // their permissions are user-defined (see the Roles panel on the People page), except Administrator, which is
 // hardcoded to always pass every check.
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequireSettings", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.Settings)))
-    .AddPolicy("RequireManageRoles", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageRoles)))
-    .AddPolicy("RequireManageStaff", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageStaff)))
-    .AddPolicy("RequireManageRequesters", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageRequesters)))
-    .AddPolicy("RequireManageAssets", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageAssets)))
-    .AddPolicy("RequireManageSuppliers", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageSuppliers)))
-    .AddPolicy("RequireManageParts", policy => policy.Requirements.Add(new PermissionRequirement(Permissions.ManageParts)));
+// Generated from the module list rather than written out by hand, so a new module cannot be added without its policies
+// existing - a missing policy name throws at startup, which is a far better failure than silently allowing everyone.
+builder.Services.AddAuthorization(options =>
+{
+    foreach (var module in Modules.All)
+        foreach (var level in Modules.LevelsFor(module))
+            options.AddPolicy(PermissionRequirement.PolicyName(module.Key, level),
+                policy => policy.Requirements.Add(PermissionRequirement.For(module.Key, level)));
+    foreach (var flag in Modules.Flags.All)
+        options.AddPolicy(flag.Key, policy => policy.Requirements.Add(PermissionRequirement.ForFlag(flag.Key)));
+});
 
 var app = builder.Build();
 

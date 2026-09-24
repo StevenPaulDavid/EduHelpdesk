@@ -2,35 +2,30 @@ namespace EduHelpdesk.Models;
 
 public record UserRecord(Guid Id, string Name, string Email, string Department, string Location, string? PasswordHash = null, bool IsActive = true);
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
+// What a role can do with one module. The levels stack: Delete implies Edit implies View implies Access, so a role
+// holds one level per module rather than four independent ticks - which stops nonsense like Delete without View.
+public enum PermissionLevel
+{
+    None = 0,
+    Access = 1,
+    View = 2,
+    Edit = 3,
+    Delete = 4
+}
+
 // A named set of permissions a technician account can hold. Roles are user-defined (see HelpdeskStore.Roles); Administrator
 // is the one hardcoded, protected exception - see StaffRoles below and HelpdeskStore.RoleGrants.
-public record RoleRecord(
-    string Name,
-    bool AllowSettings,
-    bool AllowManageRoles,
-    bool AllowManageStaff,
-    bool AllowManageRequesters,
-    bool AllowManageAssets,
-    bool AllowManageSuppliers,
-    bool AllowManageParts,
-    bool AllowTicketDestructive,
-    bool AllowChangeWorkingAs,
-    bool IsProtected = false)
+// Levels are keyed by module (see Services/Modules.cs); Flags hold the things that are not a level on a record, such as
+// which individual reports are readable.
+public record RoleRecord(string Name, bool IsProtected = false)
 {
-    // The one place a permission key maps to the matching flag - HelpdeskStore.RoleGrants and the role editor summary both use this.
-    public bool Grants(string permission) => permission switch
-    {
-        Permissions.Settings => AllowSettings,
-        Permissions.ManageRoles => AllowManageRoles,
-        Permissions.ManageStaff => AllowManageStaff,
-        Permissions.ManageRequesters => AllowManageRequesters,
-        Permissions.ManageAssets => AllowManageAssets,
-        Permissions.ManageSuppliers => AllowManageSuppliers,
-        Permissions.ManageParts => AllowManageParts,
-        Permissions.TicketDestructive => AllowTicketDestructive,
-        Permissions.ChangeWorkingAs => AllowChangeWorkingAs,
-        _ => false
-    };
+    public Dictionary<string, PermissionLevel> Levels { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> Flags { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public PermissionLevel LevelFor(string module) => Levels.GetValueOrDefault(module, PermissionLevel.None);
+    // The stacking rule lives here and nowhere else.
+    public bool Allows(string module, PermissionLevel level) => LevelFor(module) >= level;
+    public bool Has(string flag) => Flags.Contains(flag);
 }
 // The one role name that is hardcoded rather than data-driven: always has every permission, can't be edited or deleted,
 // and is guaranteed to exist (see HelpdeskStore.EnsureBootstrapAdministrator) so there is always a way into the system.
@@ -40,9 +35,10 @@ public static class StaffRoles
     // Fallback used when a stored Role value doesn't match any known role (e.g. legacy data).
     public const string DefaultRole = "Technician";
 }
-// The permissions a role can grant. Keys match RoleRecord's bool properties (HelpdeskStore.RoleGrants switches on them);
-// Label/Description drive the role editor UI - see Pages/People/Role.cshtml.
-public static class Permissions
+// The nine on/off permissions the system used before per-module levels. Kept only so the one-time migration can read
+// the old columns and work out what each existing role should become - see HelpdeskStore.MigrateRolePermissions.
+// Nothing else should reference these; new code uses Modules and PermissionLevel.
+public static class LegacyPermissions
 {
     public const string Settings = "AllowSettings";
     public const string ManageRoles = "AllowManageRoles";
@@ -54,17 +50,11 @@ public static class Permissions
     public const string TicketDestructive = "AllowTicketDestructive";
     public const string ChangeWorkingAs = "AllowChangeWorkingAs";
 
-    public static readonly (string Key, string Label, string Description)[] All =
+    // Column order in the old Roles table, after Name.
+    public static readonly string[] Columns =
     [
-        (Settings, "Settings", "Branding, option lists, CSV import, audit log, factory reset."),
-        (ManageRoles, "Manage roles", "Create, edit and delete role definitions."),
-        (ManageStaff, "Manage staff accounts", "Add/edit technician accounts, assign roles, reset passwords."),
-        (ManageRequesters, "Manage requesters", "Add/edit the requester directory on the People page."),
-        (ManageAssets, "Manage assets", "Add/edit/delete assets, loan and return."),
-        (ManageSuppliers, "Manage suppliers", "Add/edit suppliers."),
-        (ManageParts, "Manage parts", "Add/edit parts."),
-        (TicketDestructive, "Delete/merge tickets", "The two destructive ticket actions - everyone signed in can already do everything else with a ticket."),
-        (ChangeWorkingAs, "Change \"Working as\"", "Pick who \"Working as\" resolves to on the Tickets page, instead of always being yourself.")
+        Settings, ManageRoles, ManageStaff, ManageRequesters, ManageAssets,
+        ManageSuppliers, ManageParts, TicketDestructive, ChangeWorkingAs
     ];
 }
 // Who performed a change. Name is the display name captured at the time, so a history line still reads correctly after

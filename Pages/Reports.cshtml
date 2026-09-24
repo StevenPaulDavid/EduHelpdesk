@@ -5,11 +5,11 @@
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Asset reports</h1><p class="hero-copy">A snapshot of the asset register: what is due for review, what the fleet looks like, and which devices cause the most trouble.</p></div>
     <div class="heading-actions">
-        <a class="button button-primary" asp-page="/Reports/Print" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey" target="_blank">🖨 Print / Save as PDF</a>
+        @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/Print" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey" target="_blank">🖨 Print / Save as PDF</a> }
         <a class="button button-secondary" asp-page="/Index">← Overview</a>
     </div>
 </div>
-<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab active" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab" asp-page="/Reports/Loans">Loan reports</a>@if (Model.CanSeeFinance) { <a class="queue-tab" asp-page="/Reports/Finance">Finance</a> }</nav>
+<partial name="_ReportTabs" model="@("/Reports")" />
 
 <section class="panel">
     <form method="get" class="audit-filters">
@@ -21,7 +21,7 @@
 </section>
 
 <section class="panel" id="review">
-    <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="review" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a><span class="badge @(Model.Review.Count > 0 ? "badge-warning" : "")">@Model.Review.Count</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="review" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge @(Model.Review.Count > 0 ? "badge-warning" : "")">@Model.Review.Count</span></div></div>
     <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and overdue loans. The window is set in Settings.</p>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Held by</th><th>Why it needs review</th></tr></thead><tbody>
     @foreach (var item in Model.Review)
@@ -37,7 +37,7 @@
 </section>
 
 <section class="panel" id="counts">
-    <div class="panel-heading"><div><p class="eyebrow">BREAKDOWN</p><h2>Assets by type, make, location and status</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="counts" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a><span class="badge">@Model.TotalAssets assets</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">BREAKDOWN</p><h2>Assets by type, make, location and status</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="counts" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge">@Model.TotalAssets assets</span></div></div>
     <div class="report-grid">
         @foreach (var (title, rows) in Model.CountTables)
         {
@@ -57,7 +57,7 @@
 </section>
 
 <section class="panel" id="age">
-    <div class="panel-heading"><div><p class="eyebrow">FLEET AGE AND REFRESH</p><h2>How old the fleet is</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="age" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a><span class="badge">@(Model.FleetAverageYears.HasValue ? $"Average {Model.FleetAverageYears.Value:0.0} yrs" : "No purchase dates")</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">FLEET AGE AND REFRESH</p><h2>How old the fleet is</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="age" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge">@(Model.FleetAverageYears.HasValue ? $"Average {Model.FleetAverageYears.Value:0.0} yrs" : "No purchase dates")</span></div></div>
     @if (Model.MissingPurchaseDate > 0) { <p class="muted">@Model.MissingPurchaseDate of @Model.TotalAssets assets have no purchase date, so they are left out of the ages below.</p> }
     <div class="table-wrap"><table><thead><tr><th>Type</th><th>Assets</th><th>With a purchase date</th><th>Average age</th><th>Oldest</th><th>Due or overdue for replacement</th></tr></thead><tbody>
     @foreach (var row in Model.Age)
@@ -66,7 +66,7 @@
     }
     @if (Model.Age.Count == 0) { <tr><td colspan="6" class="empty">No assets yet.</td></tr> }
     </tbody></table></div>
-    <h3>Replacement planning <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="replacements" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a></h3>
+    <h3>Replacement planning @if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="replacements" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }</h3>
     <p class="muted">Assets already due or overdue for replacement, and those due within the next 12 months. @(Model.ReplacementCount > Model.RowLimit ? $"Showing the first {Model.RowLimit} of {Model.ReplacementCount}." : $"{Model.ReplacementCount} in total.")</p>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Age</th><th>Replacement date</th><th>When</th></tr></thead><tbody>
     @foreach (var row in Model.Replacements)
@@ -78,7 +78,7 @@
 </section>
 
 <section class="panel" id="warranty">
-    <div class="panel-heading"><div><p class="eyebrow">WARRANTY</p><h2>Warranty ending within @Model.EffectiveWarrantyDays days</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="warranty" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a><span class="badge @(Model.ExpiringCount > 0 ? "badge-warning" : "")">@Model.ExpiringCount</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">WARRANTY</p><h2>Warranty ending within @Model.EffectiveWarrantyDays days</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="warranty" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge @(Model.ExpiringCount > 0 ? "badge-warning" : "")">@Model.ExpiringCount</span></div></div>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Held by</th><th>Warranty ends</th><th>When</th></tr></thead><tbody>
     @foreach (var row in Model.Expiring)
     {
@@ -99,7 +99,7 @@
 </section>
 
 <section class="panel" id="problems">
-    <div class="panel-heading"><div><p class="eyebrow">PROBLEM DEVICES</p><h2>Assets with the most tickets</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="problems" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a><span class="badge">@ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">PROBLEM DEVICES</p><h2>Assets with the most tickets</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="problems" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge">@ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label</span></div></div>
     <p class="muted">Tickets linked to each asset, newest first when tied. Devices that keep coming back are candidates for replacement.</p>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Tickets</th><th>Open now</th><th>Most recent ticket</th></tr></thead><tbody>
     @foreach (var row in Model.Problems)

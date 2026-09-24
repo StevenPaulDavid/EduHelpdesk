@@ -2,7 +2,7 @@
 @using EduHelpdesk.Services
 @model PartsModel
 @{ ViewData["Title"] = "Parts"; }
-<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div><a class="button button-primary" asp-page="/Parts/Edit">＋ Add part</a></div>
+<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div>@if (Model.CanEdit) { <a class="button button-primary" asp-page="/Parts/Edit">＋ Add part</a> }</div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -34,7 +34,7 @@
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
         <div class="table-wrap"><table><thead><tr>
-            <th><input id="select-page" type="checkbox" aria-label="Select all parts on this page" onchange="togglePartPage(this)" /></th>
+            <th>@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all parts on this page" onchange="togglePartPage(this)" /> }</th>
             <th><a class="sort-link" href="@Model.SortUrl("name")">Part@(Model.SortMark("name"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("sku")">SKU@(Model.SortMark("sku"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("category")">Category@(Model.SortMark("category"))</a></th>
@@ -46,27 +46,31 @@
         @foreach (var item in Model.Rows)
         {
             <tr>
-                <td><input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" onchange="partSelectionChanged()" /></td>
-                <td><strong><a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a></strong></td>
+                <td>@if (Model.CanView) { <input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" onchange="partSelectionChanged()" /> }</td>
+                @* Parts have no read-only detail page - /Parts/Edit is the detail page - so the link needs Edit. *@
+                <td><strong>@if (Model.CanEdit) { <a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong></td>
                 <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.Category) ? "—" : item.Category)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.Location) ? "—" : item.Location)</td>
                 <td>@{ var suppliers = Model.SupplierNames(item); }@(suppliers.Length == 0 ? "—" : suppliers)</td>
                 <td><span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span></td>
-                <td class="asset-row-actions"><a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" title="Edit part">✎</a><a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part">♜</a></td>
+                <td class="asset-row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" title="Edit part">✎</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part">♜</a> }</td>
             </tr>
         }
         @if (Model.Rows.Count == 0) { <tr><td colspan="8" class="empty">@(Model.IsFiltered ? "No parts match these filters." : "No parts have been added yet.")</td></tr> }
         </tbody></table></div>
 
-        @if (Model.Rows.Count > 0)
+        @if (Model.Rows.Count > 0 && Model.CanView)
         {
             <div class="bulk-actions">
                 <strong>With selected parts</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation" onchange="switchPartOperation()"><option value="category">Change category</option><option value="location">Change location</option><option value="delete">Delete</option><option value="export">Export to CSV</option></select></label>
-                <label id="bulk-category-field">New category<select name="newCategory"><option value="@PartListQuery.None">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
-                <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@PartListQuery.None">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                <label>Action<select name="operation" id="bulk-operation" onchange="switchPartOperation()">@if (Model.CanEdit) { <option value="category">Change category</option><option value="location">Change location</option> }@if (Model.CanDelete) { <option value="delete">Delete</option> }<option value="export">Export to CSV</option></select></label>
+                @if (Model.CanEdit)
+                {
+                    <label id="bulk-category-field">New category<select name="newCategory"><option value="@PartListQuery.None">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
+                    <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@PartListQuery.None">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                }
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
             </div>
         }
@@ -128,10 +132,14 @@ function clearPartSelection() {
     partSelectAllField.value = "false";
     partSelectionChanged(true);
 }
+// A role without Parts: Edit gets the export option only, so every field below may legitimately be absent.
 function switchPartOperation() {
-    const op = document.getElementById("bulk-operation").value;
+    const operation = document.getElementById("bulk-operation");
+    if (!operation) return;
+    const op = operation.value;
     for (const [name, id] of [["category", "bulk-category-field"], ["location", "bulk-location-field"]]) {
         const field = document.getElementById(id);
+        if (!field) continue;
         field.hidden = op !== name;
         field.querySelector("select").disabled = op !== name;
     }
@@ -140,7 +148,8 @@ function switchPartOperation() {
 partForm.addEventListener("submit", event => {
     const total = partSelectedTotal();
     if (total === 0) { event.preventDefault(); alert("Select at least one part first."); return; }
-    const op = document.getElementById("bulk-operation").value;
+    const operation = document.getElementById("bulk-operation");
+    const op = operation ? operation.value : "export";
     if (op !== "export" && total > 20 && !confirm((op === "delete" ? "Delete " : "Change ") + total + " parts?")) event.preventDefault();
 });
 switchPartOperation();

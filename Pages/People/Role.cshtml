@@ -6,6 +6,39 @@
     <input type="hidden" name="currentName" value="@Model.CurrentName" />
     <div asp-validation-summary="All" class="validation-summary-errors"></div>
     <label>Name<input name="name" value="@Model.Role?.Name" required /></label>
-    <div><p class="eyebrow">Permissions</p>@foreach (var p in Model.AllPermissions) { <label class="toggle-label"><input type="checkbox" name="permission" value="@p.Key" checked="@(Model.Role?.Grants(p.Key) ?? false)" /> @p.Label<small class="muted">@p.Description</small></label> }</div>
+
+    <div>
+        <p class="eyebrow">What this role can reach</p>
+        <p class="muted">Each level includes the ones below it — Edit can also view, Delete can also edit. A module set to no access is hidden from the menu entirely.</p>
+        <div class="table-wrap"><table><thead><tr><th>Module</th><th>Level</th></tr></thead><tbody>
+        @foreach (var module in Model.AllModules)
+        {
+            <tr>
+                <td><strong>@module.Label</strong><br /><span class="muted">@module.Description</span></td>
+                <td>
+                    <select name="level.@module.Key">
+                        <option value="None" selected="@(Model.LevelOf(module.Key) == PermissionLevel.None)">No access</option>
+                        @foreach (var level in EduHelpdesk.Pages.People.RoleModel.LevelsFor(module))
+                        {
+                            <option value="@level" selected="@(Model.LevelOf(module.Key) == level)">@EduHelpdesk.Pages.People.RoleModel.LevelLabel(level) — @EduHelpdesk.Pages.People.RoleModel.LevelDescription(level)</option>
+                        }
+                    </select>
+                </td>
+            </tr>
+        }
+        </tbody></table></div>
+    </div>
+
+    @foreach (var group in Model.AllFlags.GroupBy(x => x.Group))
+    {
+        <div>
+            <p class="eyebrow">@group.Key</p>
+            @foreach (var f in group)
+            {
+                <label class="toggle-label"><input type="checkbox" name="flag" value="@f.Key" checked="@Model.HasFlag(f.Key)" /> @f.Label<small class="muted">@f.Description</small></label>
+            }
+        </div>
+    }
+
     <button class="button button-primary">Save role</button>
 </form></section>

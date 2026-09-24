@@ -1,0 +1,27 @@
+@using EduHelpdesk.Services
+@inject HelpdeskStore Helpdesk
+@* The tab strip for the reports area. It was copied into all five report pages and only ever hid the Finance tab, so a
+   role given one report saw four tabs that refused it. The strip is built from the report flags instead: what is drawn
+   is what this role can open. The model is the active page's route - "/Reports", "/Reports/Loans" and so on. *@
+@model string
+@{
+    var tabs = new (string Page, string Label, string Flag)[]
+    {
+        ("/Reports", "Asset reports", Modules.Flags.ReportAssets),
+        ("/Reports/Tickets", "Ticket reports", Modules.Flags.ReportTickets),
+        ("/Reports/Parts", "Parts reports", Modules.Flags.ReportParts),
+        ("/Reports/Loans", "Loan reports", Modules.Flags.ReportLoans),
+        ("/Reports/Finance", "Finance", Modules.Flags.ReportFinance),
+    };
+    var visible = tabs.Where(x => Helpdesk.UserHasFlag(User, x.Flag)).ToList();
+}
+@* One tab on its own is a label, not a choice, so the strip is dropped entirely. *@
+@if (visible.Count > 1)
+{
+    <nav class="queue-tabs report-tabs" aria-label="Report type">
+        @foreach (var tab in visible)
+        {
+            <a class="queue-tab @(tab.Page == Model ? "active" : null)" asp-page="@tab.Page">@tab.Label</a>
+        }
+    </nav>
+}

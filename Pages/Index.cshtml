@@ -16,56 +16,68 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="metrics">
-    <div class="metric"><span>Open tickets</span><strong>@Model.OpenTickets</strong><small>Needs technician action</small></div>
-    <div class="metric"><span>Assets tracked</span><strong>@Model.AssetsTracked</strong><small>With searchable history</small></div>
-    <div class="metric"><span>Users imported</span><strong>@Model.Users.Count</strong><small>Requesters available</small></div>
-    <div class="metric"><span>Technicians</span><strong>@Model.Technicians.Count</strong><small>Can log and own tickets</small></div>
+    @if (Model.CanSeeTickets) { <div class="metric"><span>Open tickets</span><strong>@Model.OpenTickets</strong><small>Needs technician action</small></div> }
+    @if (Model.CanSeeAssets) { <div class="metric"><span>Assets tracked</span><strong>@Model.AssetsTracked</strong><small>With searchable history</small></div> }
+    @if (Model.CanSeeRequesters) { <div class="metric"><span>Users imported</span><strong>@Model.Users.Count</strong><small>Requesters available</small></div> }
+    @if (Model.CanSeeStaff) { <div class="metric"><span>Technicians</span><strong>@Model.Technicians.Count</strong><small>Can log and own tickets</small></div> }
 </div>
 
-<section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
-    <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and loans that are overdue. <a asp-page="/Assets" asp-route-flag="review">Open these in the asset list</a> to change their status, owner or location together.</p>
-    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Held by</th><th>Why it needs review</th></tr></thead><tbody>
-    @foreach (var item in Model.AssetsToReview.Take(15))
-    {
-        <tr>
-            <td><strong><a asp-page="/Asset" asp-route-id="@item.Asset.Id">@item.Asset.AssetTag</a></strong><br /><span class="muted">@item.Asset.Make @item.Asset.Model · @item.Asset.Type</span></td>
-            <td>@(Model.HolderName(item.Asset) ?? "—")</td>
-            <td>@foreach (var reason in item.Reasons) { <div><span class="badge @(reason.Overdue ? "badge-warning" : "")">@reason.Kind</span> @reason.Text</div> }</td>
-        </tr>
-    }
-    @if (Model.AssetsToReview.Count == 0) { <tr><td colspan="3" class="empty">No assets need review right now.</td></tr> }
-    </tbody></table></div>
-    @if (Model.AssetsToReview.Count > 15) { <p class="muted">Showing the 15 most urgent of @Model.AssetsToReview.Count. <a asp-page="/Reports" asp-fragment="review">See the full list in Reports</a>.</p> }
-</section>
+@if (Model.CanSeeAssets)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
+        <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and loans that are overdue. <a asp-page="/Assets" asp-route-flag="review">Open these in the asset list</a> to change their status, owner or location together.</p>
+        <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Held by</th><th>Why it needs review</th></tr></thead><tbody>
+        @foreach (var item in Model.AssetsToReview.Take(15))
+        {
+            <tr>
+                <td><strong>@if (Model.CanOpenAsset) { <a asp-page="/Asset" asp-route-id="@item.Asset.Id">@item.Asset.AssetTag</a> } else { @item.Asset.AssetTag }</strong><br /><span class="muted">@item.Asset.Make @item.Asset.Model · @item.Asset.Type</span></td>
+                <td>@(Model.HolderName(item.Asset) ?? "—")</td>
+                <td>@foreach (var reason in item.Reasons) { <div><span class="badge @(reason.Overdue ? "badge-warning" : "")">@reason.Kind</span> @reason.Text</div> }</td>
+            </tr>
+        }
+        @if (Model.AssetsToReview.Count == 0) { <tr><td colspan="3" class="empty">No assets need review right now.</td></tr> }
+        </tbody></table></div>
+        @if (Model.AssetsToReview.Count > 15 && Model.CanSeeAssetReport) { <p class="muted">Showing the 15 most urgent of @Model.AssetsToReview.Count. <a asp-page="/Reports" asp-fragment="review">See the full list in Reports</a>.</p> }
+        else if (Model.AssetsToReview.Count > 15) { <p class="muted">Showing the 15 most urgent of @Model.AssetsToReview.Count.</p> }
+    </section>
+}
 
-<section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Parts to review</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
-    <p class="muted">Parts at or below their reorder threshold (default @Model.PartsReorderThreshold, or a part's own threshold). <a asp-page="/Parts" asp-route-flag="low">Open these in the parts list</a> to restock or adjust them.</p>
-    <div class="table-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Location</th><th>Quantity</th></tr></thead><tbody>
-    @foreach (var part in Model.PartsToReview.Take(15))
-    {
-        <tr>
-            <td><strong><a asp-page="/Parts/Edit" asp-route-id="@part.Id">@part.Name</a></strong>@if (!string.IsNullOrWhiteSpace(part.Sku)) { <br /><span class="muted">@part.Sku</span> }</td>
-            <td>@(string.IsNullOrWhiteSpace(part.Category) ? "—" : part.Category)</td>
-            <td>@(string.IsNullOrWhiteSpace(part.Location) ? "—" : part.Location)</td>
-            <td><span class="badge badge-warning">@part.QuantityOnHand in stock</span></td>
-        </tr>
-    }
-    @if (Model.PartsToReview.Count == 0) { <tr><td colspan="4" class="empty">No parts need review right now.</td></tr> }
-    </tbody></table></div>
-    @if (Model.PartsToReview.Count > 15) { <p class="muted">Showing the 15 most urgent of @Model.PartsToReview.Count. <a asp-page="/Reports/Parts">See the full list in Reports</a>.</p> }
-</section>
+@if (Model.CanSeeParts)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Parts to review</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
+        <p class="muted">Parts at or below their reorder threshold (default @Model.PartsReorderThreshold, or a part's own threshold). <a asp-page="/Parts" asp-route-flag="low">Open these in the parts list</a> to restock or adjust them.</p>
+        <div class="table-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Location</th><th>Quantity</th></tr></thead><tbody>
+        @foreach (var part in Model.PartsToReview.Take(15))
+        {
+            <tr>
+                @* Parts have no read-only detail page - /Parts/Edit is the detail page - so the link needs Edit. *@
+                <td><strong>@if (Model.CanEditParts) { <a asp-page="/Parts/Edit" asp-route-id="@part.Id">@part.Name</a> } else { @part.Name }</strong>@if (!string.IsNullOrWhiteSpace(part.Sku)) { <br /><span class="muted">@part.Sku</span> }</td>
+                <td>@(string.IsNullOrWhiteSpace(part.Category) ? "—" : part.Category)</td>
+                <td>@(string.IsNullOrWhiteSpace(part.Location) ? "—" : part.Location)</td>
+                <td><span class="badge badge-warning">@part.QuantityOnHand in stock</span></td>
+            </tr>
+        }
+        @if (Model.PartsToReview.Count == 0) { <tr><td colspan="4" class="empty">No parts need review right now.</td></tr> }
+        </tbody></table></div>
+        @if (Model.PartsToReview.Count > 15 && Model.CanSeePartsReport) { <p class="muted">Showing the 15 most urgent of @Model.PartsToReview.Count. <a asp-page="/Reports/Parts">See the full list in Reports</a>.</p> }
+        else if (Model.PartsToReview.Count > 15) { <p class="muted">Showing the 15 most urgent of @Model.PartsToReview.Count.</p> }
+    </section>
+}
 
-<section class="panel">
-    <div class="panel-heading">    <div><p class="eyebrow">RECENT ACTIVITY</p><h2>Tickets</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th><th>Last modified</th></tr></thead><tbody>
-    @foreach (var ticket in Model.Tickets) {
-        var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
-        var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
-        var linkedAssets = Model.Assets.Where(x => ticket.AssetIds.Contains(x.Id)).ToList();
-        <tr class="clickable-row" onclick="window.location.href='/Job?number=@ticket.Number'" tabindex="0" onkeydown="if(event.key==='Enter') window.location.href='/Job?number=@ticket.Number'"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(linkedAssets.Count == 0 ? "—" : string.Join(", ", linkedAssets.Select(a => $"{a.AssetTag} · {a.Model}")))</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td>@ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td></tr>
-    }
-    @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No tickets have been logged yet.</td></tr> }
-    </tbody></table></div>
-</section>
+@if (Model.CanSeeTickets)
+{
+    <section class="panel">
+        <div class="panel-heading">    <div><p class="eyebrow">RECENT ACTIVITY</p><h2>Tickets</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
+        <div class="table-wrap"><table><thead><tr><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th><th>Last modified</th></tr></thead><tbody>
+        @foreach (var ticket in Model.Tickets) {
+            var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
+            var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
+            var linkedAssets = Model.Assets.Where(x => ticket.AssetIds.Contains(x.Id)).ToList();
+            <tr class="@(Model.CanOpenTicket ? "clickable-row" : null)" onclick="@(Model.CanOpenTicket ? $"window.location.href='/Job?number={ticket.Number}'" : null)" tabindex="0" onkeydown="@(Model.CanOpenTicket ? $"if(event.key==='Enter') window.location.href='/Job?number={ticket.Number}'" : null)"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(linkedAssets.Count == 0 ? "—" : string.Join(", ", linkedAssets.Select(a => $"{a.AssetTag} · {a.Model}")))</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td>@ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td></tr>
+        }
+        @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No tickets have been logged yet.</td></tr> }
+        </tbody></table></div>
+    </section>
+}

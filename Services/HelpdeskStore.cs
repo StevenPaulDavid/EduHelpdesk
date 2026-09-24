@@ -122,8 +122,12 @@ public sealed partial class HelpdeskStore
         {
             SaveBaseline();
         }
+        // Before EnsureSeedRoles, so an upgrading database converts its existing roles rather than being mistaken for
+        // a fresh install, and before EnsureBootstrapAdministrator so the Administrator role is in its final shape.
+        MigrateRolePermissions();
         EnsureSeedRoles();
         EnsureBootstrapAdministrator();
+        SaveBaseline();
     }
 
     // Bootstrap credentials for a brand-new install, or an existing database with no login configured yet.
@@ -151,11 +155,107 @@ public sealed partial class HelpdeskStore
         lock (_sync)
         {
             if (_data.Roles.Count > 0) return;
-            _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, true, true, true, true, true, true, true, true, true, IsProtected: true));
-            _data.Roles.Add(new RoleRecord("Senior Technician", false, true, true, true, true, true, true, true, true));
-            _data.Roles.Add(new RoleRecord("Technician", false, false, false, true, true, true, true, true, false));
-            _data.Roles.Add(new RoleRecord("Junior Technician", false, false, false, false, false, false, false, false, false));
+
+            // Administrator's levels are never consulted - RoleGrants short-circuits on the name - but they are filled
+            // in anyway so the role editor and the audit log show the truth rather than an empty grid.
+            var everything = Modules.All.ToDictionary(x => x.Key, x => x.Max, StringComparer.OrdinalIgnoreCase);
+            var allFlags = Modules.Flags.All.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Levels = everything, Flags = allFlags });
+
+            _data.Roles.Add(Role("Senior Technician",
+                new()
+                {
+                    [Modules.Tickets] = PermissionLevel.Delete, [Modules.Assets] = PermissionLevel.Delete,
+                    [Modules.Kits] = PermissionLevel.Delete, [Modules.Loans] = PermissionLevel.Delete,
+                    [Modules.Parts] = PermissionLevel.Delete, [Modules.Suppliers] = PermissionLevel.Delete,
+                    [Modules.Requesters] = PermissionLevel.Delete, [Modules.StaffAccounts] = PermissionLevel.Edit,
+                    [Modules.Roles] = PermissionLevel.Access, [Modules.Reports] = PermissionLevel.Access
+                },
+                Modules.Flags.WorkingAs, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
+                Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportExport));
+
+            _data.Roles.Add(Role("Technician",
+                new()
+                {
+                    [Modules.Tickets] = PermissionLevel.Edit, [Modules.Assets] = PermissionLevel.Edit,
+                    [Modules.Kits] = PermissionLevel.Edit, [Modules.Loans] = PermissionLevel.Edit,
+                    [Modules.Parts] = PermissionLevel.Edit, [Modules.Suppliers] = PermissionLevel.View,
+                    [Modules.Requesters] = PermissionLevel.Edit, [Modules.StaffAccounts] = PermissionLevel.View,
+                    [Modules.Reports] = PermissionLevel.Access
+                },
+                Modules.Flags.ReportAssets, Modules.Flags.ReportTickets, Modules.Flags.ReportParts, Modules.Flags.ReportLoans));
+
+            // Can work tickets and read everything else - the shape of a new starter on the desk.
+            _data.Roles.Add(Role("Junior Technician",
+                new()
+                {
+                    [Modules.Tickets] = PermissionLevel.Edit, [Modules.Assets] = PermissionLevel.View,
+                    [Modules.Kits] = PermissionLevel.View, [Modules.Loans] = PermissionLevel.Edit,
+                    [Modules.Parts] = PermissionLevel.View, [Modules.Suppliers] = PermissionLevel.View,
+                    [Modules.Requesters] = PermissionLevel.View, [Modules.Reports] = PermissionLevel.Access
+                },
+                Modules.Flags.ReportTickets));
+
             SaveBaseline();
+        }
+    }
+
+    private static RoleRecord Role(string name, Dictionary<string, PermissionLevel> levels, params string[] flags) =>
+        new(name) { Levels = new(levels, StringComparer.OrdinalIgnoreCase), Flags = flags.ToHashSet(StringComparer.OrdinalIgnoreCase) };
+
+    // Converts roles from the nine on/off permissions to per-module levels, exactly once, gated on a stored version
+    // number - "RolePermissions is empty" cannot tell a migrated-to-nothing role from an unmigrated one, and re-running
+    // would wipe whatever the school had since set up.
+    // The rule is that nobody loses access on the morning of the upgrade. Most lists were open to any signed-in
+    // technician, so read access is granted generously here rather than only converting the old flags; anything that
+    // was genuinely gated (Settings, the audit log, the finance report) stays gated.
+    private void MigrateRolePermissions()
+    {
+        if (_data.PermissionModelVersion >= 2 || _data.Roles.Count == 0)
+        {
+            _data.PermissionModelVersion = 2;
+            return;
+        }
+        _data.PermissionModelVersion = 2;
+
+        foreach (var role in _data.Roles)
+        {
+            if (!_data.LegacyGrants.TryGetValue(role.Name, out var had)) had = [];
+            PermissionLevel EditOr(string permission, PermissionLevel fallback) => had.Contains(permission) ? PermissionLevel.Edit : fallback;
+
+            role.Levels[Modules.Tickets] = had.Contains(LegacyPermissions.TicketDestructive) ? PermissionLevel.Delete : PermissionLevel.Edit;
+            role.Levels[Modules.Loans] = PermissionLevel.Edit;
+            role.Levels[Modules.Assets] = EditOr(LegacyPermissions.ManageAssets, PermissionLevel.View);
+            role.Levels[Modules.Kits] = EditOr(LegacyPermissions.ManageAssets, PermissionLevel.View);
+            role.Levels[Modules.Parts] = EditOr(LegacyPermissions.ManageParts, PermissionLevel.View);
+            role.Levels[Modules.Suppliers] = EditOr(LegacyPermissions.ManageSuppliers, PermissionLevel.View);
+            role.Levels[Modules.Requesters] = EditOr(LegacyPermissions.ManageRequesters, PermissionLevel.View);
+            role.Levels[Modules.StaffAccounts] = EditOr(LegacyPermissions.ManageStaff, PermissionLevel.View);
+            role.Levels[Modules.Roles] = had.Contains(LegacyPermissions.ManageRoles) ? PermissionLevel.Edit : PermissionLevel.Access;
+            role.Levels[Modules.Reports] = PermissionLevel.Access;
+            // The only two that start closed, because they were already closed.
+            if (had.Contains(LegacyPermissions.Settings))
+            {
+                role.Levels[Modules.Settings] = PermissionLevel.Edit;
+                role.Levels[Modules.AuditLog] = PermissionLevel.Access;
+                role.Flags.Add(Modules.Flags.ReportFinance);
+            }
+
+            role.Flags.Add(Modules.Flags.ReportAssets);
+            role.Flags.Add(Modules.Flags.ReportTickets);
+            role.Flags.Add(Modules.Flags.ReportParts);
+            role.Flags.Add(Modules.Flags.ReportLoans);
+            role.Flags.Add(Modules.Flags.ReportExport);
+            if (had.Contains(LegacyPermissions.ChangeWorkingAs)) role.Flags.Add(Modules.Flags.WorkingAs);
+
+            if (role.IsProtected) continue;
+            // Flags are listed alongside the levels - Reports.Finance in particular is a real grant, so leaving it out
+            // would make the audit entry look like the role got less than it did.
+            var granted = role.Levels.Where(x => x.Value != PermissionLevel.None)
+                .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(x => $"{x.Key} {PermissionLevels.Label(x.Value)}")
+                .Concat(role.Flags.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Roles", "Role", role.Name, role.Name, "Permissions converted",
+                "Moved to per-module levels: " + string.Join(", ", granted)));
         }
     }
 
@@ -271,33 +371,33 @@ public sealed partial class HelpdeskStore
             return "Technician team deleted.";
         }
     }
-    public string AddRole(RoleRecord role)
+    public (bool Ok, string Message) AddRole(RoleRecord role)
     {
         lock (_sync)
         {
             var name = (role.Name ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(name)) return "Role name is required.";
-            if (string.Equals(name, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return "That name is reserved for the built-in Administrator role.";
-            if (_data.Roles.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return "That role already exists.";
+            if (string.IsNullOrWhiteSpace(name)) return (false, "Role name is required.");
+            if (string.Equals(name, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return (false, "That name is reserved for the built-in Administrator role.");
+            if (_data.Roles.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return (false, "That role already exists.");
             _data.Roles.Add(role with { Name = name, IsProtected = false });
             Save();
-            return "Role added.";
+            return (true, "Role added.");
         }
     }
     // Renaming a role cascades onto every technician holding it, the same way UpdateTechnicianTeam does for teams.
-    public string UpdateRole(string currentName, RoleRecord role)
+    public (bool Ok, string Message) UpdateRole(string currentName, RoleRecord role)
     {
         lock (_sync)
         {
             var oldValue = (currentName ?? string.Empty).Trim();
             var newValue = (role.Name ?? string.Empty).Trim();
             var index = _data.Roles.FindIndex(x => string.Equals(x.Name, oldValue, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) return "Role was not found.";
-            if (_data.Roles[index].IsProtected) return "The Administrator role cannot be changed.";
-            if (string.IsNullOrWhiteSpace(newValue)) return "Role name is required.";
+            if (index < 0) return (false, "Role was not found.");
+            if (_data.Roles[index].IsProtected) return (false, "The Administrator role cannot be changed.");
+            if (string.IsNullOrWhiteSpace(newValue)) return (false, "Role name is required.");
             var renamed = !string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase);
-            if (renamed && string.Equals(newValue, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return "That name is reserved for the built-in Administrator role.";
-            if (renamed && _data.Roles.Any(x => string.Equals(x.Name, newValue, StringComparison.OrdinalIgnoreCase))) return "That role already exists.";
+            if (renamed && string.Equals(newValue, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return (false, "That name is reserved for the built-in Administrator role.");
+            if (renamed && _data.Roles.Any(x => string.Equals(x.Name, newValue, StringComparison.OrdinalIgnoreCase))) return (false, "That role already exists.");
             _data.Roles[index] = role with { Name = newValue, IsProtected = false };
             if (renamed)
             {
@@ -306,7 +406,7 @@ public sealed partial class HelpdeskStore
                         _data.Technicians[i] = _data.Technicians[i] with { Role = newValue };
             }
             Save();
-            return "Role updated.";
+            return (true, "Role updated.");
         }
     }
     public string DeleteRole(string name)
@@ -324,18 +424,41 @@ public sealed partial class HelpdeskStore
             return "Role deleted.";
         }
     }
-    // Administrator always has every permission, regardless of what the Roles table says - the one hardcoded exception.
-    public bool RoleGrants(string? roleName, string permission)
+    // Administrator always has every permission, regardless of what the Roles table says - the one hardcoded exception,
+    // and the reason a mistake in the permission model can never lock everybody out.
+    public bool RoleAllows(string? roleName, string module, PermissionLevel level)
     {
         lock (_sync)
         {
             if (string.Equals(roleName, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return true;
             var role = _data.Roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
-            return role?.Grants(permission) ?? false;
+            return role?.Allows(module, level) ?? false;
         }
     }
-    public bool UserHasPermission(System.Security.Claims.ClaimsPrincipal user, string permission) =>
-        RoleGrants(user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, permission);
+    public bool RoleHasFlag(string? roleName, string flag)
+    {
+        lock (_sync)
+        {
+            if (string.Equals(roleName, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return true;
+            var role = _data.Roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
+            return role?.Has(flag) ?? false;
+        }
+    }
+
+    // What every page, handler and nav link asks. The role name comes off the sign-in cookie and the level is resolved
+    // live on each request, so editing a role takes effect immediately without anyone signing out.
+    public bool UserCan(System.Security.Claims.ClaimsPrincipal user, string module, PermissionLevel level) =>
+        RoleAllows(RoleOf(user), module, level);
+    public bool UserHasFlag(System.Security.Claims.ClaimsPrincipal user, string flag) =>
+        RoleHasFlag(RoleOf(user), flag);
+    public PermissionLevel UserLevel(System.Security.Claims.ClaimsPrincipal user, string module)
+    {
+        if (string.Equals(RoleOf(user), StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase))
+            return Modules.Find(module)?.Max ?? PermissionLevel.Delete;
+        lock (_sync) return _data.Roles.FirstOrDefault(x => string.Equals(x.Name, RoleOf(user), StringComparison.OrdinalIgnoreCase))?.LevelFor(module) ?? PermissionLevel.None;
+    }
+    private static string? RoleOf(System.Security.Claims.ClaimsPrincipal user) =>
+        user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 
     // Who is behind the request being handled right now. Everything the store records - history lines, comments and
     // audit entries - is stamped with this, so no mutator needs an extra parameter and nothing can be recorded
@@ -2816,6 +2939,11 @@ public sealed partial class HelpdeskStore
         using var auditTable = connection.CreateCommand();
         auditTable.CommandText = "CREATE TABLE IF NOT EXISTS AuditLog (Id INTEGER PRIMARY KEY AUTOINCREMENT, At TEXT NOT NULL, Area TEXT NOT NULL, EntityType TEXT NULL, EntityKey TEXT NULL, Entity TEXT NOT NULL, Action TEXT NOT NULL, Details TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL);";
         auditTable.ExecuteNonQuery();
+        using var rolePermissionTable = connection.CreateCommand();
+        // No foreign key to Roles(Name): WriteData deletes and reinserts everything, and a role rename would otherwise
+        // have to be ordered against this table. Rows whose role no longer exists are simply ignored on load.
+        rolePermissionTable.CommandText = "CREATE TABLE IF NOT EXISTS RolePermissions (RoleName TEXT NOT NULL, Permission TEXT NOT NULL, PRIMARY KEY (RoleName, Permission));";
+        rolePermissionTable.ExecuteNonQuery();
         using var demoTable = connection.CreateCommand();
         // No foreign keys on purpose: deleting a demo record by hand should leave a harmless stale pointer here, not
         // break the next save. RemoveDemoData and the Settings panel both ignore ids that no longer resolve.
@@ -3065,6 +3193,7 @@ public sealed partial class HelpdeskStore
         }
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AcademicYearStartMonth';") as string, out var academicStart)) data.AcademicYearStartMonth = academicStart;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PermissionModelVersion';") as string, out var permissionVersion)) data.PermissionModelVersion = permissionVersion;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
@@ -3165,10 +3294,36 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Name, AllowSettings, AllowManageRoles, AllowManageStaff, AllowManageRequesters, AllowManageAssets, AllowManageSuppliers, AllowManageParts, AllowTicketDestructive, AllowChangeWorkingAs, IsProtected FROM Roles ORDER BY rowid;";
+            // The nine Allow* columns are still in the table but no longer written. They are read into LegacyGrants
+            // purely so MigrateRolePermissions can work out what each existing role should become; after that one-time
+            // conversion they go to 0 on the next save and are never looked at again.
+            command.CommandText = $"SELECT Name, IsProtected, {string.Join(", ", LegacyPermissions.Columns)} FROM Roles ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Roles.Add(new(reader.GetString(0), reader.GetInt32(1) != 0, reader.GetInt32(2) != 0, reader.GetInt32(3) != 0, reader.GetInt32(4) != 0,
-                reader.GetInt32(5) != 0, reader.GetInt32(6) != 0, reader.GetInt32(7) != 0, reader.GetInt32(8) != 0, reader.GetInt32(9) != 0, reader.GetInt32(10) != 0));
+            while (reader.Read())
+            {
+                data.Roles.Add(new RoleRecord(reader.GetString(0), reader.GetInt32(1) != 0));
+                var granted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (var i = 0; i < LegacyPermissions.Columns.Length; i++)
+                    if (!reader.IsDBNull(i + 2) && reader.GetInt32(i + 2) != 0) granted.Add(LegacyPermissions.Columns[i]);
+                data.LegacyGrants[reader.GetString(0)] = granted;
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            // A module level is stored as "Assets:Edit" - only the level actually granted, because the lower ones are
+            // implied by RoleRecord.Allows rather than written out. Anything without a colon is a flag.
+            command.CommandText = "SELECT RoleName, Permission FROM RolePermissions;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var role = data.Roles.FirstOrDefault(x => string.Equals(x.Name, reader.GetString(0), StringComparison.OrdinalIgnoreCase));
+                if (role is null) continue;
+                var permission = reader.GetString(1);
+                var split = permission.IndexOf(':');
+                if (split < 0) { role.Flags.Add(permission); continue; }
+                var level = PermissionLevels.Parse(permission[(split + 1)..]);
+                if (level != PermissionLevel.None) role.Levels[permission[..split]] = level;
+            }
         }
         using (var command = connection.CreateCommand())
         {
@@ -3396,7 +3551,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
@@ -3418,6 +3573,7 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "AcademicYearStartMonth", data.AcademicYearStartMonth.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "PermissionModelVersion", data.PermissionModelVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
@@ -3444,9 +3600,18 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",
                 ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", string.IsNullOrWhiteSpace(item.Team) ? null : item.Team), ("$role", string.IsNullOrWhiteSpace(item.Role) ? StaffRoles.DefaultRole : item.Role), ("$hash", item.PasswordHash), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$active", item.IsActive ? 1 : 0));
         foreach (var item in data.Roles)
-            Execute(connection, transaction, "INSERT INTO Roles (Name, AllowSettings, AllowManageRoles, AllowManageStaff, AllowManageRequesters, AllowManageAssets, AllowManageSuppliers, AllowManageParts, AllowTicketDestructive, AllowChangeWorkingAs, IsProtected) VALUES ($name,$settings,$roles,$staff,$requesters,$assets,$suppliers,$parts,$destructive,$workingas,$protected);",
-                ("$name", item.Name), ("$settings", item.AllowSettings ? 1 : 0), ("$roles", item.AllowManageRoles ? 1 : 0), ("$staff", item.AllowManageStaff ? 1 : 0), ("$requesters", item.AllowManageRequesters ? 1 : 0),
-                ("$assets", item.AllowManageAssets ? 1 : 0), ("$suppliers", item.AllowManageSuppliers ? 1 : 0), ("$parts", item.AllowManageParts ? 1 : 0), ("$destructive", item.AllowTicketDestructive ? 1 : 0), ("$workingas", item.AllowChangeWorkingAs ? 1 : 0), ("$protected", item.IsProtected ? 1 : 0));
+        {
+            // The nine Allow* columns are NOT NULL DEFAULT 0, so leaving them out retires them cleanly - the same way
+            // the SLA single-value columns were retired.
+            Execute(connection, transaction, "INSERT INTO Roles (Name, IsProtected) VALUES ($name,$protected);",
+                ("$name", item.Name), ("$protected", item.IsProtected ? 1 : 0));
+            foreach (var level in item.Levels.Where(x => x.Value != PermissionLevel.None))
+                Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
+                    ("$role", item.Name), ("$permission", $"{level.Key}:{level.Value}"));
+            foreach (var flag in item.Flags)
+                Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
+                    ("$role", item.Name), ("$permission", flag));
+        }
         foreach (var item in data.Suppliers)
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         foreach (var item in data.Parts)
@@ -3714,6 +3879,10 @@ public sealed partial class HelpdeskStore
         public List<UserRecord> Users { get; set; } = [];
         public List<TechnicianRecord> Technicians { get; set; } = [];
         public List<RoleRecord> Roles { get; set; } = [];
+        // 0 = the old nine on/off permissions, 2 = per-module levels. Read from Metadata; see MigrateRolePermissions.
+        public int PermissionModelVersion { get; set; }
+        // Only populated while loading, so the one-time conversion can see what each role used to grant. Never saved.
+        public Dictionary<string, HashSet<string>> LegacyGrants { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> TechnicianTeams { get; set; } = [];
         public List<string> Departments { get; set; } = [];
         public List<string> Locations { get; set; } = [];

@@ -30,6 +30,19 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public int OpenTickets => Tickets.Count(x => x.Status is not "Closed");
     [TempData] public string? Message { get; set; }
 
+    // The overview is open to anyone signed in, so each panel asks whether this role is allowed the module it summarises
+    // - otherwise it would hand out asset tags, part names and ticket titles the role cannot reach anywhere else.
+    public bool CanSeeAssets => store.UserCan(User, Modules.Assets, PermissionLevel.Access);
+    public bool CanOpenAsset => store.UserCan(User, Modules.Assets, PermissionLevel.View);
+    public bool CanSeeParts => store.UserCan(User, Modules.Parts, PermissionLevel.Access);
+    public bool CanEditParts => store.UserCan(User, Modules.Parts, PermissionLevel.Edit);
+    public bool CanSeeTickets => store.UserCan(User, Modules.Tickets, PermissionLevel.Access);
+    public bool CanOpenTicket => store.UserCan(User, Modules.Tickets, PermissionLevel.View);
+    public bool CanSeeStaff => store.UserCan(User, Modules.StaffAccounts, PermissionLevel.Access);
+    public bool CanSeeRequesters => store.UserCan(User, Modules.Requesters, PermissionLevel.Access);
+    public bool CanSeeAssetReport => store.UserHasFlag(User, Modules.Flags.ReportAssets);
+    public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
+
     // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
     // staff portal instead of straight to the technician login - a technician still ends up here once signed in.
     public IActionResult OnGet() => User.Identity?.IsAuthenticated == true ? Page() : RedirectToPage("/Portal/Index");

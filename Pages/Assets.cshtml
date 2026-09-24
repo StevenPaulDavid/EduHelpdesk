@@ -7,7 +7,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / ASSET REGISTER</p><h1>Assets</h1><p class="hero-copy">Track school equipment and keep its ticket history connected.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">＋ Add asset</a></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a>@if (Model.CanEdit) { <a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">＋ Add asset</a> }</div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
@@ -44,7 +44,7 @@
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
         <div class="table-wrap"><table class="asset-table"><thead><tr>
-            <th><input id="select-page" type="checkbox" aria-label="Select all assets on this page" onchange="toggleAssetPage(this)" /></th>
+            <th>@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all assets on this page" onchange="toggleAssetPage(this)" /> }</th>
             <th><a class="sort-link" href="@Model.SortUrl("tag")">Asset@(Model.SortMark("tag"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("model")">Make and model@(Model.SortMark("model"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th>
@@ -60,7 +60,7 @@
             var overdue = asset.AssignedUserId is not null && asset.LoanDueDate is { } due && due < Model.Today;
             var expired = asset.WarrantyEnd is { } ends && ends < Model.Today;
             <tr>
-                <td><input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" onchange="assetSelectionChanged()" /></td>
+                <td>@if (Model.CanView) { <input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" onchange="assetSelectionChanged()" /> }</td>
                 <td><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
                 <td>@asset.Type</td>
                 <td>@asset.SerialNumber</td>
@@ -69,21 +69,24 @@
                 <td><span class="status">@asset.Status</span></td>
                 <td>@if (asset.WarrantyEnd is { } warrantyEnd) { <span>@AssetInsights.Format(warrantyEnd)</span> @if (expired) { <br /><span class="badge badge-warning">Expired</span> } } else { <span class="muted">—</span> }</td>
                 <td>@if (Model.TicketCounts.GetValueOrDefault(asset.Id) > 0) { <a asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all" title="Show these tickets"><span class="badge">@Model.TicketCounts.GetValueOrDefault(asset.Id)</span></a> } else { <span class="badge">0</span> }</td>
-                <td class="asset-row-actions"><a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">✎</a><a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">♜</a></td>
+                <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">✎</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">♜</a> }</td>
             </tr>
         }
         @if (Model.Rows.Count == 0) { <tr><td colspan="10" class="empty">@(Model.IsFiltered ? "No assets match these filters." : "No assets have been added yet.")</td></tr> }
         </tbody></table></div>
 
-        @if (Model.Rows.Count > 0)
+        @if (Model.Rows.Count > 0 && Model.CanView)
         {
             <div class="bulk-actions">
                 <strong>With selected assets</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation" onchange="switchAssetOperation()"><option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change location</option><option value="export">Export to CSV</option></select></label>
-                <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>
-                <label id="bulk-owner-field" hidden>New owner<select name="newOwner" disabled><option value="none">Nobody (unassigned)</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label>
-                <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@AssetListQuery.None">No location</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                <label>Action<select name="operation" id="bulk-operation" onchange="switchAssetOperation()">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change location</option> }<option value="export">Export to CSV</option></select></label>
+                @if (Model.CanEdit)
+                {
+                    <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>
+                    <label id="bulk-owner-field" hidden>New owner<select name="newOwner" disabled><option value="none">Nobody (unassigned)</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label>
+                    <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@AssetListQuery.None">No location</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                }
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
             </div>
         }
@@ -145,10 +148,14 @@ function clearAssetSelection() {
     selectAllField.value = "false";
     assetSelectionChanged(true);
 }
+// A role without Assets: Edit gets the export option only, so every field below may legitimately be absent.
 function switchAssetOperation() {
-    const op = document.getElementById("bulk-operation").value;
+    const operation = document.getElementById("bulk-operation");
+    if (!operation) return;
+    const op = operation.value;
     for (const [name, id] of [["status", "bulk-status-field"], ["owner", "bulk-owner-field"], ["location", "bulk-location-field"]]) {
         const field = document.getElementById(id);
+        if (!field) continue;
         field.hidden = op !== name;
         field.querySelector("select").disabled = op !== name;
     }
@@ -157,7 +164,8 @@ function switchAssetOperation() {
 form.addEventListener("submit", event => {
     const total = selectedTotal();
     if (total === 0) { event.preventDefault(); alert("Select at least one asset first."); return; }
-    const op = document.getElementById("bulk-operation").value;
+    const operation = document.getElementById("bulk-operation");
+    const op = operation ? operation.value : "export";
     if (op !== "export" && total > 20 && !confirm("Change " + total + " assets?")) event.preventDefault();
 });
 switchAssetOperation();

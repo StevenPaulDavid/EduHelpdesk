@@ -6,6 +6,21 @@
     bool NavOn(params string[] prefixes) => prefixes.Any(p =>
         navPath.Equals(p, StringComparison.OrdinalIgnoreCase) || navPath.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase));
     var onInventory = NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
+
+    // A link nobody can follow is worse than no link: people click it, get refused, and raise a ticket about it. So the
+    // menu is built from what this role can actually reach. The pages enforce the same levels themselves - this only
+    // decides what is worth showing.
+    bool Can(string module, PermissionLevel level = PermissionLevel.Access) => Helpdesk.UserCan(User, module, level);
+    var canInventory = Can(Modules.Assets) || Can(Modules.Kits) || Can(Modules.Loans) || Can(Modules.Parts) || Can(Modules.Suppliers);
+    // /Reports is the asset report, not an index, so pointing the menu at it would refuse anyone given only one of the
+    // other reports. The link goes to the first report this role can actually open.
+    var reportPages = new (string Page, string Flag)[]
+    {
+        ("/Reports", Modules.Flags.ReportAssets), ("/Reports/Tickets", Modules.Flags.ReportTickets),
+        ("/Reports/Parts", Modules.Flags.ReportParts), ("/Reports/Loans", Modules.Flags.ReportLoans),
+        ("/Reports/Finance", Modules.Flags.ReportFinance),
+    };
+    var firstReport = Can(Modules.Reports) ? reportPages.FirstOrDefault(x => Helpdesk.UserHasFlag(User, x.Flag)).Page : null;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -47,22 +62,30 @@
     {
         <nav>
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
-            <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a>
-            <a asp-page="/People" class="@(NavOn("/People") ? "active" : null)">People</a>
-            <details class="nav-menu">
-                <summary class="@(onInventory ? "active" : null)">Inventory<span class="chev" aria-hidden="true">▾</span></summary>
-                <div class="nav-panel">
-                    <a asp-page="/Assets">Assets</a>
-                    <a asp-page="/Kits">Kits</a>
-                    <a asp-page="/Loans">Loans</a>
-                    <a asp-page="/Parts">Parts</a>
-                    <a asp-page="/Suppliers">Suppliers</a>
-                </div>
-            </details>
-            <a asp-page="/Reports" class="@(NavOn("/Reports") ? "active" : null)">Reports</a>
-            @if (Helpdesk.UserHasPermission(User, Permissions.Settings)) { <a asp-page="/Settings" class="@(NavOn("/Settings") ? "active" : null)">Settings</a> }
+            @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
+            @* People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough. *@
+            @if (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) { <a asp-page="/People" class="@(NavOn("/People") ? "active" : null)">People</a> }
+            @if (canInventory)
+            {
+                <details class="nav-menu">
+                    <summary class="@(onInventory ? "active" : null)">Inventory<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel">
+                        @if (Can(Modules.Assets)) { <a asp-page="/Assets">Assets</a> }
+                        @if (Can(Modules.Kits)) { <a asp-page="/Kits">Kits</a> }
+                        @if (Can(Modules.Loans)) { <a asp-page="/Loans">Loans</a> }
+                        @if (Can(Modules.Parts)) { <a asp-page="/Parts">Parts</a> }
+                        @if (Can(Modules.Suppliers)) { <a asp-page="/Suppliers">Suppliers</a> }
+                    </div>
+                </details>
+            }
+            @* Reports needs the area level AND at least one readable report - the area on its own opens nothing. *@
+            @if (firstReport is not null) { <a asp-page="@firstReport" class="@(NavOn("/Reports") ? "active" : null)">Reports</a> }
+            @if (Can(Modules.Settings)) { <a asp-page="/Settings" class="@(NavOn("/Settings") ? "active" : null)">Settings</a> }
+            @* Somebody given the audit log but not Settings - a DPO, say - gets a link straight to the log, because the
+               Settings page itself would refuse them. *@
+            else if (Can(Modules.AuditLog)) { <a asp-page="/Settings/Audit" class="@(NavOn("/Settings") ? "active" : null)">Audit log</a> }
         </nav>
-        <a class="button button-primary header-job-button" asp-page="/NewTicket">＋ Log a ticket</a>
+        @if (Can(Modules.Tickets, PermissionLevel.Edit)) { <a class="button button-primary header-job-button" asp-page="/NewTicket">＋ Log a ticket</a> }
         <details class="nav-menu user-menu">
             <summary><span class="user-name">@User.Identity!.Name</span><span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">

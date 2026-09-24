@@ -15,6 +15,8 @@ public class FinanceReportsModel(HelpdeskStore store) : PageModel
 {
     [BindProperty(SupportsGet = true, Name = "year")] public int? Year { get; set; }
 
+    public bool CanExport => store.UserHasFlag(User, Modules.Flags.ReportExport);
+
     public int StartMonth { get; private set; }
     public int StartYear { get; private set; }
     public string AcademicLabel { get; private set; } = "";
@@ -140,6 +142,7 @@ public class FinanceReportsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGetExport(string? table)
     {
+        if (!CanExport) return Forbid();
         OnGet();
         var (name, csv) = (table ?? "").ToLowerInvariant() switch
         {

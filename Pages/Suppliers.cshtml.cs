@@ -11,12 +11,20 @@ public class SuppliersModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<SupplierRecord> Suppliers => store.Suppliers;
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     [TempData] public string? Message { get; set; }
+
+    // The list opens at Access, so the view asks what this role can actually do before drawing any of the buttons.
+    public bool CanView => store.UserCan(User, Modules.Suppliers, PermissionLevel.View);
+    public bool CanEdit => store.UserCan(User, Modules.Suppliers, PermissionLevel.Edit);
+    public bool CanDelete => store.UserCan(User, Modules.Suppliers, PermissionLevel.Delete);
+
     public void OnGet() { }
 
     public IActionResult OnPostAdd(SupplierRecord input) => Save(input with { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow }, true);
     public IActionResult OnPostSave(SupplierRecord input) => Save(input, false);
+    // The list itself only needs Access - the add/edit/delete forms on it carry their own level.
     private IActionResult Save(SupplierRecord input, bool add)
     {
+        if (!store.UserCan(User, Modules.Suppliers, PermissionLevel.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(input.Name)) { Message = "Supplier name is required."; return RedirectToPage(); }
         if (!string.IsNullOrWhiteSpace(input.Email))
         {
@@ -27,5 +35,10 @@ public class SuppliersModel(HelpdeskStore store) : PageModel
         if (add) { store.AddSupplier(item); Message = "Supplier added."; } else Message = store.UpdateSupplier(item) ? "Supplier updated." : "Supplier was not found.";
         return RedirectToPage();
     }
-    public IActionResult OnPostDelete(Guid id) { Message = store.DeleteSupplier(id) ?? "Supplier deleted."; return RedirectToPage(); }
+    public IActionResult OnPostDelete(Guid id)
+    {
+        if (!store.UserCan(User, Modules.Suppliers, PermissionLevel.Delete)) return Forbid();
+        Message = store.DeleteSupplier(id) ?? "Supplier deleted.";
+        return RedirectToPage();
+    }
 }

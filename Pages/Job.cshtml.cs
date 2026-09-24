@@ -350,7 +350,7 @@ public class JobModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDelete(int number)
     {
-        if (!store.UserHasPermission(User, Permissions.TicketDestructive)) return Forbid();
+        if (!store.UserCan(User, Modules.Tickets, PermissionLevel.Delete)) return Forbid();
         var message = store.DeleteTicket(number);
         if (message is not null)
         {
@@ -363,7 +363,7 @@ public class JobModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostMerge(int number, int targetNumber)
     {
-        if (!store.UserHasPermission(User, Permissions.TicketDestructive)) return Forbid();
+        if (!store.UserCan(User, Modules.Tickets, PermissionLevel.Delete)) return Forbid();
         var message = store.MergeTicket(number, targetNumber);
         if (message is not null)
         {

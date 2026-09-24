@@ -6,8 +6,9 @@ namespace EduHelpdesk.Pages.Reports;
 
 public class PartReportsModel(HelpdeskStore store) : PageModel
 {
-    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
-    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
+    // Taking CSV and print away is a separate decision from taking the report away, so the download links and the print
+    // button hang off this rather than off the report's own flag.
+    public bool CanExport => store.UserHasFlag(User, Modules.Flags.ReportExport);
     public int TotalParts { get; private set; }
     public int DefaultReorderThreshold { get; private set; }
     public int OutOfStockCount { get; private set; }
@@ -25,6 +26,7 @@ public class PartReportsModel(HelpdeskStore store) : PageModel
 
     public Microsoft.AspNetCore.Mvc.IActionResult OnGetExport()
     {
+        if (!CanExport) return Forbid();
         OnGet();
         var csv = Csv.Table(
             ["Part", "SKU", "Category", "Location", "Suppliers", "Quantity on hand", "Reorder threshold", "Out of stock"],

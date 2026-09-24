@@ -56,7 +56,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public Guid? CurrentTechnicianId { get; private set; }
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
     // Only roles granted ChangeWorkingAs can work as someone other than themselves; everyone else is fixed to their own account.
-    public bool CanChangeWorkingAs => store.UserHasPermission(User, Permissions.ChangeWorkingAs);
+    public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
     private Guid? SignedInTechnicianId =>
         Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     public bool Descending => Dir == "desc";
@@ -83,6 +83,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newType, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, int? mergeTarget)
     {
         Prepare();
+        // Editing in bulk is still editing, and merging in bulk is still merging - this path used to check neither,
+        // so a role without the destructive level could merge tickets here that it could not merge one at a time.
+        if (!store.UserCan(User, Modules.Tickets, PermissionLevel.Edit)) return Forbid();
+        if (operation == "merge" && !store.UserCan(User, Modules.Tickets, PermissionLevel.Delete)) return Forbid();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
         var targets = selectAll ? BuildQuery().Run(store.Tickets, Context()).Select(x => x.Number).ToList() : (ids ?? []).Distinct().ToList();
         if (targets.Count == 0)

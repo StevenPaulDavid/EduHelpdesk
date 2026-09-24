@@ -7,8 +7,9 @@ namespace EduHelpdesk.Pages;
 
 public class ReportsModel(HelpdeskStore store) : PageModel
 {
-    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
-    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
+    // Taking CSV and print away is a separate decision from taking the report away, so the download links and the print
+    // button hang off this rather than off the report's own flag.
+    public bool CanExport => store.UserHasFlag(User, Modules.Flags.ReportExport);
     // How many rows each long table shows. Virtual so the print view can show every row - a report handed to someone
     // should not stop at 100 with no way to see the rest.
     public virtual int RowLimit => 100;
@@ -129,6 +130,7 @@ public class ReportsModel(HelpdeskStore store) : PageModel
     // matched handler, so the filters in the query string apply to the export exactly as they do on screen.
     public IActionResult OnGetExport(string? table)
     {
+        if (!CanExport) return Forbid();
         OnGet();
         var (name, csv) = (table ?? "").ToLowerInvariant() switch
         {

@@ -7,8 +7,9 @@ namespace EduHelpdesk.Pages.Reports;
 
 public class TicketReportsModel(HelpdeskStore store) : PageModel
 {
-    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
-    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
+    // Taking CSV and print away is a separate decision from taking the report away, so the download links and the print
+    // button hang off this rather than off the report's own flag.
+    public bool CanExport => store.UserHasFlag(User, Modules.Flags.ReportExport);
     // Top-N shortlists (most tickets, repeat faults, top requesters). Deliberately the same on screen and on paper:
     // these are rankings, and a printed list of every requester would be noise rather than information.
     public const int RowLimit = 15;
@@ -55,6 +56,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     // column rather than four near-identical downloads.
     public IActionResult OnGetExport(string? table)
     {
+        if (!CanExport) return Forbid();
         _exportingEverything = true;
         OnGet();
         var (name, csv) = (table ?? "").ToLowerInvariant() switch

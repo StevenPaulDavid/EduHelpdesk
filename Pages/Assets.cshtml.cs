@@ -30,6 +30,11 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
     [TempData] public string? Message { get; set; }
 
+    // The list opens at Access, so the view asks what this role can actually do before drawing any of the buttons.
+    public bool CanView => store.UserCan(User, Modules.Assets, PermissionLevel.View);
+    public bool CanEdit => store.UserCan(User, Modules.Assets, PermissionLevel.Edit);
+    public bool CanDelete => store.UserCan(User, Modules.Assets, PermissionLevel.Delete);
+
     public IReadOnlyList<AssetRecord> Rows { get; private set; } = [];
     public IReadOnlyDictionary<Guid, string> UserNames { get; private set; } = new Dictionary<Guid, string>();
     public IReadOnlyDictionary<Guid, int> TicketCounts { get; private set; } = new Dictionary<Guid, int>();
@@ -56,6 +61,9 @@ public class AssetsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostBulk(string? operation, Guid[]? ids, bool selectAll, string? newStatus, string? newOwner, string? newLocation)
     {
+        // The list itself only needs Access, so the handlers on it carry their own level: export reads the register,
+        // everything else writes to it.
+        if (!store.UserCan(User, Modules.Assets, operation == "export" ? PermissionLevel.View : PermissionLevel.Edit)) return Forbid();
         Normalize();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
         var targets = selectAll ? Run().Select(x => x.Id).ToList() : (ids ?? []).Distinct().ToList();
@@ -142,6 +150,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDeleteAsset(Guid id)
     {
+        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Delete)) return Forbid();
         Message = store.DeleteAsset(id) ?? "Asset deleted.";
         return RedirectToPage();
     }

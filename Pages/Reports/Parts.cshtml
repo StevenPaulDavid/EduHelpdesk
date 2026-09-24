@@ -4,14 +4,14 @@
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Parts reports</h1><p class="hero-copy">Which parts are low or out of stock, so restocking happens before a technician is blocked.</p></div>
     <div class="heading-actions">
-        <a class="button button-primary" asp-page="/Reports/PartsPrint" target="_blank">🖨 Print / Save as PDF</a>
+        @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/PartsPrint" target="_blank">🖨 Print / Save as PDF</a> }
         <a class="button button-secondary" asp-page="/Index">← Overview</a>
     </div>
 </div>
-<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab active" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab" asp-page="/Reports/Loans">Loan reports</a>@if (Model.CanSeeFinance) { <a class="queue-tab" asp-page="/Reports/Finance">Finance</a> }</nav>
+<partial name="_ReportTabs" model="@("/Reports/Parts")" />
 
 <section class="panel" id="low-stock">
-    <div class="panel-heading"><div><p class="eyebrow">LOW STOCK</p><h2>Parts at or below their reorder threshold</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Parts" asp-page-handler="Export">⬇ CSV</a><span class="badge @(Model.LowStock.Count > 0 ? "badge-warning" : "")">@Model.LowStock.Count of @Model.TotalParts</span></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">LOW STOCK</p><h2>Parts at or below their reorder threshold</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Parts" asp-page-handler="Export">⬇ CSV</a> }<span class="badge @(Model.LowStock.Count > 0 ? "badge-warning" : "")">@Model.LowStock.Count of @Model.TotalParts</span></div></div>
     <p class="muted">A part is low once its quantity on hand drops to its reorder threshold or below (default @Model.DefaultReorderThreshold, set in Settings). @Model.OutOfStockCount completely out of stock. <a asp-page="/Parts" asp-route-flag="low">Open these in the parts list</a> to restock or adjust them.</p>
     <div class="table-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Location</th><th>Suppliers</th><th>Quantity</th><th>Threshold</th></tr></thead><tbody>
     @foreach (var part in Model.LowStock)
