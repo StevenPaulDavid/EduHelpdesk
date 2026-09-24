@@ -41,8 +41,10 @@ public class LoansModel(HelpdeskStore store) : PageModel
     public Guid? AssetIdFor(LoanInsights.LoanEntry loan) =>
         loan.Kind == LoanInsights.AssetKind ? store.Assets.FirstOrDefault(x => x.AssetTag == loan.What)?.Id : null;
 
+    // The list opens at Access; booking a loan back in changes it, so it needs Edit.
     public IActionResult OnPostReturn(Guid kitId, string? notes)
     {
+        if (!store.UserCan(User, Modules.Loans, ModulePermission.Edit)) return Forbid();
         Message = store.ReturnKit(kitId, notes).Message;
         return RedirectToPage();
     }

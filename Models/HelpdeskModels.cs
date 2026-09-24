@@ -2,29 +2,32 @@ namespace EduHelpdesk.Models;
 
 public record UserRecord(Guid Id, string Name, string Email, string Department, string Location, string? PasswordHash = null, bool IsActive = true);
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
-// What a role can do with one module. The levels stack: Delete implies Edit implies View implies Access, so a role
-// holds one level per module rather than four independent ticks - which stops nonsense like Delete without View.
-public enum PermissionLevel
+// What a role can do with one module. Each is an independent tick rather than a rung on a ladder: a role can be given
+// Delete without Edit, or New without Access, because which combinations make sense is the school's call, not ours.
+// Flags so one value holds a module's whole set.
+[Flags]
+public enum ModulePermission
 {
     None = 0,
-    Access = 1,
-    View = 2,
-    Edit = 3,
-    Delete = 4
+    Access = 1,   // open the list
+    View = 2,     // open a record and read it
+    New = 4,      // create records
+    Edit = 8,     // change existing records
+    Delete = 16   // remove records
 }
 
-// A named set of permissions a technician account can hold. Roles are user-defined (see HelpdeskStore.Roles); Administrator
-// is the one hardcoded, protected exception - see StaffRoles below and HelpdeskStore.RoleGrants.
-// Levels are keyed by module (see Services/Modules.cs); Flags hold the things that are not a level on a record, such as
-// which individual reports are readable.
+// A named set of permissions a technician account can hold. Roles are user-defined (see HelpdeskStore.Roles);
+// Administrator is the one hardcoded, protected exception - see StaffRoles below and HelpdeskStore.UserCan.
+// Grants are keyed by module (see Services/Modules.cs); Flags hold what is not an action on a record, such as which
+// individual reports are readable.
 public record RoleRecord(string Name, bool IsProtected = false)
 {
-    public Dictionary<string, PermissionLevel> Levels { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, ModulePermission> Grants { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> Flags { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public PermissionLevel LevelFor(string module) => Levels.GetValueOrDefault(module, PermissionLevel.None);
-    // The stacking rule lives here and nowhere else.
-    public bool Allows(string module, PermissionLevel level) => LevelFor(module) >= level;
+    public ModulePermission GrantsFor(string module) => Grants.GetValueOrDefault(module, ModulePermission.None);
+    // Exact, not cumulative: asking for Edit means the Edit box is ticked, nothing else.
+    public bool Allows(string module, ModulePermission action) => (GrantsFor(module) & action) == action && action != ModulePermission.None;
     public bool Has(string flag) => Flags.Contains(flag);
 }
 // The one role name that is hardcoded rather than data-driven: always has every permission, can't be edited or deleted,
@@ -34,28 +37,6 @@ public static class StaffRoles
     public const string Administrator = "Administrator";
     // Fallback used when a stored Role value doesn't match any known role (e.g. legacy data).
     public const string DefaultRole = "Technician";
-}
-// The nine on/off permissions the system used before per-module levels. Kept only so the one-time migration can read
-// the old columns and work out what each existing role should become - see HelpdeskStore.MigrateRolePermissions.
-// Nothing else should reference these; new code uses Modules and PermissionLevel.
-public static class LegacyPermissions
-{
-    public const string Settings = "AllowSettings";
-    public const string ManageRoles = "AllowManageRoles";
-    public const string ManageStaff = "AllowManageStaff";
-    public const string ManageRequesters = "AllowManageRequesters";
-    public const string ManageAssets = "AllowManageAssets";
-    public const string ManageSuppliers = "AllowManageSuppliers";
-    public const string ManageParts = "AllowManageParts";
-    public const string TicketDestructive = "AllowTicketDestructive";
-    public const string ChangeWorkingAs = "AllowChangeWorkingAs";
-
-    // Column order in the old Roles table, after Name.
-    public static readonly string[] Columns =
-    [
-        Settings, ManageRoles, ManageStaff, ManageRequesters, ManageAssets,
-        ManageSuppliers, ManageParts, TicketDestructive, ChangeWorkingAs
-    ];
 }
 // Who performed a change. Name is the display name captured at the time, so a history line still reads correctly after
 // someone is renamed or their account is deleted - the same reasoning as KitLoan.BorrowerName. Id is the technician

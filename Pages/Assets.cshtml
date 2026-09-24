@@ -7,7 +7,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / ASSET REGISTER</p><h1>Assets</h1><p class="hero-copy">Track school equipment and keep its ticket history connected.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a>@if (Model.CanEdit) { <a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">＋ Add asset</a> }</div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a>@if (Model.CanAdd) { <a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">＋ Add asset</a> }</div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
@@ -61,7 +61,7 @@
             var expired = asset.WarrantyEnd is { } ends && ends < Model.Today;
             <tr>
                 <td>@if (Model.CanView) { <input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" onchange="assetSelectionChanged()" /> }</td>
-                <td><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
+                <td><strong>@if (Model.CanView) { <a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a> } else { @asset.AssetTag }</strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
                 <td>@asset.Type</td>
                 <td>@asset.SerialNumber</td>
                 <td>@(holder ?? "—")@if (asset.AssignedUserId is not null && asset.LoanDueDate is { } loanDue) { <br /><span class="badge @(overdue ? "badge-warning" : "")">Loan due @AssetInsights.Format(loanDue)</span> }</td>

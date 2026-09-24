@@ -17,19 +17,26 @@ public class EditModel(HelpdeskStore store) : PageModel
     public DateTime Now { get; } = DateTime.UtcNow;
     [TempData] public string? Message { get; set; }
 
-    public void OnGet(Guid? id)
+    // One page serves adding and editing, so the convention lets in anyone with either permission and the handlers
+    // sort out which of the two this actually is. See Program.cs.
+    private ModulePermission Needed(Guid? id) => id.HasValue ? ModulePermission.Edit : ModulePermission.New;
+
+    public IActionResult OnGet(Guid? id)
     {
-        if (!id.HasValue) return;
+        if (!store.UserCan(User, Modules.Kits, Needed(id))) return Forbid();
+        if (!id.HasValue) return Page();
         Kit = store.LoanKits.FirstOrDefault(x => x.Id == id);
-        if (Kit is null) return;
+        if (Kit is null) return Page();
         SelectedAssetIds = Kit.AssetIds.ToArray();
         History = store.KitLoans.Where(x => x.KitId == Kit.Id).OrderByDescending(x => x.IssuedAt).ToList();
+        return Page();
     }
 
     public string Duration(KitLoan loan) => LoanInsights.Duration(loan, Now);
 
     public IActionResult OnPost(Guid? id, string name, string? notes, Guid[]? assetIds, bool retired)
     {
+        if (!store.UserCan(User, Modules.Kits, Needed(id))) return Forbid();
         var (ok, message) = id.HasValue
             ? store.UpdateLoanKit(id.Value, name, notes, assetIds, retired)
             : store.AddLoanKit(name, notes, assetIds);
@@ -52,6 +59,7 @@ public class EditModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDelete(Guid id)
     {
+        if (!store.UserCan(User, Modules.Kits, ModulePermission.Delete)) return Forbid();
         TempData["Message"] = store.DeleteLoanKit(id).Message;
         return RedirectToPage("/Kits");
     }

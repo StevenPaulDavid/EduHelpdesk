@@ -168,3 +168,34 @@ h3 .csv-link { margin-left: 8px; }
 .permission-card select{width:100%}
 .permission-toggle{grid-template-columns:auto 1fr;gap:10px;align-items:start;cursor:pointer;font-weight:400}
 .permission-toggle input{width:auto;margin-top:2px}
+/* The role editor's permission grid: one row per module, one column per action, every box independent. */
+.permission-grid{width:100%;border-collapse:collapse}
+.permission-grid th,.permission-grid td{border-bottom:1px solid var(--line);padding:10px 8px;vertical-align:middle}
+.permission-grid thead th{text-align:center;font-size:12px;font-weight:800;white-space:nowrap;vertical-align:bottom;padding-bottom:12px}
+.permission-grid thead th:first-child{text-align:left}
+.permission-grid thead th small{display:block;font-weight:400;font-size:10px;line-height:1.3;white-space:normal;
+  max-width:120px;margin:3px auto 6px}
+.permission-grid tbody th{text-align:left;font-weight:400;min-width:190px}
+.permission-grid tbody th strong{display:block;font-size:13px}
+.permission-grid tbody th small{display:block;font-size:11px;line-height:1.35;margin-top:2px}
+.permission-grid td{text-align:center;width:1%}
+.permission-grid input[type=checkbox]{width:17px;height:17px;margin:0;cursor:pointer}
+.permission-grid .permission-na{color:var(--muted);opacity:.5}
+.permission-grid tbody tr:hover{background:var(--paper)}
+
+/* Below tablet width a five-column grid of tick boxes stops being readable, so each module becomes a card and every
+   box is labelled by the action it belongs to. */
+@media(max-width:760px){
+  .permission-grid,.permission-grid tbody,.permission-grid tr,.permission-grid td,.permission-grid th{display:block;width:auto}
+  .permission-grid thead{display:none}
+  .permission-grid tbody tr{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+  .permission-grid tbody th{border:0;padding:0 0 8px;min-width:0}
+  .permission-grid td{border:0;padding:4px 0;text-align:left;display:flex;align-items:center;gap:9px}
+  .permission-grid td::before{content:attr(data-label);font-size:12px;font-weight:700;order:2}
+  .permission-grid td .permission-na{order:1}
+}
+/* The shared th style is an uppercase, letter-spaced column label. The permission grid's headers carry a sentence of
+   explanation and its row headers are module names, so both opt out rather than shouting. */
+.permission-grid th{text-transform:none;letter-spacing:0;color:var(--ink)}
+.permission-grid thead th{font-size:12px}
+.permission-grid thead th small,.permission-grid tbody th small{text-transform:none;letter-spacing:0;color:var(--muted)}

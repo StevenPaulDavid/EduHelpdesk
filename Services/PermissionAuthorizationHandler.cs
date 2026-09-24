@@ -8,28 +8,33 @@ namespace EduHelpdesk.Services;
 // can be generated from the module list rather than hand-written.
 public sealed class PermissionRequirement : IAuthorizationRequirement
 {
-    private PermissionRequirement(string? module, PermissionLevel level, string? flag, string[]? anyOf)
+    private PermissionRequirement(string? module, ModulePermission action, string? flag, string[]? anyOf)
     {
         Module = module;
-        Level = level;
+        Action = action;
         Flag = flag;
         AnyOf = anyOf;
     }
 
     public string? Module { get; }
-    public PermissionLevel Level { get; }
+    public ModulePermission Action { get; }
     public string? Flag { get; }
     public string[]? AnyOf { get; }
 
-    public static PermissionRequirement For(string module, PermissionLevel level) => new(module, level, null, null);
-    public static PermissionRequirement ForFlag(string flag) => new(null, PermissionLevel.None, flag, null);
+    // Action is a mask and is satisfied by ANY of its bits, which for a single action is the same as an exact check.
+    // The combined form exists for the add/edit pages: one page serves both, so it opens for New or Edit and the page
+    // model then checks which of the two it actually needs.
+    public static PermissionRequirement For(string module, ModulePermission action) => new(module, action, null, null);
+    public static PermissionRequirement ForFlag(string flag) => new(null, ModulePermission.None, flag, null);
     // Satisfied by Access on any one of the modules. /People lists requesters, staff accounts and roles on one page,
     // so being allowed any of the three is enough to open it - the page then shows only the sections it may.
-    public static PermissionRequirement ForAny(params string[] modules) => new(null, PermissionLevel.Access, null, modules);
+    public static PermissionRequirement ForAny(params string[] modules) => new(null, ModulePermission.Access, null, modules);
 
-    // The policy name for a module level, e.g. "Assets:View". Flags are their own key ("Reports.Finance") and are
+    // The policy name for a module action, e.g. "Assets:View". Flags are their own key ("Reports.Finance") and are
     // registered under it directly, which is why they never contain a colon.
-    public static string PolicyName(string module, PermissionLevel level) => $"{module}:{level}";
+    // "Assets:View", or "Requesters:New,Edit" for a combined mask. The space .NET puts after the comma is stripped so
+    // the name is stable whichever way the mask was built.
+    public static string PolicyName(string module, ModulePermission action) => $"{module}:{action}".Replace(" ", "");
     public const string PeoplePolicy = "People:Any";
 }
 
@@ -42,8 +47,8 @@ public sealed class PermissionAuthorizationHandler(HelpdeskStore store) : Author
         var allowed = requirement switch
         {
             { Flag: { } flag } => store.UserHasFlag(context.User, flag),
-            { AnyOf: { } modules } => modules.Any(x => store.UserCan(context.User, x, requirement.Level)),
-            _ => store.UserCan(context.User, requirement.Module!, requirement.Level)
+            { AnyOf: { } modules } => modules.Any(x => store.UserCan(context.User, x, requirement.Action)),
+            _ => store.UserCanAny(context.User, requirement.Module!, requirement.Action)
         };
         if (allowed) context.Succeed(requirement);
         return Task.CompletedTask;

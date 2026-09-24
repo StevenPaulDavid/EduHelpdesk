@@ -11,13 +11,20 @@ public class TechnicianModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Roles => store.Roles.Select(x => x.Name).ToList();
     public TechnicianRecord? Technician { get; private set; }
 
-    public void OnGet(Guid? id)
+    // One page serves adding and editing, so the convention lets in anyone with either permission and the handlers
+    // sort out which of the two this actually is. See Program.cs.
+    private ModulePermission Needed(Guid? id) => id.HasValue ? ModulePermission.Edit : ModulePermission.New;
+
+    public IActionResult OnGet(Guid? id)
     {
+        if (!store.UserCan(User, Modules.StaffAccounts, Needed(id))) return Forbid();
         if (id.HasValue) Technician = store.Technicians.FirstOrDefault(x => x.Id == id);
+        return Page();
     }
 
     public IActionResult OnPost(Guid? id, string name, string email, string team, string role, string? password, bool active)
     {
+        if (!store.UserCan(User, Modules.StaffAccounts, Needed(id))) return Forbid();
         var existing = id.HasValue ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
         Technician = existing;
 

@@ -31,9 +31,10 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     [TempData] public string? Message { get; set; }
 
     // The list opens at Access, so the view asks what this role can actually do before drawing any of the buttons.
-    public bool CanView => store.UserCan(User, Modules.Assets, PermissionLevel.View);
-    public bool CanEdit => store.UserCan(User, Modules.Assets, PermissionLevel.Edit);
-    public bool CanDelete => store.UserCan(User, Modules.Assets, PermissionLevel.Delete);
+    public bool CanView => store.UserCan(User, Modules.Assets, ModulePermission.View);
+    public bool CanAdd => store.UserCan(User, Modules.Assets, ModulePermission.New);
+    public bool CanEdit => store.UserCan(User, Modules.Assets, ModulePermission.Edit);
+    public bool CanDelete => store.UserCan(User, Modules.Assets, ModulePermission.Delete);
 
     public IReadOnlyList<AssetRecord> Rows { get; private set; } = [];
     public IReadOnlyDictionary<Guid, string> UserNames { get; private set; } = new Dictionary<Guid, string>();
@@ -63,7 +64,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     {
         // The list itself only needs Access, so the handlers on it carry their own level: export reads the register,
         // everything else writes to it.
-        if (!store.UserCan(User, Modules.Assets, operation == "export" ? PermissionLevel.View : PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, operation == "export" ? ModulePermission.View : ModulePermission.Edit)) return Forbid();
         Normalize();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
         var targets = selectAll ? Run().Select(x => x.Id).ToList() : (ids ?? []).Distinct().ToList();
@@ -150,7 +151,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDeleteAsset(Guid id)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Delete)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Delete)) return Forbid();
         Message = store.DeleteAsset(id) ?? "Asset deleted.";
         return RedirectToPage();
     }

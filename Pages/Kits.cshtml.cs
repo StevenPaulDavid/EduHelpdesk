@@ -37,8 +37,10 @@ public class KitsModel(HelpdeskStore store) : PageModel
 
     public void OnGet() { }
 
+    // Booking a kit back in is a change to the loan, not to the kit.
     public IActionResult OnPostReturn(Guid kitId, string? notes)
     {
+        if (!store.UserCan(User, Modules.Loans, ModulePermission.Edit)) return Forbid();
         Message = store.ReturnKit(kitId, notes).Message;
         return RedirectToPage();
     }

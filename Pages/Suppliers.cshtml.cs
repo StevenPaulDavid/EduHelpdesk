@@ -13,18 +13,20 @@ public class SuppliersModel(HelpdeskStore store) : PageModel
     [TempData] public string? Message { get; set; }
 
     // The list opens at Access, so the view asks what this role can actually do before drawing any of the buttons.
-    public bool CanView => store.UserCan(User, Modules.Suppliers, PermissionLevel.View);
-    public bool CanEdit => store.UserCan(User, Modules.Suppliers, PermissionLevel.Edit);
-    public bool CanDelete => store.UserCan(User, Modules.Suppliers, PermissionLevel.Delete);
+    public bool CanView => store.UserCan(User, Modules.Suppliers, ModulePermission.View);
+    public bool CanAdd => store.UserCan(User, Modules.Suppliers, ModulePermission.New);
+    public bool CanEdit => store.UserCan(User, Modules.Suppliers, ModulePermission.Edit);
+    public bool CanDelete => store.UserCan(User, Modules.Suppliers, ModulePermission.Delete);
 
     public void OnGet() { }
 
     public IActionResult OnPostAdd(SupplierRecord input) => Save(input with { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow }, true);
     public IActionResult OnPostSave(SupplierRecord input) => Save(input, false);
-    // The list itself only needs Access - the add/edit/delete forms on it carry their own level.
+    // The list itself only needs Access - the add/edit/delete forms on it carry their own permission, and adding is a
+    // different permission from changing.
     private IActionResult Save(SupplierRecord input, bool add)
     {
-        if (!store.UserCan(User, Modules.Suppliers, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Suppliers, add ? ModulePermission.New : ModulePermission.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(input.Name)) { Message = "Supplier name is required."; return RedirectToPage(); }
         if (!string.IsNullOrWhiteSpace(input.Email))
         {
@@ -37,7 +39,7 @@ public class SuppliersModel(HelpdeskStore store) : PageModel
     }
     public IActionResult OnPostDelete(Guid id)
     {
-        if (!store.UserCan(User, Modules.Suppliers, PermissionLevel.Delete)) return Forbid();
+        if (!store.UserCan(User, Modules.Suppliers, ModulePermission.Delete)) return Forbid();
         Message = store.DeleteSupplier(id) ?? "Supplier deleted.";
         return RedirectToPage();
     }

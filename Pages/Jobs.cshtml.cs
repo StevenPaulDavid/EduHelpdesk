@@ -85,8 +85,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         Prepare();
         // Editing in bulk is still editing, and merging in bulk is still merging - this path used to check neither,
         // so a role without the destructive level could merge tickets here that it could not merge one at a time.
-        if (!store.UserCan(User, Modules.Tickets, PermissionLevel.Edit)) return Forbid();
-        if (operation == "merge" && !store.UserCan(User, Modules.Tickets, PermissionLevel.Delete)) return Forbid();
+        if (!store.UserCan(User, Modules.Tickets, ModulePermission.Edit)) return Forbid();
+        if (operation == "merge" && !store.UserCan(User, Modules.Tickets, ModulePermission.Delete)) return Forbid();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
         var targets = selectAll ? BuildQuery().Run(store.Tickets, Context()).Select(x => x.Number).ToList() : (ids ?? []).Distinct().ToList();
         if (targets.Count == 0)

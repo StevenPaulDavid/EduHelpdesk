@@ -59,7 +59,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
         DateOnly? warrantyEnd,
         DateOnly? replacementDate)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
         {
             Message = "Asset tag, type, and model are required.";
@@ -141,7 +141,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostLoan(Guid id, Guid? userId, DateOnly? dueBack, string? reason)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         Message = userId is null || dueBack is null
             ? "Choose who the device is loaned to and the date it is due back."
             : store.LoanAsset(id, userId.Value, dueBack.Value, reason).Message;
@@ -152,9 +152,10 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public DateOnly Today => AssetInsights.Today;
     public bool IsDisposed => Asset is not null && HelpdeskStore.IsDisposed(Asset);
 
+    // Disposal takes an asset out of the register for good, so it sits behind Delete rather than Edit.
     public IActionResult OnPostDispose(Guid id, DateOnly? disposalDate, string? disposalMethod, string? disposalProceeds)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Delete)) return Forbid();
         if (!AssetForm.TryPrice(disposalProceeds, out var proceeds))
         {
             Message = "Enter the proceeds as a positive amount, such as 45.00, or leave it blank.";
@@ -166,14 +167,14 @@ public class AssetModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostReturn(Guid id, string? status)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         Message = store.ReturnAsset(id, status);
         return RedirectToPage(new { id });
     }
 
     public IActionResult OnPostLinkTicket(Guid id, int? ticketNumber)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         if (ticketNumber is null)
         {
             Message = "Select a ticket to link.";
@@ -185,14 +186,14 @@ public class AssetModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostUnlinkTicket(Guid id, int ticketNumber)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         Message = store.UnlinkAssetFromTicket(id, ticketNumber) ? "Ticket unlinked." : "Ticket or asset was not found.";
         return RedirectToPage(new { id });
     }
 
     public IActionResult OnPostAddComment(Guid id, string? comment)
     {
-        if (!store.UserCan(User, Modules.Assets, PermissionLevel.Edit)) return Forbid();
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(comment))
         {
             Message = "Enter a comment before saving.";

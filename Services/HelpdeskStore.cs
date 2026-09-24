@@ -156,20 +156,20 @@ public sealed partial class HelpdeskStore
         {
             if (_data.Roles.Count > 0) return;
 
-            // Administrator's levels are never consulted - RoleGrants short-circuits on the name - but they are filled
-            // in anyway so the role editor and the audit log show the truth rather than an empty grid.
-            var everything = Modules.All.ToDictionary(x => x.Key, x => x.Max, StringComparer.OrdinalIgnoreCase);
+            // Administrator's grants are never consulted - UserCan short-circuits on the name - but they are filled in
+            // anyway so the role editor and the audit log show the truth rather than an empty grid.
+            var everything = Modules.All.ToDictionary(x => x.Key, x => x.Supports, StringComparer.OrdinalIgnoreCase);
             var allFlags = Modules.Flags.All.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Levels = everything, Flags = allFlags });
+            _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Grants = everything, Flags = allFlags });
 
             _data.Roles.Add(Role("Senior Technician",
                 new()
                 {
-                    [Modules.Tickets] = PermissionLevel.Delete, [Modules.Assets] = PermissionLevel.Delete,
-                    [Modules.Kits] = PermissionLevel.Delete, [Modules.Loans] = PermissionLevel.Delete,
-                    [Modules.Parts] = PermissionLevel.Delete, [Modules.Suppliers] = PermissionLevel.Delete,
-                    [Modules.Requesters] = PermissionLevel.Delete, [Modules.StaffAccounts] = PermissionLevel.Edit,
-                    [Modules.Roles] = PermissionLevel.Access, [Modules.Reports] = PermissionLevel.Access
+                    [Modules.Tickets] = Everything, [Modules.Assets] = Everything,
+                    [Modules.Kits] = Everything, [Modules.Loans] = Everything,
+                    [Modules.Parts] = Everything, [Modules.Suppliers] = Everything,
+                    [Modules.Requesters] = Everything, [Modules.StaffAccounts] = Write,
+                    [Modules.Roles] = Read, [Modules.Reports] = ModulePermission.Access
                 },
                 Modules.Flags.WorkingAs, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportExport));
@@ -177,11 +177,11 @@ public sealed partial class HelpdeskStore
             _data.Roles.Add(Role("Technician",
                 new()
                 {
-                    [Modules.Tickets] = PermissionLevel.Edit, [Modules.Assets] = PermissionLevel.Edit,
-                    [Modules.Kits] = PermissionLevel.Edit, [Modules.Loans] = PermissionLevel.Edit,
-                    [Modules.Parts] = PermissionLevel.Edit, [Modules.Suppliers] = PermissionLevel.View,
-                    [Modules.Requesters] = PermissionLevel.Edit, [Modules.StaffAccounts] = PermissionLevel.View,
-                    [Modules.Reports] = PermissionLevel.Access
+                    [Modules.Tickets] = Write, [Modules.Assets] = Write,
+                    [Modules.Kits] = Write, [Modules.Loans] = Write,
+                    [Modules.Parts] = Write, [Modules.Suppliers] = Read,
+                    [Modules.Requesters] = Write, [Modules.StaffAccounts] = Read,
+                    [Modules.Reports] = ModulePermission.Access
                 },
                 Modules.Flags.ReportAssets, Modules.Flags.ReportTickets, Modules.Flags.ReportParts, Modules.Flags.ReportLoans));
 
@@ -189,10 +189,10 @@ public sealed partial class HelpdeskStore
             _data.Roles.Add(Role("Junior Technician",
                 new()
                 {
-                    [Modules.Tickets] = PermissionLevel.Edit, [Modules.Assets] = PermissionLevel.View,
-                    [Modules.Kits] = PermissionLevel.View, [Modules.Loans] = PermissionLevel.Edit,
-                    [Modules.Parts] = PermissionLevel.View, [Modules.Suppliers] = PermissionLevel.View,
-                    [Modules.Requesters] = PermissionLevel.View, [Modules.Reports] = PermissionLevel.Access
+                    [Modules.Tickets] = Write, [Modules.Assets] = Read,
+                    [Modules.Kits] = Read, [Modules.Loans] = Write,
+                    [Modules.Parts] = Read, [Modules.Suppliers] = Read,
+                    [Modules.Requesters] = Read, [Modules.Reports] = ModulePermission.Access
                 },
                 Modules.Flags.ReportTickets));
 
@@ -200,27 +200,30 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    private static RoleRecord Role(string name, Dictionary<string, PermissionLevel> levels, params string[] flags) =>
-        new(name) { Levels = new(levels, StringComparer.OrdinalIgnoreCase), Flags = flags.ToHashSet(StringComparer.OrdinalIgnoreCase) };
+    // Shorthands for the seed roles only. They are not a hierarchy the rest of the code knows about - every check asks
+    // for one exact action.
+    private const ModulePermission Read = ModulePermission.Access | ModulePermission.View;
+    private const ModulePermission Write = Read | ModulePermission.New | ModulePermission.Edit;
+    private const ModulePermission Everything = Write | ModulePermission.Delete;
 
-    // Converts roles from the nine on/off permissions to per-module levels, exactly once, gated on a stored version
-    // number - "RolePermissions is empty" cannot tell a migrated-to-nothing role from an unmigrated one, and re-running
-    // would wipe whatever the school had since set up.
-    // The rule is that nobody loses access on the morning of the upgrade. Most lists were open to any signed-in
-    // technician, so read access is granted generously here rather than only converting the old flags; anything that
-    // was genuinely gated (Settings, the audit log, the finance report) stays gated.
-    // 0 is the nine on/off permissions, 2 is per-module levels. Anything that creates a database already in the new
-    // model stamps this, so the conversion below never runs against it.
-    public const int PermissionModelVersion = 2;
+    private static RoleRecord Role(string name, Dictionary<string, ModulePermission> grants, params string[] flags) =>
+        new(name) { Grants = new(grants, StringComparer.OrdinalIgnoreCase), Flags = flags.ToHashSet(StringComparer.OrdinalIgnoreCase) };
 
+    // 0 is the original nine on/off permissions, 2 was one stacked level per module, 3 is the current model: five
+    // independent ticks per module. Anything that creates a database already in the current model stamps this, so the
+    // conversion below never runs against it.
+    public const int PermissionModelVersion = 3;
+
+    // Moving to independent ticks, every existing role starts blank and is set up again by hand. That was the school's
+    // choice over converting: the stacked levels granted read access generously on upgrade, so converting them would
+    // have carried that generosity into a model meant to be deliberate. Administrator is left alone - it is the way
+    // back in, and blanking it would lock the system.
+    // Blanking is destructive, so it is gated on the stored version and does not consult the rows themselves: "this
+    // role holds nothing" cannot tell a role that was blanked from one that was never converted, and re-running would
+    // wipe whatever had been set up since.
     private void MigrateRolePermissions()
     {
-        // The second test repairs databases stamped 0 by the factory-reset bug above: a role holding any level or flag
-        // was loaded from RolePermissions, so the new model is already in use whatever the version says. It is safe as
-        // a signal because the conversion is generous - it gives every role Tickets and Loans - so a converted database
-        // is never empty, and an unconverted one has nothing in that table at all.
-        var alreadyConverted = _data.Roles.Any(x => x.Levels.Count > 0 || x.Flags.Count > 0);
-        if (_data.PermissionModelVersion >= PermissionModelVersion || _data.Roles.Count == 0 || alreadyConverted)
+        if (_data.PermissionModelVersion >= PermissionModelVersion || _data.Roles.Count == 0)
         {
             _data.PermissionModelVersion = PermissionModelVersion;
             return;
@@ -229,42 +232,20 @@ public sealed partial class HelpdeskStore
 
         foreach (var role in _data.Roles)
         {
-            if (!_data.LegacyGrants.TryGetValue(role.Name, out var had)) had = [];
-            PermissionLevel EditOr(string permission, PermissionLevel fallback) => had.Contains(permission) ? PermissionLevel.Edit : fallback;
-
-            role.Levels[Modules.Tickets] = had.Contains(LegacyPermissions.TicketDestructive) ? PermissionLevel.Delete : PermissionLevel.Edit;
-            role.Levels[Modules.Loans] = PermissionLevel.Edit;
-            role.Levels[Modules.Assets] = EditOr(LegacyPermissions.ManageAssets, PermissionLevel.View);
-            role.Levels[Modules.Kits] = EditOr(LegacyPermissions.ManageAssets, PermissionLevel.View);
-            role.Levels[Modules.Parts] = EditOr(LegacyPermissions.ManageParts, PermissionLevel.View);
-            role.Levels[Modules.Suppliers] = EditOr(LegacyPermissions.ManageSuppliers, PermissionLevel.View);
-            role.Levels[Modules.Requesters] = EditOr(LegacyPermissions.ManageRequesters, PermissionLevel.View);
-            role.Levels[Modules.StaffAccounts] = EditOr(LegacyPermissions.ManageStaff, PermissionLevel.View);
-            role.Levels[Modules.Roles] = had.Contains(LegacyPermissions.ManageRoles) ? PermissionLevel.Edit : PermissionLevel.Access;
-            role.Levels[Modules.Reports] = PermissionLevel.Access;
-            // The only two that start closed, because they were already closed.
-            if (had.Contains(LegacyPermissions.Settings))
+            if (role.IsProtected)
             {
-                role.Levels[Modules.Settings] = PermissionLevel.Edit;
-                role.Levels[Modules.AuditLog] = PermissionLevel.Access;
-                role.Flags.Add(Modules.Flags.ReportFinance);
+                // Administrator's grants are never consulted, but leaving the old model's rows behind would have the
+                // stored data claim it holds less than it does.
+                foreach (var module in Modules.All) role.Grants[module.Key] = module.Supports;
+                foreach (var flag in Modules.Flags.All) role.Flags.Add(flag.Key);
+                continue;
             }
-
-            role.Flags.Add(Modules.Flags.ReportAssets);
-            role.Flags.Add(Modules.Flags.ReportTickets);
-            role.Flags.Add(Modules.Flags.ReportParts);
-            role.Flags.Add(Modules.Flags.ReportLoans);
-            role.Flags.Add(Modules.Flags.ReportExport);
-            if (had.Contains(LegacyPermissions.ChangeWorkingAs)) role.Flags.Add(Modules.Flags.WorkingAs);
-
-            if (role.IsProtected) continue;
-            // Flags are listed alongside the levels - Reports.Finance in particular is a real grant, so leaving it out
-            // would make the audit entry look like the role got less than it did.
-            var granted = role.Levels.Where(x => x.Value != PermissionLevel.None)
-                .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(x => $"{x.Key} {PermissionLevels.Label(x.Value)}")
-                .Concat(role.Flags.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
-            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Roles", "Role", role.Name, role.Name, "Permissions converted",
-                "Moved to per-module levels: " + string.Join(", ", granted)));
+            var had = ModulePermissions.Summarise(role);
+            role.Grants.Clear();
+            role.Flags.Clear();
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Roles", "Role", role.Name, role.Name, "Permissions reset",
+                "Permissions now tick each action separately, so this role was emptied and needs setting up again. It previously held: "
+                + (had.Length == 0 ? "nothing" : had) + "."));
         }
     }
 
@@ -435,13 +416,13 @@ public sealed partial class HelpdeskStore
     }
     // Administrator always has every permission, regardless of what the Roles table says - the one hardcoded exception,
     // and the reason a mistake in the permission model can never lock everybody out.
-    public bool RoleAllows(string? roleName, string module, PermissionLevel level)
+    public bool RoleAllows(string? roleName, string module, ModulePermission action)
     {
         lock (_sync)
         {
             if (string.Equals(roleName, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return true;
             var role = _data.Roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
-            return role?.Allows(module, level) ?? false;
+            return role?.Allows(module, action) ?? false;
         }
     }
     public bool RoleHasFlag(string? roleName, string flag)
@@ -454,17 +435,23 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // What every page, handler and nav link asks. The role name comes off the sign-in cookie and the level is resolved
-    // live on each request, so editing a role takes effect immediately without anyone signing out.
-    public bool UserCan(System.Security.Claims.ClaimsPrincipal user, string module, PermissionLevel level) =>
-        RoleAllows(RoleOf(user), module, level);
+    // What every page, handler and nav link asks. The role name comes off the sign-in cookie and the permissions are
+    // resolved live on each request, so editing a role takes effect immediately without anyone signing out.
+    public bool UserCan(System.Security.Claims.ClaimsPrincipal user, string module, ModulePermission action) =>
+        RoleAllows(RoleOf(user), module, action);
+    // Satisfied by any one of the actions in the mask - what the combined add/edit pages need, since one page serves
+    // both and either permission is enough to be on it.
+    public bool UserCanAny(System.Security.Claims.ClaimsPrincipal user, string module, ModulePermission actions) =>
+        ModulePermissions.Split(actions).Any(x => UserCan(user, module, x));
     public bool UserHasFlag(System.Security.Claims.ClaimsPrincipal user, string flag) =>
         RoleHasFlag(RoleOf(user), flag);
-    public PermissionLevel UserLevel(System.Security.Claims.ClaimsPrincipal user, string module)
+    // Everything this account holds on one module, for a page that draws several controls and would otherwise ask five
+    // separate questions.
+    public ModulePermission UserGrants(System.Security.Claims.ClaimsPrincipal user, string module)
     {
         if (string.Equals(RoleOf(user), StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase))
-            return Modules.Find(module)?.Max ?? PermissionLevel.Delete;
-        lock (_sync) return _data.Roles.FirstOrDefault(x => string.Equals(x.Name, RoleOf(user), StringComparison.OrdinalIgnoreCase))?.LevelFor(module) ?? PermissionLevel.None;
+            return Modules.Find(module)?.Supports ?? ModulePermission.None;
+        lock (_sync) return _data.Roles.FirstOrDefault(x => string.Equals(x.Name, RoleOf(user), StringComparison.OrdinalIgnoreCase))?.GrantsFor(module) ?? ModulePermission.None;
     }
     private static string? RoleOf(System.Security.Claims.ClaimsPrincipal user) =>
         user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
@@ -3303,24 +3290,17 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            // The nine Allow* columns are still in the table but no longer written. They are read into LegacyGrants
-            // purely so MigrateRolePermissions can work out what each existing role should become; after that one-time
-            // conversion they go to 0 on the next save and are never looked at again.
-            command.CommandText = $"SELECT Name, IsProtected, {string.Join(", ", LegacyPermissions.Columns)} FROM Roles ORDER BY rowid;";
+            // The nine Allow* columns from the original permission model are still in the table but are neither read
+            // nor written: roles were emptied when permissions moved to independent ticks, so there is nothing left to
+            // convert from. They stay only because dropping a column rewrites the table.
+            command.CommandText = "SELECT Name, IsProtected FROM Roles ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                data.Roles.Add(new RoleRecord(reader.GetString(0), reader.GetInt32(1) != 0));
-                var granted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                for (var i = 0; i < LegacyPermissions.Columns.Length; i++)
-                    if (!reader.IsDBNull(i + 2) && reader.GetInt32(i + 2) != 0) granted.Add(LegacyPermissions.Columns[i]);
-                data.LegacyGrants[reader.GetString(0)] = granted;
-            }
+            while (reader.Read()) data.Roles.Add(new RoleRecord(reader.GetString(0), reader.GetInt32(1) != 0));
         }
         using (var command = connection.CreateCommand())
         {
-            // A module level is stored as "Assets:Edit" - only the level actually granted, because the lower ones are
-            // implied by RoleRecord.Allows rather than written out. Anything without a colon is a flag.
+            // One row per ticked box, stored as "Assets:Edit". Nothing is implied by anything else, so every action a
+            // role holds has its own row. Anything without a colon is a flag.
             command.CommandText = "SELECT RoleName, Permission FROM RolePermissions;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
@@ -3330,8 +3310,8 @@ public sealed partial class HelpdeskStore
                 var permission = reader.GetString(1);
                 var split = permission.IndexOf(':');
                 if (split < 0) { role.Flags.Add(permission); continue; }
-                var level = PermissionLevels.Parse(permission[(split + 1)..]);
-                if (level != PermissionLevel.None) role.Levels[permission[..split]] = level;
+                var action = ModulePermissions.Parse(permission[(split + 1)..]);
+                if (action != ModulePermission.None) role.Grants[permission[..split]] = role.GrantsFor(permission[..split]) | action;
             }
         }
         using (var command = connection.CreateCommand())
@@ -3614,9 +3594,11 @@ public sealed partial class HelpdeskStore
             // the SLA single-value columns were retired.
             Execute(connection, transaction, "INSERT INTO Roles (Name, IsProtected) VALUES ($name,$protected);",
                 ("$name", item.Name), ("$protected", item.IsProtected ? 1 : 0));
-            foreach (var level in item.Levels.Where(x => x.Value != PermissionLevel.None))
-                Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
-                    ("$role", item.Name), ("$permission", $"{level.Key}:{level.Value}"));
+            // One row per ticked box: "Assets:Access", "Assets:Edit", and so on.
+            foreach (var module in item.Grants.Where(x => x.Value != ModulePermission.None))
+                foreach (var action in ModulePermissions.Split(module.Value))
+                    Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
+                        ("$role", item.Name), ("$permission", $"{module.Key}:{action}"));
             foreach (var flag in item.Flags)
                 Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
                     ("$role", item.Name), ("$permission", flag));
@@ -3893,10 +3875,9 @@ public sealed partial class HelpdeskStore
         public List<UserRecord> Users { get; set; } = [];
         public List<TechnicianRecord> Technicians { get; set; } = [];
         public List<RoleRecord> Roles { get; set; } = [];
-        // 0 = the old nine on/off permissions, 2 = per-module levels. Read from Metadata; see MigrateRolePermissions.
+        // 0 = the original nine on/off permissions, 2 = one stacked level per module, 3 = independent ticks.
+        // Read from Metadata; see MigrateRolePermissions.
         public int PermissionModelVersion { get; set; }
-        // Only populated while loading, so the one-time conversion can see what each role used to grant. Never saved.
-        public Dictionary<string, HashSet<string>> LegacyGrants { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> TechnicianTeams { get; set; } = [];
         public List<string> Departments { get; set; } = [];
         public List<string> Locations { get; set; } = [];

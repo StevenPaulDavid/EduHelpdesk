@@ -1,5 +1,6 @@
 @page
-@model EduHelpdesk.Pages.People.RoleModel
+@using EduHelpdesk.Pages.People
+@model RoleModel
 @{ ViewData["Title"] = Model.CurrentName is null ? "Add role" : "Edit role"; }
 <div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/People">← Back</a></div>
 <section class="panel"><form method="post" class="settings-form permission-form">
@@ -8,31 +9,48 @@
     <label class="field-narrow">Name<input name="name" value="@Model.Role?.Name" required /></label>
 
     <div>
-        <p class="eyebrow">What this role can reach</p>
-        <p class="muted">Each level includes the ones below it — Edit can also view, Delete can also edit. A module set to no access is hidden from the menu entirely.</p>
-        @* Levels were a two-column table, which forced a wide row for every module and put a full-width dropdown beside
-           a paragraph of description. Cards wrap to whatever the panel is, so nothing is pushed past its edge. *@
-        <div class="permission-legend">
-            @foreach (var level in EduHelpdesk.Pages.People.RoleModel.AllLevels)
-            {
-                <span><b>@EduHelpdesk.Pages.People.RoleModel.LevelLabel(level)</b> @EduHelpdesk.Pages.People.RoleModel.LevelDescription(level)</span>
-            }
-        </div>
-        <div class="permission-cards">
-        @foreach (var module in Model.AllModules)
-        {
-            <div class="permission-card">
-                <span><strong>@module.Label</strong><small class="muted">@module.Description</small></span>
-                <select name="level.@module.Key">
-                    <option value="None" selected="@(Model.LevelOf(module.Key) == PermissionLevel.None)">No access</option>
-                    @foreach (var level in EduHelpdesk.Pages.People.RoleModel.LevelsFor(module))
+        <p class="eyebrow">What this role can do</p>
+        <p class="muted">Every box is on its own — ticking Delete does not tick Access. A module with nothing ticked is hidden from the menu entirely. Blank cells are actions that module does not have.</p>
+        <div class="table-wrap"><table class="permission-grid">
+            <thead>
+                <tr>
+                    <th scope="col">Module</th>
+                    @foreach (var action in RoleModel.AllActions)
                     {
-                        <option value="@level" selected="@(Model.LevelOf(module.Key) == level)">@EduHelpdesk.Pages.People.RoleModel.LevelLabel(level)</option>
+                        <th scope="col">
+                            @RoleModel.ActionLabel(action)
+                            <small class="muted">@RoleModel.ActionDescription(action)</small>
+                            @* Ticks or clears the whole column. Progressive enhancement: with scripting off the header
+                               box simply does nothing and every row is still set by hand. *@
+                            <input type="checkbox" class="permission-all" data-column="@action" aria-label="Tick @RoleModel.ActionLabel(action) for every module" />
+                        </th>
                     }
-                </select>
-            </div>
-        }
-        </div>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var module in Model.AllModules)
+            {
+                <tr>
+                    <th scope="row"><strong>@module.Label</strong><small class="muted">@module.Description</small></th>
+                    @foreach (var action in RoleModel.AllActions)
+                    {
+                        <td data-label="@RoleModel.ActionLabel(action)">
+                            @if (RoleModel.Offers(module, action))
+                            {
+                                <input type="checkbox" name="grant" value="@(module.Key + "." + action)" data-column="@action"
+                                       checked="@Model.IsTicked(module.Key, action)"
+                                       aria-label="@module.Label: @RoleModel.ActionLabel(action)" />
+                            }
+                            else
+                            {
+                                <span class="permission-na" aria-label="Not available">—</span>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table></div>
     </div>
 
     @foreach (var group in Model.AllFlags.GroupBy(x => x.Group))
@@ -53,3 +71,29 @@
 
     <div><button class="button button-primary">Save role</button></div>
 </form></section>
+
+@section Scripts {
+<script>
+// The header tick box sets or clears its whole column; it also reflects the column's state, so ticking every row by
+// hand leaves the header ticked rather than out of step.
+const columnBoxes = column => [...document.querySelectorAll(`input[name="grant"][data-column="${column}"]`)];
+function syncColumnHeader(column) {
+    const header = document.querySelector(`.permission-all[data-column="${column}"]`);
+    if (!header) return;
+    const boxes = columnBoxes(column);
+    const ticked = boxes.filter(b => b.checked).length;
+    header.checked = boxes.length > 0 && ticked === boxes.length;
+    header.indeterminate = ticked > 0 && ticked < boxes.length;
+}
+for (const header of document.querySelectorAll(".permission-all")) {
+    header.addEventListener("change", () => {
+        columnBoxes(header.dataset.column).forEach(b => b.checked = header.checked);
+        header.indeterminate = false;
+    });
+}
+for (const box of document.querySelectorAll('input[name="grant"]')) {
+    box.addEventListener("change", () => syncColumnHeader(box.dataset.column));
+}
+document.querySelectorAll(".permission-all").forEach(h => syncColumnHeader(h.dataset.column));
+</script>
+}

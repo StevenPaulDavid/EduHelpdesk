@@ -31,7 +31,9 @@ internal static class AuditTracker
             // Projected from the module list rather than a hand-written set of labels: the previous version duplicated
             // the nine permission names here, so adding one silently dropped it out of the audit diff.
             Add(s, "Roles", "Role", x.Name.ToLowerInvariant(), x.Name, x.IsProtected ? Track.None : Track.All,
-                [.. Modules.All.Select(m => (m.Label, PermissionLevels.Label(x.LevelFor(m.Key)))),
+                [.. Modules.All.Select(m => (m.Label, x.GrantsFor(m.Key) == ModulePermission.None
+                     ? "No access"
+                     : string.Join(", ", ModulePermissions.Split(x.GrantsFor(m.Key)).Select(ModulePermissions.Label)))),
                  .. Modules.Flags.All.Select(f => (f.Label, Yn(x.Has(f.Key))))]);
         foreach (var x in d.Suppliers)
             Add(s, "Suppliers", "Supplier", x.Id.ToString(), x.Name, Track.All,

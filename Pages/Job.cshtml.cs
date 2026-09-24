@@ -7,6 +7,15 @@ namespace EduHelpdesk.Pages;
 
 public class JobModel(HelpdeskStore store) : PageModel
 {
+    // The page opens at Tickets: View, and every POST on it changes the ticket - fifteen handlers and counting. One
+    // guard here rather than fifteen identical lines means a handler added later is covered by default, which is the
+    // right way round for a permission check. Delete and merge need more than Edit and check for themselves.
+    public override void OnPageHandlerExecuting(Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutingContext context)
+    {
+        if (HttpMethods.IsPost(Request.Method) && !store.UserCan(User, Modules.Tickets, ModulePermission.Edit))
+            context.Result = Forbid();
+    }
+
     public TicketRecord? Ticket { get; private set; }
     public UserRecord? Requester { get; private set; }
     public TechnicianRecord? Technician { get; private set; }
@@ -350,7 +359,7 @@ public class JobModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDelete(int number)
     {
-        if (!store.UserCan(User, Modules.Tickets, PermissionLevel.Delete)) return Forbid();
+        if (!store.UserCan(User, Modules.Tickets, ModulePermission.Delete)) return Forbid();
         var message = store.DeleteTicket(number);
         if (message is not null)
         {
@@ -363,7 +372,7 @@ public class JobModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostMerge(int number, int targetNumber)
     {
-        if (!store.UserCan(User, Modules.Tickets, PermissionLevel.Delete)) return Forbid();
+        if (!store.UserCan(User, Modules.Tickets, ModulePermission.Delete)) return Forbid();
         var message = store.MergeTicket(number, targetNumber);
         if (message is not null)
         {

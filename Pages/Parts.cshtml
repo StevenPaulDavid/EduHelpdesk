@@ -2,7 +2,7 @@
 @using EduHelpdesk.Services
 @model PartsModel
 @{ ViewData["Title"] = "Parts"; }
-<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div>@if (Model.CanEdit) { <a class="button button-primary" asp-page="/Parts/Edit">＋ Add part</a> }</div>
+<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Parts/Edit">＋ Add part</a> }</div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

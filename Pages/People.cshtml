@@ -12,21 +12,21 @@
    the three - see the People policy in Program.cs. *@
 @if (Model.CanSeeUsers)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><h2>Users</h2>@if (Model.CanEditUsers) { <a class="button button-primary" asp-page="/People/User">＋ Add user</a> }</div>
+    <section class="panel directory-panel"><div class="panel-heading"><h2>Users</h2>@if (Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">＋ Add user</a> }</div>
     @foreach (var user in Model.Users) { <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong><span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id">♜</a> }</div></div> }
     @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }</section>
 }
 
 @if (Model.CanSeeTechnicians)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><h2>Technicians</h2>@if (Model.CanEditTechnicians) { <a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a> }</div>
+    <section class="panel directory-panel"><div class="panel-heading"><h2>Technicians</h2>@if (Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a> }</div>
     @foreach (var item in Model.Technicians) { <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong><span>@Detail(item.Email, item.Team)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id">♜</a> }</div></div> }
     @if (Model.Technicians.Count == 0) { <p class="empty">No technicians have been imported yet.</p> }</section>
 }
 
 @if (Model.CanSeeRoles)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><h2>Roles</h2>@if (Model.CanEditRoles) { <a class="button button-primary" asp-page="/People/Role">＋ Add role</a> }</div>
+    <section class="panel directory-panel"><div class="panel-heading"><h2>Roles</h2>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">＋ Add role</a> }</div>
     @* A role's grants are a list, not a sentence: twelve modules plus flags run to well over a thousand pixels, which
        used to push the row, the panel and the page wider than the shell. Chips wrap, so the row grows downwards. *@
     @foreach (var role in Model.Roles)
@@ -41,12 +41,12 @@
                     else
                     {
                         <div class="permission-chips">
-                            @foreach (var grant in grants) { <span class="permission-chip">@grant.Label@if (grant.Level is { } level) { <b>@level</b>}</span> }
+                            @foreach (var grant in grants) { <span class="permission-chip">@grant.Label@if (grant.Actions is { } actions) { <b>@actions</b>}</span> }
                         </div>
                     }
                 </div>
             </div>
-            <div class="row-actions">@if (!role.IsProtected && Model.CanEditRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name">♜</a> }</div>
+            <div class="row-actions">@if (!role.IsProtected && Model.CanDeleteRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name">♜</a> }</div>
         </div>
     }
     @if (Model.Roles.Count == 0) { <p class="empty">No roles yet.</p> }</section>

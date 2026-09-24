@@ -25,9 +25,14 @@ public class EditModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<PartActivity> StockHistory => Part.History.OrderByDescending(x => x.CreatedAt).ToList();
     [TempData] public string? Message { get; set; }
 
-    public void OnGet(Guid? id)
+    // One page serves adding and editing, so the convention lets in anyone with either permission and the handlers
+    // sort out which of the two this actually is. See Program.cs.
+    private static ModulePermission Needed(bool adding) => adding ? ModulePermission.New : ModulePermission.Edit;
+
+    public IActionResult OnGet(Guid? id)
     {
-        if (!id.HasValue) return;
+        if (!store.UserCan(User, Modules.Parts, Needed(!id.HasValue))) return Forbid();
+        if (!id.HasValue) return Page();
         var existing = store.Parts.FirstOrDefault(x => x.Id == id);
         if (existing is not null)
         {
@@ -35,10 +40,12 @@ public class EditModel(HelpdeskStore store) : PageModel
             SupplierIds = existing.SupplierIds.ToArray();
             AssetTypes = existing.AssetTypes.ToArray();
         }
+        return Page();
     }
 
     public IActionResult OnPost()
     {
+        if (!store.UserCan(User, Modules.Parts, Needed(Part.Id == Guid.Empty))) return Forbid();
         if (string.IsNullOrWhiteSpace(Part.Name))
         {
             ModelState.AddModelError("", "Part name is required.");
@@ -81,6 +88,7 @@ public class EditModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostAdjustStock(Guid id, int newQuantity, string? reason)
     {
+        if (!store.UserCan(User, Modules.Parts, ModulePermission.Edit)) return Forbid();
         var error = store.AdjustPartStock(id, newQuantity, reason);
         Message = error ?? "Stock adjusted.";
         return RedirectToPage(new { id });

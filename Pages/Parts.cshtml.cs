@@ -28,9 +28,10 @@ public class PartsModel(HelpdeskStore store) : PageModel
     [TempData] public string? Message { get; set; }
 
     // The list opens at Access, so the view asks what this role can actually do before drawing any of the buttons.
-    public bool CanView => store.UserCan(User, Modules.Parts, PermissionLevel.View);
-    public bool CanEdit => store.UserCan(User, Modules.Parts, PermissionLevel.Edit);
-    public bool CanDelete => store.UserCan(User, Modules.Parts, PermissionLevel.Delete);
+    public bool CanView => store.UserCan(User, Modules.Parts, ModulePermission.View);
+    public bool CanAdd => store.UserCan(User, Modules.Parts, ModulePermission.New);
+    public bool CanEdit => store.UserCan(User, Modules.Parts, ModulePermission.Edit);
+    public bool CanDelete => store.UserCan(User, Modules.Parts, ModulePermission.Delete);
 
     public IReadOnlyList<PartRecord> Rows { get; private set; } = [];
     public int TotalParts { get; private set; }
@@ -59,7 +60,7 @@ public class PartsModel(HelpdeskStore store) : PageModel
     public IActionResult OnPostBulk(string? operation, Guid[]? ids, bool selectAll, string? newCategory, string? newLocation)
     {
         // The list itself only needs Access, so the handler on it carries its own level per operation.
-        var needed = operation switch { "export" => PermissionLevel.View, "delete" => PermissionLevel.Delete, _ => PermissionLevel.Edit };
+        var needed = operation switch { "export" => ModulePermission.View, "delete" => ModulePermission.Delete, _ => ModulePermission.Edit };
         if (!store.UserCan(User, Modules.Parts, needed)) return Forbid();
         Normalize();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
