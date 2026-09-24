@@ -57,7 +57,7 @@ builder.Services.AddRazorPages(options =>
     // People is three directories on one page, so the page itself only needs to reach one of them; each maintenance
     // page carries its own level. /User is the requester detail page and was the one duplicating /People/User without
     // its permission - it edits names, emails, portal passwords and ticket ownership.
-    options.Conventions.AuthorizePage("/People", Policy(Modules.Requesters, PermissionLevel.Access));
+    options.Conventions.AuthorizePage("/People", PermissionRequirement.PeoplePolicy);
     options.Conventions.AuthorizePage("/User", Policy(Modules.Requesters, PermissionLevel.Edit));
     options.Conventions.AuthorizePage("/People/User", Policy(Modules.Requesters, PermissionLevel.Edit));
     options.Conventions.AuthorizePage("/People/DeleteUser", Policy(Modules.Requesters, PermissionLevel.Delete));
@@ -139,6 +139,8 @@ builder.Services.AddAuthorization(options =>
                 policy => policy.Requirements.Add(PermissionRequirement.For(module.Key, level)));
     foreach (var flag in Modules.Flags.All)
         options.AddPolicy(flag.Key, policy => policy.Requirements.Add(PermissionRequirement.ForFlag(flag.Key)));
+    options.AddPolicy(PermissionRequirement.PeoplePolicy, policy => policy.Requirements.Add(
+        PermissionRequirement.ForAny(Modules.Requesters, Modules.StaffAccounts, Modules.Roles)));
 });
 
 var app = builder.Build();
