@@ -163,7 +163,8 @@ public sealed partial class HelpdeskStore
             var allFlags = Modules.Flags.All.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Grants = everything, Flags = allFlags });
 
-            // Everything an Administrator has, but as an ordinary editable role rather than the protected one.
+            // Runs the whole desk, including staff accounts and roles, but Settings and the audit log stay with the
+            // Administrator - configuring the system and reading who did what are deliberately not part of the job.
             _data.Roles.Add(Role("Senior Technician",
                 new()
                 {
@@ -171,9 +172,7 @@ public sealed partial class HelpdeskStore
                     [Modules.Kits] = Full, [Modules.Loans] = Full,
                     [Modules.Parts] = Full, [Modules.Suppliers] = Full,
                     [Modules.Requesters] = Full, [Modules.StaffAccounts] = Full,
-                    [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access,
-                    [Modules.Settings] = ModulePermission.Access | ModulePermission.Edit,
-                    [Modules.AuditLog] = ModulePermission.Access
+                    [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access
                 },
                 Modules.Flags.WorkingAs, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance,
