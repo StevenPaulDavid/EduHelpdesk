@@ -224,6 +224,9 @@ public sealed partial class HelpdeskStore
         var purchaseOrder = Field("purchaseOrder", true);
         if (purchaseOrder.Has) next = next with { PurchaseOrder = purchaseOrder.Value };
         else if (purchaseOrder.Clear) next = next with { PurchaseOrder = string.Empty };
+            var quoteReference = Field("quoteReference", true);
+            if (quoteReference.Has) next = next with { QuoteReference = quoteReference.Value };
+            else if (quoteReference.Clear) next = next with { QuoteReference = string.Empty };
 
         if (isNew)
         {
@@ -348,7 +351,7 @@ public sealed partial class HelpdeskStore
             {
                 ("Make", next.Make), ("Model", next.Model), ("Type", next.Type), ("Serial number", next.SerialNumber), ("Status", next.Status), ("Location", next.Location),
                 ("Assigned to", next.AssignedUserId is { } holderName ? UserName(holderName) : null), ("Loan due back", Date(next.LoanDueDate)), ("Supplier", supplierName),
-                ("Purchase date", Date(next.PurchaseDate)), ("Purchase price", next.PurchasePrice?.ToString("0.00")), ("Purchase order", next.PurchaseOrder),
+                ("Purchase date", Date(next.PurchaseDate)), ("Purchase price", next.PurchasePrice?.ToString("0.00")), ("Purchase order", next.PurchaseOrder), ("Quote reference", next.QuoteReference),
                 ("Warranty end", Date(next.WarrantyEnd)), ("Replacement date", Date(next.ReplacementDate))
             })
                 if (!string.IsNullOrWhiteSpace(value)) row.Changes.Add($"{label}: {value}");
@@ -377,6 +380,7 @@ public sealed partial class HelpdeskStore
         Change("Purchase date", Day(existing.PurchaseDate), Day(next.PurchaseDate));
         Change("Purchase price", existing.PurchasePrice?.ToString("0.00"), next.PurchasePrice?.ToString("0.00"));
         Change("Purchase order", existing.PurchaseOrder, next.PurchaseOrder);
+        Change("Quote reference", existing.QuoteReference, next.QuoteReference);
         Change("Warranty end", Day(existing.WarrantyEnd), Day(next.WarrantyEnd));
         Change("Replacement date", Day(existing.ReplacementDate), Day(next.ReplacementDate));
         foreach (var (definitionId, value) in row.Attributes)

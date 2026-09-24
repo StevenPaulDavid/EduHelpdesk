@@ -10,7 +10,8 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
-    public IReadOnlyList<AssetRecord> Assets => store.Assets;
+    // Disposed assets can't be linked to a new ticket - they have left the estate.
+    public IReadOnlyList<AssetRecord> Assets => store.Assets.Where(x => !HelpdeskStore.IsDisposed(x)).ToList();
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Locations => store.Locations;

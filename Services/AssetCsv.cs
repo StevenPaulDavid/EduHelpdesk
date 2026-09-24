@@ -26,7 +26,8 @@ public static class AssetCsv
         var headers = new List<string>
         {
             "Asset tag", "Make", "Model", "Type", "Serial number", "Status", "Location", "Assigned to", "Loan due back", "Supplier",
-            "Purchase date", "Purchase price", "Purchase order", "Warranty end", "Replacement date"
+            "Purchase date", "Purchase price", "Purchase order", "Quote reference", "Warranty end", "Replacement date",
+            "Disposal date", "Disposal method", "Disposal proceeds"
         };
         // Two attributes can share a name (they apply to different types); keep the columns distinct.
         var attributeHeaders = new List<string>();
@@ -52,8 +53,12 @@ public static class AssetCsv
                 Day(asset.PurchaseDate),
                 asset.PurchasePrice?.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
                 asset.PurchaseOrder,
+                asset.QuoteReference,
                 Day(asset.WarrantyEnd),
-                Day(AssetInsights.ReplacementDate(asset, lifespanYears))
+                Day(AssetInsights.ReplacementDate(asset, lifespanYears)),
+                Day(asset.DisposalDate),
+                asset.DisposalMethod,
+                asset.DisposalProceeds?.ToString("0.00", CultureInfo.InvariantCulture) ?? ""
             };
             foreach (var attribute in attributes)
                 cells.Add(attribute.AppliesTo(asset.Type) && values is not null && values.TryGetValue(attribute.Id, out var value) ? value : "");

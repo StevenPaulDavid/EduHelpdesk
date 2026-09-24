@@ -21,7 +21,7 @@ public class AddModel(HelpdeskStore store) : PageModel
     public string Posted(string name) => Request.HasFormContentType ? Request.Form[name].ToString() : string.Empty;
 
     public IActionResult OnPost(string assetTag, string make, string type, string model, string? serialNumber, string? location, Guid? assignedUserId, Guid? supplierId,
-        string? status, DateOnly? purchaseDate, string? purchasePrice, string? purchaseOrder, DateOnly? warrantyEnd, DateOnly? replacementDate)
+        string? status, DateOnly? purchaseDate, string? purchasePrice, string? purchaseOrder, string? quoteReference, DateOnly? warrantyEnd, DateOnly? replacementDate)
     {
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
             return Invalid("Asset tag, type, and model are required.");
@@ -40,6 +40,7 @@ public class AddModel(HelpdeskStore store) : PageModel
             PurchaseDate = purchaseDate,
             PurchasePrice = price,
             PurchaseOrder = (purchaseOrder ?? "").Trim(),
+            QuoteReference = (quoteReference ?? "").Trim(),
             WarrantyEnd = warrantyEnd,
             ReplacementDate = replacementDate
         });

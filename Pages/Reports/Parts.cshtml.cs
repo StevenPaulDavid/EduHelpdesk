@@ -6,6 +6,8 @@ namespace EduHelpdesk.Pages.Reports;
 
 public class PartReportsModel(HelpdeskStore store) : PageModel
 {
+    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
+    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
     public int TotalParts { get; private set; }
     public int DefaultReorderThreshold { get; private set; }
     public int OutOfStockCount { get; private set; }

@@ -163,8 +163,8 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
     // A starting file: the same columns the asset export produces, so an export can be edited and imported straight back.
     public IActionResult OnGetTemplate()
     {
-        string[] headers = ["Asset tag", "Make", "Model", "Type", "Serial number", "Status", "Location", "Assigned to", "Loan due back", "Supplier", "Purchase date", "Purchase price", "Purchase order", "Warranty end", "Replacement date"];
-        string[] example = ["LT-2001", "Dell", "Latitude 5440", "Laptop", "SN-EXAMPLE-01", "In use", "Main Campus", "jordan.lee@school.example", "", "", "2025-09-01", "749.99", "PO-1042", "2028-09-01", ""];
+        string[] headers = ["Asset tag", "Make", "Model", "Type", "Serial number", "Status", "Location", "Assigned to", "Loan due back", "Supplier", "Purchase date", "Purchase price", "Purchase order", "Quote reference", "Warranty end", "Replacement date"];
+        string[] example = ["LT-2001", "Dell", "Latitude 5440", "Laptop", "SN-EXAMPLE-01", "In use", "Main Campus", "jordan.lee@school.example", "", "", "2025-09-01", "749.99", "PO-1042", "Q-88231", "2028-09-01", ""];
         var csv = string.Join(",", headers.Select(Csv.Escape)) + "\r\n" + string.Join(",", example.Select(Csv.Escape)) + "\r\n";
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray(), "text/csv; charset=utf-8", "assets-import-template.csv");
     }

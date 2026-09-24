@@ -132,6 +132,14 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
     public DateOnly? PurchaseDate { get; init; }
     public decimal? PurchasePrice { get; init; }
     public string PurchaseOrder { get; init; } = "";
+    // The supplier's quote number. Orders go via the Trust, so this is often the only reference the school ever gets -
+    // a PO may never arrive, or may turn up later, which is why both are kept rather than one field with a type.
+    public string QuoteReference { get; init; } = "";
+    // Set when the asset leaves the estate. It stays in the register afterwards: an auditor needs the record to
+    // persist, which is the whole reason disposal is a status rather than a delete.
+    public DateOnly? DisposalDate { get; init; }
+    public string DisposalMethod { get; init; } = "";
+    public decimal? DisposalProceeds { get; init; }
     public DateOnly? WarrantyEnd { get; init; }
     // A replacement date typed on the asset. When blank, the date comes from the lifespan of the asset type (see AssetInsights).
     public DateOnly? ReplacementDate { get; init; }

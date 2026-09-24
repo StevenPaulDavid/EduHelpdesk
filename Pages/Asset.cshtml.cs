@@ -55,6 +55,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
         DateOnly? purchaseDate,
         string? purchasePrice,
         string? purchaseOrder,
+        string? quoteReference,
         DateOnly? warrantyEnd,
         DateOnly? replacementDate)
     {
@@ -115,6 +116,11 @@ public class AssetModel(HelpdeskStore store) : PageModel
             PurchaseDate = purchaseDate,
             PurchasePrice = price,
             PurchaseOrder = (purchaseOrder ?? string.Empty).Trim(),
+            QuoteReference = (quoteReference ?? string.Empty).Trim(),
+            // Disposal is set by its own action, never typed into the details form.
+            DisposalDate = current?.DisposalDate,
+            DisposalMethod = current?.DisposalMethod ?? string.Empty,
+            DisposalProceeds = current?.DisposalProceeds,
             WarrantyEnd = warrantyEnd,
             ReplacementDate = replacementDate,
             // Deliberately not editable here. A due-back date is what makes an assignment a loan, and loans need a
@@ -139,6 +145,22 @@ public class AssetModel(HelpdeskStore store) : PageModel
         Message = userId is null || dueBack is null
             ? "Choose who the device is loaned to and the date it is due back."
             : store.LoanAsset(id, userId.Value, dueBack.Value, reason).Message;
+        return RedirectToPage(new { id });
+    }
+
+    public IReadOnlyList<string> DisposalMethods => HelpdeskStore.DisposalMethods;
+    public DateOnly Today => AssetInsights.Today;
+    public bool IsDisposed => Asset is not null && HelpdeskStore.IsDisposed(Asset);
+
+    public IActionResult OnPostDispose(Guid id, DateOnly? disposalDate, string? disposalMethod, string? disposalProceeds)
+    {
+        if (!store.UserHasPermission(User, Permissions.ManageAssets)) return Forbid();
+        if (!AssetForm.TryPrice(disposalProceeds, out var proceeds))
+        {
+            Message = "Enter the proceeds as a positive amount, such as 45.00, or leave it blank.";
+            return RedirectToPage(new { id });
+        }
+        Message = store.DisposeAsset(id, disposalDate, disposalMethod, proceeds).Message;
         return RedirectToPage(new { id });
     }
 

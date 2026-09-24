@@ -11,6 +11,8 @@ namespace EduHelpdesk.Pages.Reports;
 // the technician used.
 public class LoanReportsModel(HelpdeskStore store) : PageModel
 {
+    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
+    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
     // "4 loan machines in the last 2 weeks" is the conversation this report exists for, so 14 days leads.
     public static readonly (string Key, string Label, int? Days)[] Periods =
     [

@@ -88,6 +88,15 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public int AcademicYearStartMonth => store.AcademicYearStartMonth;
+    public static IReadOnlyList<(int Month, string Name)> AcademicMonths => AcademicYear.Months;
+
+    public IActionResult OnPostSaveAcademicYear(int month)
+    {
+        Message = store.SetAcademicYearStartMonth(month);
+        return RedirectToPage();
+    }
+
     public string BackupFolder => store.BackupFolder;
 
     // A successful reset replaces every account with the bootstrap administrator, so the signed-in user no longer

@@ -12,7 +12,10 @@ public class JobModel(HelpdeskStore store) : PageModel
     public TechnicianRecord? Technician { get; private set; }
     public string? TeamName => Ticket?.TeamName;
     public IReadOnlyList<AssetRecord> LinkedAssets { get; private set; } = [];
-    public IReadOnlyList<AssetRecord> Assets => store.Assets;
+    // The picker leaves out disposed assets, but keeps any already linked to this ticket so an existing link can still
+    // be seen and removed - the repair history of a scrapped device stays readable.
+    public IReadOnlyList<AssetRecord> Assets => store.Assets
+        .Where(x => !HelpdeskStore.IsDisposed(x) || (Ticket?.AssetIds.Contains(x.Id) ?? false)).ToList();
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
     public IReadOnlyList<TechnicianRecord> TeamTechnicians => Ticket is null ? [] : store.GetTechniciansForTeam(Ticket.TeamName);
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;

@@ -9,7 +9,11 @@ public class IndexModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
+    // The whole register, including disposals - the ticket list below looks up the asset a ticket was about, and that
+    // has to keep resolving after the kit is scrapped.
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
+    // What the school actually has. Kept separate from Assets so the headline metric agrees with the finance report.
+    public int AssetsTracked => store.Assets.Count(x => !HelpdeskStore.IsDisposed(x));
     private IReadOnlyList<TicketRecord>? _tickets;
     // Most recently modified first; ticket number breaks ties.
     public IReadOnlyList<TicketRecord> Tickets => _tickets ??= store.Tickets.OrderByDescending(x => x.LastModifiedAt).ThenByDescending(x => x.Number).ToList();

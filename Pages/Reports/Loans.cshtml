@@ -9,7 +9,7 @@
         <a class="button button-secondary" asp-page="/Loans">← Loans</a>
     </div>
 </div>
-<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab active" asp-page="/Reports/Loans">Loan reports</a></nav>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab active" asp-page="/Reports/Loans">Loan reports</a>@if (Model.CanSeeFinance) { <a class="queue-tab" asp-page="/Reports/Finance">Finance</a> }</nav>
 
 <section class="panel">
     <form method="get" class="audit-filters">

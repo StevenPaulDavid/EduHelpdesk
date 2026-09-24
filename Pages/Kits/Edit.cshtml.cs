@@ -8,7 +8,10 @@ namespace EduHelpdesk.Pages.Kits;
 public class EditModel(HelpdeskStore store) : PageModel
 {
     public LoanKit? Kit { get; private set; }
-    public IReadOnlyList<AssetRecord> Assets => store.Assets.OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
+    // Disposed assets are not offered, but one already ticked into this kit still shows so it can be removed.
+    public IReadOnlyList<AssetRecord> Assets => store.Assets
+        .Where(x => !HelpdeskStore.IsDisposed(x) || SelectedAssetIds.Contains(x.Id))
+        .OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
     public Guid[] SelectedAssetIds { get; private set; } = [];
     public IReadOnlyList<KitLoan> History { get; private set; } = [];
     public DateTime Now { get; } = DateTime.UtcNow;

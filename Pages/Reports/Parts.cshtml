@@ -8,7 +8,7 @@
         <a class="button button-secondary" asp-page="/Index">← Overview</a>
     </div>
 </div>
-<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab active" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab" asp-page="/Reports/Loans">Loan reports</a></nav>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab active" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab" asp-page="/Reports/Loans">Loan reports</a>@if (Model.CanSeeFinance) { <a class="queue-tab" asp-page="/Reports/Finance">Finance</a> }</nav>
 
 <section class="panel" id="low-stock">
     <div class="panel-heading"><div><p class="eyebrow">LOW STOCK</p><h2>Parts at or below their reorder threshold</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Parts" asp-page-handler="Export">⬇ CSV</a><span class="badge @(Model.LowStock.Count > 0 ? "badge-warning" : "")">@Model.LowStock.Count of @Model.TotalParts</span></div></div>

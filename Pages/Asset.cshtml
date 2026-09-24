@@ -39,7 +39,8 @@
                 }
                 <label>Purchase date<input name="purchaseDate" type="date" value="@Model.Asset.PurchaseDate?.ToString("yyyy-MM-dd")" /></label>
                 <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="@Model.Asset.PurchasePrice?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" /></label>
-                <label>Purchase order<input name="purchaseOrder" value="@Model.Asset.PurchaseOrder" /></label>
+                <label>Purchase order<input name="purchaseOrder" value="@Model.Asset.PurchaseOrder" /><small class="muted">The Trust's PO, if you were given one.</small></label>
+                <label>Quote reference<input name="quoteReference" value="@Model.Asset.QuoteReference" /><small class="muted">The supplier's quote number — often the only reference for an order placed via the Trust.</small></label>
                 <label>Warranty end<input name="warrantyEnd" type="date" value="@Model.Asset.WarrantyEnd?.ToString("yyyy-MM-dd")" /></label>
                 <label>Replacement date<input name="replacementDate" type="date" value="@Model.Asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
                 @foreach (var customAttribute in Model.CustomAttributes)
@@ -138,6 +139,32 @@
             </form>
         }
     </div>
+
+    @* Disposal is recorded rather than deleted: the asset leaves the working estate but stays in the register, which is
+       what finance and auditors need. Deleting is still there for something entered by mistake. *@
+    @if (Model.IsDisposed)
+    {
+        <div class="notice">
+            <strong>Disposed@(Model.Asset.DisposalDate is { } disposedOn ? " on " + AssetInsights.Format(disposedOn) : "").</strong>
+            @(string.IsNullOrWhiteSpace(Model.Asset.DisposalMethod) ? "" : Model.Asset.DisposalMethod + ".")
+            @(Model.Asset.DisposalProceeds is { } got ? $"Proceeds {got.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}." : "")
+            It stays in the register for audit, and appears in the finance report.
+        </div>
+    }
+    else
+    {
+        <details class="dispose-block">
+            <summary>Record a disposal</summary>
+            <p class="muted">Use this when the asset leaves the school — sold, recycled, donated or written off. It keeps the record for finance and auditors instead of deleting it. Book it back in, or take it out of its kit, first.</p>
+            <form method="post" asp-page-handler="Dispose" class="import-row" onsubmit="return confirm('Record this asset as disposed?');">
+                <input type="hidden" name="id" value="@Model.Asset.Id" />
+                <label>Date<input name="disposalDate" type="date" max="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
+                <label>How<select name="disposalMethod" required><option value="">Choose…</option>@foreach (var method in Model.DisposalMethods) { <option value="@method">@method</option> }</select></label>
+                <label>Proceeds (optional)<input name="disposalProceeds" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                <button class="button button-danger" type="submit">Record disposal</button>
+            </form>
+        </details>
+    }
     }
     <div class="table-wrap"><table><thead><tr><th>Held by</th><th>From</th><th>Until</th><th>Due back</th></tr></thead><tbody>
     @foreach (var period in Model.Ownership)

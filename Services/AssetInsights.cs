@@ -36,6 +36,9 @@ public static class AssetInsights
         var items = new List<ReviewItem>();
         foreach (var asset in assets)
         {
+            // Nothing to review about kit that has left the estate. Skipping here covers the overview review list, the
+            // asset report and its exports, the print view and the ?flag=review list filter in one go.
+            if (HelpdeskStore.IsDisposed(asset)) continue;
             var reasons = new List<Reason>();
             if (asset.WarrantyEnd is { } warranty && warranty <= horizon)
                 reasons.Add(new("Warranty", warranty < today ? $"Ended {Format(warranty)}" : warranty == today ? "Ends today" : $"Ends {Format(warranty)} ({Days(warranty, today)})", warranty, warranty < today));

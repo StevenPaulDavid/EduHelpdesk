@@ -7,6 +7,8 @@ namespace EduHelpdesk.Pages.Reports;
 
 public class TicketReportsModel(HelpdeskStore store) : PageModel
 {
+    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
+    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
     // Top-N shortlists (most tickets, repeat faults, top requesters). Deliberately the same on screen and on paper:
     // these are rankings, and a printed list of every requester would be noise rather than information.
     public const int RowLimit = 15;

@@ -27,7 +27,7 @@ public static class AssetImportTargets
     [
         ("tag", "Asset tag (required)"), ("make", "Make"), ("model", "Model"), ("type", "Type"), ("serial", "Serial number"), ("status", "Status"),
         ("location", "Location"), ("holder", "Assigned to (name or email)"), ("loanDue", "Loan due back"), ("supplier", "Supplier"),
-        ("purchaseDate", "Purchase date"), ("purchasePrice", "Purchase price"), ("purchaseOrder", "Purchase order"),
+        ("purchaseDate", "Purchase date"), ("purchasePrice", "Purchase price"), ("purchaseOrder", "Purchase order"), ("quoteReference", "Quote reference"),
         ("warrantyEnd", "Warranty end"), ("replacementDate", "Replacement date")
     ];
 
@@ -46,6 +46,7 @@ public static class AssetImportTargets
         ["purchaseDate"] = ["purchasedate", "dateofpurchase", "datepurchased", "purchased", "acquired", "acquisitiondate", "bought", "orderdate", "purchasedon"],
         ["purchasePrice"] = ["purchaseprice", "price", "cost", "purchasecost", "unitcost", "unitprice", "amount"],
         ["purchaseOrder"] = ["purchaseorder", "po", "ponumber", "pono", "purchaseordernumber", "purchaseorderno", "invoice", "invoicenumber"],
+        ["quoteReference"] = ["quotereference", "quote", "quoteno", "quotenumber", "quoteref", "supplierquote"],
         ["warrantyEnd"] = ["warrantyend", "warrantyenddate", "warrantyexpiry", "warrantyexpirydate", "warrantyexpires", "warrantyexpiration", "warrantyexpirationdate", "warrantyuntil", "warranty"],
         ["replacementDate"] = ["replacementdate", "replaceby", "replacedate", "refreshdate", "endoflife", "eol", "replacementdue", "replaceon"]
     };

@@ -1,0 +1,111 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.FinancePrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Asset finance and audit report";
+    ViewData["ReportSubtitle"] = $"Academic year {Model.AcademicLabel} · calendar year {Model.CalendarYear}";
+    ViewData["ReportFootnote"] = "Figures are recorded spend at the time of purchase. No depreciation or written-down value is applied. "
+        + "Disposals are recorded from the point disposal tracking was introduced.";
+}
+
+<div class="note">
+    <strong>@Model.Held.Count assets</strong> held, at a recorded spend of <strong>@FinanceReportsModel.Money(Model.HeldSpend)</strong>.
+    <strong>@Model.AcademicAdditions.Count</strong> added and <strong>@Model.AcademicDisposals.Count</strong> disposed of in @Model.AcademicLabel
+    (@Model.CalendarAdditions.Count added and @Model.CalendarDisposals.Count disposed of in calendar year @Model.CalendarYear).
+    @if (Model.MissingPrice > 0 || Model.MissingPurchaseDate > 0 || Model.MissingReference > 0)
+    {
+        <text>
+        Records are incomplete: @Model.MissingPrice have no purchase price, @Model.MissingPurchaseDate no purchase date and
+        @Model.MissingReference no order reference, so the totals below are a floor rather than the full picture.
+        </text>
+    }
+</div>
+
+<section>
+    <h2>Holdings</h2>
+    @foreach (var (title, rows) in new[] { ("By type", Model.ByType), ("By academic year bought", Model.ByAcademicYear), ("By location", Model.ByLocation), ("By supplier", Model.BySupplier) })
+    {
+        <h3>@title</h3>
+        <table>
+            <thead><tr><th>Name</th><th class="num">Assets</th><th class="num">Spend</th><th class="num">No price recorded</th></tr></thead>
+            <tbody>
+            @foreach (var row in rows)
+            {
+                <tr><td>@row.Name</td><td class="num">@row.Count</td><td class="num">@FinanceReportsModel.Money(row.Spend)</td><td class="num">@(row.MissingPrice == 0 ? "—" : row.MissingPrice.ToString())</td></tr>
+            }
+            @if (rows.Count == 0) { <tr><td colspan="4" class="empty">Nothing to show.</td></tr> }
+            </tbody>
+        </table>
+    }
+</section>
+
+<section>
+    <h2>Additions in @Model.AcademicLabel (@Model.AcademicAdditions.Count)</h2>
+    <p>Counted by purchase date. @Model.CalendarAdditions.Count were bought in calendar year @Model.CalendarYear.</p>
+    <table>
+        <thead><tr><th>Asset</th><th>Make and model</th><th>Type</th><th>Bought</th><th>Reference</th><th>Supplier</th><th class="num">Price</th></tr></thead>
+        <tbody>
+        @foreach (var asset in Model.AcademicAdditions)
+        {
+            var reference = FinanceReportsModel.Reference(asset);
+            <tr>
+                <td class="count">@asset.AssetTag</td>
+                <td>@asset.Make @asset.Model</td>
+                <td>@asset.Type</td>
+                <td>@(asset.PurchaseDate is { } d ? AssetInsights.Format(d) : "—")</td>
+                <td>@(reference is { } r ? $"{r.Reference} ({r.Kind})" : "—")</td>
+                <td>@(string.IsNullOrWhiteSpace(Model.SupplierName(asset)) ? "—" : Model.SupplierName(asset))</td>
+                <td class="num">@FinanceReportsModel.Money(asset.PurchasePrice)</td>
+            </tr>
+        }
+        @if (Model.AcademicAdditions.Count == 0) { <tr><td colspan="7" class="empty">Nothing was bought in this academic year.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Disposals in @Model.AcademicLabel (@Model.AcademicDisposals.Count)</h2>
+    <p>@Model.CalendarDisposals.Count were disposed of in calendar year @Model.CalendarYear.</p>
+    <table>
+        <thead><tr><th>Asset</th><th>Make and model</th><th>Type</th><th>Disposed</th><th>How</th><th class="num">Proceeds</th><th class="num">Originally cost</th></tr></thead>
+        <tbody>
+        @foreach (var asset in Model.AcademicDisposals)
+        {
+            <tr>
+                <td class="count">@asset.AssetTag</td>
+                <td>@asset.Make @asset.Model</td>
+                <td>@asset.Type</td>
+                <td>@(asset.DisposalDate is { } d ? AssetInsights.Format(d) : "—")</td>
+                <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)</td>
+                <td class="num">@FinanceReportsModel.Money(asset.DisposalProceeds)</td>
+                <td class="num">@FinanceReportsModel.Money(asset.PurchasePrice)</td>
+            </tr>
+        }
+        @if (Model.AcademicDisposals.Count == 0) { <tr><td colspan="7" class="empty">Nothing was disposed of in this academic year.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Spend by order (@Model.Orders.Count)</h2>
+    <p>Grouped by the Trust's purchase order where there is one, otherwise the supplier's quote reference. The amount covers the assets recorded against the order, so it will be lower than an invoice that also included cables, licences or services.</p>
+    <table>
+        <thead><tr><th>Reference</th><th>Kind</th><th>Date</th><th>Supplier</th><th class="num">Assets</th><th>What was bought</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+        @foreach (var order in Model.Orders)
+        {
+            <tr>
+                <td class="count">@order.Reference</td>
+                <td>@order.Kind</td>
+                <td>@(order.Date is { } d ? AssetInsights.Format(d) : "—")@(order.MixedDates ? " (earliest)" : "")</td>
+                <td>@(string.IsNullOrWhiteSpace(order.Supplier) ? "—" : order.Supplier)</td>
+                <td class="num">@order.Count</td>
+                <td>@order.Bought</td>
+                <td class="num">@FinanceReportsModel.Money(order.Spend)</td>
+            </tr>
+        }
+        @if (Model.Orders.Count == 0) { <tr><td colspan="7" class="empty">No purchase orders or quote references have been recorded.</td></tr> }
+        </tbody>
+    </table>
+</section>

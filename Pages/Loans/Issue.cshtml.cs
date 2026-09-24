@@ -19,7 +19,7 @@ public class IssueModel(HelpdeskStore store) : PageModel
     // Assets that can be lent on their own: not already held by someone, and not part of a kit (kit equipment only ever
     // goes out as part of its kit - see HelpdeskStore.LoanAsset).
     public IReadOnlyList<AssetRecord> AvailableAssets => store.Assets
-        .Where(x => x.AssignedUserId is null && store.KitContaining(x.Id) is null)
+        .Where(x => x.AssignedUserId is null && !HelpdeskStore.IsDisposed(x) && store.KitContaining(x.Id) is null)
         .OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
     // Same day by default; the technician can push it out when someone needs it for longer.
     public DateOnly DefaultDueBack { get; } = AssetInsights.Today;

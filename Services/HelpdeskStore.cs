@@ -41,6 +41,8 @@ public sealed partial class HelpdeskStore
             Location = x.Location ?? string.Empty,
             Status = string.IsNullOrWhiteSpace(x.Status) ? "In use" : x.Status.Trim(),
             PurchaseOrder = x.PurchaseOrder ?? string.Empty,
+            QuoteReference = x.QuoteReference ?? string.Empty,
+            DisposalMethod = x.DisposalMethod ?? string.Empty,
             LoanDueDate = x.AssignedUserId.HasValue ? x.LoanDueDate : null
         }).ToList();
         _data.Suppliers ??= [];
@@ -101,6 +103,7 @@ public sealed partial class HelpdeskStore
         _data.Parts = _data.Parts.Select(x => x with { AssetTypes = NormalizeScope(x.AssetTypes).Where(t => _data.AssetTypes.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList() }).ToList();
         _data.AssetTypeLifespans = new Dictionary<string, int>(_data.AssetTypeLifespans ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
         if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
+        if (_data.AcademicYearStartMonth is < 1 or > 12) _data.AcademicYearStartMonth = AcademicYear.DefaultStartMonth;
         if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
         if (_data.PartsDefaultReorderThreshold < 0) _data.PartsDefaultReorderThreshold = 5;
         if (_data.LoanRepeatCount is < 1 or > 100) _data.LoanRepeatCount = 3;
@@ -176,6 +179,7 @@ public sealed partial class HelpdeskStore
     public int LoanRepeatDays { get { lock (_sync) return _data.LoanRepeatDays; } }
     public IReadOnlyDictionary<string, int> AssetTypeLifespans { get { lock (_sync) return new Dictionary<string, int>(_data.AssetTypeLifespans, StringComparer.OrdinalIgnoreCase); } }
     public int AssetReviewDays { get { lock (_sync) return _data.AssetReviewDays; } }
+    public int AcademicYearStartMonth { get { lock (_sync) return _data.AcademicYearStartMonth; } }
     public int TicketDueSoonHours { get { lock (_sync) return _data.TicketDueSoonHours; } }
     // Default minimum stock level used when a part has no ReorderThreshold of its own.
     public int PartsDefaultReorderThreshold { get { lock (_sync) return _data.PartsDefaultReorderThreshold; } }
@@ -587,6 +591,16 @@ public sealed partial class HelpdeskStore
             return "Asset review window saved.";
         }
     }
+    public string SetAcademicYearStartMonth(int month)
+    {
+        lock (_sync)
+        {
+            if (month is < 1 or > 12) return "Choose the month the academic year starts in.";
+            _data.AcademicYearStartMonth = month;
+            Save();
+            return $"Academic year now starts in {AcademicYear.Months.First(x => x.Month == month).Name}.";
+        }
+    }
     public string SetTicketDueSoonHours(int hours)
     {
         lock (_sync)
@@ -894,6 +908,10 @@ public sealed partial class HelpdeskStore
     // or delete any asset status - if one is missing, the asset keeps the status it already had.
     private const string OnLoanStatus = "On loan";
     private const string InStockStatus = "In stock or spare";
+    public const string DisposedStatus = "Disposed";
+    // A disposed asset has left the estate. It stays in the register for audit, but should not turn up anywhere that
+    // implies it is still usable - see the guards in LoanAsset, IssueKit and LinkAssetToTicket, and the list filters.
+    public static bool IsDisposed(AssetRecord asset) => string.Equals(asset.Status, DisposedStatus, StringComparison.OrdinalIgnoreCase);
     private string? ResolveAssetStatus(string name) => _data.AssetStatuses.FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
 
     // The kit currently holding this asset, if a kit containing it is out on loan. An asset that went out inside a kit
@@ -926,6 +944,7 @@ public sealed partial class HelpdeskStore
             if (chosenReason is null) return (false, "Choose a reason for the loan.");
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             if (asset is null) return (false, "Asset was not found.");
+            if (IsDisposed(asset)) return (false, $"{asset.AssetTag} has been disposed of and cannot be loaned out.");
             // Kit equipment is lent as a kit or not at all, whether or not the kit is currently out. Two reasons: the
             // kit would otherwise show as available while its laptop is on someone's desk, and loaning it separately
             // was also a way round the return block - loan it out, then book it back in.
@@ -942,6 +961,48 @@ public sealed partial class HelpdeskStore
             return (true, $"{asset.AssetTag} loaned to {UserName(userId)}, due back {AssetInsights.Format(dueBack)}.");
         }
     }
+    // Takes an asset out of the estate. Deliberately not a delete: DeleteAsset removes the row, and an auditor needs
+    // the record to survive - what it cost, when it was bought and what became of it.
+    // The holder is cleared as well, because DeleteUser refuses while any asset is assigned to somebody, and a scrapped
+    // laptop still showing a leaver as its holder would block deleting them for good.
+    public (bool Ok, string Message) DisposeAsset(Guid assetId, DateOnly? date, string? method, decimal? proceeds)
+    {
+        lock (_sync)
+        {
+            var index = _data.Assets.FindIndex(x => x.Id == assetId);
+            if (index < 0) return (false, "Asset was not found.");
+            var asset = _data.Assets[index];
+            if (IsDisposed(asset)) return (false, $"{asset.AssetTag} is already recorded as disposed.");
+            if (date is not { } disposedOn) return (false, "Enter the date it was disposed of.");
+            if (disposedOn > AssetInsights.Today) return (false, "The disposal date cannot be in the future.");
+            if (string.IsNullOrWhiteSpace(method)) return (false, "Choose how it was disposed of.");
+            // Something still out with somebody, or sitting in a kit, is not ready to be written off.
+            if (KitLoanHoldingCore(assetId) is { } held)
+                return (false, $"{asset.AssetTag} is out on loan with {held.Kit.Name}. Book the kit back in first.");
+            if (KitContainingCore(assetId) is { } kit)
+                return (false, $"{asset.AssetTag} is part of {kit.Name}. Take it out of the kit before disposing of it.");
+            if (asset.LoanDueDate is not null)
+                return (false, $"{asset.AssetTag} is out on loan. Book it back in first.");
+
+            var status = ResolveAssetStatus(DisposedStatus) ?? asset.Status;
+            ApplyAssetUpdate(index, asset with
+            {
+                Status = status,
+                AssignedUserId = null,
+                LoanDueDate = null,
+                DisposalDate = disposedOn,
+                DisposalMethod = method.Trim(),
+                DisposalProceeds = proceeds
+            });
+            Save();
+            return (true, $"{asset.AssetTag} recorded as disposed on {AssetInsights.Format(disposedOn)}.");
+        }
+    }
+
+    // The methods offered when disposing of an asset. Fixed rather than a managed list: they map to how a school
+    // actually accounts for kit leaving, and the finance report groups on them.
+    public static readonly string[] DisposalMethods = ["Sold", "Recycled (WEEE)", "Donated", "Written off", "Lost or stolen"];
+
     // Ends the current holder's period. The status can be set at the same time, for example back to stock.
     public string ReturnAsset(Guid assetId, string? status)
     {
@@ -1168,6 +1229,11 @@ public sealed partial class HelpdeskStore
 
             var chosenReason = _data.LoanReasons.FirstOrDefault(x => string.Equals(x, (reason ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
             if (chosenReason is null) return (false, "Choose a reason for the loan.");
+
+            // Issuing force-sets every member's status to "On loan", so a disposed asset left in a kit would be quietly
+            // brought back from the dead. Refuse, and let someone take it out of the kit first.
+            if (kit.AssetIds.Select(id => _data.Assets.FirstOrDefault(x => x.Id == id)).OfType<AssetRecord>().FirstOrDefault(IsDisposed) is { } disposed)
+                return (false, $"{kit.Name} contains {disposed.AssetTag}, which has been disposed of. Take it out of the kit before issuing.");
 
             var loan = new KitLoan(Guid.NewGuid(), kitId, borrowerUserId, name, chosenReason,
                 DateTime.UtcNow, dueBack, null, (issuedBy ?? string.Empty).Trim(), (notes ?? string.Empty).Trim());
@@ -1794,6 +1860,9 @@ public sealed partial class HelpdeskStore
         {
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             if (asset is null) return false;
+            // Nothing new gets linked to kit that has left the estate. Tickets already linked keep their link, so the
+            // repair history of a disposed asset stays readable.
+            if (IsDisposed(asset)) return false;
             var index = _data.Tickets.FindIndex(x => x.Number == ticketNumber);
             if (index < 0) return false;
             var ticket = _data.Tickets[index];
@@ -2052,9 +2121,11 @@ public sealed partial class HelpdeskStore
     // The lists a brand new install starts with. Anything already in use is added on top of these when data is loaded.
     private void EnsureFactoryOptions()
     {
-        // "On loan" is set by the system itself when a kit goes out (see IssueKit), so unlike the others it has to exist
-        // in every database rather than only in newly seeded ones.
-        EnsureOptions(_data.AssetStatuses, ["In use", "On loan", "In stock or spare", "In repair", "Lost or stolen"]);
+        // "On loan" and "Disposed" are set by the system itself (see IssueKit and DisposeAsset), so unlike the others
+        // they have to exist in every database rather than only in newly seeded ones.
+        // "Disposed" goes LAST on purpose: the add-asset form and the CSV importer both fall back to
+        // AssetStatuses.FirstOrDefault() for a default, and defaulting new kit to disposed would be absurd.
+        EnsureOptions(_data.AssetStatuses, ["In use", "On loan", "In stock or spare", "In repair", "Lost or stolen", "Disposed"]);
         EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
         EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
         EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
@@ -2768,6 +2839,12 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Technicians ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Technicians ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
+            // Finance and audit reporting: the supplier's quote number (orders placed via the Trust often have no PO),
+            // and disposal, which is a status rather than a delete so the record survives for an auditor.
+            "ALTER TABLE Assets ADD COLUMN QuoteReference TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN DisposalDate TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN DisposalMethod TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN DisposalProceeds TEXT NULL;",
             "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Parts ADD COLUMN ReorderThreshold INTEGER NULL;",
             // Actor attribution. Nullable on purpose: everything recorded before this existed keeps no actor rather
@@ -2987,6 +3064,7 @@ public sealed partial class HelpdeskStore
             while (reader.Read()) data.AssetTypeLifespans[reader.GetString(0)] = reader.GetInt32(1);
         }
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AcademicYearStartMonth';") as string, out var academicStart)) data.AcademicYearStartMonth = academicStart;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
@@ -3195,7 +3273,10 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate FROM Assets;";
+            // This reader is ordinal-indexed, so new columns are appended to the END of the SELECT. Inserting one in the
+            // middle shifts every ordinal after it and silently scrambles the whole register - which is exactly how the
+            // Type/Model swap bug happened.
+            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds FROM Assets;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Assets.Add(new AssetRecord(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8))
             {
@@ -3205,7 +3286,11 @@ public sealed partial class HelpdeskStore
                 PurchaseOrder = NullableString(reader, 12) ?? "",
                 WarrantyEnd = NullableDateOnly(reader, 13),
                 ReplacementDate = NullableDateOnly(reader, 14),
-                LoanDueDate = NullableDateOnly(reader, 15)
+                LoanDueDate = NullableDateOnly(reader, 15),
+                QuoteReference = NullableString(reader, 16) ?? "",
+                DisposalDate = NullableDateOnly(reader, 17),
+                DisposalMethod = NullableString(reader, 18) ?? "",
+                DisposalProceeds = NullableString(reader, 19) is { } proceeds && decimal.TryParse(proceeds, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedProceeds) ? parsedProceeds : null
             });
         }
         foreach (var asset in data.Assets) ReadAssetChildren(connection, asset);
@@ -3332,6 +3417,7 @@ public sealed partial class HelpdeskStore
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "AcademicYearStartMonth", data.AcademicYearStartMonth.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
@@ -3377,8 +3463,9 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Assets)
         {
-            Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()),
-                ("$status", string.IsNullOrWhiteSpace(item.Status) ? "In use" : item.Status), ("$purchased", IsoDay(item.PurchaseDate)), ("$price", item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(item.WarrantyEnd)), ("$replacement", IsoDay(item.ReplacementDate)), ("$loan", IsoDay(item.LoanDueDate)));
+            Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()),
+                ("$status", string.IsNullOrWhiteSpace(item.Status) ? "In use" : item.Status), ("$purchased", IsoDay(item.PurchaseDate)), ("$price", item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(item.WarrantyEnd)), ("$replacement", IsoDay(item.ReplacementDate)), ("$loan", IsoDay(item.LoanDueDate)),
+                ("$quote", item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(item.DisposalDate)), ("$method", item.DisposalMethod ?? string.Empty), ("$proceeds", item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             foreach (var assignment in item.Assignments)
                 Execute(connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", ("$id", item.Id.ToString()), ("$user", assignment.UserId?.ToString()), ("$name", assignment.UserName), ("$started", assignment.StartedAt.HasValue ? Iso(assignment.StartedAt.Value) : null), ("$ended", assignment.EndedAt.HasValue ? Iso(assignment.EndedAt.Value) : null), ("$due", IsoDay(assignment.DueBack)), ("$reason", assignment.Reason), ("$kitloan", assignment.KitLoanId?.ToString()));
             foreach (var comment in item.Comments)
@@ -3647,6 +3734,8 @@ public sealed partial class HelpdeskStore
         public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Warranty ends and replacement dates inside this many days go on the overview review list.
         public int AssetReviewDays { get; set; } = 60;
+        // The month the academic year starts in, for the finance and audit report. September for most schools.
+        public int AcademicYearStartMonth { get; set; } = AcademicYear.DefaultStartMonth;
         // Open tickets due within this many hours count as "due soon" on the ticket list.
         public int TicketDueSoonHours { get; set; } = 24;
         // Default minimum stock level for a part with no ReorderThreshold of its own.

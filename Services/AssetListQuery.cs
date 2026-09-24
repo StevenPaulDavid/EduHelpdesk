@@ -45,7 +45,7 @@ public sealed class AssetListQuery
     // Filter values that mean "blank" or "nobody".
     public const string None = "(none)";
     public static readonly string[] SortColumns = ["tag", "model", "type", "serial", "holder", "location", "status", "warranty", "purchased"];
-    public static readonly string[] Flags = ["review", "loan", "overdue"];
+    public static readonly string[] Flags = ["review", "loan", "overdue", "disposed"];
 
     public string? Search { get; set; }
     public string? Status { get; set; }
@@ -64,6 +64,12 @@ public sealed class AssetListQuery
         var names = users.ToDictionary(x => x.Id, x => x.Name);
         var all = assets as IReadOnlyCollection<AssetRecord> ?? assets.ToList();
         IEnumerable<AssetRecord> query = all;
+
+        // Disposed assets stay in the register for audit but are not part of the working estate, so they are hidden
+        // unless they are actually being asked for - either by the Disposed flag or by selecting that status directly.
+        var wantsDisposed = string.Equals(Flag?.Trim(), "disposed", StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(Status) && Matches(HelpdeskStore.DisposedStatus, Status));
+        if (!wantsDisposed) query = query.Where(x => !HelpdeskStore.IsDisposed(x));
 
         if (!string.IsNullOrWhiteSpace(Status)) query = query.Where(x => Matches(x.Status, Status));
         if (!string.IsNullOrWhiteSpace(Type)) query = query.Where(x => Matches(x.Type, Type));
@@ -86,6 +92,9 @@ public sealed class AssetListQuery
             case "overdue":
                 query = query.Where(x => x.AssignedUserId is not null && x.LoanDueDate is { } due && due < today);
                 break;
+            case "disposed":
+                query = query.Where(HelpdeskStore.IsDisposed);
+                break;
         }
         if (!string.IsNullOrWhiteSpace(Search))
         {
@@ -93,7 +102,7 @@ public sealed class AssetListQuery
             query = query.Where(x =>
             {
                 var holder = x.AssignedUserId is { } id && names.TryGetValue(id, out var name) ? name : string.Empty;
-                var text = string.Join('\n', x.AssetTag, x.Make, x.Model, x.Type, x.SerialNumber, x.Location, x.Status, x.PurchaseOrder, holder);
+                var text = string.Join('\n', x.AssetTag, x.Make, x.Model, x.Type, x.SerialNumber, x.Location, x.Status, x.PurchaseOrder, x.QuoteReference, holder);
                 return terms.All(t => text.Contains(t, StringComparison.OrdinalIgnoreCase));
             });
         }

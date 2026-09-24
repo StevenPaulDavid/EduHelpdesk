@@ -1,0 +1,120 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.FinanceReportsModel
+@{
+    ViewData["Title"] = "Finance reports";
+    var exportRoutes = new { period = "", year = Model.StartYear };
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Finance and audit</h1><p class="hero-copy">What the school owns, what it cost, and what arrived and left — for finance, the Trust and auditors.</p></div>
+    <div class="heading-actions">
+        <a class="button button-primary" asp-page="/Reports/FinancePrint" asp-route-year="@Model.StartYear" target="_blank">🖨 Print / Save as PDF</a>
+        <a class="button button-secondary" asp-page="/Index">← Overview</a>
+    </div>
+</div>
+<nav class="queue-tabs report-tabs" aria-label="Report type"><a class="queue-tab" asp-page="/Reports">Asset reports</a><a class="queue-tab" asp-page="/Reports/Tickets">Ticket reports</a><a class="queue-tab" asp-page="/Reports/Parts">Parts reports</a><a class="queue-tab" asp-page="/Reports/Loans">Loan reports</a><a class="queue-tab active" asp-page="/Reports/Finance">Finance</a></nav>
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Academic year<select name="year">@foreach (var y in Model.AvailableYears) { <option value="@y" selected="@(y == Model.StartYear)">@Model.YearLabel(y)</option> }</select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Finance">This year</a></div>
+    </form>
+    <p class="muted">Academic year @Model.AcademicLabel, shown alongside calendar year @Model.CalendarYear. The start month is set in Settings. Figures are what was spent — this report does not depreciate anything.</p>
+</section>
+
+<div class="metrics">
+    <div class="metric"><span>Assets held</span><strong>@Model.Held.Count</strong><small>Excludes disposals</small></div>
+    <div class="metric"><span>Recorded spend</span><strong>@FinanceReportsModel.Money(Model.HeldSpend)</strong><small>On assets still held</small></div>
+    <div class="metric"><span>Added @Model.AcademicLabel</span><strong>@Model.AcademicAdditions.Count</strong><small>@Model.CalendarAdditions.Count in @Model.CalendarYear</small></div>
+    <div class="metric"><span>Disposed @Model.AcademicLabel</span><strong>@Model.AcademicDisposals.Count</strong><small>@Model.CalendarDisposals.Count in @Model.CalendarYear</small></div>
+</div>
+
+@if (Model.MissingPrice > 0 || Model.MissingPurchaseDate > 0 || Model.MissingReference > 0)
+{
+    <div class="notice notice-warning">
+        <strong>Some records are incomplete.</strong>
+        Of @Model.Held.Count assets held,
+        <strong>@Model.MissingPrice</strong> have no purchase price recorded,
+        <strong>@Model.MissingPurchaseDate</strong> have no purchase date, and
+        <strong>@Model.MissingReference</strong> have neither a PO nor a quote reference.
+        Totals below cover only what is recorded, so treat them as a floor rather than the full picture.
+    </div>
+}
+
+<section class="panel" id="holdings">
+    <div class="panel-heading"><div><p class="eyebrow">WHAT WE HAVE</p><h2>Holdings</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Finance" asp-page-handler="Export" asp-route-table="holdings" asp-route-year="@Model.StartYear">⬇ CSV</a><a class="csv-link" asp-page="/Reports/Finance" asp-page-handler="Export" asp-route-table="held" asp-route-year="@Model.StartYear">⬇ Full list CSV</a><span class="badge">@Model.Held.Count assets</span></div></div>
+    <div class="report-grid">
+        @foreach (var (title, rows) in new[] { ("By type", Model.ByType), ("By academic year bought", Model.ByAcademicYear), ("By location", Model.ByLocation), ("By supplier", Model.BySupplier) })
+        {
+            <div>
+                <h3>@title</h3>
+                <table><thead><tr><th>Name</th><th>Assets</th><th>Spend</th></tr></thead><tbody>
+                @foreach (var row in rows)
+                {
+                    <tr><td>@row.Name</td><td>@row.Count</td><td>@FinanceReportsModel.Money(row.Spend)@if (row.MissingPrice > 0) { <br /><small class="muted">@row.MissingPrice with no price</small> }</td></tr>
+                }
+                @if (rows.Count == 0) { <tr><td colspan="3" class="empty">Nothing to show.</td></tr> }
+                </tbody></table>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="panel" id="additions">
+    <div class="panel-heading"><div><p class="eyebrow">NEW THIS YEAR</p><h2>Additions in @Model.AcademicLabel</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Finance" asp-page-handler="Export" asp-route-table="additions" asp-route-year="@Model.StartYear">⬇ CSV</a><span class="badge">@Model.AcademicAdditions.Count</span></div></div>
+    <p class="muted">Counted by purchase date, not when they were entered into the system. @Model.CalendarAdditions.Count were bought in calendar year @Model.CalendarYear.</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Bought</th><th>Academic year</th><th>Price</th><th>Reference</th><th>Supplier</th></tr></thead><tbody>
+    @foreach (var asset in Model.AcademicAdditions)
+    {
+        var reference = FinanceReportsModel.Reference(asset);
+        <tr>
+            <td><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
+            <td>@asset.Type</td>
+            <td>@(asset.PurchaseDate is { } d ? AssetInsights.Format(d) : "—")</td>
+            <td>@Model.AcademicLabelFor(asset.PurchaseDate)</td>
+            <td>@FinanceReportsModel.Money(asset.PurchasePrice)</td>
+            <td>@(reference is { } r ? Html.Raw($"{System.Net.WebUtility.HtmlEncode(r.Reference)} <span class=\"badge\">{r.Kind}</span>") : Html.Raw("<span class=\"muted\">—</span>"))</td>
+            <td>@(string.IsNullOrWhiteSpace(Model.SupplierName(asset)) ? "—" : Model.SupplierName(asset))</td>
+        </tr>
+    }
+    @if (Model.AcademicAdditions.Count == 0) { <tr><td colspan="7" class="empty">Nothing was bought in this academic year.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="disposals">
+    <div class="panel-heading"><div><p class="eyebrow">LEFT THIS YEAR</p><h2>Disposals in @Model.AcademicLabel</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Finance" asp-page-handler="Export" asp-route-table="disposals" asp-route-year="@Model.StartYear">⬇ CSV</a><span class="badge">@Model.AcademicDisposals.Count</span></div></div>
+    <p class="muted">@Model.CalendarDisposals.Count were disposed of in calendar year @Model.CalendarYear. Disposals are only recorded from the point this was switched on — anything deleted before then is not here.</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Disposed</th><th>How</th><th>Proceeds</th><th>Originally cost</th></tr></thead><tbody>
+    @foreach (var asset in Model.AcademicDisposals)
+    {
+        <tr>
+            <td><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
+            <td>@asset.Type</td>
+            <td>@(asset.DisposalDate is { } d ? AssetInsights.Format(d) : "—")</td>
+            <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)</td>
+            <td>@FinanceReportsModel.Money(asset.DisposalProceeds)</td>
+            <td>@FinanceReportsModel.Money(asset.PurchasePrice)</td>
+        </tr>
+    }
+    @if (Model.AcademicDisposals.Count == 0) { <tr><td colspan="6" class="empty">Nothing was disposed of in this academic year.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="orders">
+    <div class="panel-heading"><div><p class="eyebrow">ORDERS</p><h2>Spend by order</h2></div><div class="heading-actions"><a class="csv-link" asp-page="/Reports/Finance" asp-page-handler="Export" asp-route-table="orders" asp-route-year="@Model.StartYear">⬇ CSV</a><span class="badge">@Model.Orders.Count</span></div></div>
+    <p class="muted">Grouped by the Trust's purchase order where there is one, otherwise the supplier's quote reference. The amount covers the assets recorded against the order, so it will be lower than an invoice that also included cables, licences or services.</p>
+    <div class="table-wrap"><table><thead><tr><th>Reference</th><th>Date</th><th>Amount</th><th>Supplier</th><th>Assets</th><th>What was bought</th></tr></thead><tbody>
+    @foreach (var order in Model.Orders)
+    {
+        <tr>
+            <td><strong>@order.Reference</strong> <span class="badge">@order.Kind</span></td>
+            <td>@(order.Date is { } d ? AssetInsights.Format(d) : "—")@if (order.MixedDates) { <br /><small class="muted">earliest of several dates</small> }</td>
+            <td>@FinanceReportsModel.Money(order.Spend)</td>
+            <td>@(string.IsNullOrWhiteSpace(order.Supplier) ? "—" : order.Supplier)</td>
+            <td>@order.Count</td>
+            <td>@order.Bought</td>
+        </tr>
+    }
+    @if (Model.Orders.Count == 0) { <tr><td colspan="6" class="empty">No purchase orders or quote references have been recorded.</td></tr> }
+    </tbody></table></div>
+</section>

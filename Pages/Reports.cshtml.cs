@@ -7,6 +7,8 @@ namespace EduHelpdesk.Pages;
 
 public class ReportsModel(HelpdeskStore store) : PageModel
 {
+    // The Finance tab is only shown to people who can actually open it - see the AuthorizePage entries in Program.cs.
+    public bool CanSeeFinance => store.UserHasPermission(User, EduHelpdesk.Models.Permissions.Settings);
     // How many rows each long table shows. Virtual so the print view can show every row - a report handed to someone
     // should not stop at 100 with no way to see the rest.
     public virtual int RowLimit => 100;
@@ -44,7 +46,11 @@ public class ReportsModel(HelpdeskStore store) : PageModel
 
     public void OnGet()
     {
-        var assets = store.Assets;
+        // Disposed assets have left the estate, so they are out of every figure here - fleet age, replacement planning
+        // and warranty would all be skewed by kit that no longer exists. The one exception is the "By status" table
+        // below, which is built from the full register: a status breakdown that hides a status would be a lie.
+        var register = store.Assets;
+        var assets = register.Where(x => !HelpdeskStore.IsDisposed(x)).ToList();
         var lifespans = store.AssetTypeLifespans;
         var today = Today;
         TotalAssets = assets.Count;
@@ -59,7 +65,8 @@ public class ReportsModel(HelpdeskStore store) : PageModel
             ("By type", Count(assets, x => x.Type)),
             ("By make", Count(assets, x => x.Make)),
             ("By location", Count(assets, x => x.Location)),
-            ("By status", Count(assets, x => x.Status))
+            // From the full register on purpose, so Disposed appears here and nowhere else on this page.
+            ("By status", Count(register, x => x.Status))
         ];
 
         // Review list (same rules as the overview)

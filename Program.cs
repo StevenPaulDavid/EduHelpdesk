@@ -34,6 +34,11 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Kits/Edit", "RequireManageAssets");
     options.Conventions.AuthorizeFolder("/Suppliers", "RequireManageSuppliers");
     options.Conventions.AuthorizeFolder("/Parts", "RequireManageParts");
+    // The finance and audit report shows purchase prices, order references and disposal proceeds together, which is a
+    // sharper picture than the other reports give. /Reports has no folder convention, so both pages are named here -
+    // the CSV export handler lives on the screen page and is covered with it.
+    options.Conventions.AuthorizePage("/Reports/Finance", "RequireSettings");
+    options.Conventions.AuthorizePage("/Reports/FinancePrint", "RequireSettings");
     // The Settings area (branding, option lists, CSV import, factory reset, audit log).
     options.Conventions.AuthorizePage("/Settings", "RequireSettings");
     options.Conventions.AuthorizeFolder("/Settings", "RequireSettings");
