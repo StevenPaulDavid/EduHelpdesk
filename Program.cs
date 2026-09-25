@@ -169,6 +169,19 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
+
+// The school's logo (Settings → Branding). Open to everyone, because the sign-in page and the staff portal show it
+// too. Only a file that passed the PNG check in HelpdeskStore.SaveLogo is ever stored, and it is sent with headers
+// that stop a browser treating it as anything but a picture. The address carries a version (?v=), so it can be
+// cached hard and still change the moment a new logo is uploaded.
+app.MapGet("/branding/logo", (HelpdeskStore store, HttpContext context) =>
+{
+    if (store.LogoFile is not { } path) return Results.NotFound();
+    context.Response.Headers.XContentTypeOptions = "nosniff";
+    context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; sandbox";
+    context.Response.Headers.CacheControl = context.Request.Query.ContainsKey("v") ? "public, max-age=31536000, immutable" : "no-cache";
+    return Results.File(path, "image/png");
+});
 app.MapRazorPages()
    .WithStaticAssets();
 

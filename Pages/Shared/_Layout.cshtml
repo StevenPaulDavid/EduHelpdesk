@@ -58,7 +58,9 @@
     </style>
 </head>
 <body>
-    <header class="topbar"><div class="brand"><span class="brand-mark">EH</span><span>@Helpdesk.Branding.BrandName</span></div>
+    @* The school's logo when one has been uploaded (Settings → Branding), otherwise the initials badge. The brand name
+       stays beside it as text, so the logo's alt text is empty rather than repeating it. *@
+    <header class="topbar"><div class="brand">@if (Helpdesk.LogoVersion is { } logoVersion) { <img class="brand-logo" src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> } else { <span class="brand-mark">EH</span> }<span>@Helpdesk.Branding.BrandName</span></div>
     @if (User.Identity?.IsAuthenticated == true)
     {
         <nav>

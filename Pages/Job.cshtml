@@ -81,7 +81,7 @@
         </form>
     </div>
 </div>
-<div class="print-brand"><span class="brand-mark">EH</span><strong>@Helpdesk.Branding.BrandName</strong><span>Job sheet</span></div>
+<div class="print-brand">@if (Helpdesk.LogoVersion is { } logoVersion) { <img class="print-logo" src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> } else { <span class="brand-mark">EH</span> }<strong>@Helpdesk.Branding.BrandName</strong><span>Job sheet</span></div>
 @if (!string.IsNullOrWhiteSpace(Model.TemplateHtml))
 {
     <div class="uploaded-print-template">@Html.Raw(Model.TemplateHtml)</div>

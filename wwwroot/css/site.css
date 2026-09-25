@@ -261,3 +261,13 @@ h3 .csv-link { margin-left: 8px; }
 .period-table td:first-child{width:45%}
 .period-table td:last-child{width:1%}
 .period-actions{margin-top:14px}
+
+/* School logo (Settings → Branding): in the header in place of the initials badge, on printed tickets, and previewed
+   in Settings. Sized by height so a crest and a wide wordmark both fit the bar. */
+.brand-logo{display:block;height:40px;width:auto;max-width:180px;object-fit:contain}
+.print-logo{max-height:14mm;max-width:45mm;object-fit:contain;align-self:center}
+.logo-settings{display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px}
+.logo-preview{display:flex;align-items:center;gap:12px;min-height:76px;min-width:140px;padding:14px 18px;border:1px dashed var(--line);border-radius:10px;background:var(--paper)}
+.logo-preview img{display:block;max-height:64px;max-width:240px;object-fit:contain}
+.logo-settings form{margin:0}
+@media(max-width:600px){.brand-logo{height:32px;max-width:120px}}

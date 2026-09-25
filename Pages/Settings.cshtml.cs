@@ -45,6 +45,27 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    [BindProperty] public IFormFile? Logo { get; set; }
+    public string? LogoVersion => store.LogoVersion;
+
+    public IActionResult OnPostUploadLogo()
+    {
+        if (Logo is null || Logo.Length == 0)
+        {
+            Message = "Choose a PNG file to upload.";
+            return RedirectToPage(null, null, "logo");
+        }
+        using var stream = Logo.OpenReadStream();
+        Message = store.SaveLogo(stream, Logo.Length).Message;
+        return RedirectToPage(null, null, "logo");
+    }
+
+    public IActionResult OnPostRemoveLogo()
+    {
+        Message = store.RemoveLogo().Message;
+        return RedirectToPage(null, null, "logo");
+    }
+
     public int AssetReviewDays => store.AssetReviewDays;
 
     public IActionResult OnPostSaveAssetReview(int days)

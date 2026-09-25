@@ -24,6 +24,8 @@
     p { margin: 0 0 2.5mm; }
     .head { border-bottom: 2px solid @accent; padding-bottom: 3mm; margin-bottom: 4mm; display: flex; justify-content: space-between; align-items: baseline; gap: 8mm; }
     .head .meta { text-align: right; font-size: 9pt; color: #5c6e75; white-space: nowrap; }
+    .head .logo { max-height: 16mm; max-width: 45mm; object-fit: contain; align-self: center; }
+    .head .title { margin-right: auto; }
     .sub { color: #5c6e75; font-size: 9.5pt; margin-top: 1mm; }
     section { margin-bottom: 6mm; page-break-inside: auto; }
     table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin-top: 2mm; }
@@ -50,7 +52,8 @@
 <body onload="window.print()">
 
 <div class="head">
-    <div>
+    @if (Store.LogoVersion is { } logoVersion) { <img class="logo" src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> }
+    <div class="title">
         <h1>@ViewData["ReportTitle"]</h1>
         <div class="sub">@Store.Branding.BrandName@(subtitle is null ? "" : " · " + subtitle)</div>
     </div>

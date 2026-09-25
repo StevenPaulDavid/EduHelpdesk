@@ -2602,6 +2602,8 @@ public sealed partial class HelpdeskStore
             }
             if (File.Exists(_templatePath))
                 File.Delete(_templatePath);
+            if (File.Exists(LogoPath))
+                File.Delete(LogoPath);
             if (File.Exists(_legacyPath))
                 File.Delete(_legacyPath);
             DeleteAllAttachmentFiles();
@@ -2626,6 +2628,8 @@ public sealed partial class HelpdeskStore
         SqliteConnection.ClearAllPools();
         if (File.Exists(_templatePath))
             File.Copy(_templatePath, Path.Combine(BackupFolder, $"print-template-before-reset-{stamp}.docx"));
+        if (File.Exists(LogoPath))
+            File.Copy(LogoPath, Path.Combine(BackupFolder, $"logo-before-reset-{stamp}.png"));
         // Restoring: put this folder back as App_Data\attachments next to the restored database.
         CopyAttachmentsTo(Path.Combine(BackupFolder, $"attachments-before-reset-{stamp}"));
         return name;
