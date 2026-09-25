@@ -315,3 +315,6 @@ h3 .csv-link { margin-left: 8px; }
 .assignment-heading p{margin:0}
 .assignment-heading+form{margin-top:16px}
 .assignment-actions{justify-content:flex-start}
+/* The hidden attribute has to beat display rules like .settings-form{display:grid} and .button{display:inline-flex}.
+   Without this, anything those classes style ignores hidden - the lead's folded assignment form stayed open. */
+[hidden]{display:none!important}
