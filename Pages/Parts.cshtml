@@ -1,4 +1,4 @@
-@page
+﻿@page
 @using EduHelpdesk.Services
 @model PartsModel
 @{ ViewData["Title"] = "Parts"; }
@@ -47,14 +47,14 @@
         {
             <tr>
                 <td>@if (Model.CanView) { <input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" onchange="partSelectionChanged()" /> }</td>
-                @* Parts have no read-only detail page - /Parts/Edit is the detail page - so the link needs Edit. *@
+                @* /Parts/Edit is the detail page: it opens read-only, but still needs Edit because the stock controls are on it. The pencil goes straight to the form. *@
                 <td><strong>@if (Model.CanEdit) { <a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong></td>
                 <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.Category) ? "—" : item.Category)</td>
                 <td>@(string.IsNullOrWhiteSpace(item.Location) ? "—" : item.Location)</td>
                 <td>@{ var suppliers = Model.SupplierNames(item); }@(suppliers.Length == 0 ? "—" : suppliers)</td>
                 <td><span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span></td>
-                <td class="asset-row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" title="Edit part">✎</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part">♜</a> }</td>
+                <td class="asset-row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" asp-route-edit="true" title="Edit part">✎</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part">♜</a> }</td>
             </tr>
         }
         @if (Model.Rows.Count == 0) { <tr><td colspan="8" class="empty">@(Model.IsFiltered ? "No parts match these filters." : "No parts have been added yet.")</td></tr> }

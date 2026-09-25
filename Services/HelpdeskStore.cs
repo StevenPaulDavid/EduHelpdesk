@@ -1267,6 +1267,31 @@ public sealed partial class HelpdeskStore
             return null;
         }
     }
+
+    public const int MaxPartDelivery = 100_000;
+
+    // Adds a delivery to what is on the shelf, which is how restocking actually happens: you know how many came in the
+    // box, not what the new total should be. The total is worked out here, inside the lock, from the stored count - so
+    // two people booking in deliveries at once both land, where typing a new total would lose one of them.
+    public (bool Ok, string Message) RestockPart(Guid id, int delivered, string? note)
+    {
+        lock (_sync)
+        {
+            if (delivered < 1) return (false, "Enter how many were delivered - 1 or more.");
+            if (delivered > MaxPartDelivery) return (false, $"Enter a delivery of {MaxPartDelivery:N0} or fewer.");
+            var index = _data.Parts.FindIndex(x => x.Id == id);
+            if (index < 0) return (false, "Part was not found.");
+            var part = _data.Parts[index];
+            var total = part.QuantityOnHand + delivered;
+            var details = $"+{delivered} delivered: {part.QuantityOnHand} -> {total}";
+            if (!string.IsNullOrWhiteSpace(note)) details += $" ({note.Trim()})";
+            var history = part.History.ToList();
+            history.Add(new PartActivity("Restocked", details, DateTime.UtcNow) { By = CurrentActor() });
+            _data.Parts[index] = part with { QuantityOnHand = total, History = history };
+            Save();
+            return (true, $"{delivered} added. {part.Name} now has {total} in stock.");
+        }
+    }
     // ---- Loan kits ---------------------------------------------------------
     // Kit contents are held for reference (so you can see which laptop is in a kit). Issuing a kit deliberately does
     // not touch the assets' own AssignedUserId/LoanDueDate, so kit loans and per-asset loans can't fight each other.

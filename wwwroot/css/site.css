@@ -230,3 +230,14 @@ h3 .csv-link { margin-left: 8px; }
 .nav-panel .menu-danger{color:var(--red)}
 .nav-panel .menu-danger:hover{color:var(--red)}
 @media(max-width:760px){.heading-actions{justify-content:flex-start}}
+
+/* Read-only record details: label and value side by side, stacking on narrow screens. First used on the part page. */
+.detail-list{display:grid;grid-template-columns:minmax(150px,max-content) 1fr;gap:12px 28px;margin:0}
+.detail-list dt{font-size:12px;font-weight:700;color:var(--muted)}
+.detail-list dd{margin:0;font-size:14px;overflow-wrap:anywhere}
+@media(max-width:600px){.detail-list{grid-template-columns:1fr;gap:2px}.detail-list dd{margin-bottom:10px}}
+.form-actions{justify-content:flex-start}
+.restock-preview{margin:-4px 0 14px;font-size:13px}
+.stock-correct{margin:0 0 18px}
+.stock-correct>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--teal-dark);width:max-content;max-width:100%}
+.stock-correct[open]>summary{margin-bottom:8px}
