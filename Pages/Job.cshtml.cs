@@ -46,6 +46,15 @@ public class JobModel(HelpdeskStore store) : PageModel
     public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
+    public bool CanEdit => store.UserCan(User, Modules.Tickets, ModulePermission.Edit);
+    public bool CanDelete => store.UserCan(User, Modules.Tickets, ModulePermission.Delete);
+    // The signed-in account, not the Jobs list's "Working as" choice: taking a ticket is something you do for yourself.
+    public Guid? SignedInTechnicianId =>
+        Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
+    // Offered on an open ticket that is not already yours. A team mismatch still shows the button, and the handler
+    // explains why it was refused - a missing button would leave people wondering where it went.
+    public bool CanAssignToMe => CanEdit && Ticket is { Status: not "Closed" } ticket && SignedInTechnicianId is { } me && ticket.TechnicianId != me;
+
     public IActionResult OnGet(int number)
     {
         Ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
@@ -156,6 +165,31 @@ public class JobModel(HelpdeskStore store) : PageModel
         }
         store.UpdateTicket(ticket);
         Message = successMessage ?? "Job updated.";
+        return RedirectToPage(new { number });
+    }
+
+    // One click instead of finding yourself in the technician dropdown. Same team rule as choosing from the list.
+    public IActionResult OnPostAssignToMe(int number)
+    {
+        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
+        if (ticket is null) return NotFound();
+        if (SignedInTechnicianId is not { } me || store.Technicians.FirstOrDefault(x => x.Id == me) is not { } technician)
+        {
+            Message = "Your account isn't a technician account, so tickets can't be assigned to it.";
+            return RedirectToPage(new { number });
+        }
+        if (ticket.TechnicianId == me)
+        {
+            Message = "This ticket is already assigned to you.";
+            return RedirectToPage(new { number });
+        }
+        if (!HelpdeskStore.TechnicianInTeam(technician, ticket.TeamName))
+        {
+            Message = $"This ticket belongs to the {ticket.TeamName} team, which you're not in. Change the team first if you're taking it on.";
+            return RedirectToPage(new { number });
+        }
+        store.UpdateTicket(ticket with { TechnicianId = me });
+        Message = "Assigned to you.";
         return RedirectToPage(new { number });
     }
 

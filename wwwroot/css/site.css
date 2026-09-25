@@ -218,3 +218,15 @@ h3 .csv-link { margin-left: 8px; }
 .kit-fields:disabled input{background:var(--paper);color:var(--muted)}
 .kit-locked{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
 .kit-locked .loan-return-form{margin:0}
+
+/* Ticket header: everyday actions stay as buttons, the rest go in drop-down menus built on the header's .nav-menu. */
+.back-link{display:inline-block;margin-bottom:14px;font-size:13px;font-weight:700;color:var(--muted);text-decoration:none}
+.back-link:hover{color:var(--teal)}
+.heading-actions{flex-wrap:wrap;justify-content:flex-end}
+.heading-actions form{margin:0}
+.action-menu>summary.button{color:var(--teal-dark);font-size:13px;font-weight:750;gap:7px}
+.action-menu>summary.button:hover{color:var(--teal-dark)}
+.action-menu .nav-panel{top:calc(100% + 6px);min-width:220px}
+.nav-panel .menu-danger{color:var(--red)}
+.nav-panel .menu-danger:hover{color:var(--red)}
+@media(max-width:760px){.heading-actions{justify-content:flex-start}}

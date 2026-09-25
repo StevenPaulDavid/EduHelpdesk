@@ -7,9 +7,41 @@
     ViewData["Title"] = $"Job #{Model.Ticket!.Number}";
 }
 
+@* The header keeps only the everyday actions as buttons. The three print options share one menu, and merge and delete
+   sit under "More" - they are rare, need Tickets: Delete, and a destructive button one slip away from "Mark as closed"
+   was never a good neighbour. Back is navigation rather than an action, so it is a plain link above the title. *@
+<a class="back-link no-print" asp-page="/Index">← Back to overview</a>
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / TICKET DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
-    <div class="heading-actions no-print">@if (Model.Ticket.Status != "Closed") { if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" onclick="openCloseDialog()">Mark as closed</button> } else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> } }<button class="button button-secondary" type="button" onclick="openMergeDialog()">Merge ticket</button><button class="button button-secondary" type="button" onclick="window.print()">🖨 Print ticket</button><button class="button button-secondary" type="button" onclick="window.open('@Url.Page("/PrintLabel", new { number = Model.Ticket.Number })', '_blank')">🏷 Print label</button><button class="button button-secondary" type="button" onclick="window.open('@Url.Page("/PrintJobSheet", new { number = Model.Ticket.Number })', '_blank')">📋 Print job sheet</button><a class="button button-secondary" asp-page="/Index">← Back to overview</a><button class="button button-danger" type="button" onclick="openDeleteDialog()">Delete ticket</button></div>
+    <div class="heading-actions no-print">
+        @if (Model.CanAssignToMe)
+        {
+            <form method="post" asp-page-handler="AssignToMe"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-secondary" type="submit">Assign to me</button></form>
+        }
+        @if (Model.CanEdit && Model.Ticket.Status != "Closed")
+        {
+            if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" onclick="openCloseDialog()">Mark as closed</button> }
+            else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }
+        }
+        <details class="nav-menu action-menu">
+            <summary class="button button-secondary">🖨 Print<span class="chev" aria-hidden="true">▾</span></summary>
+            <div class="nav-panel nav-panel-right">
+                <button type="button" onclick="window.print()">Ticket</button>
+                <button type="button" onclick="window.open('@Url.Page("/PrintLabel", new { number = Model.Ticket.Number })', '_blank')">Label</button>
+                <button type="button" onclick="window.open('@Url.Page("/PrintJobSheet", new { number = Model.Ticket.Number })', '_blank')">Job sheet</button>
+            </div>
+        </details>
+        @if (Model.CanDelete)
+        {
+            <details class="nav-menu action-menu">
+                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+                <div class="nav-panel nav-panel-right">
+                    <button type="button" onclick="openMergeDialog()">Merge into another ticket…</button>
+                    <button type="button" class="menu-danger" onclick="openDeleteDialog()">Delete ticket…</button>
+                </div>
+            </details>
+        }
+    </div>
 </div>
 @if (Model.Ticket.Status != "Closed" && Model.RequiresCloseMessage)
 {

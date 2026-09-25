@@ -45,6 +45,7 @@
             .topbar, .panel, .metric, .nav-panel { background: #1d3034; color: var(--ink); border-color: var(--line); }
             .nav-panel a, .nav-panel button { color: var(--ink); }
             .nav-panel a:hover, .nav-panel button:hover { background: #29474b; }
+            .nav-panel .menu-danger, .nav-panel .menu-danger:hover { color: #f08a80; }
             .topbar nav summary { color: var(--muted); }
             .topbar nav a, .workspace-label, .muted { color: var(--muted); }
             .directory-row, td, th { border-color: var(--line); }
@@ -100,14 +101,15 @@
     <footer class="footer">EduHelpdesk · Local technician operations</footer>
     @await RenderSectionAsync("Scripts", required: false)
     <script>
-        // Only one header menu open at a time, and clicking away or pressing Escape closes them.
+        // Only one menu open at a time - header menus and page action menus alike - and clicking away, choosing an
+        // item, or pressing Escape closes them.
         (function () {
-            const menus = [...document.querySelectorAll(".topbar .nav-menu")];
+            const menus = [...document.querySelectorAll("details.nav-menu")];
             menus.forEach(m => m.addEventListener("toggle", () => {
                 if (m.open) menus.filter(o => o !== m).forEach(o => o.open = false);
             }));
             document.addEventListener("click", e => {
-                menus.forEach(m => { if (!m.contains(e.target)) m.open = false; });
+                menus.forEach(m => { if (!m.contains(e.target) || e.target.closest(".nav-panel button, .nav-panel a")) m.open = false; });
             });
             document.addEventListener("keydown", e => {
                 if (e.key === "Escape") menus.forEach(m => m.open = false);
