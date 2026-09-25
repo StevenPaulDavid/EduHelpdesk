@@ -125,10 +125,17 @@
             var received = quoteRows.Count(x => x.HasQuote);
             var toChase = quoteRows.Count(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays);
             var expired = quoteRows.Count(x => x.IsExpired(Model.Today));
+            // What the proposal will total: the chosen quote on each item. Items without one count as nothing yet.
+            var chosenTotals = project.Items.Select(x => x.Chosen).OfType<ItemSupplier>().Aggregate(new QuoteTotals(), (sum, x) => sum + QuoteTotals.Of(x.PaymentLines));
+            var itemsChosen = project.Items.Count(x => x.Chosen is not null);
         }
         <div class="project-items" id="items">
             <div class="project-items-head">
                 <div><p class="section-heading">Items &amp; quotes</p>
+                    @if (project.Items.Count > 0)
+                    {
+                        <p class="project-total">Chosen quotes: <strong>@HelpdeskStore.FormatMoney(chosenTotals.TermIncVat)</strong> inc. VAT over the term · @HelpdeskStore.FormatMoney(chosenTotals.FirstYearIncVat) in the first year <span class="muted">(@HelpdeskStore.FormatMoney(chosenTotals.TermExVat) ex. VAT) · @itemsChosen of @project.Items.Count @(project.Items.Count == 1 ? "item has" : "items have") a chosen quote</span></p>
+                    }
                     <p class="muted">@project.Items.Count @(project.Items.Count == 1 ? "item" : "items") · @received of @quoteRows.Count @(quoteRows.Count == 1 ? "supplier" : "suppliers") have quoted @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }@if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }</p>
                 </div>
             </div>
@@ -205,7 +212,7 @@
                     </div>
 
                     <div class="item-suppliers">
-                        <p class="eyebrow">SUPPLIERS</p>
+                        <p class="eyebrow">SUPPLIERS @if (item.Chosen is { } chosenRow) { <span class="item-chosen">· chosen: @(Model.SupplierNames.GetValueOrDefault(chosenRow.SupplierId) ?? "Unknown") at @HelpdeskStore.FormatMoney(QuoteTotals.Of(chosenRow.PaymentLines).TermIncVat) inc. VAT</span> }</p>
                         @if (item.Suppliers.Count == 0) { <p class="muted">No suppliers asked yet.</p> }
                         @foreach (var row in item.Suppliers)
                         {
@@ -213,8 +220,12 @@
                             var chase = days >= QuoteStatuses.ChaseAfterDays;
                             var isExpired = row.IsExpired(Model.Today);
                             var trail = string.Join(" → ", row.StatusHistory.Select(c => $"{c.Status} {c.At.ToLocalTime():d MMM}"));
+                            var isChosen = item.ChosenSupplierId == row.SupplierId;
+                            var supplierName = Model.SupplierNames.GetValueOrDefault(row.SupplierId) ?? "Unknown supplier";
+                            var quoteKey = $"{item.Id:N}-{row.SupplierId:N}";
+                            <div class="supplier-block @(isChosen ? "is-chosen" : "")">
                             <div class="supplier-row @(chase ? "is-chase" : "") @(isExpired ? "is-expired" : "")">
-                                <a class="supplier-name" asp-page="/Supplier" asp-route-id="@row.SupplierId">@(Model.SupplierNames.GetValueOrDefault(row.SupplierId) ?? "Unknown supplier")</a>
+                                <a class="supplier-name" asp-page="/Supplier" asp-route-id="@row.SupplierId">@supplierName</a>@if (isChosen) { <span class="badge chosen-badge">Chosen</span> }
                                 @if (canWork)
                                 {
                                     <form method="post" asp-page-handler="QuoteStatus" class="quote-status-form">
@@ -239,8 +250,156 @@
                                 }
                                 @if (canWork)
                                 {
-                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" onsubmit="return confirm('Take this supplier off the item? Its quote status history goes with it.');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">♜</button></form>
+                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" onsubmit="return confirm('Take this supplier off the item? Their quote files, prices and status history go with it.');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">♜</button></form>
                                 }
+                            </div>
+                            @* Still inside the supplier-block div, which is markup, so these need their own code block. *@
+                            @{
+                                var totals = QuoteTotals.Of(row.PaymentLines);
+                                var updating = row.Status == QuoteStatuses.UpdateRequested;
+                                var hasAnything = row.Documents.Count > 0 || row.PaymentLines.Count > 0 || row.PreviousVersions.Count > 0;
+                            }
+                            @* The quote itself: files, prices, the choice, and what an update replaced. Opens again after a change to it. *@
+                            <details class="quote-panel" id="quote-@quoteKey" open="@(Model.OpenQuote == quoteKey)">
+                                <summary>
+                                    @if (!hasAnything) { <span>@(canWork ? "Add their quote" : "No quote yet")</span> }
+                                    else
+                                    {
+                                        <span>Quote@(row.Reference.Length > 0 ? $" {row.Reference}" : "") · @row.Documents.Count @(row.Documents.Count == 1 ? "file" : "files")</span>
+                                        @if (row.PaymentLines.Count > 0) { <span class="quote-total">@HelpdeskStore.FormatMoney(totals.TermIncVat) inc. VAT over the term</span> } else { <span class="muted">no prices yet</span> }
+                                        @if (row.PreviousVersions.Count > 0) { <span class="muted">· @row.PreviousVersions.Count previous @(row.PreviousVersions.Count == 1 ? "version" : "versions")</span> }
+                                    }
+                                </summary>
+                                <div class="quote-body">
+                                    <div class="quote-files">
+                                        <p class="eyebrow">FILES</p>
+                                        @if (row.Documents.Count == 0) { <p class="muted">No files yet.</p> }
+                                        @foreach (var document in row.Documents)
+                                        {
+                                            <div class="quote-file">
+                                                <a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@document.FileName</a>
+                                                <span class="muted">@HelpdeskStore.FormatSize(document.Size) · @document.UploadedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+                                                @if (canWork)
+                                                {
+                                                    <form method="post" asp-page-handler="RemoveQuoteFile" onsubmit="return confirm('Remove this file from the quote?');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">♜</button></form>
+                                                }
+                                            </div>
+                                        }
+                                        @if (canWork)
+                                        {
+                                            <form method="post" asp-page-handler="UploadQuote" enctype="multipart/form-data" class="quote-upload">
+                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                                <label>@(updating ? "Upload the updated quote" : row.Documents.Count == 0 ? "Upload their quote" : "Add more files")<input type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
+                                                @if (updating && (row.Documents.Count > 0 || row.PaymentLines.Count > 0))
+                                                {
+                                                    <p class="muted">An update was asked for, so these files replace the current ones and the prices are cleared for the new quote's.</p>
+                                                    <label class="toggle-label"><input type="checkbox" name="keepPrevious" value="true" checked /> Keep the current files and prices under Previous versions</label>
+                                                }
+                                                else if (row.Status is not (QuoteStatuses.Received or QuoteStatuses.UpdateReceived or QuoteStatuses.UpdateRequested))
+                                                {
+                                                    <p class="muted">Uploading marks the quote as Received.</p>
+                                                }
+                                                <button class="button button-secondary" type="submit">Upload</button>
+                                            </form>
+                                        }
+                                    </div>
+
+                                    <div class="quote-prices">
+                                        <p class="eyebrow">PRICE <span class="muted">· amounts per payment, excluding VAT</span></p>
+                                        @foreach (var line in row.PaymentLines)
+                                        {
+                                            @if (canWork)
+                                            {
+                                                <form method="post" asp-page-handler="UpdatePaymentLine" class="pay-line">
+                                                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="lineId" value="@line.Id" />
+                                                    <label>What for<input name="description" value="@line.Description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. Hardware" /></label>
+                                                    <label>Amount (£)<input name="amount" value="@line.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" inputmode="decimal" required /></label>
+                                                    <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often" selected="@(often == line.Frequency)">@often</option> }</select></label>
+                                                    <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="@line.TermYears" /></label>
+                                                    <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
+                                                    <span class="pay-line-total">@HelpdeskStore.FormatMoney(line.TermExVat + line.TermVat)<small>@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), inc. VAT</small></span>
+                                                    <span class="pay-line-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" title="Remove line" aria-label="Remove line">♜</button></span>
+                                                </form>
+                                            }
+                                            else { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line) - <strong>@HelpdeskStore.FormatMoney(line.TermExVat + line.TermVat)</strong> inc. VAT</p> }
+                                        }
+                                        @if (row.PaymentLines.Count == 0) { <p class="muted">No prices entered yet.</p> }
+                                        @if (canWork)
+                                        {
+                                            <form method="post" asp-page-handler="AddPaymentLine" class="pay-line pay-line-new">
+                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                                <label>What for<input name="description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. AppleCare+" /></label>
+                                                <label>Amount (£)<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
+                                                <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often">@often</option> }</select></label>
+                                                <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="1" /></label>
+                                                <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat">@vat</option> }</select></label>
+                                                <span class="pay-line-total muted"><small>Years only count for regular payments.</small></span>
+                                                <span class="pay-line-actions"><button class="button button-primary" type="submit">Add price</button></span>
+                                            </form>
+                                        }
+                                        @if (row.PaymentLines.Count > 0)
+                                        {
+                                            <table class="quote-totals">
+                                                <tr><th></th><th>Ex. VAT</th><th>VAT</th><th>Inc. VAT</th></tr>
+                                                <tr><th>First year</th><td>@HelpdeskStore.FormatMoney(totals.FirstYearExVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearIncVat)</td></tr>
+                                                <tr><th>Whole term</th><td>@HelpdeskStore.FormatMoney(totals.TermExVat)</td><td>@HelpdeskStore.FormatMoney(totals.TermVat)</td><td><strong>@HelpdeskStore.FormatMoney(totals.TermIncVat)</strong></td></tr>
+                                            </table>
+                                        }
+                                    </div>
+
+                                    <div class="quote-meta">
+                                        @if (canWork)
+                                        {
+                                            <form method="post" asp-page-handler="QuoteReference" class="inline-fields">
+                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                                <label>Supplier's quote reference<input name="reference" value="@row.Reference" maxlength="@HelpdeskStore.MaxQuoteReferenceLength" placeholder="e.g. Q-104233" /></label>
+                                                <button class="button button-secondary" type="submit">Save</button>
+                                            </form>
+                                            <form method="post" asp-page-handler="ChooseQuote" class="choose-quote">
+                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
+                                                @if (isChosen)
+                                                {
+                                                    <input type="hidden" name="supplierId" value="" />
+                                                    <span class="muted">This is the chosen quote for @item.Name - the proposal's totals use it.</span>
+                                                    <button class="button button-secondary" type="submit">Unchoose</button>
+                                                }
+                                                else if (row.HasQuote)
+                                                {
+                                                    <input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                                    <button class="button button-primary" type="submit">Choose this quote</button>
+                                                    @if (item.ChosenSupplierId is { } other) { <span class="muted">Replaces @(Model.SupplierNames.GetValueOrDefault(other) ?? "the current choice").</span> }
+                                                }
+                                                else { <span class="muted">It can be chosen once their quote is in.</span> }
+                                            </form>
+                                        }
+                                        else if (row.Reference.Length > 0) { <p class="muted">Supplier's reference: @row.Reference</p> }
+                                    </div>
+
+                                    @if (row.PreviousVersions.Count > 0)
+                                    {
+                                        <div class="quote-versions">
+                                            <p class="eyebrow">PREVIOUS VERSIONS</p>
+                                            @foreach (var version in row.PreviousVersions.OrderByDescending(x => x.ArchivedAt))
+                                            {
+                                                var old = QuoteTotals.Of(version.PaymentLines);
+                                                <details class="quote-version">
+                                                    <summary>Replaced @version.ArchivedAt.ToLocalTime().ToString("d MMM yyyy")@(version.Reference.Length > 0 ? $" · {version.Reference}" : "") · @version.Documents.Count @(version.Documents.Count == 1 ? "file" : "files") · @(version.PaymentLines.Count > 0 ? HelpdeskStore.FormatMoney(old.TermIncVat) + " inc. VAT" : "no prices")</summary>
+                                                    @foreach (var document in version.Documents)
+                                                    {
+                                                        <div class="quote-file"><a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@document.FileName</a><span class="muted">@HelpdeskStore.FormatSize(document.Size)</span></div>
+                                                    }
+                                                    @foreach (var line in version.PaymentLines) { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line)</p> }
+                                                    @if (version.ValidUntil is { } was) { <p class="muted">Was valid until @was.ToString("d MMM yyyy")</p> }
+                                                    @if (canWork)
+                                                    {
+                                                        <form method="post" asp-page-handler="DeleteQuoteVersion" onsubmit="return confirm('Delete this previous version and its files for good?');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="versionId" value="@version.Id" /><button class="button button-secondary" type="submit">Delete this version</button></form>
+                                                    }
+                                                </details>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </details>
                             </div>
                         }
                         @if (canWork)

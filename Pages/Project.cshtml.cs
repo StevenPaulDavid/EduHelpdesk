@@ -103,6 +103,46 @@ public class ProjectModel(HelpdeskStore store) : PageModel
     public IActionResult OnPostValidUntil(int number, Guid itemId, Guid supplierId, DateOnly? validUntil) => Edit(number, itemId, () => store.SetQuoteValidUntil(number, itemId, supplierId, validUntil));
     public IActionResult OnPostRemoveSupplier(int number, Guid itemId, Guid supplierId) => Edit(number, itemId, () => store.RemoveItemSupplier(number, itemId, supplierId));
 
+    // A supplier's quote: its files, its prices, and whether it is the one the item goes with.
+    public IActionResult OnPostUploadQuote(int number, Guid itemId, Guid supplierId, List<IFormFile>? files, bool keepPrevious) => EditQuote(number, itemId, supplierId, () =>
+    {
+        var streams = (files ?? []).Where(x => x is not null).Select(x => ((string?)x.FileName, x.OpenReadStream(), x.Length)).ToList();
+        try { return store.UploadQuoteDocuments(number, itemId, supplierId, streams, keepPrevious); }
+        finally { foreach (var (_, stream, _) in streams) stream.Dispose(); }
+    });
+    public IActionResult OnPostRemoveQuoteFile(int number, Guid itemId, Guid supplierId, Guid documentId) => EditQuote(number, itemId, supplierId, () => store.RemoveQuoteDocument(number, itemId, supplierId, documentId));
+    public IActionResult OnPostDeleteQuoteVersion(int number, Guid itemId, Guid supplierId, Guid versionId) => EditQuote(number, itemId, supplierId, () => store.DeleteQuoteVersion(number, itemId, supplierId, versionId));
+    public IActionResult OnPostQuoteReference(int number, Guid itemId, Guid supplierId, string? reference) => EditQuote(number, itemId, supplierId, () => store.SetQuoteReference(number, itemId, supplierId, reference));
+    public IActionResult OnPostAddPaymentLine(int number, Guid itemId, Guid supplierId, string? description, string? amount, string? frequency, int termYears, string? vat) =>
+        EditQuote(number, itemId, supplierId, () => store.AddPaymentLine(number, itemId, supplierId, description, amount, frequency, termYears, vat));
+    public IActionResult OnPostUpdatePaymentLine(int number, Guid itemId, Guid supplierId, Guid lineId, string? description, string? amount, string? frequency, int termYears, string? vat) =>
+        EditQuote(number, itemId, supplierId, () => store.UpdatePaymentLine(number, itemId, supplierId, lineId, description, amount, frequency, termYears, vat));
+    public IActionResult OnPostDeletePaymentLine(int number, Guid itemId, Guid supplierId, Guid lineId) => EditQuote(number, itemId, supplierId, () => store.DeletePaymentLine(number, itemId, supplierId, lineId));
+    public IActionResult OnPostChooseQuote(int number, Guid itemId, string? supplierId) =>
+        Edit(number, itemId, () => store.ChooseQuote(number, itemId, Guid.TryParse(supplierId, out var id) ? id : null));
+
+    // Quote files open for anyone who can view the project. Sent the same way as ticket attachments: never sniffed,
+    // sandboxed, and only pictures shown in the page - everything else downloads.
+    public IActionResult OnGetQuoteFile(int number, Guid itemId, Guid supplierId, Guid documentId, bool inline)
+    {
+        if (store.FindQuoteDocument(number, itemId, supplierId, documentId) is not { } found) return NotFound();
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";
+        if (inline && HelpdeskStore.IsInlineImage(found.Document)) return PhysicalFile(found.Path, found.Document.ContentType);
+        return PhysicalFile(found.Path, found.Document.ContentType, found.Document.FileName);
+    }
+
+    // Which quote panel to open again after the page reloads, so adding a price doesn't mean hunting for the panel.
+    [TempData] public string? OpenQuote { get; set; }
+
+    private IActionResult EditQuote(int number, Guid itemId, Guid supplierId, Func<(bool Ok, string Message)> change)
+    {
+        if (!CanEdit) return Forbid();
+        Message = change().Message;
+        OpenQuote = $"{itemId:N}-{supplierId:N}";
+        return RedirectToPage(null, null, new { number }, $"quote-{OpenQuote}");
+    }
+
     // Back to the item that was just changed, rather than the top of a long page.
     private IActionResult Edit(int number, Guid? itemId, Func<(bool Ok, string Message)> change)
     {

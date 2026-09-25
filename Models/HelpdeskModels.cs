@@ -266,6 +266,9 @@ public record ProjectItem(Guid Id, string Name, int Quantity)
 {
     public List<ProjectSubItem> SubItems { get; init; } = [];
     public List<ItemSupplier> Suppliers { get; init; } = [];
+    // The quote the proposal's totals use for this item. Every received quote is still compared alongside it.
+    public Guid? ChosenSupplierId { get; init; }
+    public ItemSupplier? Chosen => ChosenSupplierId is { } id ? Suppliers.FirstOrDefault(x => x.SupplierId == id) : null;
 }
 public record ProjectSubItem(Guid Id, string Name, int Quantity);
 // A supplier asked (or about to be asked) to quote for one item. StatusHistory is every status it has had, oldest
@@ -275,6 +278,13 @@ public record ItemSupplier(Guid SupplierId)
     public List<QuoteStatusChange> StatusHistory { get; init; } = [];
     // How long the supplier says the quote holds - often 30 days.
     public DateOnly? ValidUntil { get; init; }
+    // The supplier's own quote number - orders placed through the Trust often only ever carry this.
+    public string Reference { get; init; } = "";
+    // The quote as it stands: its files and what it costs. An updated quote replaces both, optionally keeping the old
+    // ones together in PreviousVersions so the change can be seen.
+    public List<QuoteDocument> Documents { get; init; } = [];
+    public List<PaymentLine> PaymentLines { get; init; } = [];
+    public List<QuoteVersion> PreviousVersions { get; init; } = [];
 
     public string Status => StatusHistory.Count == 0 ? QuoteStatuses.NotRequested : StatusHistory[^1].Status;
     public DateTime? StatusSince => StatusHistory.Count == 0 ? null : StatusHistory[^1].At;
@@ -287,6 +297,60 @@ public record ItemSupplier(Guid SupplierId)
 public record QuoteStatusChange(string Status, DateTime At)
 {
     public Actor? By { get; init; }
+}
+// One file of a supplier's quote. Kept on disk under App_Data/attachments, named by Id, like ticket attachments.
+public record QuoteDocument(Guid Id, string FileName, string ContentType, long Size, DateTime UploadedAt)
+{
+    public Actor? By { get; init; }
+}
+// One way the quote is paid: "£8,000 once", "£400 a year for 3 years". Amounts are per payment and exclude VAT; each
+// line says which VAT applies, because zero-rated items and suppliers who aren't VAT-registered sit alongside standard ones.
+public record PaymentLine(Guid Id, string Description, decimal Amount, string Frequency, int TermYears, string Vat)
+{
+    public int PaymentCount => PaymentFrequencies.PerYear(Frequency) is var perYear and > 0 ? perYear * TermYears : 1;
+    public decimal VatRate => VatTreatments.Rate(Vat);
+    public decimal TermExVat => Amount * PaymentCount;
+    // The first twelve months: a one-off payment falls in it whole; a recurring one for as many payments as a year holds.
+    public decimal FirstYearExVat => Amount * (PaymentFrequencies.PerYear(Frequency) is var perYear and > 0 ? Math.Min(perYear, PaymentCount) : 1);
+    public decimal TermVat => Math.Round(TermExVat * VatRate, 2, MidpointRounding.AwayFromZero);
+    public decimal FirstYearVat => Math.Round(FirstYearExVat * VatRate, 2, MidpointRounding.AwayFromZero);
+}
+// A quote as it was before an update replaced it: its files and prices together, so what changed can still be seen.
+public record QuoteVersion(Guid Id, DateTime ArchivedAt, string Reference, DateOnly? ValidUntil)
+{
+    public List<QuoteDocument> Documents { get; init; } = [];
+    public List<PaymentLine> PaymentLines { get; init; } = [];
+    public Actor? By { get; init; }
+}
+// Totals for a set of payment lines - one quote, or every chosen quote on a project.
+public readonly record struct QuoteTotals(decimal FirstYearExVat, decimal FirstYearVat, decimal TermExVat, decimal TermVat)
+{
+    public decimal FirstYearIncVat => FirstYearExVat + FirstYearVat;
+    public decimal TermIncVat => TermExVat + TermVat;
+    public static QuoteTotals Of(IEnumerable<PaymentLine> lines) => lines.Aggregate(new QuoteTotals(), (sum, x) =>
+        new QuoteTotals(sum.FirstYearExVat + x.FirstYearExVat, sum.FirstYearVat + x.FirstYearVat, sum.TermExVat + x.TermExVat, sum.TermVat + x.TermVat));
+    public static QuoteTotals operator +(QuoteTotals a, QuoteTotals b) =>
+        new(a.FirstYearExVat + b.FirstYearExVat, a.FirstYearVat + b.FirstYearVat, a.TermExVat + b.TermExVat, a.TermVat + b.TermVat);
+}
+public static class PaymentFrequencies
+{
+    public const string OneOff = "One-off";
+    public const string Monthly = "Monthly";
+    public const string Quarterly = "Quarterly";
+    public const string Annually = "Annually";
+    public static readonly string[] All = [OneOff, Monthly, Quarterly, Annually];
+    public static int PerYear(string? frequency) => frequency switch { Monthly => 12, Quarterly => 4, Annually => 1, _ => 0 };
+    public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+}
+public static class VatTreatments
+{
+    public const string Standard = "Standard (20%)";
+    public const string Reduced = "Reduced (5%)";
+    public const string Zero = "Zero-rated (0%)";
+    public const string None = "No VAT";
+    public static readonly string[] All = [Standard, Reduced, Zero, None];
+    public static decimal Rate(string? vat) => vat switch { Standard => 0.20m, Reduced => 0.05m, _ => 0m };
+    public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 public static class QuoteStatuses
 {

@@ -237,8 +237,10 @@ public sealed partial class HelpdeskStore
             var index = _data.Projects.FindIndex(x => x.Number == number);
             if (index < 0) return (false, "Project was not found.");
             var reference = _data.Projects[index].Reference;
+            var files = QuoteFiles(_data.Projects[index].Items.SelectMany(x => x.Suppliers)).ToList();
             _data.Projects.RemoveAt(index);
             Save();
+            foreach (var id in files) TryDelete(AttachmentFile(id));
             return (true, $"Project {reference} deleted.");
         }
     }
@@ -347,8 +349,23 @@ public sealed partial class HelpdeskStore
             CREATE TABLE IF NOT EXISTS ProjectQuoteStatusChanges (Id INTEGER PRIMARY KEY AUTOINCREMENT, ItemId TEXT NOT NULL, SupplierId TEXT NOT NULL,
                 Status TEXT NOT NULL, At TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL,
                 FOREIGN KEY (ItemId, SupplierId) REFERENCES ProjectItemSuppliers(ItemId, SupplierId) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectQuoteVersions (Id TEXT PRIMARY KEY, ItemId TEXT NOT NULL, SupplierId TEXT NOT NULL, Position INTEGER NOT NULL,
+                ArchivedAt TEXT NOT NULL, Reference TEXT NOT NULL DEFAULT '', ValidUntil TEXT NULL, Actor TEXT NULL, ActorId TEXT NULL,
+                FOREIGN KEY (ItemId, SupplierId) REFERENCES ProjectItemSuppliers(ItemId, SupplierId) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectQuoteDocuments (Id TEXT PRIMARY KEY, ItemId TEXT NOT NULL, SupplierId TEXT NOT NULL, VersionId TEXT NULL,
+                Position INTEGER NOT NULL, FileName TEXT NOT NULL, ContentType TEXT NOT NULL, Size INTEGER NOT NULL, UploadedAt TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL,
+                FOREIGN KEY (ItemId, SupplierId) REFERENCES ProjectItemSuppliers(ItemId, SupplierId) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectPaymentLines (Id TEXT PRIMARY KEY, ItemId TEXT NOT NULL, SupplierId TEXT NOT NULL, VersionId TEXT NULL,
+                Position INTEGER NOT NULL, Description TEXT NOT NULL, Amount TEXT NOT NULL, Frequency TEXT NOT NULL, TermYears INTEGER NOT NULL, Vat TEXT NOT NULL,
+                FOREIGN KEY (ItemId, SupplierId) REFERENCES ProjectItemSuppliers(ItemId, SupplierId) ON DELETE CASCADE);
             """;
         command.ExecuteNonQuery();
+        foreach (var sql in new[] { "ALTER TABLE ProjectItems ADD COLUMN ChosenSupplierId TEXT NULL;", "ALTER TABLE ProjectItemSuppliers ADD COLUMN Reference TEXT NOT NULL DEFAULT '';" })
+        {
+            using var itemMigration = connection.CreateCommand();
+            itemMigration.CommandText = sql;
+            try { itemMigration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+        }
         foreach (var sql in new[] { "ALTER TABLE Users ADD COLUMN CanRaiseProjects INTEGER NOT NULL DEFAULT 0;", "ALTER TABLE Users ADD COLUMN IsProjectLead INTEGER NOT NULL DEFAULT 0;" })
         {
             using var migration = connection.CreateCommand();
@@ -409,12 +426,12 @@ public sealed partial class HelpdeskStore
         var items = new Dictionary<Guid, ProjectItem>();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, ProjectNumber, Name, Quantity FROM ProjectItems ORDER BY ProjectNumber, Position;";
+            command.CommandText = "SELECT Id, ProjectNumber, Name, Quantity, ChosenSupplierId FROM ProjectItems ORDER BY ProjectNumber, Position;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
                 if (!byNumber.TryGetValue(reader.GetInt32(1), out var project)) continue;
-                var item = new ProjectItem(Guid.Parse(reader.GetString(0)), reader.GetString(2), reader.GetInt32(3));
+                var item = new ProjectItem(Guid.Parse(reader.GetString(0)), reader.GetString(2), reader.GetInt32(3)) { ChosenSupplierId = NullableGuid(reader, 4) };
                 project.Items.Add(item);
                 items[item.Id] = item;
             }
@@ -430,13 +447,13 @@ public sealed partial class HelpdeskStore
         var itemSuppliers = new Dictionary<(Guid, Guid), ItemSupplier>();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT ItemId, SupplierId, ValidUntil FROM ProjectItemSuppliers ORDER BY ItemId, Position;";
+            command.CommandText = "SELECT ItemId, SupplierId, ValidUntil, Reference FROM ProjectItemSuppliers ORDER BY ItemId, Position;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
                 var itemId = Guid.Parse(reader.GetString(0));
                 if (!items.TryGetValue(itemId, out var item)) continue;
-                var supplier = new ItemSupplier(Guid.Parse(reader.GetString(1))) { ValidUntil = NullableDateOnly(reader, 2) };
+                var supplier = new ItemSupplier(Guid.Parse(reader.GetString(1))) { ValidUntil = NullableDateOnly(reader, 2), Reference = NullableString(reader, 3) ?? "" };
                 item.Suppliers.Add(supplier);
                 itemSuppliers[(itemId, supplier.SupplierId)] = supplier;
             }
@@ -448,6 +465,44 @@ public sealed partial class HelpdeskStore
             while (reader.Read())
                 if (itemSuppliers.TryGetValue((Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1))), out var supplier))
                     supplier.StatusHistory.Add(new QuoteStatusChange(QuoteStatuses.Find(reader.GetString(2)) ?? QuoteStatuses.NotRequested, Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
+        }
+        // Documents and payment lines with no VersionId belong to the quote as it stands; the rest to an archived version.
+        var versions = new Dictionary<Guid, QuoteVersion>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ItemId, SupplierId, Id, ArchivedAt, Reference, ValidUntil, Actor, ActorId FROM ProjectQuoteVersions ORDER BY ItemId, SupplierId, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (!itemSuppliers.TryGetValue((Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1))), out var supplier)) continue;
+                var archived = new QuoteVersion(Guid.Parse(reader.GetString(2)), Date(reader, 3), reader.GetString(4), NullableDateOnly(reader, 5)) { By = ReadActor(reader, 6, 7) };
+                supplier.PreviousVersions.Add(archived);
+                versions[archived.Id] = archived;
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ItemId, SupplierId, VersionId, Id, FileName, ContentType, Size, UploadedAt, Actor, ActorId FROM ProjectQuoteDocuments ORDER BY Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var document = new QuoteDocument(Guid.Parse(reader.GetString(3)), reader.GetString(4), reader.GetString(5), reader.GetInt64(6), Date(reader, 7)) { By = ReadActor(reader, 8, 9) };
+                if (NullableGuid(reader, 2) is { } versionId) { if (versions.TryGetValue(versionId, out var archived)) archived.Documents.Add(document); }
+                else if (itemSuppliers.TryGetValue((Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1))), out var supplier)) supplier.Documents.Add(document);
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ItemId, SupplierId, VersionId, Id, Description, Amount, Frequency, TermYears, Vat FROM ProjectPaymentLines ORDER BY Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var line = new PaymentLine(Guid.Parse(reader.GetString(3)), reader.GetString(4),
+                    decimal.TryParse(reader.GetString(5), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) ? amount : 0m,
+                    PaymentFrequencies.Find(reader.GetString(6)) ?? PaymentFrequencies.OneOff, Math.Max(1, reader.GetInt32(7)), VatTreatments.Find(reader.GetString(8)) ?? VatTreatments.Standard);
+                if (NullableGuid(reader, 2) is { } versionId) { if (versions.TryGetValue(versionId, out var archived)) archived.PaymentLines.Add(line); }
+                else if (itemSuppliers.TryGetValue((Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1))), out var supplier)) supplier.PaymentLines.Add(line);
+            }
         }
     }
 
@@ -484,8 +539,9 @@ public sealed partial class HelpdeskStore
             for (var i = 0; i < project.Items.Count; i++)
             {
                 var item = project.Items[i];
-                Execute(connection, transaction, "INSERT INTO ProjectItems (Id, ProjectNumber, Position, Name, Quantity) VALUES ($id,$number,$position,$name,$quantity);",
-                    ("$id", item.Id.ToString()), ("$number", project.Number), ("$position", i), ("$name", item.Name), ("$quantity", item.Quantity));
+                Execute(connection, transaction, "INSERT INTO ProjectItems (Id, ProjectNumber, Position, Name, Quantity, ChosenSupplierId) VALUES ($id,$number,$position,$name,$quantity,$chosen);",
+                    ("$id", item.Id.ToString()), ("$number", project.Number), ("$position", i), ("$name", item.Name), ("$quantity", item.Quantity),
+                    ("$chosen", item.ChosenSupplierId is { } chosen && item.Suppliers.Any(x => x.SupplierId == chosen && supplierIds.Contains(chosen)) ? chosen.ToString() : null));
                 for (var j = 0; j < item.SubItems.Count; j++)
                     Execute(connection, transaction, "INSERT INTO ProjectSubItems (Id, ItemId, Position, Name, Quantity) VALUES ($id,$item,$position,$name,$quantity);",
                         ("$id", item.SubItems[j].Id.ToString()), ("$item", item.Id.ToString()), ("$position", j), ("$name", item.SubItems[j].Name), ("$quantity", item.SubItems[j].Quantity));
@@ -494,15 +550,43 @@ public sealed partial class HelpdeskStore
                 var supplierPosition = 0;
                 foreach (var supplier in item.Suppliers.Where(x => supplierIds.Contains(x.SupplierId)).DistinctBy(x => x.SupplierId))
                 {
-                    Execute(connection, transaction, "INSERT INTO ProjectItemSuppliers (ItemId, SupplierId, Position, ValidUntil) VALUES ($item,$supplier,$position,$valid);",
-                        ("$item", item.Id.ToString()), ("$supplier", supplier.SupplierId.ToString()), ("$position", supplierPosition++), ("$valid", IsoDay(supplier.ValidUntil)));
+                    Execute(connection, transaction, "INSERT INTO ProjectItemSuppliers (ItemId, SupplierId, Position, ValidUntil, Reference) VALUES ($item,$supplier,$position,$valid,$reference);",
+                        ("$item", item.Id.ToString()), ("$supplier", supplier.SupplierId.ToString()), ("$position", supplierPosition++), ("$valid", IsoDay(supplier.ValidUntil)), ("$reference", supplier.Reference ?? ""));
                     foreach (var change in supplier.StatusHistory)
                         Execute(connection, transaction, "INSERT INTO ProjectQuoteStatusChanges (ItemId, SupplierId, Status, At, Actor, ActorId) VALUES ($item,$supplier,$status,$at,$actor,$actorid);",
                             ("$item", item.Id.ToString()), ("$supplier", supplier.SupplierId.ToString()), ("$status", change.Status), ("$at", Iso(change.At)),
                             ("$actor", change.By?.Name), ("$actorid", change.By?.Id?.ToString()));
+                    WriteQuote(connection, transaction, item.Id, supplier.SupplierId, null, supplier.Documents, supplier.PaymentLines);
+                    for (var v = 0; v < supplier.PreviousVersions.Count; v++)
+                    {
+                        var version = supplier.PreviousVersions[v];
+                        Execute(connection, transaction, "INSERT INTO ProjectQuoteVersions (Id, ItemId, SupplierId, Position, ArchivedAt, Reference, ValidUntil, Actor, ActorId) VALUES ($id,$item,$supplier,$position,$at,$reference,$valid,$actor,$actorid);",
+                            ("$id", version.Id.ToString()), ("$item", item.Id.ToString()), ("$supplier", supplier.SupplierId.ToString()), ("$position", v), ("$at", Iso(version.ArchivedAt)),
+                            ("$reference", version.Reference ?? ""), ("$valid", IsoDay(version.ValidUntil)), ("$actor", version.By?.Name), ("$actorid", version.By?.Id?.ToString()));
+                        WriteQuote(connection, transaction, item.Id, supplier.SupplierId, version.Id, version.Documents, version.PaymentLines);
+                    }
                 }
             }
         }
+    }
+}
+
+public sealed partial class HelpdeskStore
+{
+    // A quote's files and payment lines - the current ones (versionId null) or an archived version's.
+    private static void WriteQuote(SqliteConnection connection, SqliteTransaction transaction, Guid itemId, Guid supplierId, Guid? versionId,
+        List<QuoteDocument> documents, List<PaymentLine> lines)
+    {
+        for (var i = 0; i < documents.Count; i++)
+            Execute(connection, transaction, "INSERT INTO ProjectQuoteDocuments (Id, ItemId, SupplierId, VersionId, Position, FileName, ContentType, Size, UploadedAt, Actor, ActorId) VALUES ($id,$item,$supplier,$version,$position,$name,$type,$size,$at,$actor,$actorid);",
+                ("$id", documents[i].Id.ToString()), ("$item", itemId.ToString()), ("$supplier", supplierId.ToString()), ("$version", versionId?.ToString()), ("$position", i),
+                ("$name", documents[i].FileName), ("$type", documents[i].ContentType), ("$size", documents[i].Size), ("$at", Iso(documents[i].UploadedAt)),
+                ("$actor", documents[i].By?.Name), ("$actorid", documents[i].By?.Id?.ToString()));
+        for (var i = 0; i < lines.Count; i++)
+            Execute(connection, transaction, "INSERT INTO ProjectPaymentLines (Id, ItemId, SupplierId, VersionId, Position, Description, Amount, Frequency, TermYears, Vat) VALUES ($id,$item,$supplier,$version,$position,$description,$amount,$frequency,$term,$vat);",
+                ("$id", lines[i].Id.ToString()), ("$item", itemId.ToString()), ("$supplier", supplierId.ToString()), ("$version", versionId?.ToString()), ("$position", i),
+                ("$description", lines[i].Description), ("$amount", lines[i].Amount.ToString(CultureInfo.InvariantCulture)), ("$frequency", lines[i].Frequency),
+                ("$term", lines[i].TermYears), ("$vat", lines[i].Vat));
     }
 }
 

@@ -59,13 +59,21 @@ public sealed partial class HelpdeskStore
             : (updated, "Item updated.", $"Item changed: {Describe(item)} → {Describe(updated)}.");
     });
 
-    public (bool Ok, string Message) DeleteProjectItem(int number, Guid itemId) => EditProject(number, project =>
+    // Takes the item's quote files with it - once the item is gone nothing can reach them.
+    public (bool Ok, string Message) DeleteProjectItem(int number, Guid itemId)
     {
-        var item = project.Items.FirstOrDefault(x => x.Id == itemId);
-        if (item is null) return Refuse("That item couldn't be found.");
-        return (project with { Items = project.Items.Where(x => x.Id != itemId).ToList() }, "Item removed.",
-            $"Item removed: {Describe(item)}" + (item.Suppliers.Count == 0 ? "." : $", with its {item.Suppliers.Count} {(item.Suppliers.Count == 1 ? "supplier" : "suppliers")}."));
-    });
+        var files = new List<Guid>();
+        var result = EditProject(number, project =>
+        {
+            var item = project.Items.FirstOrDefault(x => x.Id == itemId);
+            if (item is null) return Refuse("That item couldn't be found.");
+            files.AddRange(QuoteFiles(item.Suppliers));
+            return (project with { Items = project.Items.Where(x => x.Id != itemId).ToList() }, "Item removed.",
+                $"Item removed: {Describe(item)}" + (item.Suppliers.Count == 0 ? "." : $", with its {item.Suppliers.Count} {(item.Suppliers.Count == 1 ? "supplier" : "suppliers")}."));
+        });
+        if (result.Ok) foreach (var id in files) TryDelete(AttachmentFile(id));
+        return result;
+    }
 
     // Moves an item one place up (-1) or down (+1), so the proposal can list them in a sensible order.
     public (bool Ok, string Message) MoveProjectItem(int number, Guid itemId, int direction) => EditProject(number, project =>
@@ -151,13 +159,21 @@ public sealed partial class HelpdeskStore
             $"Supplier {supplier.Name} added to {names}.");
     }
 
-    public (bool Ok, string Message) SetQuoteStatus(int number, Guid itemId, Guid supplierId, string? status) => EditSupplier(number, itemId, supplierId, (item, row, name) =>
+    // A status that means "no quote" (not requested, requested, declined) also takes the item's choice off that supplier,
+    // so the proposal can never total a quote that has been withdrawn.
+    public (bool Ok, string Message) SetQuoteStatus(int number, Guid itemId, Guid supplierId, string? status) => EditItem(number, itemId, item =>
     {
+        var row = item.Suppliers.FirstOrDefault(x => x.SupplierId == supplierId);
+        if (row is null) return RefuseItem("That supplier isn't on this item.");
+        var name = SupplierName(supplierId);
         var target = QuoteStatuses.Find(status);
-        if (target is null) return RefuseSupplier("Choose a quote status.");
-        if (target == row.Status) return RefuseSupplier("Nothing had changed.");
+        if (target is null) return RefuseItem("Choose a quote status.");
+        if (target == row.Status) return RefuseItem("Nothing had changed.");
         var updated = row with { StatusHistory = [.. row.StatusHistory, new QuoteStatusChange(target, DateTime.UtcNow) { By = CurrentActor() }] };
-        return (updated, $"{name}: {target}.", $"{name} for {item.Name}: {row.Status} → {target}.");
+        var unchoose = item.ChosenSupplierId == supplierId && !updated.HasQuote;
+        return (item with { Suppliers = item.Suppliers.Select(x => x.SupplierId == supplierId ? updated : x).ToList(), ChosenSupplierId = unchoose ? null : item.ChosenSupplierId },
+            $"{name}: {target}.{(unchoose ? " It is no longer the chosen quote." : "")}",
+            $"{name} for {item.Name}: {row.Status} → {target}.{(unchoose ? " No longer the chosen quote." : "")}");
     });
 
     public (bool Ok, string Message) SetQuoteValidUntil(int number, Guid itemId, Guid supplierId, DateOnly? validUntil) => EditSupplier(number, itemId, supplierId, (item, row, name) =>
@@ -168,14 +184,24 @@ public sealed partial class HelpdeskStore
             $"{name}'s quote for {item.Name} valid until: {(row.ValidUntil is { } old ? Day(old) : "not set")} → {(validUntil is { } now ? Day(now) : "not set")}.");
     });
 
-    public (bool Ok, string Message) RemoveItemSupplier(int number, Guid itemId, Guid supplierId) => EditItem(number, itemId, item =>
+    // The supplier's quote files go with them, and the item loses its choice if it was theirs.
+    public (bool Ok, string Message) RemoveItemSupplier(int number, Guid itemId, Guid supplierId)
     {
-        var row = item.Suppliers.FirstOrDefault(x => x.SupplierId == supplierId);
-        if (row is null) return RefuseItem("That supplier isn't on this item.");
-        var name = SupplierName(supplierId);
-        return (item with { Suppliers = item.Suppliers.Where(x => x.SupplierId != supplierId).ToList() }, $"{name} removed from {item.Name}.",
-            $"Supplier {name} removed from {item.Name} (quote status was {row.Status}).");
-    });
+        var files = new List<Guid>();
+        var result = EditItem(number, itemId, item =>
+        {
+            var row = item.Suppliers.FirstOrDefault(x => x.SupplierId == supplierId);
+            if (row is null) return RefuseItem("That supplier isn't on this item.");
+            var name = SupplierName(supplierId);
+            files.AddRange(QuoteFiles([row]));
+            var wasChosen = item.ChosenSupplierId == supplierId;
+            return (item with { Suppliers = item.Suppliers.Where(x => x.SupplierId != supplierId).ToList(), ChosenSupplierId = wasChosen ? null : item.ChosenSupplierId },
+                $"{name} removed from {item.Name}.",
+                $"Supplier {name} removed from {item.Name} (quote status was {row.Status}{(row.Documents.Count > 0 ? $", {row.Documents.Count} quote {(row.Documents.Count == 1 ? "file" : "files")}" : "")}).{(wasChosen ? " It was the chosen quote." : "")}");
+        });
+        if (result.Ok) foreach (var id in files) TryDelete(AttachmentFile(id));
+        return result;
+    }
 
     // The one funnel for item and quote changes: finds the project, refuses a closed one (its record is finished -
     // reopen it to change anything), applies the change, and records it in the project's history.
