@@ -76,7 +76,7 @@ internal static class AuditTracker
 
         foreach (var x in d.Slas)
             Add(s, "SLAs", "SLA", x.Id.ToString(), x.Name, Track.All,
-                ("Name", x.Name), ("Target time", $"{x.Duration} {x.DurationUnit}"), ("Description", x.Description ?? ""), ("Priorities", Joined(x.Priorities)), ("Categories", Joined(x.Categories)));
+                ("Name", x.Name), ("Target time", SlaUnits.Describe(x)), ("Description", x.Description ?? ""), ("Priorities", Joined(x.Priorities)), ("Categories", Joined(x.Categories)));
         foreach (var x in d.TicketTemplates)
             Add(s, "Ticket templates", "Ticket template", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Type", x.Type), ("Title", x.Title), ("Description", x.Description), ("Category", x.Category), ("Priority", x.Priority),
@@ -105,6 +105,12 @@ internal static class AuditTracker
         Add(s, "Settings", "Parts reorder threshold", "parts-reorder-threshold", "Parts default reorder threshold", Track.Update, ("Threshold", d.PartsDefaultReorderThreshold.ToString()));
         Add(s, "Settings", "Loan repeat threshold", "loan-repeat-threshold", "Loan repeat borrower threshold", Track.Update,
             ("Loans", d.LoanRepeatCount.ToString()), ("Within days", d.LoanRepeatDays.ToString()));
+        Add(s, "Settings", "School days", "school-days", "School days", Track.Update,
+            ("Days", string.Join(", ", d.SchoolDays.OrderBy(x => ((int)x + 6) % 7).Select(x => x.ToString()))));
+        // Keyed by name, so renaming a period reads as one removed and one added - the same as the option lists.
+        foreach (var x in d.Periods)
+            Add(s, "Settings", "School period", x.Name.ToLowerInvariant(), $"Period: {x.Name}", Track.All,
+                ("Starts", x.Start.ToString("HH:mm")), ("Ends", x.End.ToString("HH:mm")));
 
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);

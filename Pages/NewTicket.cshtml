@@ -45,7 +45,7 @@
         <div class="form-grid compact">
             <label>Assigned technician<select asp-for="Ticket.TechnicianId" id="ticket-technician-select"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" data-team="@tech.Team">@tech.Name · @tech.Team</option> }</select><span asp-validation-for="Ticket.TechnicianId" class="field-error"></span></label>
             <label>Assigned team<select asp-for="Ticket.TeamName" id="ticket-team-select"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team">@team</option> }</select></label>
-            <label>SLA<select asp-for="Ticket.SlaId"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select></label>
+            <label>SLA<select asp-for="Ticket.SlaId"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id">@sla.Name (@EduHelpdesk.Services.SlaUnits.Describe(sla))</option> }</select></label>
             <label>Due date override <input asp-for="Ticket.DueDate" type="datetime-local" /><small>Leave blank to calculate from the selected SLA.</small></label>
         </div>
     </div>

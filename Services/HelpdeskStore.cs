@@ -109,6 +109,9 @@ public sealed partial class HelpdeskStore
         if (_data.PartsDefaultReorderThreshold < 0) _data.PartsDefaultReorderThreshold = 5;
         if (_data.LoanRepeatCount is < 1 or > 100) _data.LoanRepeatCount = 3;
         if (_data.LoanRepeatDays is < 1 or > 3650) _data.LoanRepeatDays = 30;
+        _data.SchoolDays = (_data.SchoolDays ?? []).Distinct().ToList();
+        if (_data.SchoolDays.Count == 0) _data.SchoolDays = [.. SlaClock.DefaultSchoolDays];
+        _data.Periods = (_data.Periods ?? []).Where(x => x.End > x.Start).OrderBy(x => x.Start).ToList();
         _data.LoanKits ??= [];
         _data.KitLoans ??= [];
         _data.LoanKits = _data.LoanKits.Select(x => x with { AssetIds = (x.AssetIds ?? []).Where(id => _data.Assets.Any(a => a.Id == id)).Distinct().ToList() }).ToList();
@@ -1880,6 +1883,7 @@ public sealed partial class HelpdeskStore
                 durationUnit = NormalizeDurationUnit(durationUnit);
                 if (string.IsNullOrWhiteSpace(name)) return "SLA name is required.";
                 if (duration < 1) return "SLA duration must be at least 1.";
+                if (PeriodsMissing(durationUnit) is { } periodsError) return periodsError;
                 if (_data.Slas.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return "That SLA already exists.";
                 var validPriorities = (priorities ?? []).Where(x => _data.Priorities.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var validCategories = (categories ?? []).Where(x => _data.Categories.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -1898,6 +1902,7 @@ public sealed partial class HelpdeskStore
                 durationUnit = NormalizeDurationUnit(durationUnit);
                 if (string.IsNullOrWhiteSpace(name)) return "SLA name is required.";
                 if (duration < 1) return "SLA duration must be at least 1.";
+                if (PeriodsMissing(durationUnit) is { } periodsError) return periodsError;
                 if (_data.Slas.Any(x => x.Id != id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return "That SLA already exists.";
                 var validPriorities = (priorities ?? []).Where(x => _data.Priorities.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var validCategories = (categories ?? []).Where(x => _data.Categories.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -1921,9 +1926,60 @@ public sealed partial class HelpdeskStore
                 return "SLA deleted.";
             }
         }
+        // A periods SLA has nothing to count until the timetable exists, and would quietly give tickets no due date.
+        private string? PeriodsMissing(string durationUnit) =>
+            durationUnit == SlaUnits.Periods && _data.Periods.Count == 0
+                ? "Set up the school's periods first (Settings → School day and periods), then add an SLA measured in periods."
+                : null;
+
+        public IReadOnlyList<DayOfWeek> SchoolDays { get { lock (_sync) return _data.SchoolDays.ToList(); } }
+        public IReadOnlyList<SchoolPeriod> SchoolPeriods { get { lock (_sync) return _data.Periods.ToList(); } }
+
+        public const int MaxSchoolPeriods = 20;
+
+        // Which days of the week are school days. At least one is required: a week with none would push every
+        // work-day and period SLA a year out.
+        public (bool Ok, string Message) SaveSchoolDays(IEnumerable<DayOfWeek>? days)
+        {
+            lock (_sync)
+            {
+                var chosen = (days ?? []).Distinct().OrderBy(x => ((int)x + 6) % 7).ToList();
+                if (chosen.Count == 0) return (false, "Choose at least one school day.");
+                _data.SchoolDays = chosen;
+                Save();
+                return (true, "School days saved.");
+            }
+        }
+
+        // Replaces the whole timetable. Periods are sorted by start time, and may not overlap - a minute can only belong
+        // to one period, or "the next period" stops meaning anything. Existing tickets keep the due dates they were
+        // given; only tickets logged (or re-worked out) from now on use the new timings.
+        public (bool Ok, string Message) SaveSchoolPeriods(IEnumerable<SchoolPeriod>? periods)
+        {
+            lock (_sync)
+            {
+                var list = (periods ?? []).Select(x => x with { Name = (x.Name ?? string.Empty).Trim() }).OrderBy(x => x.Start).ToList();
+                if (list.Count > MaxSchoolPeriods) return (false, $"A school day can have at most {MaxSchoolPeriods} periods.");
+                if (list.FirstOrDefault(x => x.Name.Length == 0) is { } unnamed) return (false, $"Give the period starting {unnamed.Start:HH:mm} a name.");
+                if (list.FirstOrDefault(x => x.End <= x.Start) is { } backwards) return (false, $"{backwards.Name} has to end after it starts.");
+                var duplicate = list.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+                if (duplicate is not null) return (false, $"There are two periods called {duplicate.Key}.");
+                for (var i = 1; i < list.Count; i++)
+                    if (list[i].Start < list[i - 1].End)
+                        return (false, $"{list[i - 1].Name} ({list[i - 1].Start:HH:mm}–{list[i - 1].End:HH:mm}) overlaps {list[i].Name} ({list[i].Start:HH:mm}–{list[i].End:HH:mm}).");
+                if (list.Count == 0 && _data.Slas.FirstOrDefault(x => x.DurationUnit == SlaUnits.Periods) is { } inUse)
+                    return (false, $"The {inUse.Name} SLA is measured in periods, so at least one period is needed. Change that SLA first.");
+                _data.Periods = list;
+                Save();
+                return (true, list.Count == 0 ? "Periods cleared." : $"{list.Count} period{(list.Count == 1 ? "" : "s")} saved.");
+            }
+        }
+
+        // Work days and periods follow the school week and timetable - see SlaClock. Callers pass UTC; anything marked
+        // local is converted first, since the clock works the school's wall-clock time out from UTC itself.
         public DateTime? CalculateDueDate(Guid? slaId, DateTime createdAt) =>
             slaId is Guid id && _data.Slas.FirstOrDefault(x => x.Id == id) is { } sla
-                ? createdAt.Add(sla.DurationUnit switch { "days" => TimeSpan.FromDays(sla.Duration), "minutes" => TimeSpan.FromMinutes(sla.Duration), _ => TimeSpan.FromHours(sla.Duration) })
+                ? SlaClock.Due(createdAt.Kind == DateTimeKind.Local ? createdAt.ToUniversalTime() : createdAt, sla.Duration, sla.DurationUnit, _data.SchoolDays, _data.Periods)
                 : null;
     public Guid? SlaFor(string priority, string category) =>
         _data.Slas.FirstOrDefault(x => x.Categories.Contains(category, StringComparer.OrdinalIgnoreCase))?.Id
@@ -3141,6 +3197,7 @@ public sealed partial class HelpdeskStore
         using var loanTables = connection.CreateCommand();
         loanTables.CommandText = """
             CREATE TABLE IF NOT EXISTS LoanReasons (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS SchoolPeriods (Position INTEGER PRIMARY KEY, Name TEXT NOT NULL, StartTime TEXT NOT NULL, EndTime TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS LoanKits (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, Notes TEXT NOT NULL DEFAULT '',
                 CreatedAt TEXT NOT NULL, IsRetired INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS LoanKitAssets (KitId TEXT NOT NULL, AssetId TEXT NOT NULL,
@@ -3299,6 +3356,19 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
+        // Stored as day numbers (0 = Sunday). Missing means a database from before the setting existed: Monday to Friday.
+        if (ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SchoolDays';") is string schoolDays)
+            data.SchoolDays = schoolDays.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => int.TryParse(x, out var day) && day is >= 0 and <= 6 ? (DayOfWeek?)day : null).OfType<DayOfWeek>().Distinct().ToList();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Name, StartTime, EndTime FROM SchoolPeriods ORDER BY Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (TimeOnly.TryParse(reader.GetString(1), System.Globalization.CultureInfo.InvariantCulture, out var start)
+                    && TimeOnly.TryParse(reader.GetString(2), System.Globalization.CultureInfo.InvariantCulture, out var end))
+                    data.Periods.Add(new SchoolPeriod(reader.GetString(0), start, end));
+        }
         ReadStrings(connection, "Categories", data.Categories);
         ReadStrings(connection, "Statuses", data.Statuses);
         using (var command = connection.CreateCommand())
@@ -3645,7 +3715,7 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
@@ -3662,6 +3732,12 @@ public sealed partial class HelpdeskStore
         InsertStrings(connection, transaction, "LoanReasons", data.LoanReasons);
         SetMetadata(connection, transaction, "LoanRepeatCount", data.LoanRepeatCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "LoanRepeatDays", data.LoanRepeatDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "SchoolDays", string.Join(",", data.SchoolDays.Select(x => (int)x)));
+        for (var i = 0; i < data.Periods.Count; i++)
+            Execute(connection, transaction, "INSERT INTO SchoolPeriods (Position, Name, StartTime, EndTime) VALUES ($position,$name,$start,$end);",
+                ("$position", i), ("$name", data.Periods[i].Name),
+                ("$start", data.Periods[i].Start.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)),
+                ("$end", data.Periods[i].End.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)));
         // Loan kits are written after the Assets loop below, because LoanKitAssets has a foreign key to Assets.
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
@@ -3828,6 +3904,15 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
             "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);
+        // A typical secondary-school day as a starting point for period SLAs. Every school's differs, so it is meant to
+        // be edited, and it is only seeded here (not on every startup) so a school that clears it doesn't get it back.
+        if (_data.Periods.Count == 0)
+            _data.Periods =
+            [
+                new("Period 1", new(8, 50), new(9, 50)), new("Period 2", new(9, 50), new(10, 50)),
+                new("Period 3", new(11, 10), new(12, 10)), new("Period 4", new(12, 10), new(13, 10)),
+                new("Period 5", new(13, 55), new(14, 55)),
+            ];
         SeedDemoData();
         SaveBaseline();
     }
@@ -3999,6 +4084,9 @@ public sealed partial class HelpdeskStore
         // A borrower with this many loans inside this many days is flagged on the loan report.
         public int LoanRepeatCount { get; set; } = 3;
         public int LoanRepeatDays { get; set; } = 30;
+    // Which days count for work-day and period SLAs, and the lesson periods in each of them (Settings → School day).
+    public List<DayOfWeek> SchoolDays { get; set; } = [.. SlaClock.DefaultSchoolDays];
+    public List<SchoolPeriod> Periods { get; set; } = [];
         // Expected life in years per asset type, used to work out replacement dates.
         public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Warranty ends and replacement dates inside this many days go on the overview review list.
@@ -4097,13 +4185,7 @@ public sealed partial class HelpdeskStore
     public static IReadOnlyList<string> GetChoices(TicketAttributeDefinition definition) =>
         NormalizeChoices(definition.Choices).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-    public static string NormalizeDurationUnit(string? value)
-    {
-        var trimmed = value?.Trim();
-        if (string.Equals(trimmed, "days", StringComparison.OrdinalIgnoreCase)) return "days";
-        if (string.Equals(trimmed, "minutes", StringComparison.OrdinalIgnoreCase)) return "minutes";
-        return "hours";
-    }
+    public static string NormalizeDurationUnit(string? value) => SlaUnits.Normalize(value);
 
     private static List<string> NormalizeScope(IEnumerable<string>? values) =>
         (values ?? []).Select(x => x?.Trim() ?? string.Empty).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

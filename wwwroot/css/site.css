@@ -252,3 +252,12 @@ h3 .csv-link { margin-left: 8px; }
 .role-grants>summary{cursor:pointer;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .role-grants>summary:hover{color:var(--teal)}
 .people-rows{min-width:0}
+
+/* Settings → School day and periods. */
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.school-days{display:flex;flex-wrap:wrap;gap:6px 20px}
+.period-table td{padding:6px 8px 6px 0;vertical-align:middle}
+.period-table input{width:100%;min-width:0}
+.period-table td:first-child{width:45%}
+.period-table td:last-child{width:1%}
+.period-actions{margin-top:14px}

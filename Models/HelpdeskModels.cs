@@ -143,6 +143,9 @@ public record AssetAttributeDefinition(Guid Id, string Name, string FieldType = 
     public bool AppliesTo(string? assetType) => AssetTypes.Count == 0 || AssetTypes.Contains(assetType ?? string.Empty, StringComparer.OrdinalIgnoreCase);
 }
 public record AssetAttributeValue(Guid AssetId, Guid AttributeDefinitionId, string Value);
+// One lesson period in the school day (Settings → School day). The same timings apply to every school day, and the
+// gaps between periods are breaks, lunch and after school. Used by SLAs measured in periods - see SlaClock.
+public record SchoolPeriod(string Name, TimeOnly Start, TimeOnly End);
 public record SlaDefinition(Guid Id, string Name, int Duration, string DurationUnit, string? Description = null)
 {
     public List<string> Priorities { get; init; } = [];
