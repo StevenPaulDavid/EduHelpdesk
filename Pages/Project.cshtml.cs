@@ -18,6 +18,9 @@ public class ProjectModel(HelpdeskStore store) : PageModel
     public bool CanDelete => store.UserCan(User, Modules.Projects, ModulePermission.Delete);
     public bool CanAssign => store.UserHasFlag(User, Modules.Flags.AssignProjects);
     public DateOnly Today { get; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateTime Now { get; } = DateTime.UtcNow;
+    public IReadOnlyList<SupplierRecord> Suppliers { get; private set; } = [];
+    public IReadOnlyDictionary<Guid, string> SupplierNames { get; private set; } = new Dictionary<Guid, string>();
     [TempData] public string? Message { get; set; }
 
     public IActionResult OnGet(int number)
@@ -31,6 +34,8 @@ public class ProjectModel(HelpdeskStore store) : PageModel
             .Concat(Project.PurchasingRequirements.Where(x => !store.PurchasingRequirements.Contains(x, StringComparer.OrdinalIgnoreCase)))
             .ToList();
         if (CanAssign) Workloads = store.ProjectWorkloads();
+        Suppliers = store.Suppliers;
+        SupplierNames = Suppliers.ToDictionary(x => x.Id, x => x.Name);
         return Page();
     }
 
@@ -77,6 +82,33 @@ public class ProjectModel(HelpdeskStore store) : PageModel
         var (ok, message) = store.DeleteProject(number);
         Message = message;
         return ok ? RedirectToPage("/Projects") : RedirectToPage(new { number });
+    }
+
+    // Items, sub-items and the suppliers quoting for them. All are Projects: Edit - they are the technician's day-to-day
+    // work on the project. Adding a brand-new supplier from here is included: asking a new firm for a quote is part of
+    // the job, and the Supplier directory's own permissions still govern editing and deleting them afterwards.
+    public IActionResult OnPostAddItem(int number, string? name, int quantity) => Edit(number, null, () => store.AddProjectItem(number, name, quantity));
+    public IActionResult OnPostItemsFromRequest(int number) => Edit(number, null, () => store.AddItemsFromRequest(number));
+    public IActionResult OnPostUpdateItem(int number, Guid itemId, string? name, int quantity) => Edit(number, itemId, () => store.UpdateProjectItem(number, itemId, name, quantity));
+    public IActionResult OnPostDeleteItem(int number, Guid itemId) => Edit(number, null, () => store.DeleteProjectItem(number, itemId));
+    public IActionResult OnPostMoveItem(int number, Guid itemId, int direction) => Edit(number, itemId, () => store.MoveProjectItem(number, itemId, direction));
+    public IActionResult OnPostAddSubItem(int number, Guid itemId, string? name, int quantity) => Edit(number, itemId, () => store.AddSubItem(number, itemId, name, quantity));
+    public IActionResult OnPostUpdateSubItem(int number, Guid itemId, Guid subItemId, string? name, int quantity) => Edit(number, itemId, () => store.UpdateSubItem(number, itemId, subItemId, name, quantity));
+    public IActionResult OnPostDeleteSubItem(int number, Guid itemId, Guid subItemId) => Edit(number, itemId, () => store.DeleteSubItem(number, itemId, subItemId));
+    public IActionResult OnPostAddSupplier(int number, Guid itemId, string? supplierId, string? newName, string? newEmail, bool everyItem) => Edit(number, itemId, () =>
+        Guid.TryParse(supplierId, out var id) ? store.AddItemSupplier(number, itemId, id, everyItem)
+        : !string.IsNullOrWhiteSpace(newName) ? store.QuickAddItemSupplier(number, itemId, newName, newEmail, everyItem)
+        : (false, "Choose a supplier from the list, or type a new one's name."));
+    public IActionResult OnPostQuoteStatus(int number, Guid itemId, Guid supplierId, string? status) => Edit(number, itemId, () => store.SetQuoteStatus(number, itemId, supplierId, status));
+    public IActionResult OnPostValidUntil(int number, Guid itemId, Guid supplierId, DateOnly? validUntil) => Edit(number, itemId, () => store.SetQuoteValidUntil(number, itemId, supplierId, validUntil));
+    public IActionResult OnPostRemoveSupplier(int number, Guid itemId, Guid supplierId) => Edit(number, itemId, () => store.RemoveItemSupplier(number, itemId, supplierId));
+
+    // Back to the item that was just changed, rather than the top of a long page.
+    private IActionResult Edit(int number, Guid? itemId, Func<(bool Ok, string Message)> change)
+    {
+        if (!CanEdit) return Forbid();
+        Message = change().Message;
+        return RedirectToPage(null, null, new { number }, itemId is { } id ? $"item-{id:N}" : "items");
     }
 
     private IActionResult Done(int number, (bool Ok, string Message) result)

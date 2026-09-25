@@ -1220,6 +1220,9 @@ public sealed partial class HelpdeskStore
         {
             if (_data.Assets.Any(x => x.SupplierId == id)) return "This supplier is linked to assets and cannot be deleted.";
             if (_data.Parts.Any(x => x.SupplierIds.Contains(id))) return "This supplier is linked to parts and cannot be deleted.";
+            // Their quotes are part of a project's record, so they stay until they are taken off the project.
+            if (_data.Projects.FirstOrDefault(p => p.Items.Any(i => i.Suppliers.Any(s => s.SupplierId == id))) is { } project)
+                return $"This supplier is on the quote list for {project.Reference} and cannot be deleted. Remove them from the project first.";
             var item = _data.Suppliers.FirstOrDefault(x => x.Id == id);
             if (item is null) return "Supplier was not found.";
             _data.Suppliers.Remove(item); Save(); return null;
@@ -2558,8 +2561,14 @@ public sealed partial class HelpdeskStore
 
             _data.Projects.RemoveAll(x => projectNumbers.Contains(x.Number));
             for (var i = 0; i < _data.Projects.Count; i++)
-                if (_data.Projects[i].TechnicianId is { } projectTech && technicianIds.Contains(projectTech))
-                    _data.Projects[i] = _data.Projects[i] with { TechnicianId = null };
+            {
+                var project = _data.Projects[i];
+                if (project.TechnicianId is { } projectTech && technicianIds.Contains(projectTech)) project = project with { TechnicianId = null };
+                // A real project that asked the demo supplier for a quote just loses that supplier from the list.
+                if (project.Items.Any(x => x.Suppliers.Any(s => supplierIds.Contains(s.SupplierId))))
+                    project = project with { Items = project.Items.Select(x => x with { Suppliers = x.Suppliers.Where(s => !supplierIds.Contains(s.SupplierId)).ToList() }).ToList() };
+                _data.Projects[i] = project;
+            }
 
             _data.AssetAttributeValues.RemoveAll(x => assetIds.Contains(x.AssetId) || assetAttributeIds.Contains(x.AttributeDefinitionId));
             _data.Assets.RemoveAll(x => assetIds.Contains(x.Id));
@@ -3798,7 +3807,7 @@ public sealed partial class HelpdeskStore
         {
             command.Transaction = transaction;
             // Projects first: they point at Users and Technicians, which are cleared further along this same statement.
-            command.CommandText = "DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
@@ -3867,10 +3876,10 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
                     ("$role", item.Name), ("$permission", flag));
         }
-        // After Users and Technicians, which Projects has foreign keys to.
-        WriteProjects(connection, transaction, data);
         foreach (var item in data.Suppliers)
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
+        // After Users, Technicians and Suppliers, which Projects and their item suppliers have foreign keys to.
+        WriteProjects(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
@@ -4161,7 +4170,30 @@ public sealed partial class HelpdeskStore
                 new ProjectActivity("Project raised", $"Raised by {requester.Name} with a suggested priority of {ProjectPriorities.Label(2)}.", now.AddDays(-5)) { By = requesterActor },
                 new ProjectActivity("Assignment", $"Priority confirmed as {ProjectPriorities.Label(2)} (as suggested); Assigned to {technician.Name}; Status: {ProjectStatuses.New} → {ProjectStatuses.GatheringQuotes}.", now.AddDays(-4)) { By = actor }
             ],
-            Notes = [new ProjectNote("Asking two suppliers for quotes this week.", now.AddDays(-3)) { By = actor }]
+            Notes = [new ProjectNote("Asking two suppliers for quotes this week.", now.AddDays(-3)) { By = actor }],
+            Items =
+            [
+                new ProjectItem(Guid.NewGuid(), "iPad (10th generation)", 30)
+                {
+                    SubItems =
+                    [
+                        new ProjectSubItem(Guid.NewGuid(), "Keyboard case", 30), new ProjectSubItem(Guid.NewGuid(), "Apple Pencil", 30),
+                        new ProjectSubItem(Guid.NewGuid(), "Charging plug", 30), new ProjectSubItem(Guid.NewGuid(), "Screen protector", 30)
+                    ],
+                    Suppliers =
+                    [
+                        new ItemSupplier(supplier.Id)
+                        {
+                            StatusHistory =
+                            [
+                                new QuoteStatusChange(QuoteStatuses.NotRequested, now.AddDays(-4)) { By = actor },
+                                new QuoteStatusChange(QuoteStatuses.Requested, now.AddDays(-3)) { By = actor }
+                            ]
+                        }
+                    ]
+                },
+                new ProjectItem(Guid.NewGuid(), "Charging trolley", 1)
+            ]
         };
         _data.Projects.Add(project);
         Remember("Project", project.Number.ToString());

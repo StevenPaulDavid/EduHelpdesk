@@ -337,6 +337,16 @@ public sealed partial class HelpdeskStore
             CREATE TABLE IF NOT EXISTS ProjectActivities (Id INTEGER PRIMARY KEY AUTOINCREMENT, ProjectNumber INTEGER NOT NULL, Action TEXT NOT NULL,
                 Details TEXT NOT NULL, CreatedAt TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL,
                 FOREIGN KEY (ProjectNumber) REFERENCES Projects(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectItems (Id TEXT PRIMARY KEY, ProjectNumber INTEGER NOT NULL, Position INTEGER NOT NULL, Name TEXT NOT NULL,
+                Quantity INTEGER NOT NULL, FOREIGN KEY (ProjectNumber) REFERENCES Projects(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectSubItems (Id TEXT PRIMARY KEY, ItemId TEXT NOT NULL, Position INTEGER NOT NULL, Name TEXT NOT NULL,
+                Quantity INTEGER NOT NULL, FOREIGN KEY (ItemId) REFERENCES ProjectItems(Id) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectItemSuppliers (ItemId TEXT NOT NULL, SupplierId TEXT NOT NULL, Position INTEGER NOT NULL, ValidUntil TEXT NULL,
+                PRIMARY KEY (ItemId, SupplierId), FOREIGN KEY (ItemId) REFERENCES ProjectItems(Id) ON DELETE CASCADE,
+                FOREIGN KEY (SupplierId) REFERENCES Suppliers(Id));
+            CREATE TABLE IF NOT EXISTS ProjectQuoteStatusChanges (Id INTEGER PRIMARY KEY AUTOINCREMENT, ItemId TEXT NOT NULL, SupplierId TEXT NOT NULL,
+                Status TEXT NOT NULL, At TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL,
+                FOREIGN KEY (ItemId, SupplierId) REFERENCES ProjectItemSuppliers(ItemId, SupplierId) ON DELETE CASCADE);
             """;
         command.ExecuteNonQuery();
         foreach (var sql in new[] { "ALTER TABLE Users ADD COLUMN CanRaiseProjects INTEGER NOT NULL DEFAULT 0;", "ALTER TABLE Users ADD COLUMN IsProjectLead INTEGER NOT NULL DEFAULT 0;" })
@@ -396,6 +406,49 @@ public sealed partial class HelpdeskStore
                 if (byNumber.TryGetValue(reader.GetInt32(0), out var project))
                     project.History.Add(new ProjectActivity(reader.GetString(1), reader.GetString(2), Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
         }
+        var items = new Dictionary<Guid, ProjectItem>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Id, ProjectNumber, Name, Quantity FROM ProjectItems ORDER BY ProjectNumber, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (!byNumber.TryGetValue(reader.GetInt32(1), out var project)) continue;
+                var item = new ProjectItem(Guid.Parse(reader.GetString(0)), reader.GetString(2), reader.GetInt32(3));
+                project.Items.Add(item);
+                items[item.Id] = item;
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ItemId, Id, Name, Quantity FROM ProjectSubItems ORDER BY ItemId, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (items.TryGetValue(Guid.Parse(reader.GetString(0)), out var item))
+                    item.SubItems.Add(new ProjectSubItem(Guid.Parse(reader.GetString(1)), reader.GetString(2), reader.GetInt32(3)));
+        }
+        var itemSuppliers = new Dictionary<(Guid, Guid), ItemSupplier>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ItemId, SupplierId, ValidUntil FROM ProjectItemSuppliers ORDER BY ItemId, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var itemId = Guid.Parse(reader.GetString(0));
+                if (!items.TryGetValue(itemId, out var item)) continue;
+                var supplier = new ItemSupplier(Guid.Parse(reader.GetString(1))) { ValidUntil = NullableDateOnly(reader, 2) };
+                item.Suppliers.Add(supplier);
+                itemSuppliers[(itemId, supplier.SupplierId)] = supplier;
+            }
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ItemId, SupplierId, Status, At, Actor, ActorId FROM ProjectQuoteStatusChanges ORDER BY Id;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (itemSuppliers.TryGetValue((Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1))), out var supplier))
+                    supplier.StatusHistory.Add(new QuoteStatusChange(QuoteStatuses.Find(reader.GetString(2)) ?? QuoteStatuses.NotRequested, Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
+        }
     }
 
     // Called from WriteData after Users and Technicians have been inserted, which Projects points at.
@@ -405,6 +458,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "ProjectsVersion", data.ProjectsVersion.ToString(CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "LastProjectNumber", Math.Max(data.LastProjectNumber, data.Projects.Select(x => x.Number).DefaultIfEmpty(0).Max()).ToString(CultureInfo.InvariantCulture));
         var technicianIds = data.Technicians.Select(x => x.Id).ToHashSet();
+        var supplierIds = data.Suppliers.Select(x => x.Id).ToHashSet();
         foreach (var project in data.Projects)
         {
             Execute(connection, transaction, "INSERT INTO Projects (Number, Title, RequesterId, TechnicianId, DueDate, ItemsWanted, PurchasingOther, SuggestedPriority, Priority, Status, CreatedAt, ClosedAt, Outcome, OutcomeNote) VALUES ($number,$title,$requester,$technician,$due,$items,$other,$suggested,$priority,$status,$created,$closed,$outcome,$note);",
@@ -427,6 +481,27 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO ProjectActivities (ProjectNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);",
                     ("$number", project.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)),
                     ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
+            for (var i = 0; i < project.Items.Count; i++)
+            {
+                var item = project.Items[i];
+                Execute(connection, transaction, "INSERT INTO ProjectItems (Id, ProjectNumber, Position, Name, Quantity) VALUES ($id,$number,$position,$name,$quantity);",
+                    ("$id", item.Id.ToString()), ("$number", project.Number), ("$position", i), ("$name", item.Name), ("$quantity", item.Quantity));
+                for (var j = 0; j < item.SubItems.Count; j++)
+                    Execute(connection, transaction, "INSERT INTO ProjectSubItems (Id, ItemId, Position, Name, Quantity) VALUES ($id,$item,$position,$name,$quantity);",
+                        ("$id", item.SubItems[j].Id.ToString()), ("$item", item.Id.ToString()), ("$position", j), ("$name", item.SubItems[j].Name), ("$quantity", item.SubItems[j].Quantity));
+                // A supplier missing from the directory would fail the foreign key and lose the whole save; DeleteSupplier
+                // refuses while one is on a project, so this only guards against a record changed by hand.
+                var supplierPosition = 0;
+                foreach (var supplier in item.Suppliers.Where(x => supplierIds.Contains(x.SupplierId)).DistinctBy(x => x.SupplierId))
+                {
+                    Execute(connection, transaction, "INSERT INTO ProjectItemSuppliers (ItemId, SupplierId, Position, ValidUntil) VALUES ($item,$supplier,$position,$valid);",
+                        ("$item", item.Id.ToString()), ("$supplier", supplier.SupplierId.ToString()), ("$position", supplierPosition++), ("$valid", IsoDay(supplier.ValidUntil)));
+                    foreach (var change in supplier.StatusHistory)
+                        Execute(connection, transaction, "INSERT INTO ProjectQuoteStatusChanges (ItemId, SupplierId, Status, At, Actor, ActorId) VALUES ($item,$supplier,$status,$at,$actor,$actorid);",
+                            ("$item", item.Id.ToString()), ("$supplier", supplier.SupplierId.ToString()), ("$status", change.Status), ("$at", Iso(change.At)),
+                            ("$actor", change.By?.Name), ("$actorid", change.By?.Id?.ToString()));
+                }
+            }
         }
     }
 }

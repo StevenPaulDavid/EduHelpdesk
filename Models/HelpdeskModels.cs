@@ -248,6 +248,9 @@ public record ProjectRecord(int Number, string Title, Guid RequesterId, DateOnly
     public string? OutcomeNote { get; init; }
     public List<ProjectNote> Notes { get; init; } = [];
     public List<ProjectActivity> History { get; init; } = [];
+    // What the technician turned the free-text "items wanted" into: the main things being bought, each with its own
+    // suppliers and quotes. ItemsWanted stays as the requester wrote it.
+    public List<ProjectItem> Items { get; init; } = [];
 
     public int EffectivePriority => Priority ?? SuggestedPriority;
     public bool IsActive => Status != ProjectStatuses.Closed;
@@ -256,6 +259,47 @@ public record ProjectRecord(int Number, string Title, Guid RequesterId, DateOnly
     public bool IsOverdue(DateOnly today) => (Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes) && DueDate < today;
     public bool IsDueSoon(DateOnly today) => (Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes) && DueDate >= today && DueDate <= today.AddDays(ProjectPriorities.DueSoonDays);
     public DateTime LastModifiedAt => Notes.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();
+}
+// One main thing a project is buying - "30 iPads", "1 charging trolley". Sub-items are an unpriced checklist of what
+// comes with it (keyboards, pencils); the item's price, from the suppliers' quotes, covers the bundle.
+public record ProjectItem(Guid Id, string Name, int Quantity)
+{
+    public List<ProjectSubItem> SubItems { get; init; } = [];
+    public List<ItemSupplier> Suppliers { get; init; } = [];
+}
+public record ProjectSubItem(Guid Id, string Name, int Quantity);
+// A supplier asked (or about to be asked) to quote for one item. StatusHistory is every status it has had, oldest
+// first, so "requested on 3 Sept, received on 10 Sept" and "awaited 9 days" can both be read from it.
+public record ItemSupplier(Guid SupplierId)
+{
+    public List<QuoteStatusChange> StatusHistory { get; init; } = [];
+    // How long the supplier says the quote holds - often 30 days.
+    public DateOnly? ValidUntil { get; init; }
+
+    public string Status => StatusHistory.Count == 0 ? QuoteStatuses.NotRequested : StatusHistory[^1].Status;
+    public DateTime? StatusSince => StatusHistory.Count == 0 ? null : StatusHistory[^1].At;
+    public bool IsAwaited => Status is QuoteStatuses.Requested or QuoteStatuses.UpdateRequested;
+    public bool HasQuote => Status is QuoteStatuses.Received or QuoteStatuses.UpdateReceived or QuoteStatuses.UpdateRequested;
+    public bool IsExpired(DateOnly today) => HasQuote && ValidUntil is { } until && until < today;
+    // Whole days since the quote was asked for, while it is still outstanding.
+    public int? DaysAwaited(DateTime now) => IsAwaited && StatusSince is { } since ? Math.Max(0, (int)(now - since).TotalDays) : null;
+}
+public record QuoteStatusChange(string Status, DateTime At)
+{
+    public Actor? By { get; init; }
+}
+public static class QuoteStatuses
+{
+    public const string NotRequested = "Not requested";
+    public const string Requested = "Requested";
+    public const string Received = "Received";
+    public const string UpdateRequested = "Update requested";
+    public const string UpdateReceived = "Update received";
+    public const string Declined = "Declined / no response";
+    public static readonly string[] All = [NotRequested, Requested, Received, UpdateRequested, UpdateReceived, Declined];
+    // A quote still outstanding after this many days is flagged for chasing.
+    public const int ChaseAfterDays = 7;
+    public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 // A shared note is seen by the requester in the portal; an internal one is for the IT team only, as on tickets.
 public record ProjectNote(string Text, DateTime CreatedAt, bool IsInternal = false)

@@ -48,6 +48,18 @@
         <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><p>@project.DueDate.ToString("dddd d MMMM yyyy")</p></div>
         <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? (Model.IsOwnProject ? " (your suggestion - the project lead will confirm it)" : " (suggested, not confirmed yet)") : "")</p></div>
         <div class="detail-block"><p class="eyebrow">@(Model.IsOwnProject ? "WHAT YOU ASKED FOR" : "WHAT WAS ASKED FOR")</p><p class="job-description">@project.ItemsWanted</p></div>
+        @if (project.Items.Count > 0)
+        {
+            @* The list as the technician tidied it up - what is being quoted for. Suppliers and quotes stay helpdesk-side. *@
+            <div class="detail-block"><p class="eyebrow">ITEMS BEING QUOTED FOR</p>
+                <ul class="plain-list portal-items">
+                    @foreach (var item in project.Items)
+                    {
+                        <li><strong>@item.Quantity × @item.Name</strong>@if (item.SubItems.Count > 0) { <br /><span class="muted">with @string.Join(", ", item.SubItems.Select(x => $"{x.Quantity} × {x.Name}"))</span> }</li>
+                    }
+                </ul>
+            </div>
+        }
         <div class="detail-block"><p class="eyebrow">PURCHASING REQUIREMENTS</p><p>@HelpdeskStore.DescribeRequirements(project)</p></div>
         <div class="detail-block">
             <p class="eyebrow">UPDATES</p>
