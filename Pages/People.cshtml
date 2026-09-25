@@ -4,49 +4,110 @@
     ViewData["Title"] = "People";
     // Blank department, location or team left a dangling " · " on the row.
     string Detail(params string?[] parts) => string.Join(" · ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
+    var onUsers = Model.Tab == PeopleModel.UsersTab;
+    var onTechnicians = Model.Tab == PeopleModel.TechniciansTab;
 }
 <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / DIRECTORY</p><h1>People and technicians</h1></div><a class="button button-secondary" asp-page="/Index">← Back</a></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-@* Each section is its own module, so each asks for itself. The page as a whole opens for anyone allowed any one of
-   the three - see the People policy in Program.cs. *@
-@if (Model.CanSeeUsers)
+@* Each tab is its own module. The page as a whole opens for anyone allowed any one of the three (see the People policy
+   in Program.cs), and only the tabs this role can reach are drawn. *@
+@if (Model.Tabs.Count > 1)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><h2>Users</h2>@if (Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">＋ Add user</a> }</div>
-    @foreach (var user in Model.Users) { <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong><span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id">♜</a> }</div></div> }
-    @if (Model.Users.Count == 0) { <p class="empty">No users have been imported yet.</p> }</section>
+    <nav class="queue-tabs people-tabs" aria-label="Directory">
+        @foreach (var tab in Model.Tabs)
+        {
+            <a class="queue-tab @(tab.Key == Model.Tab ? "active" : null)" href="@Model.TabUrl(tab.Key)" aria-current="@(tab.Key == Model.Tab ? "page" : null)">@tab.Label <span class="badge">@tab.Count</span></a>
+        }
+    </nav>
 }
 
-@if (Model.CanSeeTechnicians)
+@if (onUsers || onTechnicians)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><h2>Technicians</h2>@if (Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a> }</div>
-    @foreach (var item in Model.Technicians) { <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong><span>@Detail(item.Email, item.Team)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id">♜</a> }</div></div> }
-    @if (Model.Technicians.Count == 0) { <p class="empty">No technicians have been imported yet.</p> }</section>
+    var noun = onUsers ? "users" : "technicians";
+    var rowCount = onUsers ? Model.UserRows.Count : Model.TechnicianRows.Count;
+    <section class="panel directory-panel">
+        <div class="panel-heading">
+            <div><p class="eyebrow">@(onUsers ? "REQUESTERS" : "STAFF ACCOUNTS")</p><h2>@(onUsers ? "Users" : "Technicians")</h2></div>
+            <div class="heading-actions">
+                <span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.Total}" : Model.Total.ToString())</span>
+                @if (onUsers && Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">＋ Add user</a> }
+                @if (onTechnicians && Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a> }
+            </div>
+        </div>
+
+        <form method="get" class="audit-filters people-filters">
+            <input type="hidden" name="tab" value="@Model.Tab" />
+            <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="@(onUsers ? "Name, email, department or location" : "Name, email, team or role")" /></label>
+            <label>@(onUsers ? "Department" : "Team")
+                <select name="group">
+                    <option value="">@(onUsers ? "Any department" : "Any team")</option>
+                    @foreach (var item in onUsers ? Model.Departments : Model.TechnicianTeams) { <option value="@item" selected="@string.Equals(item, Model.Group, StringComparison.OrdinalIgnoreCase)">@item</option> }
+                </select>
+            </label>
+            <label>Status<select name="status"><option value="">Any</option><option value="active" selected="@(Model.Status == "active")">Active</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactive</option></select></label>
+            <label>Per page<select name="size">@foreach (var size in PeopleModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+            <div class="audit-filter-actions"><button class="button button-primary" type="submit">Search</button>@if (Model.IsFiltered) { <a class="button button-secondary" href="@Model.TabUrl(Model.Tab!)">Clear</a> }</div>
+        </form>
+
+        <div class="people-rows">
+        @if (onUsers)
+        {
+            @foreach (var user in Model.UserRows)
+            {
+                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id" title="Delete @user.Name">♜</a> }</div></div>
+            }
+        }
+        else
+        {
+            @foreach (var item in Model.TechnicianRows)
+            {
+                <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (!item.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(item.Email, item.Team, item.Role)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id" title="Delete @item.Name">♜</a> }</div></div>
+            }
+        }
+        @if (rowCount == 0) { <p class="empty">@(Model.IsFiltered ? $"No {noun} match this search." : onUsers ? "No users have been imported yet." : "No technicians have been added yet.")</p> }
+        </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="audit-pager">
+                @if (Model.PageNumber > 1) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber - 1)">← Previous</a> } else { <span></span> }
+                <span class="muted">Showing @((Model.PageNumber - 1) * Model.Size + 1)–@Math.Min(Model.PageNumber * Model.Size, Model.MatchCount) of @Model.MatchCount · page @Model.PageNumber of @Model.TotalPages</span>
+                @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber + 1)">Next →</a> } else { <span></span> }
+            </div>
+        }
+    </section>
 }
 
-@if (Model.CanSeeRoles)
+@if (Model.Tab == PeopleModel.RolesTab)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><h2>Roles</h2>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">＋ Add role</a> }</div>
-    @* A role's grants are a list, not a sentence: twelve modules plus flags run to well over a thousand pixels, which
-       used to push the row, the panel and the page wider than the shell. Chips wrap, so the row grows downwards. *@
+    <section class="panel directory-panel"><div class="panel-heading"><div><p class="eyebrow">PERMISSIONS</p><h2>Roles</h2></div>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">＋ Add role</a> }</div>
+    @* A role's grants run to a dozen modules plus flags, so each role's list is folded away behind a one-line summary
+       and opened on demand. Chips wrap, so an opened row grows downwards rather than sideways. *@
     @foreach (var role in Model.Roles)
     {
+        var grants = PeopleModel.Grants(role);
+        var members = Model.MemberCount(role);
         <div class="directory-row directory-row-stacked">
             <div class="directory-person">
                 <div class="avatar technician-avatar">@role.Name[..1].ToUpperInvariant()</div>
                 <div class="directory-text">
                     <strong>@if (role.IsProtected || !Model.CanEditRoles) { @role.Name } else { <a asp-page="/People/Role" asp-route-name="@role.Name">@role.Name</a> }</strong>
-                    @{ var grants = PeopleModel.Grants(role); }
+                    <span>@members technician@(members == 1 ? "" : "s")</span>
                     @if (grants.Count == 0) { <span>No permissions</span> }
+                    else if (role.IsProtected) { <span>All permissions (protected)</span> }
                     else
                     {
-                        <div class="permission-chips">
-                            @foreach (var grant in grants) { <span class="permission-chip">@grant.Label@if (grant.Actions is { } actions) { <b>@actions</b>}</span> }
-                        </div>
+                        <details class="role-grants">
+                            <summary>@grants.Count permission@(grants.Count == 1 ? "" : "s") · @string.Join(", ", grants.Take(3).Select(x => x.Label))@(grants.Count > 3 ? "…" : "")</summary>
+                            <div class="permission-chips">
+                                @foreach (var grant in grants) { <span class="permission-chip">@grant.Label@if (grant.Actions is { } actions) { <b>@actions</b>}</span> }
+                            </div>
+                        </details>
                     }
                 </div>
             </div>
-            <div class="row-actions">@if (!role.IsProtected && Model.CanDeleteRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name">♜</a> }</div>
+            <div class="row-actions">@if (!role.IsProtected && Model.CanDeleteRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name" title="Delete @role.Name">♜</a> }</div>
         </div>
     }
     @if (Model.Roles.Count == 0) { <p class="empty">No roles yet.</p> }</section>

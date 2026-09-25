@@ -241,3 +241,14 @@ h3 .csv-link { margin-left: 8px; }
 .stock-correct{margin:0 0 18px}
 .stock-correct>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--teal-dark);width:max-content;max-width:100%}
 .stock-correct[open]>summary{margin-bottom:8px}
+
+/* People directory: one tab per list, a filter row, and role permissions folded behind a summary line. */
+.people-tabs{margin-bottom:18px}
+.people-filters{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr)) auto;margin-bottom:8px}
+.people-filters .audit-search{grid-column:auto}
+@media(max-width:900px){.people-filters{grid-template-columns:1fr 1fr}.people-filters .audit-search{grid-column:span 2}}
+.directory-text .badge{display:inline-block;margin-left:6px;vertical-align:middle;font-size:10px}
+.role-grants{margin-top:6px}
+.role-grants>summary{cursor:pointer;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.role-grants>summary:hover{color:var(--teal)}
+.people-rows{min-width:0}

@@ -53,6 +53,6 @@ public class TechnicianModel(HelpdeskStore store) : PageModel
             active);
         if (id.HasValue) store.UpdateTechnician(item); else store.AddTechnician(item);
         TempData["Message"] = id.HasValue ? "Technician updated." : "Technician added.";
-        return RedirectToPage("/People");
+        return RedirectToPage("/People", new { tab = "technicians" });
     }
 }

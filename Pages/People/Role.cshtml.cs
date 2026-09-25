@@ -37,7 +37,7 @@ public class RoleModel(HelpdeskStore store) : PageModel
         if (Role.IsProtected)
         {
             TempData["Message"] = "The Administrator role cannot be changed.";
-            return RedirectToPage("/People");
+            return RedirectToPage("/People", new { tab = "roles" });
         }
         CurrentName = Role.Name;
         return Page();
@@ -77,6 +77,6 @@ public class RoleModel(HelpdeskStore store) : PageModel
             return Page();
         }
         TempData["Message"] = message;
-        return RedirectToPage("/People");
+        return RedirectToPage("/People", new { tab = "roles" });
     }
 }

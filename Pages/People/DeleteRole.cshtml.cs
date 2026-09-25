@@ -18,6 +18,6 @@ public class DeleteRoleModel(HelpdeskStore store) : PageModel
     public IActionResult OnPost(string name)
     {
         TempData["Message"] = store.DeleteRole(name);
-        return RedirectToPage("/People");
+        return RedirectToPage("/People", new { tab = "roles" });
     }
 }

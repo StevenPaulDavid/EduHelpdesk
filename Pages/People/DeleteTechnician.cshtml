@@ -1,3 +1,3 @@
 @page "{id:guid}"
 @model EduHelpdesk.Pages.People.DeleteTechnicianModel
-@{ ViewData["Title"]="Delete technician"; }<div class="page-heading"><h1>Delete technician?</h1><a class="button button-secondary" asp-page="/People">Cancel</a></div><section class="panel"><p>Delete <strong>@Model.Technician!.Name</strong>? Technicians assigned to tickets cannot be removed.</p><form method="post"><button class="button button-danger">Delete technician</button></form></section>
+@{ ViewData["Title"]="Delete technician"; }<div class="page-heading"><h1>Delete technician?</h1><a class="button button-secondary" asp-page="/People" asp-route-tab="technicians">Cancel</a></div><section class="panel"><p>Delete <strong>@Model.Technician!.Name</strong>? Technicians assigned to tickets cannot be removed.</p><form method="post"><button class="button button-danger">Delete technician</button></form></section>
