@@ -8,9 +8,10 @@ namespace EduHelpdesk.Pages.Kits;
 public class EditModel(HelpdeskStore store) : PageModel
 {
     public LoanKit? Kit { get; private set; }
-    // Disposed assets are not offered, but one already ticked into this kit still shows so it can be removed.
+    // Disposed assets, and assets someone already holds, are not offered - the store refuses both. One already ticked
+    // into this kit still shows so it can be removed, which also covers the kit's own equipment while it is out.
     public IReadOnlyList<AssetRecord> Assets => store.Assets
-        .Where(x => !HelpdeskStore.IsDisposed(x) || SelectedAssetIds.Contains(x.Id))
+        .Where(x => (!HelpdeskStore.IsDisposed(x) && x.AssignedUserId is null) || SelectedAssetIds.Contains(x.Id) || (Kit?.AssetIds.Contains(x.Id) ?? false))
         .OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
     public Guid[] SelectedAssetIds { get; private set; } = [];
     public IReadOnlyList<KitLoan> History { get; private set; } = [];

@@ -1061,6 +1061,14 @@ public sealed partial class HelpdeskStore
                 return (kit, loan);
         return null;
     }
+    // Why an asset that already has a holder cannot be lent or put in a kit, or null if it is free. Someone's own
+    // laptop is theirs until it is returned: lending it on, or bundling it into a kit, would move it off their desk
+    // without anyone deciding to take it back. The same goes for something already out on loan.
+    private string? HeldBlock(AssetRecord asset, string action) => asset.AssignedUserId is not { } holder ? null
+        : asset.LoanDueDate is { } due
+            ? $"{asset.AssetTag} is already on loan to {UserName(holder)}, due back {AssetInsights.Format(due)}. Book it back in before it is {action}."
+            : $"{asset.AssetTag} is assigned to {UserName(holder)}. Return it from the asset's page before it is {action}.";
+
     // A reason is required, from the same list kit loans use, so an individual loan can be told apart from a kit one in
     // the repeat-borrower report. Borrowers must be in the directory here - unlike kit loans, which accept a typed name.
     public (bool Ok, string Message) LoanAsset(Guid assetId, Guid userId, DateOnly dueBack, string? reason)
@@ -1079,6 +1087,7 @@ public sealed partial class HelpdeskStore
                 return (false, KitLoanHoldingCore(assetId) is { } held
                     ? $"This asset is out on loan with {owningKit.Name} ({held.Loan.BorrowerName}). Book the kit back in from the Loans page before loaning it separately."
                     : $"This asset is part of {owningKit.Name} and is only loaned out by issuing that kit from the Loans page. Remove it from the kit first if it needs to be loaned on its own.");
+            if (HeldBlock(asset, "loaned out") is { } holderBlock) return (false, holderBlock);
             if (!_data.Users.Any(x => x.Id == userId)) return (false, "Select who the device is loaned to.");
             if (dueBack < AssetInsights.Today) return (false, "The due-back date cannot be in the past.");
             var status = ResolveAssetStatus(OnLoanStatus) ?? asset.Status;
@@ -1268,9 +1277,11 @@ public sealed partial class HelpdeskStore
             var value = (name ?? string.Empty).Trim();
             if (value.Length == 0) return (false, "Kit name is required.");
             if (_data.LoanKits.Any(x => string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase))) return (false, "A kit with that name already exists.");
+            var contents = ValidAssetIds(assetIds);
+            if (HeldKitAddition(contents, []) is { } held) return (false, held);
             _data.LoanKits.Add(new LoanKit(Guid.NewGuid(), value, (notes ?? string.Empty).Trim(), DateTime.UtcNow)
             {
-                AssetIds = ValidAssetIds(assetIds)
+                AssetIds = contents
             });
             Save();
             return (true, $"{value} added.");
@@ -1287,11 +1298,15 @@ public sealed partial class HelpdeskStore
             if (index < 0) return (false, "Loan kit was not found.");
             if (_data.LoanKits.Any(x => x.Id != id && string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase))) return (false, "A kit with that name already exists.");
             if (retired && _data.KitLoans.Any(x => x.KitId == id && x.ReturnedAt is null)) return (false, "That kit is out on loan. Book it back in before retiring it.");
+            var contents = ValidAssetIds(assetIds);
+            // Only what is being added is checked. While the kit is out its own equipment carries the borrower as
+            // holder, and saving the kit's name or notes must not trip over that.
+            if (HeldKitAddition(contents, _data.LoanKits[index].AssetIds) is { } held) return (false, held);
             _data.LoanKits[index] = _data.LoanKits[index] with
             {
                 Name = value,
                 Notes = (notes ?? string.Empty).Trim(),
-                AssetIds = ValidAssetIds(assetIds),
+                AssetIds = contents,
                 IsRetired = retired
             };
             Save();
@@ -1315,6 +1330,13 @@ public sealed partial class HelpdeskStore
 
     private List<Guid> ValidAssetIds(IEnumerable<Guid>? assetIds) =>
         (assetIds ?? []).Where(id => _data.Assets.Any(a => a.Id == id)).Distinct().ToList();
+
+    // The first asset being newly put in a kit that already has a holder, as a message. See HeldBlock.
+    private string? HeldKitAddition(IEnumerable<Guid> contents, IEnumerable<Guid> alreadyIn) =>
+        contents.Except(alreadyIn)
+            .Select(id => _data.Assets.First(x => x.Id == id))
+            .Select(x => HeldBlock(x, "put in a kit"))
+            .FirstOrDefault(x => x is not null);
 
     // Every loan of either kind, for the Loans page and the loan report.
     // Asset assignments only qualify as loans when they have a due-back date: an assignment without one is a permanent
@@ -1361,6 +1383,10 @@ public sealed partial class HelpdeskStore
             // brought back from the dead. Refuse, and let someone take it out of the kit first.
             if (kit.AssetIds.Select(id => _data.Assets.FirstOrDefault(x => x.Id == id)).OfType<AssetRecord>().FirstOrDefault(IsDisposed) is { } disposed)
                 return (false, $"{kit.Name} contains {disposed.AssetTag}, which has been disposed of. Take it out of the kit before issuing.");
+            // The kit is not out, so any holder on its equipment is somebody's own assignment - it joined the kit before
+            // that was refused, or was assigned since. Issuing used to move it onto the loan; now it has to be sorted first.
+            if (kit.AssetIds.Select(id => _data.Assets.FirstOrDefault(x => x.Id == id)).OfType<AssetRecord>().FirstOrDefault(x => x.AssignedUserId is not null) is { } assigned)
+                return (false, $"{kit.Name} contains {assigned.AssetTag}, which is assigned to {UserName(assigned.AssignedUserId!.Value)}. Return it or take it out of the kit before issuing.");
 
             var loan = new KitLoan(Guid.NewGuid(), kitId, borrowerUserId, name, chosenReason,
                 DateTime.UtcNow, dueBack, null, (issuedBy ?? string.Empty).Trim(), (notes ?? string.Empty).Trim());
@@ -1369,15 +1395,11 @@ public sealed partial class HelpdeskStore
             // The equipment goes out with the kit, so each asset is marked out too - otherwise the asset list still
             // shows a laptop sitting in stock that is actually in somebody's bag.
             var onLoan = ResolveAssetStatus(OnLoanStatus);
-            var takenOver = new List<string>();
             foreach (var assetId in kit.AssetIds)
             {
                 var index = _data.Assets.FindIndex(x => x.Id == assetId);
                 if (index < 0) continue;
                 var asset = _data.Assets[index];
-                // Worth saying out loud rather than silently moving someone's device. The change itself is recorded in
-                // the asset's own history either way.
-                if (asset.AssignedUserId is { } current && current != borrowerUserId) takenOver.Add($"{asset.AssetTag} (was with {UserName(current)})");
                 // A borrower who isn't in the directory can't be recorded as the holder, so for them the status is the
                 // only marker - which is exactly why the status is set for every loan and not just named ones.
                 // Stamped with the kit loan's id so the unified loan list counts the kit loan once, not once per asset.
@@ -1390,9 +1412,7 @@ public sealed partial class HelpdeskStore
             }
 
             Save();
-            var message = $"{kit.Name} issued to {name}, due back {AssetInsights.Format(dueBack)}.";
-            if (takenOver.Count > 0) message += $" Note: {string.Join(", ", takenOver)} {(takenOver.Count == 1 ? "was" : "were")} assigned to someone else and {(takenOver.Count == 1 ? "has" : "have")} been moved onto this loan.";
-            return (true, message);
+            return (true, $"{kit.Name} issued to {name}, due back {AssetInsights.Format(dueBack)}.");
         }
     }
 

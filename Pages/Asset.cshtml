@@ -118,6 +118,14 @@
                 <a asp-page="/Loans">Issue the kit from the Loans page</a>, or take it out of the kit first if it needs to be lent on its own.
             </div>
         }
+        else if (Model.Asset.AssignedUserId is not null)
+        {
+            @* Someone already holds it, so it can be neither lent nor put in a kit until it comes back (HelpdeskStore.HeldBlock). *@
+            @if (Model.Asset.LoanDueDate is null)
+            {
+                <p class="muted">Assigned to @(Model.HolderName ?? "someone"), so it can't be loaned out or put in a kit. Return it first if it needs to be lent.</p>
+            }
+        }
         else
         {
             <form method="post" asp-page-handler="Loan" class="import-row">
