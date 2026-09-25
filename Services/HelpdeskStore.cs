@@ -68,6 +68,7 @@ public sealed partial class HelpdeskStore
             Location = x.Location ?? string.Empty
         }).ToList();
         _data.Branding ??= new BrandingSettings();
+        UpgradeDefaultBranding(_data.Branding);
         _data.AssetAttributeDefinitions ??= [];
         _data.AssetAttributeValues ??= [];
         _data.Slas ??= [];
@@ -2314,6 +2315,27 @@ public sealed partial class HelpdeskStore
         }
     }
     public void UpdateBranding(BrandingSettings item) { lock (_sync) { _data.Branding = item; Save(); } }
+
+    // The first dashboard wording said the helpdesk had no staff portal, which stopped being true when /Portal was
+    // built, and it used the strapline as the title. Every save writes the branding row, so databases created before
+    // the defaults changed hold the old text even though nobody chose it - this swaps it for the current defaults.
+    // Only text that is still exactly the old default is touched: anything a school has typed for itself is left alone.
+    private const string OldDefaultEyebrow = "EDUHELPDESK / TECHNICIAN WORKSPACE";
+    private const string OldDefaultTitle = "Keep every school device moving.";
+    private const string OldDefaultDescription = "Log jobs, link them to assets, and keep a complete repair history without exposing a staff-facing portal.";
+    private static void UpgradeDefaultBranding(BrandingSettings branding)
+    {
+        var defaults = new BrandingSettings();
+        // The eyebrow and title moved together (the old title became the new eyebrow), so they are only swapped as a
+        // pair. Checking the title on its own would undo a school that later chose that strapline as its title.
+        if (branding.DashboardEyebrow == OldDefaultEyebrow && branding.DashboardTitle == OldDefaultTitle)
+        {
+            branding.DashboardEyebrow = defaults.DashboardEyebrow;
+            branding.DashboardTitle = defaults.DashboardTitle;
+        }
+        // Nobody would type the old description back in - it describes a system without a portal.
+        if (branding.DashboardDescription == OldDefaultDescription) branding.DashboardDescription = defaults.DashboardDescription;
+    }
     // The lists a brand new install starts with. Anything already in use is added on top of these when data is loaded.
     private void EnsureFactoryOptions()
     {

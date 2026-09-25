@@ -224,9 +224,11 @@ public record TicketLink(int TicketNumber, int LinkedNumber, string Kind);
 public sealed class BrandingSettings
 {
     public string BrandName { get; set; } = "EduHelpdesk";
-    public string DashboardEyebrow { get; set; } = "EDUHELPDESK / TECHNICIAN WORKSPACE";
-    public string DashboardTitle { get; set; } = "Keep every school device moving.";
-    public string DashboardDescription { get; set; } = "Log jobs, link them to assets, and keep a complete repair history without exposing a staff-facing portal.";
+    // Defaults for a fresh install and a factory reset. A school that has already saved its branding keeps its own
+    // wording - these are only read when nothing is stored.
+    public string DashboardEyebrow { get; set; } = "Keep every school device moving.";
+    public string DashboardTitle { get; set; } = "Overview";
+    public string DashboardDescription { get; set; } = "Log and track jobs, link them to assets, and keep a complete repair history. Staff can report problems and follow their own tickets through the staff portal.";
     public string PrimaryColor { get; set; } = "#067A78";
     public string AccentColor { get; set; } = "#E8F0EF";
     public string BackgroundColor { get; set; } = "#F5F8F8";
