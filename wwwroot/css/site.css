@@ -310,3 +310,8 @@ h3 .csv-link { margin-left: 8px; }
 .workload-flags .badge{margin-left:0}
 @media(max-width:600px){.workload-option{grid-template-columns:auto 1fr}.workload-counts{grid-column:2}}
 .portal-tabs{margin:0 0 14px}
+.assignment-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.assignment-heading h2{margin-bottom:4px}
+.assignment-heading p{margin:0}
+.assignment-heading+form{margin-top:16px}
+.assignment-actions{justify-content:flex-start}

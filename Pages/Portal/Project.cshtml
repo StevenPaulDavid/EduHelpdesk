@@ -11,17 +11,35 @@
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     @if (Model.IsLead && project.IsActive)
     {
+        var assigned = project.TechnicianId is not null;
+        @* Once a technician has it, the form folds away behind Edit so the page reads as the project again, not a
+           half-finished assignment. Unassigned projects still open straight onto the form - that is the job to do. *@
         <section class="panel portal-panel">
-            <h2>@(project.TechnicianId is null ? "Assign this project" : "Reassign")</h2>
-            <form method="post" asp-page-handler="Assign" asp-route-number="@project.Number" class="settings-form">
+            <div class="assignment-heading">
+                <div>
+                    <h2>@(assigned ? "Assignment" : "Assign this project")</h2>
+                    @if (assigned) { <p class="muted">@(Model.TechnicianName ?? "Unknown technician") · @ProjectPriorities.Label(project.EffectivePriority)</p> }
+                </div>
+                @if (assigned) { <button class="button button-secondary" type="button" id="assignment-edit" onclick="toggleAssignment(true)">Edit assignment</button> }
+            </div>
+            <form method="post" asp-page-handler="Assign" asp-route-number="@project.Number" class="settings-form" id="assignment-form" hidden="@assigned">
                 <label>Priority
                     <select name="priority">@foreach (var level in ProjectPriorities.All) { <option value="@level" selected="@(level == project.EffectivePriority)">@ProjectPriorities.Label(level) — @ProjectPriorities.Describe(level)</option> }</select>
                     <small class="muted">@(project.Priority is null ? $"{Model.RequesterName ?? "The requester"} suggested {ProjectPriorities.Label(project.SuggestedPriority)}." : $"Confirmed as {ProjectPriorities.Label(project.Priority.Value)}.")</small>
                 </label>
                 <partial name="_WorkloadPicker" model="@(new WorkloadPicker(Model.Workloads, project.TechnicianId))" />
-                <button class="button button-primary portal-button" type="submit">Save</button>
+                <div class="heading-actions assignment-actions">
+                    <button class="button button-primary portal-button" type="submit">Save</button>
+                    @if (assigned) { <button class="button button-secondary" type="button" onclick="toggleAssignment(false)">Cancel</button> }
+                </div>
             </form>
         </section>
+        <script>
+            function toggleAssignment(editing) {
+                document.getElementById("assignment-form").hidden = !editing;
+                document.getElementById("assignment-edit").hidden = editing;
+            }
+        </script>
     }
     <section class="panel portal-panel">
         <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>
