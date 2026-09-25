@@ -1278,7 +1278,7 @@ public sealed partial class HelpdeskStore
             if (value.Length == 0) return (false, "Kit name is required.");
             if (_data.LoanKits.Any(x => string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase))) return (false, "A kit with that name already exists.");
             var contents = ValidAssetIds(assetIds);
-            if (HeldKitAddition(contents, []) is { } held) return (false, held);
+            if (KitAdditionBlock(null, contents, []) is { } blocked) return (false, blocked);
             _data.LoanKits.Add(new LoanKit(Guid.NewGuid(), value, (notes ?? string.Empty).Trim(), DateTime.UtcNow)
             {
                 AssetIds = contents
@@ -1296,12 +1296,12 @@ public sealed partial class HelpdeskStore
             if (value.Length == 0) return (false, "Kit name is required.");
             var index = _data.LoanKits.FindIndex(x => x.Id == id);
             if (index < 0) return (false, "Loan kit was not found.");
+            if (OutOnLoanBlock(_data.LoanKits[index]) is { } outBlock) return (false, outBlock);
             if (_data.LoanKits.Any(x => x.Id != id && string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase))) return (false, "A kit with that name already exists.");
-            if (retired && _data.KitLoans.Any(x => x.KitId == id && x.ReturnedAt is null)) return (false, "That kit is out on loan. Book it back in before retiring it.");
             var contents = ValidAssetIds(assetIds);
-            // Only what is being added is checked. While the kit is out its own equipment carries the borrower as
-            // holder, and saving the kit's name or notes must not trip over that.
-            if (HeldKitAddition(contents, _data.LoanKits[index].AssetIds) is { } held) return (false, held);
+            // Only what is being added is checked, so an asset that joined before these rules can still be kept - or,
+            // more usefully, taken out - without the save being refused over it.
+            if (KitAdditionBlock(id, contents, _data.LoanKits[index].AssetIds) is { } blocked) return (false, blocked);
             _data.LoanKits[index] = _data.LoanKits[index] with
             {
                 Name = value,
@@ -1321,6 +1321,7 @@ public sealed partial class HelpdeskStore
         {
             var kit = _data.LoanKits.FirstOrDefault(x => x.Id == id);
             if (kit is null) return (false, "Loan kit was not found.");
+            if (OutOnLoanBlock(kit) is { } outBlock) return (false, outBlock);
             if (_data.KitLoans.Any(x => x.KitId == id)) return (false, "That kit has loan history and cannot be deleted. Retire it instead, and it will stay out of the issue list.");
             _data.LoanKits.Remove(kit);
             Save();
@@ -1331,12 +1332,35 @@ public sealed partial class HelpdeskStore
     private List<Guid> ValidAssetIds(IEnumerable<Guid>? assetIds) =>
         (assetIds ?? []).Where(id => _data.Assets.Any(a => a.Id == id)).Distinct().ToList();
 
-    // The first asset being newly put in a kit that already has a holder, as a message. See HeldBlock.
-    private string? HeldKitAddition(IEnumerable<Guid> contents, IEnumerable<Guid> alreadyIn) =>
+    // A kit that is out is locked for everyone, Administrator included: its record has to describe what the borrower
+    // actually has, so nothing about it changes until it is booked back in.
+    private string? OutOnLoanBlock(LoanKit kit) =>
+        _data.KitLoans.FirstOrDefault(x => x.KitId == kit.Id && x.ReturnedAt is null) is { } loan
+            ? $"{kit.Name} is out on loan with {loan.BorrowerName}. Book it back in before changing it."
+            : null;
+
+    // Why an asset cannot join a kit, or null if it can. Held assets are covered by HeldBlock; an asset also belongs to
+    // one kit at most, since two kits cannot both be lending the same laptop.
+    private string? KitAdditionReason(Guid? kitId, AssetRecord asset)
+    {
+        if (IsDisposed(asset)) return $"{asset.AssetTag} has been disposed of and cannot be put in a kit.";
+        if (HeldBlock(asset, "put in a kit") is { } held) return held;
+        if (_data.LoanKits.FirstOrDefault(k => k.Id != kitId && k.AssetIds.Contains(asset.Id)) is { } other)
+            return $"{asset.AssetTag} is already in {other.Name}. Take it out of that kit first.";
+        return null;
+    }
+
+    // The first asset being newly put in a kit that cannot go in, as a message.
+    private string? KitAdditionBlock(Guid? kitId, IEnumerable<Guid> contents, IEnumerable<Guid> alreadyIn) =>
         contents.Except(alreadyIn)
-            .Select(id => _data.Assets.First(x => x.Id == id))
-            .Select(x => HeldBlock(x, "put in a kit"))
+            .Select(id => KitAdditionReason(kitId, _data.Assets.First(x => x.Id == id)))
             .FirstOrDefault(x => x is not null);
+
+    // Everything that could be added to this kit (null for a new one): what the kit editor's search offers.
+    public IReadOnlyList<AssetRecord> KitCandidates(Guid? kitId)
+    {
+        lock (_sync) return _data.Assets.Where(x => KitAdditionReason(kitId, x) is null).ToList();
+    }
 
     // Every loan of either kind, for the Loans page and the loan report.
     // Asset assignments only qualify as loans when they have a due-back date: an assignment without one is a permanent
@@ -2565,7 +2589,13 @@ public sealed partial class HelpdeskStore
                 return "This asset is linked to a ticket and cannot be deleted.";
             var item = _data.Assets.FirstOrDefault(x => x.Id == id);
             if (item is null) return "Asset was not found.";
+            // Deleting it would change the kit's contents, and a kit that is out is locked until it comes back.
+            if (KitLoanHoldingCore(id) is { } held)
+                return $"{item.AssetTag} is out on loan with {held.Kit.Name}. Book the kit back in before deleting it.";
             _data.Assets.Remove(item);
+            for (var i = 0; i < _data.LoanKits.Count; i++)
+                if (_data.LoanKits[i].AssetIds.Contains(id))
+                    _data.LoanKits[i] = _data.LoanKits[i] with { AssetIds = _data.LoanKits[i].AssetIds.Where(x => x != id).ToList() };
             Save();
             return null;
         }

@@ -199,3 +199,22 @@ h3 .csv-link { margin-left: 8px; }
 .permission-grid th{text-transform:none;letter-spacing:0;color:var(--ink)}
 .permission-grid thead th{font-size:12px}
 .permission-grid thead th small,.permission-grid tbody th small{text-transform:none;letter-spacing:0;color:var(--muted)}
+/* Kit editor: the kit's contents as a list, and a search box for adding more (wwwroot/js/kit-picker.js). */
+.kit-picker{display:grid;gap:8px;min-width:0}
+.kit-picker .eyebrow{display:flex;align-items:center;gap:8px;margin:0}
+.kit-contents{list-style:none;margin:4px 0 0;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kit-contents:empty{display:none}
+.kit-contents li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid var(--line);min-width:0}
+.kit-contents li:last-child{border-bottom:0}
+.kit-contents li>span{min-width:0;overflow-wrap:anywhere}
+.kit-contents .kit-remove{padding:7px 12px;flex-shrink:0}
+.kit-empty{margin:4px 0}
+.kit-search-label{margin-top:6px}
+.kit-results{list-style:none;margin:-4px 0 0;padding:4px;border:1px solid var(--line);border-radius:8px;max-height:320px;overflow-y:auto}
+.kit-results li{padding:8px 10px;border-radius:6px;cursor:pointer;overflow-wrap:anywhere}
+/* --accent is set by both the light and the dark theme (see _Layout), so the highlight works in either. */
+.kit-results li:hover,.kit-results li.is-active{background:var(--accent)}
+.kit-fields{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
+.kit-fields:disabled input{background:var(--paper);color:var(--muted)}
+.kit-locked{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.kit-locked .loan-return-form{margin:0}

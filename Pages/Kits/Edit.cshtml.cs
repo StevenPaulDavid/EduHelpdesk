@@ -7,14 +7,16 @@ namespace EduHelpdesk.Pages.Kits;
 
 public class EditModel(HelpdeskStore store) : PageModel
 {
+    public const int SearchLimit = 20;
+
     public LoanKit? Kit { get; private set; }
-    // Disposed assets, and assets someone already holds, are not offered - the store refuses both. One already ticked
-    // into this kit still shows so it can be removed, which also covers the kit's own equipment while it is out.
-    public IReadOnlyList<AssetRecord> Assets => store.Assets
-        .Where(x => (!HelpdeskStore.IsDisposed(x) && x.AssignedUserId is null) || SelectedAssetIds.Contains(x.Id) || (Kit?.AssetIds.Contains(x.Id) ?? false))
-        .OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
-    public Guid[] SelectedAssetIds { get; private set; } = [];
+    // The assets ticked into the kit, in tag order. Only these are rendered: the rest of the register is reached through
+    // the search box, because a school with a thousand assets cannot scroll a checklist of all of them.
+    public IReadOnlyList<AssetRecord> SelectedAssets { get; private set; } = [];
     public IReadOnlyList<KitLoan> History { get; private set; } = [];
+    // Set while the kit is out. The page is then read-only for everyone - the store refuses changes either way.
+    public KitLoan? OpenLoan { get; private set; }
+    public bool CanBookIn => store.UserCan(User, Modules.Loans, ModulePermission.Edit);
     public DateTime Now { get; } = DateTime.UtcNow;
     [TempData] public string? Message { get; set; }
 
@@ -28,12 +30,34 @@ public class EditModel(HelpdeskStore store) : PageModel
         if (!id.HasValue) return Page();
         Kit = store.LoanKits.FirstOrDefault(x => x.Id == id);
         if (Kit is null) return Page();
-        SelectedAssetIds = Kit.AssetIds.ToArray();
-        History = store.KitLoans.Where(x => x.KitId == Kit.Id).OrderByDescending(x => x.IssuedAt).ToList();
+        Load(Kit.AssetIds);
         return Page();
     }
 
     public string Duration(KitLoan loan) => LoanInsights.Duration(loan, Now);
+
+    // What the asset search box asks for as you type. Every word has to appear somewhere in the tag, serial, make,
+    // model, type or location, so "dell 7420" or "LAP-01" both narrow quickly. Only assets that could actually go in
+    // the kit are returned - see HelpdeskStore.KitCandidates.
+    public IActionResult OnGetSearch(Guid? id, string? q)
+    {
+        if (!store.UserCan(User, Modules.Kits, Needed(id))) return Forbid();
+        var terms = (q ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (terms.Length == 0) return new JsonResult(Array.Empty<object>());
+        var matches = store.KitCandidates(id)
+            .Where(a => terms.All(t => Searchable(a).Any(f => f.Contains(t, StringComparison.OrdinalIgnoreCase))))
+            .OrderBy(a => a.AssetTag.StartsWith(terms[0], StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(a => a.AssetTag, NaturalComparer.Instance)
+            // One more than shown, so the page can say there are more and to keep typing.
+            .Take(SearchLimit + 1)
+            .Select(a => new { id = a.Id, tag = a.AssetTag, detail = Detail(a), url = Url.Page("/Asset", new { id = a.Id }) });
+        return new JsonResult(matches);
+    }
+
+    private static string[] Searchable(AssetRecord a) => [a.AssetTag, a.SerialNumber, a.Make, a.Model, a.Type, a.Location];
+
+    public static string Detail(AssetRecord a) =>
+        string.Join(" · ", new[] { $"{a.Make} {a.Model}".Trim(), a.Type, a.Location }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
     public IActionResult OnPost(Guid? id, string name, string? notes, Guid[]? assetIds, bool retired)
     {
@@ -49,12 +73,9 @@ public class EditModel(HelpdeskStore store) : PageModel
         }
 
         ModelState.AddModelError("", message);
-        if (id.HasValue)
-        {
-            Kit = store.LoanKits.FirstOrDefault(x => x.Id == id);
-            History = store.KitLoans.Where(x => x.KitId == id).OrderByDescending(x => x.IssuedAt).ToList();
-        }
-        SelectedAssetIds = (assetIds ?? []).ToArray();
+        if (id.HasValue) Kit = store.LoanKits.FirstOrDefault(x => x.Id == id);
+        // Show what was submitted, so a refused save does not throw away the rest of the changes.
+        Load(assetIds ?? []);
         return Page();
     }
 
@@ -63,5 +84,14 @@ public class EditModel(HelpdeskStore store) : PageModel
         if (!store.UserCan(User, Modules.Kits, ModulePermission.Delete)) return Forbid();
         TempData["Message"] = store.DeleteLoanKit(id).Message;
         return RedirectToPage("/Kits");
+    }
+
+    private void Load(IEnumerable<Guid> assetIds)
+    {
+        var ids = assetIds.ToHashSet();
+        SelectedAssets = store.Assets.Where(x => ids.Contains(x.Id)).OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
+        if (Kit is null) return;
+        History = store.KitLoans.Where(x => x.KitId == Kit.Id).OrderByDescending(x => x.IssuedAt).ToList();
+        OpenLoan = History.FirstOrDefault(x => x.ReturnedAt is null);
     }
 }

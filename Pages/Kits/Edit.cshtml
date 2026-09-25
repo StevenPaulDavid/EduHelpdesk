@@ -3,7 +3,8 @@
 @model EduHelpdesk.Pages.Kits.EditModel
 @{
     var editing = Model.Kit is not null;
-    ViewData["Title"] = editing ? $"Edit {Model.Kit!.Name}" : "Add loan kit";
+    var locked = Model.OpenLoan is not null;
+    ViewData["Title"] = !editing ? "Add loan kit" : locked ? Model.Kit!.Name : $"Edit {Model.Kit!.Name}";
 }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>@ViewData["Title"]</h1></div>
@@ -11,34 +12,64 @@
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
+@if (Model.OpenLoan is { } openLoan)
+{
+    @* Read-only for every role, Administrator included. The kit record has to match what the borrower actually has,
+       so it cannot change until it comes back (HelpdeskStore.OutOnLoanBlock refuses a save either way). *@
+    <div class="notice notice-warning kit-locked">
+        <div>
+            <strong>Out on loan with @openLoan.BorrowerName</strong> since @AssetInsights.Format(DateOnly.FromDateTime(openLoan.IssuedAt.ToLocalTime())), due back @AssetInsights.Format(openLoan.DueBack)@(openLoan.IsOverdue(AssetInsights.Today) ? " (overdue)" : "").
+            The kit can't be changed until it's booked back in.
+        </div>
+        @if (Model.CanBookIn)
+        {
+            <form method="post" asp-page="/Kits" asp-page-handler="Return" class="loan-return-form">
+                <input type="hidden" name="kitId" value="@Model.Kit!.Id" />
+                <input name="notes" placeholder="Anything missing? (optional)" aria-label="Return notes for @Model.Kit!.Name" />
+                <button class="button button-secondary">Book back in</button>
+            </form>
+        }
+    </div>
+}
+
 <section class="panel">
     <form method="post" class="settings-form">
         @if (editing) { <input type="hidden" name="id" value="@Model.Kit!.Id" /> }
         <div asp-validation-summary="All" class="validation-summary-errors"></div>
 
+        @* A disabled fieldset greys out and stops every control inside it in one go. *@
+        <fieldset class="kit-fields" disabled="@locked">
         <label>Kit name <span class="required-marker">*</span>
-            <input name="name" value="@Model.Kit?.Name" placeholder="e.g. Loan Kit 3" required autofocus />
+            <input name="name" value="@Model.Kit?.Name" placeholder="e.g. Loan Kit 3" required autofocus="@(!locked)" />
         </label>
         <label>Notes<input name="notes" value="@Model.Kit?.Notes" placeholder="e.g. Dell laptop, charger and mouse in a grey case" /></label>
 
-        <div>
-            <p class="eyebrow">What's in it</p>
-            <small class="muted">Tick the assets currently in this kit. You can swap them later without losing the kit's loan history. Leave it empty if you don't track the contents.</small>
-            @if (Model.Assets.Count == 0)
+        <div class="kit-picker" id="kit-picker" data-search-url="@Url.Page("/Kits/Edit", "Search", new { id = Model.Kit?.Id })">
+            <p class="eyebrow">What's in it <span class="badge" id="kit-count">@Model.SelectedAssets.Count</span></p>
+            @if (!locked)
             {
-                <p class="empty">No assets in the register yet.</p>
+                <small class="muted">Search for the assets in this kit and add them. You can swap them later without losing the kit's loan history. Leave it empty if you don't track the contents.</small>
             }
-            else
+            <ul class="kit-contents" id="kit-contents">
+                @foreach (var asset in Model.SelectedAssets)
+                {
+                    <li>
+                        <input type="hidden" name="assetIds" value="@asset.Id" />
+                        <span><a asp-page="/Asset" asp-route-id="@asset.Id"><strong>@asset.AssetTag</strong></a> <span class="muted">@EduHelpdesk.Pages.Kits.EditModel.Detail(asset)</span></span>
+                        @if (!locked) { <button type="button" class="button button-secondary kit-remove" aria-label="Remove @asset.AssetTag">Remove</button> }
+                    </li>
+                }
+            </ul>
+            <p class="muted kit-empty" id="kit-empty" hidden="@(Model.SelectedAssets.Count > 0)">Nothing in this kit yet.</p>
+
+            @if (!locked)
             {
-                <div class="checkbox-grid">
-                    @foreach (var asset in Model.Assets)
-                    {
-                        <label class="toggle-label">
-                            <input type="checkbox" name="assetIds" value="@asset.Id" checked="@Model.SelectedAssetIds.Contains(asset.Id)" />
-                            @asset.AssetTag<span class="muted"> · @asset.Make @asset.Model</span>
-                        </label>
-                    }
-                </div>
+                <label class="kit-search-label">Add an asset
+                    <input type="search" id="kit-search" autocomplete="off" placeholder="Search by tag, serial number, make, model, type or location"
+                           role="combobox" aria-expanded="false" aria-controls="kit-results" aria-autocomplete="list" />
+                </label>
+                <ul class="kit-results" id="kit-results" role="listbox" hidden></ul>
+                <small class="muted" id="kit-search-hint">Assets that are assigned to someone, on loan, disposed of or already in another kit aren't offered.</small>
             }
         </div>
 
@@ -50,7 +81,8 @@
             </label>
         }
 
-        <button class="button button-primary">@(editing ? "Save kit" : "Add kit")</button>
+        @if (!locked) { <button class="button button-primary">@(editing ? "Save kit" : "Add kit")</button> }
+        </fieldset>
     </form>
 </section>
 
@@ -87,4 +119,9 @@
             <p class="muted">Kits with loan history can't be deleted, so the report keeps the full picture. Tick <strong>Retired</strong> above to take it out of use.</p>
         }
     </section>
+}
+
+@section Scripts {
+<script src="~/js/kit-picker.js" asp-append-version="true"></script>
+<script>initKitPicker(document.getElementById("kit-picker"));</script>
 }
