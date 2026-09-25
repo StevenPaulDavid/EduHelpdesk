@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Portal;
 
-public class IndexModel(HelpdeskStore store) : PageModel
+public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 {
     public UserRecord? CurrentUser { get; private set; }
     [BindProperty] public string Email { get; set; } = "";
@@ -18,7 +18,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     public void OnGet()
     {
-        var id = PortalIdentity.Resolve(Request, store);
+        var id = portal.Resolve(Request, store);
         CurrentUser = id is { } userId ? store.Users.FirstOrDefault(x => x.Id == userId) : null;
         SignedInTechnician = Technician();
     }
@@ -36,7 +36,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
             Message = error;
             return RedirectToPage();
         }
-        PortalIdentity.Set(Response, user.Id);
+        portal.Set(Response, user.Id);
         return RedirectToPage();
     }
 
@@ -55,7 +55,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
             ModelState.AddModelError("", "Incorrect email or password.");
             return Page();
         }
-        PortalIdentity.Set(Response, user.Id);
+        portal.Set(Response, user.Id);
         return RedirectToPage();
     }
 

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Portal;
 
-public class TicketModel(HelpdeskStore store) : PageModel
+public class TicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 {
     public TicketRecord? Ticket { get; private set; }
     public IReadOnlyList<TicketComment> Comments => Ticket is null ? [] : Ticket.Comments.Where(x => !x.IsInternal).OrderBy(x => x.CreatedAt).ToList();
@@ -18,7 +18,7 @@ public class TicketModel(HelpdeskStore store) : PageModel
     // number from a made-up one.
     public IActionResult OnGet(int number)
     {
-        var id = PortalIdentity.Resolve(Request, store);
+        var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
         Ticket = store.Tickets.FirstOrDefault(x => x.Number == number && x.RequesterId == id);
         return Ticket is null ? NotFound() : Page();
@@ -26,7 +26,7 @@ public class TicketModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostComment(int number)
     {
-        var id = PortalIdentity.Resolve(Request, store);
+        var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number && x.RequesterId == id);
         if (ticket is null) return NotFound();

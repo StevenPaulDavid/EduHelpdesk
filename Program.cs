@@ -2,6 +2,7 @@ using EduHelpdesk.Models;
 using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -108,6 +109,16 @@ builder.Services.AddRazorPages(options =>
 builder.Services.AddMemoryCache();
 // The store reads the signed-in account off the current request to attribute changes - see HelpdeskStore.CurrentActor.
 builder.Services.AddHttpContextAccessor();
+// Data Protection encrypts both the technician login cookie and the staff portal cookie (PortalIdentity). Its keys are
+// kept with the rest of the data in App_Data\keys, so sign-ins survive a restart and move with a restored backup, and
+// named by application rather than by folder so a changed install path doesn't invalidate them. On Windows the key
+// files are themselves encrypted to this machine: App_Data sits in a synced folder here, and a copied key must not be
+// usable anywhere else. Machine rather than user scope, so running the app under a different account keeps working.
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("EduHelpdesk")
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys")));
+if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<HelpdeskStore>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

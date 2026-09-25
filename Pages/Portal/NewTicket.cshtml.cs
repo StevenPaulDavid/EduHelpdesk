@@ -7,7 +7,7 @@ namespace EduHelpdesk.Pages.Portal;
 
 // The short version of /NewTicket for the staff portal: no requester/technician/team/SLA/asset pickers - just what
 // happened, where, and roughly what kind of problem it is. Priority and type are set server-side.
-public class NewTicketModel(HelpdeskStore store) : PageModel
+public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 {
     public UserRecord? CurrentUser { get; private set; }
     public IReadOnlyList<string> Categories => store.Categories;
@@ -19,7 +19,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGet()
     {
-        var id = PortalIdentity.Resolve(Request, store);
+        var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
         CurrentUser = store.Users.FirstOrDefault(x => x.Id == id);
         Category = store.Categories.FirstOrDefault() ?? "";
@@ -29,7 +29,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPost()
     {
-        var id = PortalIdentity.Resolve(Request, store);
+        var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
         CurrentUser = store.Users.FirstOrDefault(x => x.Id == id);
 

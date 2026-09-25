@@ -22,10 +22,12 @@ public sealed partial class HelpdeskStore
     // How the store works out who is making the current change (see CurrentActor). Optional so the store can still be
     // constructed outside a web request - then there is no actor and changes are recorded against the system.
     private readonly IHttpContextAccessor? _httpContext;
+    private readonly PortalIdentity? _portalIdentity;
 
-    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null)
+    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null, PortalIdentity? portalIdentity = null)
     {
         _httpContext = httpContext;
+        _portalIdentity = portalIdentity;
         _path = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.db");
         _legacyPath = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.json");
         _templatePath = Path.Combine(environment.ContentRootPath, "App_Data", "print-template.docx");
@@ -482,9 +484,10 @@ public sealed partial class HelpdeskStore
             if (!string.IsNullOrWhiteSpace(name))
                 return new Actor(Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null, name.Trim());
         }
-        // The staff portal has no login at all, so a ticket raised there would otherwise be attributed to nobody. Its
-        // cookie is self-declared rather than authenticated, which is why the actor carries no id - see PortalIdentity.
-        if (Guid.TryParse(context.Request.Cookies[PortalIdentity.CookieName], out var portalId))
+        // A portal visitor isn't signed in to the helpdesk, so a ticket raised there would otherwise be attributed to
+        // nobody. The name comes from the portal cookie, read through PortalIdentity so only a genuine one counts; the
+        // actor still carries no id, because ids here are technician accounts and a requester isn't one.
+        if (_portalIdentity?.Read(context.Request) is { } portalId)
         {
             lock (_sync)
             {
