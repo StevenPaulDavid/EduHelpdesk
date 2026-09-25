@@ -406,3 +406,27 @@ h3 .csv-link { margin-left: 8px; }
 .quote-meta .inline-fields label{flex:1 1 160px}
 .quote-body .eyebrow .muted{text-transform:none;letter-spacing:0;font-weight:500}
 .quote-totals{width:100%;max-width:460px}
+/* Spending bands: the reference popover on a project, and the Settings page. */
+.project-items-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.band-info{position:relative}
+.band-info>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--teal-dark);border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 6px}
+.band-info>summary::-webkit-details-marker{display:none}
+.info-icon{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--teal);color:#fff;font:italic 700 12px Georgia,serif}
+.band-panel{position:absolute;right:0;top:calc(100% + 6px);width:min(620px,calc(100vw - 48px));z-index:6;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:0 12px 30px rgba(23,37,47,.18);display:grid;gap:10px}
+.band-panel p{margin:0;font-size:13px}
+.band-lead{font-size:14px!important}
+.band-table{width:100%;border-collapse:collapse;font-size:13px}
+.band-table th,.band-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.band-table tr.is-current td{background:var(--accent)}
+.band-table .badge{margin-left:6px}
+.band-row{display:grid;grid-template-columns:minmax(0,1.2fr) repeat(3,minmax(0,.7fr));gap:8px 10px;align-items:end;padding:12px 0;border-bottom:1px solid var(--line)}
+.band-row label{display:grid;gap:4px;font-size:12px;font-weight:700;min-width:0}
+.band-row input,.band-row textarea{min-width:0;width:100%}
+.band-row .band-notes{grid-column:1/-2}
+.band-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.band-new{border-bottom:0}
+@media(max-width:700px){.band-row{grid-template-columns:1fr 1fr}.band-row .band-notes{grid-column:1/-1}}
+/* Anchored to the whole Items & quotes block, not the small ⓘ button, so it opens across the block wherever the button wraps to. */
+.project-items{position:relative}
+.band-info{position:static}
+.band-panel{left:0;right:0;width:auto;top:auto;margin-top:6px}

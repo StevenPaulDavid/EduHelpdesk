@@ -332,6 +332,13 @@ public readonly record struct QuoteTotals(decimal FirstYearExVat, decimal FirstY
     public static QuoteTotals operator +(QuoteTotals a, QuoteTotals b) =>
         new(a.FirstYearExVat + b.FirstYearExVat, a.FirstYearVat + b.FirstYearVat, a.TermExVat + b.TermExVat, a.TermVat + b.TermVat);
 }
+// One band of the school's finance policy: spending in this range needs this many quotes and meets these requirements
+// (Settings → Spending bands). Shown on a project for reference, against the whole-contract total of its chosen quotes.
+// UpTo null means no upper limit; both ends are inclusive, to the penny.
+public record SpendingBand(Guid Id, string Name, decimal From, decimal? UpTo, int QuotesNeeded, string Requirements)
+{
+    public bool Contains(decimal amount) => amount >= From && (UpTo is null || amount <= UpTo);
+}
 public static class PaymentFrequencies
 {
     public const string OneOff = "One-off";

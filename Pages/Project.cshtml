@@ -138,6 +138,40 @@
                     }
                     <p class="muted">@project.Items.Count @(project.Items.Count == 1 ? "item" : "items") · @received of @quoteRows.Count @(quoteRows.Count == 1 ? "supplier" : "suppliers") have quoted @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }@if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }</p>
                 </div>
+                @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. *@
+                <details class="band-info">
+                    <summary title="Spending bands" aria-label="Spending bands"><span class="info-icon" aria-hidden="true">i</span> @(itemsChosen > 0 && Model.CurrentBand is { } band ? band.Name : "Spending bands")</summary>
+                    <div class="band-panel">
+                        <p class="band-lead">
+                            @if (Model.Bands.Count == 0) { <text>No spending bands are set up yet.</text> }
+                            else if (itemsChosen == 0) { <text>No item has a chosen quote yet, so this project isn't in a band yet.</text> }
+                            else
+                            {
+                                <text>This project's chosen quotes come to <strong>@HelpdeskStore.FormatMoney(Model.BandTotal)</strong> over the whole contract, @(Model.BandsIncludeVat ? "including" : "excluding") VAT</text>
+                                @(Model.CurrentBand is { } current ? $" - that is {current.Name}." : " - no band covers that amount.")
+                                @if (itemsChosen < project.Items.Count) { <span class="muted"> @(project.Items.Count - itemsChosen) @(project.Items.Count - itemsChosen == 1 ? "item has" : "items have") no chosen quote yet, so the total may still rise.</span> }
+                            }
+                        </p>
+                        @if (Model.Bands.Count > 0)
+                        {
+                            <table class="band-table">
+                                <thead><tr><th>Band</th><th>Spend</th><th>Quotes</th><th>Requirements</th></tr></thead>
+                                <tbody>
+                                    @foreach (var row in Model.Bands)
+                                    {
+                                        var isCurrent = Model.CurrentBand?.Id == row.Id && itemsChosen > 0;
+                                        <tr class="@(isCurrent ? "is-current" : "")"><td><strong>@row.Name</strong>@if (isCurrent) { <span class="badge chosen-badge">This project</span> }</td><td>@HelpdeskStore.DescribeRange(row)</td><td>@row.QuotesNeeded</td><td>@row.Requirements</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                            @if (Model.CurrentBand is { } needed && itemsChosen > 0 && project.Items.Count > 0)
+                            {
+                                <p class="muted">Quotes in so far: @string.Join(" · ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.HasQuote)} of {needed.QuotesNeeded}"))</p>
+                            }
+                        }
+                        <p class="muted">For reference - set in Settings → Spending bands.</p>
+                    </div>
+                </details>
             </div>
             @if (project.Items.Count == 0)
             {

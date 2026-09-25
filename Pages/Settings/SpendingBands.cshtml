@@ -1,0 +1,45 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.SpendingBandsModel
+@{ ViewData["Title"] = "Spending bands"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / PROJECTS</p><h1>Spending bands</h1><p class="hero-copy">Your finance policy's thresholds: how many quotes a purchase needs and what else it has to meet. Every project shows them for reference, with the band it currently falls in highlighted.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">MEASURED ON</p><h2>Which total a project is banded on</h2></div></div>
+    <p class="muted">A project is placed in a band by the whole-contract total of its chosen quotes: every payment over the full term, across all its items. Most finance policies and procurement thresholds are set excluding VAT.</p>
+    <form method="post" asp-page-handler="Basis" class="settings-form">
+        <label class="toggle-label"><input type="radio" name="includeVat" value="false" checked="@(!Model.IncludeVat)" /> Excluding VAT</label>
+        <label class="toggle-label"><input type="radio" name="includeVat" value="true" checked="@Model.IncludeVat" /> Including VAT</label>
+        <div><button class="button button-primary">Save</button></div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">BANDS</p><h2>Spending bands</h2></div><span class="badge">@Model.Bands.Count</span></div>
+    <p class="muted">Amounts are in pounds and both ends count, to the penny - so one band ends at 999.99 and the next starts at 1,000. Leave "Up to" blank for the top band. Bands can't overlap; gaps are allowed.</p>
+    @foreach (var band in Model.Bands)
+    {
+        <form method="post" asp-page-handler="Update" class="band-row">
+            <input type="hidden" name="id" value="@band.Id" />
+            <label>Name<input name="name" value="@band.Name" maxlength="100" required /></label>
+            <label>From (£)<input name="from" value="@EduHelpdesk.Pages.Settings.SpendingBandsModel.Amount(band.From)" inputmode="decimal" required /></label>
+            <label>Up to (£)<input name="upTo" value="@EduHelpdesk.Pages.Settings.SpendingBandsModel.Amount(band.UpTo)" inputmode="decimal" placeholder="No limit" /></label>
+            <label>Quotes needed<input name="quotesNeeded" type="number" min="0" max="@HelpdeskStore.MaxBandQuotes" value="@band.QuotesNeeded" required /></label>
+            <label class="band-notes">Requirements<textarea name="requirements" rows="2" maxlength="@HelpdeskStore.MaxBandRequirementsLength">@band.Requirements</textarea></label>
+            <span class="band-actions">
+                <button class="button button-secondary" type="submit">Save</button>
+                <button class="button button-danger" type="submit" formaction="@Url.Page("/Settings/SpendingBands", "Delete")" formnovalidate onclick="return confirm('Delete this band?');">Delete</button>
+            </span>
+        </form>
+    }
+    @if (Model.Bands.Count == 0) { <p class="empty">No bands yet. Projects will show no band until some are added.</p> }
+    <form method="post" asp-page-handler="Add" class="band-row band-new">
+        <label>Name<input name="name" maxlength="100" placeholder="e.g. High value" required /></label>
+        <label>From (£)<input name="from" inputmode="decimal" placeholder="5000" required /></label>
+        <label>Up to (£)<input name="upTo" inputmode="decimal" placeholder="No limit" /></label>
+        <label>Quotes needed<input name="quotesNeeded" type="number" min="0" max="@HelpdeskStore.MaxBandQuotes" value="3" required /></label>
+        <label class="band-notes">Requirements<textarea name="requirements" rows="2" maxlength="@HelpdeskStore.MaxBandRequirementsLength" placeholder="e.g. Three written quotes; business manager approval"></textarea></label>
+        <span class="band-actions"><button class="button button-primary" type="submit">Add band</button></span>
+    </form>
+</section>

@@ -22,9 +22,25 @@ public sealed partial class HelpdeskStore
     // SeedStarterData (a new install or a factory reset, whose fresh StoreData starts at version 0).
     private void EnsureProjectDefaults()
     {
-        if (_data.ProjectsVersion >= 1) return;
-        EnsureOptions(_data.PurchasingRequirements, ["Lease / finance option"]);
-        _data.ProjectsVersion = 1;
+        if (_data.ProjectsVersion < 1)
+        {
+            EnsureOptions(_data.PurchasingRequirements, ["Lease / finance option"]);
+            _data.ProjectsVersion = 1;
+        }
+        if (_data.ProjectsVersion < 2)
+        {
+            // A typical school finance policy, as something to edit rather than type from nothing. Every school's
+            // thresholds differ, and these say so. Seeded once, so a school that deletes them doesn't get them back.
+            if (_data.SpendingBands.Count == 0)
+                _data.SpendingBands =
+                [
+                    new(Guid.NewGuid(), "Low value", 0m, 999.99m, 1, "One written quote or a catalogue price. Example band - edit to match your finance policy."),
+                    new(Guid.NewGuid(), "Medium value", 1_000m, 4_999.99m, 2, "Two written quotes. Example band - edit to match your finance policy."),
+                    new(Guid.NewGuid(), "High value", 5_000m, 24_999.99m, 3, "Three written quotes; business manager approval. Example band - edit to match your finance policy."),
+                    new(Guid.NewGuid(), "Tender", 25_000m, null, 3, "Formal tender or an approved framework; governors' approval. Example band - edit to match your finance policy.")
+                ];
+            _data.ProjectsVersion = 2;
+        }
     }
 
     // Who can be given a project: an active account whose role can actually work one. Offering anyone else would hand
@@ -327,6 +343,8 @@ public sealed partial class HelpdeskStore
         using var command = connection.CreateCommand();
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS PurchasingRequirements (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS SpendingBands (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, FromAmount TEXT NOT NULL, UpToAmount TEXT NULL,
+                QuotesNeeded INTEGER NOT NULL, Requirements TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS Projects (Number INTEGER PRIMARY KEY, Title TEXT NOT NULL, RequesterId TEXT NOT NULL, TechnicianId TEXT NULL,
                 DueDate TEXT NOT NULL, ItemsWanted TEXT NOT NULL, PurchasingOther TEXT NOT NULL DEFAULT '', SuggestedPriority INTEGER NOT NULL,
                 Priority INTEGER NULL, Status TEXT NOT NULL, CreatedAt TEXT NOT NULL, ClosedAt TEXT NULL, Outcome TEXT NULL, OutcomeNote TEXT NULL,
@@ -379,6 +397,19 @@ public sealed partial class HelpdeskStore
         ReadStrings(connection, "PurchasingRequirements", data.PurchasingRequirements);
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ProjectsVersion';") as string, out var version)) data.ProjectsVersion = version;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LastProjectNumber';") as string, out var last)) data.LastProjectNumber = last;
+        data.SpendingBandsIncludeVat = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SpendingBandsIncludeVat';") as string == "1";
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Id, Name, FromAmount, UpToAmount, QuotesNeeded, Requirements FROM SpendingBands;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                static decimal? Amount(string? text) => decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
+                data.SpendingBands.Add(new SpendingBand(Guid.Parse(reader.GetString(0)), reader.GetString(1), Amount(reader.GetString(2)) ?? 0m,
+                    Amount(NullableString(reader, 3)), Math.Max(0, reader.GetInt32(4)), reader.GetString(5)));
+            }
+            data.SpendingBands = data.SpendingBands.OrderBy(x => x.From).ToList();
+        }
 
         using (var command = connection.CreateCommand())
         {
@@ -511,6 +542,11 @@ public sealed partial class HelpdeskStore
     {
         InsertStrings(connection, transaction, "PurchasingRequirements", data.PurchasingRequirements);
         SetMetadata(connection, transaction, "ProjectsVersion", data.ProjectsVersion.ToString(CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "SpendingBandsIncludeVat", data.SpendingBandsIncludeVat ? "1" : "0");
+        foreach (var band in data.SpendingBands)
+            Execute(connection, transaction, "INSERT INTO SpendingBands (Id, Name, FromAmount, UpToAmount, QuotesNeeded, Requirements) VALUES ($id,$name,$from,$upto,$quotes,$requirements);",
+                ("$id", band.Id.ToString()), ("$name", band.Name), ("$from", band.From.ToString(CultureInfo.InvariantCulture)),
+                ("$upto", band.UpTo?.ToString(CultureInfo.InvariantCulture)), ("$quotes", band.QuotesNeeded), ("$requirements", band.Requirements ?? ""));
         SetMetadata(connection, transaction, "LastProjectNumber", Math.Max(data.LastProjectNumber, data.Projects.Select(x => x.Number).DefaultIfEmpty(0).Max()).ToString(CultureInfo.InvariantCulture));
         var technicianIds = data.Technicians.Select(x => x.Id).ToHashSet();
         var supplierIds = data.Suppliers.Select(x => x.Id).ToHashSet();

@@ -20,6 +20,11 @@ public class ProjectModel(HelpdeskStore store) : PageModel
     public DateOnly Today { get; } = DateOnly.FromDateTime(DateTime.Now);
     public DateTime Now { get; } = DateTime.UtcNow;
     public IReadOnlyList<SupplierRecord> Suppliers { get; private set; } = [];
+    // The spending bands, for the reference panel behind the ⓘ, and where this project sits in them today.
+    public IReadOnlyList<SpendingBand> Bands { get; private set; } = [];
+    public bool BandsIncludeVat { get; private set; }
+    public decimal BandTotal { get; private set; }
+    public SpendingBand? CurrentBand { get; private set; }
     public IReadOnlyDictionary<Guid, string> SupplierNames { get; private set; } = new Dictionary<Guid, string>();
     [TempData] public string? Message { get; set; }
 
@@ -36,6 +41,10 @@ public class ProjectModel(HelpdeskStore store) : PageModel
         if (CanAssign) Workloads = store.ProjectWorkloads();
         Suppliers = store.Suppliers;
         SupplierNames = Suppliers.ToDictionary(x => x.Id, x => x.Name);
+        Bands = store.SpendingBands;
+        BandsIncludeVat = store.SpendingBandsIncludeVat;
+        BandTotal = store.BandTotal(Project);
+        CurrentBand = store.BandFor(BandTotal);
         return Page();
     }
 

@@ -116,6 +116,11 @@ internal static class AuditTracker
             Add(s, "Settings", "School period", x.Name.ToLowerInvariant(), $"Period: {x.Name}", Track.All,
                 ("Starts", x.Start.ToString("HH:mm")), ("Ends", x.End.ToString("HH:mm")));
 
+        foreach (var x in d.SpendingBands)
+            Add(s, "Settings", "Spending band", x.Id.ToString(), $"Spending band: {x.Name}", Track.All,
+                ("Name", x.Name), ("Range", HelpdeskStore.DescribeRange(x)), ("Quotes needed", x.QuotesNeeded.ToString()), ("Requirements", x.Requirements));
+        Add(s, "Settings", "Spending band basis", "spending-band-basis", "Spending bands measured", Track.Update, ("Basis", d.SpendingBandsIncludeVat ? "Including VAT" : "Excluding VAT"));
+
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);
         AddList(s, "Lists", "Department", d.Departments);
