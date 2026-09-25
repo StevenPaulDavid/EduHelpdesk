@@ -19,8 +19,11 @@ public class UserModel(HelpdeskStore store) : PageModel
         return Person is null ? NotFound() : Page();
     }
 
-    public IActionResult OnPostSave(Guid id, string name, string email, string? department, string? location, string? password, bool active, int[]? selectedNumbers)
+    public IActionResult OnPostSave(Guid id, string name, string email, string? department, string? location, string? password, bool active, bool canRaiseProjects, int[]? selectedNumbers)
     {
+        // The page opens for Requesters: View, but saving changes names, portal passwords, ticket ownership and who may
+        // raise projects, so it needs Edit.
+        if (!store.UserCan(User, Modules.Requesters, ModulePermission.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email))
         {
             Message = "User name and email are required.";
@@ -50,7 +53,8 @@ public class UserModel(HelpdeskStore store) : PageModel
             Department = (department ?? string.Empty).Trim(),
             Location = (location ?? string.Empty).Trim(),
             PasswordHash = !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing.PasswordHash,
-            IsActive = active
+            IsActive = active,
+            CanRaiseProjects = canRaiseProjects
         };
         Message = store.UpdateUserAndTickets(user, selectedNumbers ?? []) ? "User and linked tickets updated." : "User was not found.";
         return RedirectToPage(new { id });

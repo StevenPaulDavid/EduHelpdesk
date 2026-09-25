@@ -23,7 +23,7 @@ internal static class AuditTracker
 
         foreach (var x in d.Users)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
-            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"));
+            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)));
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
             Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"));
@@ -73,6 +73,10 @@ internal static class AuditTracker
 
         foreach (var x in d.Tickets)
             Add(s, "Tickets", "Ticket", x.Number.ToString(), $"#{x.Number} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category), ("Location", x.Location ?? ""));
+        // Like tickets, a project's own history covers everything except its deletion.
+        foreach (var x in d.Projects)
+            Add(s, "Projects", "Project", x.Number.ToString(), $"{x.Reference} {x.Title}", Track.Delete,
+                ("Title", x.Title), ("Status", x.Status), ("Priority", ProjectPriorities.Label(x.EffectivePriority)), ("Needed by", x.DueDate.ToString("yyyy-MM-dd")));
 
         foreach (var x in d.Slas)
             Add(s, "SLAs", "SLA", x.Id.ToString(), x.Name, Track.All,
@@ -125,6 +129,7 @@ internal static class AuditTracker
         AddList(s, "Lists", "Part category", d.PartCategories);
         AddList(s, "Lists", "Part location", d.PartLocations);
         AddList(s, "Lists", "Loan reason", d.LoanReasons);
+        AddList(s, "Lists", "Purchasing requirement", d.PurchasingRequirements);
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);
         return s;

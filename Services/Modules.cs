@@ -8,6 +8,7 @@ namespace EduHelpdesk.Services;
 public static class Modules
 {
     public const string Tickets = "Tickets";
+    public const string Projects = "Projects";
     public const string Assets = "Assets";
     public const string Kits = "Kits";
     public const string Loans = "Loans";
@@ -31,6 +32,7 @@ public static class Modules
     public static readonly Definition[] All =
     [
         new(Tickets, "Tickets", "The ticket queues and ticket detail. Delete also covers merging.", Full),
+        new(Projects, "Projects", "Purchasing projects raised from the staff portal. Edit covers tidying them up, notes and status; assigning is separate below.", Full),
         new(Assets, "Assets", "The asset register. New covers the CSV import; Delete covers disposal.", Full),
         new(Kits, "Loan kits", "The kits themselves and what is in them.", Full),
         new(Loans, "Loans", "New issues a device, Edit books it back in.", Full),
@@ -58,6 +60,7 @@ public static class Modules
     public static class Flags
     {
         public const string WorkingAs = "Tickets.WorkingAs";
+        public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
         public const string ReportParts = "Reports.Parts";
@@ -70,6 +73,7 @@ public static class Modules
         public static readonly Definition[] All =
         [
             new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
+            new(AssignProjects, "Assign projects", "The project lead's job: confirm a project's priority and choose the technician, with everyone's workload shown.", "Projects"),
             new(ReportAssets, "Asset reports", "The asset register report: review list, fleet age, warranty, problem devices.", "Reports"),
             new(ReportTickets, "Ticket reports", "SLA performance, workload and repeat problems.", "Reports"),
             new(ReportParts, "Parts reports", "Low stock.", "Reports"),

@@ -1,6 +1,11 @@
 namespace EduHelpdesk.Models;
 
-public record UserRecord(Guid Id, string Name, string Email, string Department, string Location, string? PasswordHash = null, bool IsActive = true);
+public record UserRecord(Guid Id, string Name, string Email, string Department, string Location, string? PasswordHash = null, bool IsActive = true)
+{
+    // Line managers and SLT, who may raise purchasing projects from the staff portal. Everyone else can only report
+    // problems there, so a project request can't come from anyone who isn't meant to be asking for spending.
+    public bool CanRaiseProjects { get; init; }
+}
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
 // What a role can do with one module. Each is an independent tick rather than a rung on a ladder: a role can be given
 // Delete without Edit, or New without Access, because which combinations make sense is the school's call, not ours.
@@ -218,6 +223,90 @@ public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = f
 public record TicketActivity(string Action, string Details, DateTime CreatedAt)
 {
     public Actor? By { get; init; }
+}
+// A purchasing project: a line manager asks for something to be bought, a lead assigns a technician, and the technician
+// gathers supplier quotes into a proposal. It is quote-focused - approval and ordering happen outside the system, and
+// closing records how it ended.
+public record ProjectRecord(int Number, string Title, Guid RequesterId, DateOnly DueDate, string ItemsWanted, DateTime CreatedAt)
+{
+    // Ticked from the list in Settings, kept as text so a project still says what was asked for after an option is
+    // renamed away or deleted.
+    public List<string> PurchasingRequirements { get; init; } = [];
+    public string PurchasingOther { get; init; } = "";
+    // 1 is the highest and 5 the lowest - its own scale, separate from ticket priorities. The requester suggests one;
+    // the project lead confirms it when assigning, and until then the suggestion stands.
+    public int SuggestedPriority { get; init; } = ProjectPriorities.Default;
+    public int? Priority { get; init; }
+    public Guid? TechnicianId { get; init; }
+    public string Status { get; init; } = ProjectStatuses.New;
+    public DateTime? ClosedAt { get; init; }
+    public string? Outcome { get; init; }
+    public string? OutcomeNote { get; init; }
+    public List<ProjectNote> Notes { get; init; } = [];
+    public List<ProjectActivity> History { get; init; } = [];
+
+    public int EffectivePriority => Priority ?? SuggestedPriority;
+    public bool IsActive => Status != ProjectStatuses.Closed;
+    public string Reference => $"PRJ-{Number:0000}";
+    // "Proposal needed by" - it stops mattering once the proposal is ready.
+    public bool IsOverdue(DateOnly today) => (Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes) && DueDate < today;
+    public bool IsDueSoon(DateOnly today) => (Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes) && DueDate >= today && DueDate <= today.AddDays(ProjectPriorities.DueSoonDays);
+    public DateTime LastModifiedAt => Notes.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();
+}
+// A shared note is seen by the requester in the portal; an internal one is for the IT team only, as on tickets.
+public record ProjectNote(string Text, DateTime CreatedAt, bool IsInternal = false)
+{
+    public Actor? By { get; init; }
+}
+public record ProjectActivity(string Action, string Details, DateTime CreatedAt)
+{
+    public Actor? By { get; init; }
+}
+public static class ProjectStatuses
+{
+    public const string New = "New";
+    public const string GatheringQuotes = "Gathering quotes";
+    public const string ProposalReady = "Proposal ready";
+    public const string Closed = "Closed";
+    public static readonly string[] All = [New, GatheringQuotes, ProposalReady, Closed];
+    public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+}
+public static class ProjectOutcomes
+{
+    public const string Approved = "Approved";
+    public const string NotApproved = "Not approved";
+    public const string Cancelled = "Cancelled";
+    public static readonly string[] All = [Approved, NotApproved, Cancelled];
+    public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+}
+public static class ProjectPriorities
+{
+    public const int Highest = 1;
+    public const int Lowest = 5;
+    public const int Default = 3;
+    // Projects still gathering quotes and due within this many days are flagged on the list.
+    public const int DueSoonDays = 7;
+    public static readonly int[] All = [1, 2, 3, 4, 5];
+    public static bool IsValid(int value) => value is >= Highest and <= Lowest;
+    public static string Label(int value) => value switch
+    {
+        1 => "P1 · Urgent",
+        2 => "P2 · High",
+        3 => "P3 · Normal",
+        4 => "P4 · Low",
+        5 => "P5 · When possible",
+        _ => $"P{value}"
+    };
+    // What each level means, shown when suggesting and confirming one, so the numbers are used the same way by everyone.
+    public static string Describe(int value) => value switch
+    {
+        1 => "Teaching, safety or statutory work is affected now",
+        2 => "Needed this half term",
+        3 => "Needed this term",
+        4 => "Needed this academic year",
+        5 => "Nice to have, no deadline pressure",
+        _ => ""
+    };
 }
 // A file uploaded to a ticket. The file itself is kept on disk under App_Data/attachments, named by Id.
 public record TicketAttachment(Guid Id, int TicketNumber, string FileName, string ContentType, long Size, DateTime UploadedAt);

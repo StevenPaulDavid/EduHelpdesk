@@ -1,0 +1,25 @@
+@page
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Portal.ProjectsModel
+@{ ViewData["Title"] = "My projects"; }
+<div class="portal-shell">
+    <div class="page-heading">
+        <div><p class="eyebrow">EDUHELPDESK</p><h1>My projects</h1></div>
+        <div class="heading-actions">
+            <a class="button button-secondary" asp-page="/Portal/Index">← Back</a>
+            @if (Model.CurrentUser?.CanRaiseProjects == true) { <a class="button button-primary" asp-page="/Portal/NewProject">＋ Request a project</a> }
+        </div>
+    </div>
+    <section class="panel portal-panel directory-panel">
+        @foreach (var project in Model.Projects)
+        {
+            <a class="directory-row user-ticket-row" asp-page="/Portal/Project" asp-route-number="@project.Number">
+                <div class="directory-person">
+                    <div><strong>@project.Reference · @project.Title</strong><span>Needed by @project.DueDate.ToString("dd MMM yyyy")@(project.TechnicianId is { } tech && Model.TechnicianNames.TryGetValue(tech, out var name) ? " · " + name : "")</span></div>
+                </div>
+                <span class="status">@(project.Outcome is { } outcome ? $"{project.Status} · {outcome}" : project.Status)</span>
+            </a>
+        }
+        @if (Model.Projects.Count == 0) { <p class="empty">You haven't requested any projects yet.</p> }
+    </section>
+</div>

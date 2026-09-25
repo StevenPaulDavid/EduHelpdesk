@@ -1,0 +1,76 @@
+@page
+@using EduHelpdesk.Models
+@model ProjectsModel
+@{ ViewData["Title"] = "Projects"; }
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / PROJECTS</p><h1>Projects</h1><p class="hero-copy">Purchasing projects raised by line managers and SLT from the staff portal, from assignment through to a proposal.</p></div>
+</div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+
+<section class="panel">
+    <nav class="queue-tabs" aria-label="Project queues">
+        @foreach (var view in ProjectsModel.Views)
+        {
+            <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)">@ProjectsModel.ViewLabel(view) <span class="badge @(view == "due" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
+        }
+    </nav>
+    @if (Model.View == "mine" && Model.SignedInTechnicianId is null)
+    {
+        <p class="muted queue-hint">Your sign-in isn't linked to a technician record, so there are no projects to show here.</p>
+    }
+    else if (Model.View == "due")
+    {
+        <p class="muted queue-hint">Projects still waiting on a proposal that are past their needed-by date, or due within @ProjectPriorities.DueSoonDays days.</p>
+    }
+    else if (Model.View == "unassigned")
+    {
+        <p class="muted queue-hint">Open projects the project lead hasn't given to anyone yet.</p>
+    }
+
+    <form method="get" class="audit-filters ticket-filters">
+        <input type="hidden" name="view" value="@(Model.View == "active" ? "" : Model.View)" />
+        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Reference, title, items, requester, department, technician" /></label>
+        <label>Technician<select name="tech"><option value="">Anyone</option><option value="none" selected="@(Model.Technician == "none")">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
+        <label>Sort by<select name="sort">@foreach (var sort in ProjectsModel.Sorts) { <option value="@sort" selected="@(Model.Sort == sort)">@ProjectsModel.SortLabel(sort)</option> }</select></label>
+        <label>Per page<select name="size">@foreach (var size in ProjectsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+        <div class="filter-checks">
+            <fieldset><legend>Priority</legend>@foreach (var level in ProjectPriorities.All) { <label class="toggle-label"><input type="checkbox" name="priority" value="@level" checked="@Model.Priority.Contains(level)" /> @ProjectPriorities.Label(level)</label> }</fieldset>
+            <fieldset><legend>Status</legend>@foreach (var status in ProjectStatuses.All) { <label class="toggle-label"><input type="checkbox" name="status" value="@status" checked="@Model.Status.Contains(status, StringComparer.OrdinalIgnoreCase)" /> @status</label> }</fieldset>
+        </div>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="@Model.ClearUrl()">Clear</a></div>
+    </form>
+</section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">PROJECT REGISTER</p><h2>@ProjectsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
+    <div class="table-wrap"><table class="ticket-table"><thead><tr>
+        <th>Project</th><th>Requested by</th><th>Technician</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Updated</th>
+    </tr></thead><tbody>
+    @foreach (var project in Model.Rows)
+    {
+        var overdue = project.IsOverdue(Model.Today);
+        var soon = project.IsDueSoon(Model.Today);
+        var requester = Model.Requesters.GetValueOrDefault(project.RequesterId);
+        <tr class="clickable-row @(overdue ? "row-overdue" : soon ? "row-soon" : "")" onclick="if(!event.target.closest('a')) window.location.href='@Url.Page("/Project", new { number = project.Number })'">
+            <td><strong><a asp-page="/Project" asp-route-number="@project.Number">@project.Reference</a></strong><br /><span class="muted">@project.Title</span></td>
+            <td>@(requester?.Name ?? "Unknown")@if (!string.IsNullOrWhiteSpace(requester?.Department)) { <br /><span class="muted">@requester.Department</span> }</td>
+            <td>@(project.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unknown" : "Unassigned")</td>
+            <td><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span>@if (project.Priority is null) { <br /><span class="muted">Suggested</span> }</td>
+            <td><span class="status">@project.Status</span>@if (project.Outcome is { } outcome) { <br /><span class="muted">@outcome</span> }</td>
+            <td>@project.DueDate.ToString("dd MMM yyyy")@if (overdue) { <br /><span class="badge badge-warning">Late</span> } else if (soon) { <br /><span class="badge">Due soon</span> }</td>
+            <td>@project.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")<br /><span class="muted">Raised @project.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span></td>
+        </tr>
+    }
+    @if (Model.Rows.Count == 0) { <tr><td colspan="7" class="empty">@(Model.IsFiltered ? "No projects match these filters." : Model.TotalProjects == 0 ? "No projects have been raised yet. Line managers raise them from the staff portal." : "Nothing in this queue.")</td></tr> }
+    </tbody></table></div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="audit-pager">
+            @if (Model.PageNumber > 1) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber - 1)">← Previous</a> } else { <span></span> }
+            <span class="muted">Showing @((Model.PageNumber - 1) * Model.Size + 1)–@Math.Min(Model.PageNumber * Model.Size, Model.MatchCount) of @Model.MatchCount · page @Model.PageNumber of @Model.TotalPages</span>
+            @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber + 1)">Next →</a> } else { <span></span> }
+        </div>
+    }
+</section>

@@ -16,10 +16,14 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
     // of asking for a portal password they may never have been given.
     public TechnicianRecord? SignedInTechnician { get; private set; }
 
+    // Someone who raised projects before losing the tick can still follow them.
+    public bool HasProjects { get; private set; }
+
     public void OnGet()
     {
         var id = portal.Resolve(Request, store);
         CurrentUser = id is { } userId ? store.Users.FirstOrDefault(x => x.Id == userId) : null;
+        HasProjects = CurrentUser is not null && store.Projects.Any(x => x.RequesterId == CurrentUser.Id);
         SignedInTechnician = Technician();
     }
 

@@ -1,0 +1,224 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model ProjectModel
+@{
+    var project = Model.Project!;
+    ViewData["Title"] = project.Reference;
+    var overdue = project.IsOverdue(Model.Today);
+    var soon = project.IsDueSoon(Model.Today);
+    var selectedPriority = project.Priority ?? project.SuggestedPriority;
+}
+
+<a class="back-link" asp-page="/Projects">← Back to projects</a>
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / PROJECT</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div>
+    <div class="heading-actions">
+        @if (Model.CanAssign && project.IsActive) { <button class="button button-primary" type="button" onclick="openBlade('assign')">@(project.TechnicianId is null ? "Assign" : "Reassign")</button> }
+        @if (Model.CanEdit && project.IsActive) { <button class="button button-secondary" type="button" onclick="openBlade('close')">Close project</button> }
+        @if (Model.CanEdit && !project.IsActive)
+        {
+            <form method="post" asp-page-handler="Status"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="status" value="@ProjectStatuses.GatheringQuotes" /><button class="button button-secondary" type="submit">Reopen</button></form>
+        }
+        @if (Model.CanDelete)
+        {
+            <details class="nav-menu action-menu">
+                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+                <div class="nav-panel nav-panel-right"><button type="button" class="menu-danger" onclick="openBlade('delete')">Delete project…</button></div>
+            </details>
+        }
+    </div>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+@if (Model.CanAssign && project.IsActive)
+{
+    <div id="assign-blade" class="blade-backdrop" onclick="closeBlade('assign')">
+        <div class="blade blade-wide" onclick="event.stopPropagation()">
+            <button class="blade-close" type="button" onclick="closeBlade('assign')">×</button>
+            <h2>Assign @project.Reference</h2>
+            <form method="post" asp-page-handler="Assign" class="blade-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <label>Priority
+                    <select name="priority">@foreach (var level in ProjectPriorities.All) { <option value="@level" selected="@(level == selectedPriority)">@ProjectPriorities.Label(level) — @ProjectPriorities.Describe(level)</option> }</select>
+                    <small class="muted">@(project.Priority is null ? "Not confirmed yet." : $"Confirmed as {ProjectPriorities.Label(project.Priority.Value)}.") The requester suggested @ProjectPriorities.Label(project.SuggestedPriority).</small>
+                </label>
+                <fieldset class="workload-picker">
+                    <legend>Technician</legend>
+                    @if (Model.WorkloadSummary() is { } summary) { <p class="workload-summary">@summary</p> }
+                    <label class="workload-option">
+                        <input type="radio" name="technicianId" value="" checked="@(project.TechnicianId is null)" />
+                        <span class="workload-name">Nobody yet</span>
+                    </label>
+                    @foreach (var row in Model.Workloads)
+                    {
+                        <label class="workload-option">
+                            <input type="radio" name="technicianId" value="@row.Technician.Id" checked="@(row.Technician.Id == project.TechnicianId)" />
+                            <span class="workload-name">@row.Technician.Name<small class="muted">@row.Total active @(row.Total == 1 ? "project" : "projects")</small></span>
+                            <span class="workload-counts" aria-label="Active projects by priority">
+                                @foreach (var level in ProjectPriorities.All)
+                                {
+                                    <span class="workload-count p@(level) @(row.CountAt(level) == 0 ? "is-zero" : "")" title="@ProjectPriorities.Label(level)">P@(level) <strong>@row.CountAt(level)</strong></span>
+                                }
+                            </span>
+                            <span class="workload-flags">
+                                @if (row.FewestProjects) { <span class="badge">Fewest projects</span> }
+                                @if (row.LightestUrgentLoad) { <span class="badge">Least urgent work</span> }
+                            </span>
+                        </label>
+                    }
+                    @if (Model.Workloads.Count == 0) { <p class="muted">Nobody can be given projects yet. A technician's role needs the Projects Edit tick (People → Roles).</p> }
+                    <small class="muted">Counts are open projects by their confirmed priority, or the suggested one where it hasn't been confirmed. Only active accounts whose role can edit projects are listed.</small>
+                </fieldset>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Save assignment</button><button class="button button-secondary" type="button" onclick="closeBlade('assign')">Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}
+@if (Model.CanEdit && project.IsActive)
+{
+    <div id="close-blade" class="blade-backdrop" onclick="closeBlade('close')">
+        <div class="blade" onclick="event.stopPropagation()">
+            <button class="blade-close" type="button" onclick="closeBlade('close')">×</button>
+            <h2>Close @project.Reference</h2>
+            <p class="muted">Record how the project ended. It can be reopened later if it comes back.</p>
+            <form method="post" asp-page-handler="Close" class="blade-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <fieldset class="outcome-choices"><legend>Outcome</legend>
+                    @foreach (var outcome in ProjectOutcomes.All) { <label class="toggle-label"><input type="radio" name="outcome" value="@outcome" required /> @outcome</label> }
+                </fieldset>
+                <label>Note (optional)<textarea name="note" rows="4" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="e.g. approved by the business manager, order placed via the Trust"></textarea></label>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Close project</button><button class="button button-secondary" type="button" onclick="closeBlade('close')">Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}
+@if (Model.CanDelete)
+{
+    <div id="delete-blade" class="blade-backdrop" onclick="closeBlade('delete')">
+        <div class="blade" onclick="event.stopPropagation()">
+            <button class="blade-close" type="button" onclick="closeBlade('delete')">×</button>
+            <h2>Delete @project.Reference</h2>
+            <p class="muted">This permanently removes the project, its notes and its history. The requester will no longer see it in the portal. To keep the record, close it as Cancelled instead.</p>
+            <form method="post" asp-page-handler="Delete" class="blade-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" onclick="closeBlade('delete')">Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="job-detail-grid">
+    <section class="panel job-main">
+        <div class="panel-heading"><div><p class="eyebrow">WHAT WAS ASKED FOR</p><h2>@project.Title</h2></div>@if (Model.CanEdit) { <button class="button button-secondary" type="button" id="details-edit-button" onclick="toggleDetails(true)">Edit details</button> }</div>
+        <div id="details-display">
+            <div class="job-detail-fields project-facts">
+                <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><strong>@project.DueDate.ToString("dddd d MMMM yyyy")</strong>@if (overdue) { <span class="badge badge-warning">Late</span> } else if (soon) { <span class="badge">Due soon</span> }</div>
+                <div class="detail-block"><p class="eyebrow">PURCHASING REQUIREMENTS</p>
+                    @if (project.PurchasingRequirements.Count == 0 && string.IsNullOrWhiteSpace(project.PurchasingOther)) { <p class="muted">None given.</p> }
+                    else
+                    {
+                        <ul class="plain-list">
+                            @foreach (var requirement in project.PurchasingRequirements) { <li>@requirement</li> }
+                            @if (!string.IsNullOrWhiteSpace(project.PurchasingOther)) { <li><span class="muted">Other:</span> @project.PurchasingOther</li> }
+                        </ul>
+                    }
+                </div>
+            </div>
+            <p class="section-heading">Items wanted</p>
+            <p class="job-description">@project.ItemsWanted</p>
+        </div>
+        @if (Model.CanEdit)
+        {
+            <form method="post" asp-page-handler="Details" class="project-details-form" id="details-form" hidden>
+                <input type="hidden" name="number" value="@project.Number" />
+                <label>Title<input name="title" value="@project.Title" maxlength="@HelpdeskStore.MaxProjectTitleLength" required /></label>
+                <label>Proposal needed by<input name="dueDate" type="date" value="@project.DueDate.ToString("yyyy-MM-dd")" required /></label>
+                <label>Items wanted<textarea name="itemsWanted" rows="7" maxlength="@HelpdeskStore.MaxProjectTextLength" required>@project.ItemsWanted</textarea></label>
+                <fieldset class="requirement-choices"><legend>Purchasing requirements</legend>
+                    @foreach (var option in Model.RequirementOptions) { <label class="toggle-label"><input type="checkbox" name="requirements" value="@option" checked="@project.PurchasingRequirements.Contains(option, StringComparer.OrdinalIgnoreCase)" /> @option</label> }
+                    <label>Other<input name="other" value="@project.PurchasingOther" maxlength="@HelpdeskStore.MaxProjectOtherLength" /></label>
+                </fieldset>
+                <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" onclick="toggleDetails(false)">Cancel</button></div>
+            </form>
+        }
+
+        <div class="ticket-tabs">
+            <div class="ticket-tab-buttons" role="tablist">
+                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="notes-tab" onclick="showTab('notes')">Notes <span class="badge">@project.Notes.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab" onclick="showTab('history')">History <span class="badge">@project.History.Count</span></button>
+            </div>
+            <div id="notes-tab" class="ticket-tab-panel active" role="tabpanel">
+                @if (project.Notes.Count == 0) { <p class="muted">No notes yet.</p> }
+                <div class="comment-list">
+                    @foreach (var note in project.Notes.OrderByDescending(x => x.CreatedAt))
+                    {
+                        <article class="comment @(note.IsInternal ? "comment-internal" : "")"><p>@note.Text</p><small>@if (note.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(note.By)</strong> · @note.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                    }
+                </div>
+                @if (Model.CanEdit)
+                {
+                    <form method="post" asp-page-handler="Note" class="comment-form">
+                        <input type="hidden" name="number" value="@project.Number" />
+                        <label for="project-note">Add a note</label>
+                        <textarea id="project-note" name="text" rows="3" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="An update for the requester, or a note for the team…" required></textarea>
+                        <label class="toggle-label"><input type="checkbox" name="isInternal" value="true" /> Internal note (IT team only - the requester won't see it in the portal)</label>
+                        <button class="button button-primary" type="submit">Add note</button>
+                    </form>
+                }
+            </div>
+            <div id="history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+                <div class="history-list">
+                    @foreach (var activity in project.History.OrderByDescending(x => x.CreatedAt))
+                    {
+                        <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                    }
+                </div>
+            </div>
+        </div>
+    </section>
+    <aside class="panel detail-sidebar">
+        <div class="detail-block"><p class="eyebrow">REQUESTED BY</p><h3>@(Model.Requester?.Name ?? "Unknown")</h3><p>@Model.Requester?.Email</p>@if (!string.IsNullOrWhiteSpace(Model.Requester?.Department)) { <p>@Model.Requester.Department</p> }</div>
+        <p class="section-heading">Progress</p>
+        <div class="detail-block">
+            <p class="eyebrow">STATUS</p>
+            @if (Model.CanEdit && project.IsActive)
+            {
+                <form method="post" asp-page-handler="Status" class="project-status-form">
+                    <input type="hidden" name="number" value="@project.Number" />
+                    <select name="status" aria-label="Status" onchange="this.form.submit()">@foreach (var status in ProjectStatuses.All.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select>
+                    <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
+                </form>
+            }
+            else { <strong class="field-value">@project.Status</strong> }
+        </div>
+        @if (!project.IsActive)
+        {
+            <div class="detail-block"><p class="eyebrow">OUTCOME</p><strong>@(project.Outcome ?? "Closed")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }<p class="muted">Closed @project.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy")</p></div>
+        }
+        <div class="detail-block"><p class="eyebrow">PRIORITY</p><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span><p class="muted">@(project.Priority is null ? $"Suggested by the requester; not confirmed yet." : project.Priority == project.SuggestedPriority ? "Confirmed as suggested." : $"Confirmed. The requester suggested {ProjectPriorities.Label(project.SuggestedPriority)}.")</p></div>
+        <div class="detail-block"><p class="eyebrow">TECHNICIAN</p><strong>@(Model.Technician?.Name ?? (project.TechnicianId is null ? "Unassigned" : "Unknown"))</strong>@if (project.TechnicianId is null && project.IsActive) { <p class="muted">@(Model.CanAssign ? "Use Assign to choose someone." : "Waiting for the project lead to assign it.")</p> }</div>
+        <div class="job-meta project-meta"><div><span>Raised</span><strong>@project.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last updated</span><strong>@project.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div></div>
+    </aside>
+</div>
+
+@section Scripts {
+<script>
+function openBlade(name) { document.getElementById(name + "-blade")?.classList.add("open"); }
+function closeBlade(name) { document.getElementById(name + "-blade")?.classList.remove("open"); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".blade-backdrop.open").forEach(b => b.classList.remove("open")); });
+function toggleDetails(editing) {
+    document.getElementById("details-display").hidden = editing;
+    document.getElementById("details-form").hidden = !editing;
+    document.getElementById("details-edit-button").hidden = editing;
+}
+function showTab(name) {
+    document.querySelectorAll(".ticket-tab-button").forEach(b => {
+        const on = b.getAttribute("aria-controls") === name + "-tab";
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on);
+    });
+    document.querySelectorAll(".ticket-tab-panel").forEach(p => { const on = p.id === name + "-tab"; p.hidden = !on; p.classList.toggle("active", on); });
+}
+</script>
+}

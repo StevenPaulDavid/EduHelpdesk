@@ -10,7 +10,7 @@ public class AuditModel(HelpdeskStore store) : PageModel
     // the same switch locally (see OnGetExport).
     public virtual int PageSize => _exportingEverything ? int.MaxValue : 50;
     private bool _exportingEverything;
-    public static readonly IReadOnlyList<string> Areas = ["Tickets", "Assets", "Users", "Technicians", "Suppliers", "Parts", "Lists", "SLAs", "Ticket templates", "Custom attributes", "Settings", "System"];
+    public static readonly IReadOnlyList<string> Areas = ["Tickets", "Projects", "Assets", "Users", "Technicians", "Suppliers", "Parts", "Lists", "SLAs", "Ticket templates", "Custom attributes", "Settings", "System"];
 
     // "area" and "action" are reserved routing names, so the query string uses section and act.
     [BindProperty(SupportsGet = true, Name = "section")] public string? Section { get; set; }
@@ -75,6 +75,7 @@ public class AuditModel(HelpdeskStore store) : PageModel
             .Concat(store.Technicians.Select(x => $"Technician|{x.Id}"))
             .Concat(store.Suppliers.Select(x => $"Supplier|{x.Id}"))
             .Concat(store.Parts.Select(x => $"Part|{x.Id}"))
+            .Concat(store.Projects.Select(x => $"Project|{x.Number}"))
             .ToHashSet();
     }
 
@@ -103,6 +104,7 @@ public class AuditModel(HelpdeskStore store) : PageModel
             "Technician" => Url.Page("/People/Technician", new { id = entry.EntityKey }),
             "Supplier" => Url.Page("/Supplier", new { id = entry.EntityKey }),
             "Part" => Url.Page("/Parts/Edit", new { id = entry.EntityKey }),
+            "Project" => Url.Page("/Project", new { number = entry.EntityKey }),
             _ => null
         };
     }

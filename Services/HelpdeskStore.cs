@@ -120,6 +120,7 @@ public sealed partial class HelpdeskStore
         // Assets that already had a holder before ownership was tracked get an open period with an unknown start.
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
+        EnsureProjectDefaults();
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {
             SeedStarterData();
@@ -161,7 +162,19 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            if (_data.Roles.Count > 0) return;
+            if (_data.Roles.Count > 0)
+            {
+                // A module or flag added since this database was set up is missing from the stored Administrator row.
+                // It passes every check regardless, but the role editor and audit log should show what it really holds.
+                // Nothing else is topped up: a new module starts unticked for every other role, so upgrading never
+                // quietly grants anyone something new.
+                foreach (var administrator in _data.Roles.Where(x => x.IsProtected))
+                {
+                    foreach (var module in Modules.All) administrator.Grants[module.Key] = module.Supports;
+                    foreach (var flag in Modules.Flags.All) administrator.Flags.Add(flag.Key);
+                }
+                return;
+            }
 
             // Administrator's grants are never consulted - UserCan short-circuits on the name - but they are filled in
             // anyway so the role editor and the audit log show the truth rather than an empty grid.
@@ -174,13 +187,13 @@ public sealed partial class HelpdeskStore
             _data.Roles.Add(Role("Senior Technician",
                 new()
                 {
-                    [Modules.Tickets] = Full, [Modules.Assets] = Full,
+                    [Modules.Tickets] = Full, [Modules.Projects] = Full, [Modules.Assets] = Full,
                     [Modules.Kits] = Full, [Modules.Loans] = Full,
                     [Modules.Parts] = Full, [Modules.Suppliers] = Full,
                     [Modules.Requesters] = Full, [Modules.StaffAccounts] = Full,
                     [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access
                 },
-                Modules.Flags.WorkingAs, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
+                Modules.Flags.WorkingAs, Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance,
                 Modules.Flags.ReportExport));
 
@@ -189,7 +202,8 @@ public sealed partial class HelpdeskStore
             _data.Roles.Add(Role("Technician",
                 new()
                 {
-                    [Modules.Tickets] = Full, [Modules.Assets] = Full,
+                    // Works the projects they are given, but the lead decides who gets which.
+                    [Modules.Tickets] = Full, [Modules.Projects] = Read | ModulePermission.Edit, [Modules.Assets] = Full,
                     [Modules.Kits] = Full, [Modules.Loans] = Full,
                     [Modules.Parts] = Full, [Modules.Suppliers] = Read,
                     [Modules.Requesters] = Write, [Modules.Reports] = ModulePermission.Access
@@ -202,7 +216,7 @@ public sealed partial class HelpdeskStore
             _data.Roles.Add(Role("Junior Technician",
                 new()
                 {
-                    [Modules.Tickets] = Full, [Modules.Assets] = Write,
+                    [Modules.Tickets] = Full, [Modules.Projects] = Read, [Modules.Assets] = Write,
                     // Can change what is in a kit but not create or scrap one.
                     [Modules.Kits] = Read | ModulePermission.Edit, [Modules.Loans] = Write,
                     [Modules.Parts] = Write, [Modules.Requesters] = Read,
@@ -635,6 +649,12 @@ public sealed partial class HelpdeskStore
                     "Part location" when string.Equals(part.Location, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Location = newValue },
                     _ => part
                 };
+            }
+            if (kind == "Purchasing requirement")
+            {
+                for (var i = 0; i < _data.Projects.Count; i++)
+                    if (_data.Projects[i].PurchasingRequirements.Contains(oldValue, StringComparer.OrdinalIgnoreCase))
+                        _data.Projects[i] = _data.Projects[i] with { PurchasingRequirements = RenameInScope(_data.Projects[i].PurchasingRequirements, oldValue, newValue) };
             }
             if (kind == "Loan reason")
             {
@@ -2445,6 +2465,8 @@ public sealed partial class HelpdeskStore
         {
             case "Ticket" when int.TryParse(record.EntityKey, out var number):
                 return _data.Tickets.FirstOrDefault(x => x.Number == number) is { } ticket ? ("Ticket", $"#{ticket.Number} {ticket.Title}") : null;
+            case "Project" when int.TryParse(record.EntityKey, out var projectNumber):
+                return _data.Projects.FirstOrDefault(x => x.Number == projectNumber) is { } project ? ("Project", $"{project.Reference} {project.Title}") : null;
             case "Asset" when Guid.TryParse(record.EntityKey, out var assetId):
                 return _data.Assets.FirstOrDefault(x => x.Id == assetId) is { } asset ? ("Asset", asset.AssetTag) : null;
             case "User" when Guid.TryParse(record.EntityKey, out var userId):
@@ -2501,6 +2523,12 @@ public sealed partial class HelpdeskStore
             var assetAttributeIds = Ids("AssetAttribute");
             var ticketAttributeIds = Ids("TicketAttribute");
 
+            var projectNumbers = _data.DemoRecords.Where(x => x.EntityType == "Project")
+                .Select(x => int.TryParse(x.EntityKey, out var n) ? n : 0).Where(x => x != 0).ToHashSet();
+            // A real project raised by a demo requester can't lose its requester any more than a ticket can.
+            if (_data.Projects.Where(x => userIds.Contains(x.RequesterId) && !projectNumbers.Contains(x.Number)).ToList() is { Count: > 0 } blockingProjects)
+                return (false, $"Nothing was changed. {string.Join(", ", blockingProjects.Take(5).Select(x => x.Reference))}{(blockingProjects.Count > 5 ? " and others" : "")} "
+                    + "still list a demo requester. Delete those projects, and try again.");
             var blocking = _data.Tickets.Where(x => userIds.Contains(x.RequesterId) && !ticketNumbers.Contains(x.Number)).ToList();
             if (blocking.Count > 0)
             {
@@ -2527,6 +2555,11 @@ public sealed partial class HelpdeskStore
                 if (ticket.AssetIds.Any(assetIds.Contains)) ticket = ticket with { AssetIds = ticket.AssetIds.Where(x => !assetIds.Contains(x)).ToList() };
                 _data.Tickets[i] = ticket;
             }
+
+            _data.Projects.RemoveAll(x => projectNumbers.Contains(x.Number));
+            for (var i = 0; i < _data.Projects.Count; i++)
+                if (_data.Projects[i].TechnicianId is { } projectTech && technicianIds.Contains(projectTech))
+                    _data.Projects[i] = _data.Projects[i] with { TechnicianId = null };
 
             _data.AssetAttributeValues.RemoveAll(x => assetIds.Contains(x.AssetId) || assetAttributeIds.Contains(x.AttributeDefinitionId));
             _data.Assets.RemoveAll(x => assetIds.Contains(x.Id));
@@ -2739,6 +2772,8 @@ public sealed partial class HelpdeskStore
         {
             if (_data.Tickets.Any(x => x.RequesterId == id) || _data.Assets.Any(x => x.AssignedUserId == id))
                 return "This user is linked to a ticket or asset and cannot be deleted.";
+            if (_data.Projects.Any(x => x.RequesterId == id))
+                return "This user raised a project and cannot be deleted. Mark them inactive instead.";
             var item = _data.Users.FirstOrDefault(x => x.Id == id);
             if (item is null) return "User was not found.";
             _data.Users.Remove(item);
@@ -2753,10 +2788,15 @@ public sealed partial class HelpdeskStore
         {
             if (_data.Tickets.Any(x => x.TechnicianId == id))
                 return "This technician is assigned to a ticket and cannot be deleted.";
+            if (_data.Projects.Any(x => x.IsActive && x.TechnicianId == id))
+                return "This technician is assigned to an open project and cannot be deleted. Reassign it first.";
             var item = _data.Technicians.FirstOrDefault(x => x.Id == id);
             if (item is null) return "Technician was not found.";
             if (item.Role == StaffRoles.Administrator && !_data.Technicians.Any(x => x.Id != id && x.Role == StaffRoles.Administrator && x.IsActive))
                 return "At least one active Administrator must remain.";
+            // Closed projects keep their history, which already names who worked them; only the live pointer goes.
+            for (var i = 0; i < _data.Projects.Count; i++)
+                if (_data.Projects[i].TechnicianId == id) _data.Projects[i] = _data.Projects[i] with { TechnicianId = null };
             _data.Technicians.Remove(item);
             Save();
             return null;
@@ -3026,6 +3066,13 @@ public sealed partial class HelpdeskStore
                 var key = part.Id.ToString();
                 entries.AddRange(part.History.Select(x => new AuditEntry(x.CreatedAt, "Parts", "Part", key, part.Name, x.Action, x.Details) { By = x.By }));
             }
+            foreach (var project in _data.Projects)
+            {
+                var key = project.Number.ToString();
+                var label = $"{project.Reference} {project.Title}";
+                entries.AddRange(project.History.Select(x => new AuditEntry(x.CreatedAt, "Projects", "Project", key, label, x.Action, x.Details) { By = x.By }));
+                entries.AddRange(project.Notes.Select(x => new AuditEntry(x.CreatedAt, "Projects", "Project", key, label, x.IsInternal ? "Internal note added" : "Note added", x.Text) { By = x.By }));
+            }
             return entries.OrderByDescending(x => x.At).ToList();
         }
     }
@@ -3247,6 +3294,7 @@ public sealed partial class HelpdeskStore
                 AllowChangeWorkingAs INTEGER NOT NULL DEFAULT 0, IsProtected INTEGER NOT NULL DEFAULT 0);
             """;
         roleTable.ExecuteNonQuery();
+        EnsureProjectSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -3323,9 +3371,12 @@ public sealed partial class HelpdeskStore
         var data = new StoreData();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive FROM Users;";
+            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects FROM Users;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5), reader.GetInt32(6) != 0));
+            while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5), reader.GetInt32(6) != 0)
+            {
+                CanRaiseProjects = reader.GetInt32(7) != 0
+            });
         }
         ReadStrings(connection, "TechnicianTeams", data.TechnicianTeams);
         ReadStrings(connection, "Departments", data.Departments);
@@ -3681,6 +3732,7 @@ public sealed partial class HelpdeskStore
             using var reader = command.ExecuteReader();
             if (reader.Read()) data.Branding = new() { BrandName = reader.GetString(0), DashboardEyebrow = reader.GetString(1), DashboardTitle = reader.GetString(2), DashboardDescription = reader.GetString(3), PrimaryColor = reader.GetString(4), AccentColor = reader.GetString(5), BackgroundColor = reader.GetString(6), DarkMode = reader.GetInt32(7) != 0 };
         }
+        ReadProjects(connection, data);
         return data;
     }
 
@@ -3744,7 +3796,8 @@ public sealed partial class HelpdeskStore
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = "DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
+            // Projects first: they point at Users and Technicians, which are cleared further along this same statement.
+            command.CommandText = "DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
@@ -3793,7 +3846,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
         }
         foreach (var item in data.Users)
-            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive) VALUES ($id,$name,$email,$department,$location,$hash,$active);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0));
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",
@@ -3813,6 +3866,8 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO RolePermissions (RoleName, Permission) VALUES ($role,$permission);",
                     ("$role", item.Name), ("$permission", flag));
         }
+        // After Users and Technicians, which Projects has foreign keys to.
+        WriteProjects(connection, transaction, data);
         foreach (var item in data.Suppliers)
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         foreach (var item in data.Parts)
@@ -3930,6 +3985,7 @@ public sealed partial class HelpdeskStore
         // "converted" them from legacy grants that are no longer written, throwing away whatever had been set up.
         _data.PermissionModelVersion = PermissionModelVersion;
         EnsureFactoryOptions();
+        EnsureProjectDefaults();
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
             "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);
@@ -3978,7 +4034,7 @@ public sealed partial class HelpdeskStore
         _data.Suppliers.Add(supplier);
         Remember("Supplier", supplier.Id.ToString());
 
-        var requester = new UserRecord(Guid.NewGuid(), "Sam Taylor" + DemoSuffix, "sam.taylor@demo.local", "Teaching", "Main Building");
+        var requester = new UserRecord(Guid.NewGuid(), "Sam Taylor" + DemoSuffix, "sam.taylor@demo.local", "Teaching", "Main Building") { CanRaiseProjects = true };
         _data.Users.Add(requester);
         Remember("User", requester.Id.ToString());
 
@@ -4087,6 +4143,27 @@ public sealed partial class HelpdeskStore
         // Currently out and due back shortly, so the loan list and the repeat-borrower report both have something to show.
         _data.KitLoans.Add(new KitLoan(demoKitLoanId, kit.Id, requester.Id, requester.Name, "Forgot own device",
             now.AddDays(-3), today.AddDays(4), null, technician.Name, "Seeded as a demo record - safe to delete."));
+
+        // A project the lead has already assigned, so the list, the workload picker and the portal all have one to show.
+        var requesterActor = new Actor(null, requester.Name);
+        var project = new ProjectRecord(NextProjectNumber(), "Class set of iPads for Year 7" + DemoSuffix, requester.Id, today.AddDays(21),
+            "30 iPads with keyboards, pencils, chargers and screen protectors\nA charging trolley to keep them in", now.AddDays(-5))
+        {
+            PurchasingRequirements = [.. _data.PurchasingRequirements.Take(1)],
+            PurchasingOther = "Delivery before the start of next half term",
+            SuggestedPriority = 2,
+            Priority = 2,
+            TechnicianId = technician.Id,
+            Status = ProjectStatuses.GatheringQuotes,
+            History =
+            [
+                new ProjectActivity("Project raised", $"Raised by {requester.Name} with a suggested priority of {ProjectPriorities.Label(2)}.", now.AddDays(-5)) { By = requesterActor },
+                new ProjectActivity("Assignment", $"Priority confirmed as {ProjectPriorities.Label(2)} (as suggested); Assigned to {technician.Name}; Status: {ProjectStatuses.New} → {ProjectStatuses.GatheringQuotes}.", now.AddDays(-4)) { By = actor }
+            ],
+            Notes = [new ProjectNote("Asking two suppliers for quotes this week.", now.AddDays(-3)) { By = actor }]
+        };
+        _data.Projects.Add(project);
+        Remember("Project", project.Number.ToString());
     }
 
     public sealed class StoreData
@@ -4151,6 +4228,14 @@ public sealed partial class HelpdeskStore
         // already gone live, or one upgraded from before demo data existed.
         public List<DemoRecord> DemoRecords { get; set; } = [];
         public int LastTicketNumber { get; set; } = 1000;
+        public List<ProjectRecord> Projects { get; set; } = [];
+        // Kept in Metadata as well as derived from the table, so deleting the newest project never hands its number out
+        // again - a proposal already printed with PRJ-0007 on it must not come to mean a different project.
+        public int LastProjectNumber { get; set; }
+        // The purchasing-requirement tick boxes offered on a new project (Settings → Purchasing requirements).
+        public List<string> PurchasingRequirements { get; set; } = [];
+        // 0 before the Projects module existed; 1 once its starting options have been put in place. See EnsureProjectDefaults.
+        public int ProjectsVersion { get; set; }
         public BrandingSettings Branding { get; set; } = new();
     }
 
@@ -4173,6 +4258,7 @@ public sealed partial class HelpdeskStore
         "PartCategories" => "Part category",
         "PartLocations" => "Part location",
         "LoanReasons" => "Loan reason",
+        "PurchasingRequirements" => "Purchasing requirement",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -4188,10 +4274,12 @@ public sealed partial class HelpdeskStore
         "Part category" => _data.PartCategories,
         "Part location" => _data.PartLocations,
         "Loan reason" => _data.LoanReasons,
+        // Deleting one is always allowed: a project keeps the text of what it asked for, so nothing points at the list.
+        "Purchasing requirement" => _data.PurchasingRequirements,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 

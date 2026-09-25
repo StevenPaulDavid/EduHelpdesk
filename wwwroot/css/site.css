@@ -271,3 +271,41 @@ h3 .csv-link { margin-left: 8px; }
 .logo-preview img{display:block;max-height:64px;max-width:240px;object-fit:contain}
 .logo-settings form{margin:0}
 @media(max-width:600px){.brand-logo{height:32px;max-width:120px}}
+
+/* Projects: the 1-5 priority scale (1 highest), the workload picker in the Assign blade, and the request form. */
+.project-priority{display:inline-block;font-size:12px;font-weight:800;white-space:nowrap}
+.project-priority.p1{color:var(--red)}
+.project-priority.p2{color:var(--amber)}
+.project-priority.p3{color:var(--teal-dark)}
+.project-priority.p4,.project-priority.p5{color:var(--muted)}
+.project-details-form{display:grid;gap:12px;margin-bottom:18px}
+.project-details-form label{display:grid;gap:5px;font-weight:600}
+.project-details-form textarea{resize:vertical}
+.project-facts{margin-bottom:6px}
+.project-facts .badge{margin-left:8px}
+.project-status-form select{width:100%}
+.plain-list{margin:4px 0 0;padding-left:18px}
+.plain-list li{margin:2px 0;overflow-wrap:anywhere}
+.requirement-choices,.priority-choices,.outcome-choices,.workload-picker{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:0;display:grid;gap:10px;min-width:0}
+.requirement-choices legend,.priority-choices legend,.outcome-choices legend,.workload-picker legend{font-size:12px;font-weight:700;padding:0 4px}
+.priority-choices>p{margin:0;font-size:13px}
+.priority-choice{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:10px;cursor:pointer}
+.priority-choice input{margin-top:3px}
+.priority-choice span{display:grid;gap:2px}
+.priority-choice small{color:var(--muted);font-weight:400}
+.portal-subheading{margin:28px 0 4px}
+.blade.blade-wide{width:min(640px,100%);overflow-y:auto}
+.workload-summary{margin:0;font-size:13px;font-weight:600;color:var(--ink)}
+.workload-option{display:grid!important;grid-template-columns:auto minmax(120px,1fr) auto;align-items:center;gap:6px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:400!important}
+.workload-option:has(input:checked){border-color:var(--teal);background:var(--accent)}
+.workload-name{display:grid;gap:2px;font-size:14px;font-weight:700}
+.workload-name small{font-weight:400}
+.workload-counts{display:flex;gap:4px;flex-wrap:wrap}
+.workload-count{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;white-space:nowrap}
+.workload-count.is-zero{opacity:.45}
+.workload-count.p1:not(.is-zero){border-color:var(--red);color:var(--red)}
+.workload-count.p2:not(.is-zero){border-color:var(--amber);color:var(--amber)}
+.workload-flags{grid-column:2/-1;display:flex;gap:6px;flex-wrap:wrap}
+.workload-flags:empty{display:none}
+.workload-flags .badge{margin-left:0}
+@media(max-width:600px){.workload-option{grid-template-columns:auto 1fr}.workload-counts{grid-column:2}}

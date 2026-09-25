@@ -1,0 +1,35 @@
+@page "{number:int}"
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Portal.ProjectModel
+@{
+    var project = Model.Project!;
+    ViewData["Title"] = project.Reference;
+}
+<div class="portal-shell">
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div><a class="button button-secondary" asp-page="/Portal/Projects">← My projects</a></div>
+    @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+    <section class="panel portal-panel">
+        <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>
+        <div class="detail-block"><p class="eyebrow">WHO HAS IT</p><p>@(Model.TechnicianName ?? "Waiting to be assigned to a technician")</p></div>
+        <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><p>@project.DueDate.ToString("dddd d MMMM yyyy")</p></div>
+        <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? " (your suggestion - the project lead will confirm it)" : "")</p></div>
+        <div class="detail-block"><p class="eyebrow">WHAT YOU ASKED FOR</p><p class="job-description">@project.ItemsWanted</p></div>
+        <div class="detail-block"><p class="eyebrow">PURCHASING REQUIREMENTS</p><p>@HelpdeskStore.DescribeRequirements(project)</p></div>
+        <div class="detail-block">
+            <p class="eyebrow">UPDATES</p>
+            @if (Model.Notes.Count == 0) { <p class="muted">No updates yet.</p> }
+            <div class="comment-list">
+                @foreach (var note in Model.Notes)
+                {
+                    <article class="comment"><p>@note.Text</p><small>@(note.By is { } by ? $"{by.Name} · " : "")@note.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                }
+            </div>
+            <form method="post" asp-page-handler="Note" asp-route-number="@project.Number" class="comment-form">
+                <label for="portal-project-note">Add a message</label>
+                <textarea id="portal-project-note" asp-for="Note" rows="3" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="e.g. we'd also like a spare charger, or the date has moved…" required></textarea>
+                <button class="button button-primary" type="submit">Send</button>
+            </form>
+        </div>
+    </section>
+</div>

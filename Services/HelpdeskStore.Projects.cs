@@ -1,0 +1,401 @@
+using System.Globalization;
+using EduHelpdesk.Models;
+using Microsoft.Data.Sqlite;
+
+namespace EduHelpdesk.Services;
+
+// Purchasing projects: raised by line managers and SLT from the staff portal, assigned by the project lead, and worked
+// by a technician who gathers supplier quotes into a proposal. Like tickets, a project carries its own history and
+// notes, so the audit log only records deletions (see AuditTracker) and folds the rest in from the project itself.
+public sealed partial class HelpdeskStore
+{
+    public const int MaxProjectTitleLength = 200;
+    public const int MaxProjectTextLength = 5000;
+    public const int MaxProjectOtherLength = 500;
+
+    public IReadOnlyList<ProjectRecord> Projects { get { lock (_sync) return _data.Projects.OrderByDescending(x => x.Number).ToList(); } }
+    public IReadOnlyList<string> PurchasingRequirements { get { lock (_sync) return _data.PurchasingRequirements.ToList(); } }
+    public ProjectRecord? FindProject(int number) { lock (_sync) return _data.Projects.FirstOrDefault(x => x.Number == number); }
+
+    // The starting purchasing requirements, put in place once. Gated on a version so a school that deletes the option
+    // doesn't find it back after the next restart, and run from both the constructor (an upgrading database) and
+    // SeedStarterData (a new install or a factory reset, whose fresh StoreData starts at version 0).
+    private void EnsureProjectDefaults()
+    {
+        if (_data.ProjectsVersion >= 1) return;
+        EnsureOptions(_data.PurchasingRequirements, ["Lease / finance option"]);
+        _data.ProjectsVersion = 1;
+    }
+
+    // Who can be given a project: an active account whose role can actually work one. Offering anyone else would hand
+    // the project to someone who is refused the moment they open it.
+    public bool CanWorkProjects(TechnicianRecord technician) =>
+        technician.IsActive && RoleAllows(technician.Role, Modules.Projects, ModulePermission.Edit);
+
+    public (bool Ok, string Message, int Number) RaiseProject(Guid requesterId, string? title, DateOnly? dueDate, string? itemsWanted,
+        IEnumerable<string>? requirements, string? other, int suggestedPriority)
+    {
+        lock (_sync)
+        {
+            var requester = _data.Users.FirstOrDefault(x => x.Id == requesterId);
+            if (requester is null || !requester.IsActive) return (false, "Your account couldn't be found.", 0);
+            if (!requester.CanRaiseProjects) return (false, "Your account isn't set up to raise projects. Ask the IT team if you need to.", 0);
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            if (dueDate is null) return (false, "Choose the date you need the proposal by.", 0);
+            if (dueDate < today) return (false, "The date you need the proposal by can't be in the past.", 0);
+            if (!ProjectPriorities.IsValid(suggestedPriority)) return (false, "Choose a priority from 1 to 5.", 0);
+            if (CheckProjectText(title, itemsWanted, other) is { } error) return (false, error, 0);
+            if (ResolveRequirements(requirements, []) is not { } resolved) return (false, "One of the purchasing requirements isn't on the list any more. Reload the page and try again.", 0);
+
+            var number = NextProjectNumber();
+            var now = DateTime.UtcNow;
+            var project = new ProjectRecord(number, title!.Trim(), requester.Id, dueDate.Value, itemsWanted!.Trim(), now)
+            {
+                PurchasingRequirements = resolved,
+                PurchasingOther = (other ?? string.Empty).Trim(),
+                SuggestedPriority = suggestedPriority,
+                History = [new ProjectActivity("Project raised", $"Raised by {requester.Name} with a suggested priority of {ProjectPriorities.Label(suggestedPriority)}. Proposal needed by {Day(dueDate.Value)}.", now) { By = CurrentActor() }]
+            };
+            _data.Projects.Add(project);
+            Save();
+            return (true, $"Project {project.Reference} sent to the IT team.", number);
+        }
+    }
+
+    // The technician's tidy-up of what the requester typed. Requirements that have since been removed from Settings stay
+    // valid on a project that already had them, so saving an old project never fails over a list someone else edited.
+    public (bool Ok, string Message) UpdateProjectDetails(int number, string? title, DateOnly? dueDate, string? itemsWanted, IEnumerable<string>? requirements, string? other)
+    {
+        lock (_sync)
+        {
+            var index = _data.Projects.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, "Project was not found.");
+            var project = _data.Projects[index];
+            if (dueDate is null) return (false, "Enter the date the proposal is needed by.");
+            if (CheckProjectText(title, itemsWanted, other) is { } error) return (false, error);
+            if (ResolveRequirements(requirements, project.PurchasingRequirements) is not { } resolved) return (false, "One of the purchasing requirements isn't on the list any more. Reload the page and try again.");
+
+            var updated = project with
+            {
+                Title = title!.Trim(),
+                DueDate = dueDate.Value,
+                ItemsWanted = itemsWanted!.Trim(),
+                PurchasingRequirements = resolved,
+                PurchasingOther = (other ?? string.Empty).Trim()
+            };
+            var changes = new List<string>();
+            if (updated.Title != project.Title) changes.Add($"Title: {project.Title} → {updated.Title}");
+            if (updated.DueDate != project.DueDate) changes.Add($"Needed by: {Day(project.DueDate)} → {Day(updated.DueDate)}");
+            if (updated.ItemsWanted != project.ItemsWanted) changes.Add("Items wanted were edited");
+            if (!updated.PurchasingRequirements.Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(project.PurchasingRequirements.Order(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase)
+                || updated.PurchasingOther != project.PurchasingOther)
+                changes.Add($"Purchasing requirements: {DescribeRequirements(updated)}");
+            if (changes.Count == 0) return (true, "Nothing had changed.");
+            _data.Projects[index] = WithHistory(updated, "Details updated", string.Join("; ", changes) + ".");
+            Save();
+            return (true, "Project details saved.");
+        }
+    }
+
+    // The project lead's decision: the priority that counts, and who does the work. Assigning a new project also starts
+    // it moving, since the next thing that happens to it is the technician asking suppliers for quotes.
+    public (bool Ok, string Message) AssignProject(int number, Guid? technicianId, int priority)
+    {
+        lock (_sync)
+        {
+            var index = _data.Projects.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, "Project was not found.");
+            var project = _data.Projects[index];
+            if (!project.IsActive) return (false, "This project is closed. Reopen it before reassigning it.");
+            if (!ProjectPriorities.IsValid(priority)) return (false, "Choose a priority from 1 to 5.");
+            TechnicianRecord? technician = null;
+            if (technicianId is { } id)
+            {
+                technician = _data.Technicians.FirstOrDefault(x => x.Id == id);
+                if (technician is null) return (false, "That technician couldn't be found.");
+                if (!CanWorkProjects(technician)) return (false, $"{technician.Name} can't be given projects: their account is inactive or their role can't edit projects.");
+            }
+
+            var changes = new List<string>();
+            if (project.Priority != priority)
+                changes.Add(project.Priority is { } old
+                    ? $"Priority: {ProjectPriorities.Label(old)} → {ProjectPriorities.Label(priority)}"
+                    : $"Priority confirmed as {ProjectPriorities.Label(priority)}" + (priority == project.SuggestedPriority ? " (as suggested)" : $" (suggested {ProjectPriorities.Label(project.SuggestedPriority)})"));
+            if (project.TechnicianId != technicianId)
+                changes.Add(technician is null ? "Technician removed" : $"Assigned to {technician.Name}");
+            var status = project.Status == ProjectStatuses.New && technician is not null ? ProjectStatuses.GatheringQuotes : project.Status;
+            if (status != project.Status) changes.Add($"Status: {project.Status} → {status}");
+            if (changes.Count == 0) return (true, "Nothing had changed.");
+
+            _data.Projects[index] = WithHistory(project with { Priority = priority, TechnicianId = technicianId, Status = status }, "Assignment", string.Join("; ", changes) + ".");
+            Save();
+            return (true, technician is null ? "Assignment saved." : $"Assigned to {technician.Name}.");
+        }
+    }
+
+    // Moves an open project between its working stages, or reopens a closed one. Closing goes through CloseProject so
+    // that it always records an outcome.
+    public (bool Ok, string Message) SetProjectStatus(int number, string? status)
+    {
+        lock (_sync)
+        {
+            var index = _data.Projects.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, "Project was not found.");
+            var project = _data.Projects[index];
+            var target = ProjectStatuses.Find(status);
+            if (target is null) return (false, "Choose a status.");
+            if (target == ProjectStatuses.Closed) return (false, "Use Close project, so the outcome is recorded.");
+            if (target == project.Status) return (true, "Nothing had changed.");
+            var reopening = project.Status == ProjectStatuses.Closed;
+            var updated = project with { Status = target, ClosedAt = reopening ? null : project.ClosedAt, Outcome = reopening ? null : project.Outcome, OutcomeNote = reopening ? null : project.OutcomeNote };
+            _data.Projects[index] = WithHistory(updated, reopening ? "Project reopened" : "Status changed",
+                reopening ? $"Reopened as {target}. It had been closed as {project.Outcome ?? "closed"}." : $"{project.Status} → {target}.");
+            Save();
+            return (true, reopening ? "Project reopened." : $"Status set to {target}.");
+        }
+    }
+
+    public (bool Ok, string Message) CloseProject(int number, string? outcome, string? note)
+    {
+        lock (_sync)
+        {
+            var index = _data.Projects.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, "Project was not found.");
+            var project = _data.Projects[index];
+            if (!project.IsActive) return (false, "This project is already closed.");
+            var resolved = ProjectOutcomes.Find(outcome);
+            if (resolved is null) return (false, "Choose how the project ended: approved, not approved or cancelled.");
+            var text = (note ?? string.Empty).Trim();
+            if (text.Length > MaxProjectTextLength) return (false, $"Keep the closing note under {MaxProjectTextLength} characters.");
+            var updated = project with { Status = ProjectStatuses.Closed, ClosedAt = DateTime.UtcNow, Outcome = resolved, OutcomeNote = text.Length == 0 ? null : text };
+            _data.Projects[index] = WithHistory(updated, "Project closed", $"Closed as {resolved}." + (text.Length == 0 ? "" : $" {text}"));
+            Save();
+            return (true, $"Project closed as {resolved}.");
+        }
+    }
+
+    // A shared note is what the requester sees and can reply to in the portal; an internal one never leaves the IT team.
+    // Portal notes always arrive as shared - the page calling this decides, never the requester.
+    public (bool Ok, string Message) AddProjectNote(int number, string? text, bool isInternal)
+    {
+        lock (_sync)
+        {
+            var index = _data.Projects.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, "Project was not found.");
+            var value = (text ?? string.Empty).Trim();
+            if (value.Length == 0) return (false, "Write a note before sending.");
+            if (value.Length > MaxProjectTextLength) return (false, $"Keep notes under {MaxProjectTextLength} characters.");
+            var project = _data.Projects[index];
+            _data.Projects[index] = project with { Notes = [.. project.Notes, new ProjectNote(value, DateTime.UtcNow, isInternal) { By = CurrentActor() }] };
+            Save();
+            return (true, isInternal ? "Internal note added." : "Note added.");
+        }
+    }
+
+    public (bool Ok, string Message) DeleteProject(int number)
+    {
+        lock (_sync)
+        {
+            var index = _data.Projects.FindIndex(x => x.Number == number);
+            if (index < 0) return (false, "Project was not found.");
+            var reference = _data.Projects[index].Reference;
+            _data.Projects.RemoveAt(index);
+            Save();
+            return (true, $"Project {reference} deleted.");
+        }
+    }
+
+    // What the project lead sees when choosing a technician: how many active projects each person has, and how many of
+    // them sit at each priority. The two answers can disagree - one person may have the fewest projects but the most
+    // urgent ones - so both are worked out and both are flagged, and the lead decides.
+    public IReadOnlyList<ProjectWorkload> ProjectWorkloads()
+    {
+        lock (_sync)
+        {
+            var rows = _data.Technicians.Where(CanWorkProjects).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Select(technician =>
+            {
+                var counts = new int[ProjectPriorities.Lowest];
+                foreach (var project in _data.Projects.Where(x => x.IsActive && x.TechnicianId == technician.Id))
+                    counts[Math.Clamp(project.EffectivePriority, ProjectPriorities.Highest, ProjectPriorities.Lowest) - 1]++;
+                return new ProjectWorkload(technician, counts);
+            }).ToList();
+            if (rows.Count == 0) return rows;
+
+            var fewest = rows.Min(x => x.Total);
+            // "Lightest on urgent work" compares P1 counts first, then P2 on a tie, and so on: one P1 outweighs any number
+            // of P5s, which is how the lead described weighing it.
+            var lightest = rows.Select(x => x.ByPriority).Aggregate((best, next) => ComparePriorityLoad(next, best) < 0 ? next : best);
+            return rows.Select(x => x with
+            {
+                FewestProjects = x.Total == fewest,
+                LightestUrgentLoad = ComparePriorityLoad(x.ByPriority, lightest) == 0
+            }).ToList();
+        }
+    }
+
+    private static int ComparePriorityLoad(int[] first, int[] second)
+    {
+        for (var i = 0; i < first.Length; i++)
+            if (first[i] != second[i]) return first[i].CompareTo(second[i]);
+        return 0;
+    }
+
+    private int NextProjectNumber()
+    {
+        _data.LastProjectNumber = Math.Max(_data.LastProjectNumber, _data.Projects.Select(x => x.Number).DefaultIfEmpty(0).Max()) + 1;
+        return _data.LastProjectNumber;
+    }
+
+    private ProjectRecord WithHistory(ProjectRecord project, string action, string details) =>
+        project with { History = [.. project.History, new ProjectActivity(action, details, DateTime.UtcNow) { By = CurrentActor() }] };
+
+    private static string? CheckProjectText(string? title, string? itemsWanted, string? other)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "Give the project a title.";
+        if (title.Trim().Length > MaxProjectTitleLength) return $"Keep the title under {MaxProjectTitleLength} characters.";
+        if (string.IsNullOrWhiteSpace(itemsWanted)) return "List the items wanted.";
+        if (itemsWanted.Trim().Length > MaxProjectTextLength) return $"Keep the items wanted under {MaxProjectTextLength} characters.";
+        if ((other ?? string.Empty).Trim().Length > MaxProjectOtherLength) return $"Keep the other purchasing requirements under {MaxProjectOtherLength} characters.";
+        return null;
+    }
+
+    // Ticked requirements, in the casing and order of the Settings list. Null when one is neither on the list nor already
+    // on the project - a stale form, or a hand-made request.
+    private List<string>? ResolveRequirements(IEnumerable<string>? requested, IReadOnlyList<string> alreadyOnProject)
+    {
+        var resolved = new List<string>();
+        foreach (var value in NormalizeScope(requested))
+        {
+            var match = _data.PurchasingRequirements.FirstOrDefault(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase))
+                ?? alreadyOnProject.FirstOrDefault(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase));
+            if (match is null) return null;
+            resolved.Add(match);
+        }
+        return resolved;
+    }
+
+    public static string DescribeRequirements(ProjectRecord project)
+    {
+        var all = project.PurchasingRequirements.Concat(string.IsNullOrWhiteSpace(project.PurchasingOther) ? [] : [$"Other: {project.PurchasingOther}"]).ToList();
+        return all.Count == 0 ? "none" : string.Join(", ", all);
+    }
+
+    private static string Day(DateOnly value) => value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    private static void EnsureProjectSchema(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS PurchasingRequirements (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS Projects (Number INTEGER PRIMARY KEY, Title TEXT NOT NULL, RequesterId TEXT NOT NULL, TechnicianId TEXT NULL,
+                DueDate TEXT NOT NULL, ItemsWanted TEXT NOT NULL, PurchasingOther TEXT NOT NULL DEFAULT '', SuggestedPriority INTEGER NOT NULL,
+                Priority INTEGER NULL, Status TEXT NOT NULL, CreatedAt TEXT NOT NULL, ClosedAt TEXT NULL, Outcome TEXT NULL, OutcomeNote TEXT NULL,
+                FOREIGN KEY (RequesterId) REFERENCES Users(Id), FOREIGN KEY (TechnicianId) REFERENCES Technicians(Id) ON DELETE SET NULL);
+            CREATE TABLE IF NOT EXISTS ProjectRequirements (ProjectNumber INTEGER NOT NULL, Requirement TEXT NOT NULL, Position INTEGER NOT NULL,
+                PRIMARY KEY (ProjectNumber, Requirement), FOREIGN KEY (ProjectNumber) REFERENCES Projects(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectNotes (Id INTEGER PRIMARY KEY AUTOINCREMENT, ProjectNumber INTEGER NOT NULL, Text TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL, IsInternal INTEGER NOT NULL DEFAULT 0, Actor TEXT NULL, ActorId TEXT NULL,
+                FOREIGN KEY (ProjectNumber) REFERENCES Projects(Number) ON DELETE CASCADE);
+            CREATE TABLE IF NOT EXISTS ProjectActivities (Id INTEGER PRIMARY KEY AUTOINCREMENT, ProjectNumber INTEGER NOT NULL, Action TEXT NOT NULL,
+                Details TEXT NOT NULL, CreatedAt TEXT NOT NULL, Actor TEXT NULL, ActorId TEXT NULL,
+                FOREIGN KEY (ProjectNumber) REFERENCES Projects(Number) ON DELETE CASCADE);
+            """;
+        command.ExecuteNonQuery();
+        using var migration = connection.CreateCommand();
+        migration.CommandText = "ALTER TABLE Users ADD COLUMN CanRaiseProjects INTEGER NOT NULL DEFAULT 0;";
+        try { migration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+    }
+
+    private static void ReadProjects(SqliteConnection connection, StoreData data)
+    {
+        ReadStrings(connection, "PurchasingRequirements", data.PurchasingRequirements);
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ProjectsVersion';") as string, out var version)) data.ProjectsVersion = version;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LastProjectNumber';") as string, out var last)) data.LastProjectNumber = last;
+
+        using (var command = connection.CreateCommand())
+        {
+            // Ordinal-indexed: add new columns to the END of this list (see the note on the Assets reader).
+            command.CommandText = "SELECT Number, Title, RequesterId, TechnicianId, DueDate, ItemsWanted, PurchasingOther, SuggestedPriority, Priority, Status, CreatedAt, ClosedAt, Outcome, OutcomeNote FROM Projects ORDER BY Number;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                data.Projects.Add(new ProjectRecord(reader.GetInt32(0), reader.GetString(1), Guid.Parse(reader.GetString(2)),
+                    NullableDateOnly(reader, 4) ?? DateOnly.FromDateTime(Date(reader, 10)), reader.GetString(5), Date(reader, 10))
+                {
+                    TechnicianId = NullableGuid(reader, 3),
+                    PurchasingOther = reader.GetString(6),
+                    SuggestedPriority = Math.Clamp(reader.GetInt32(7), ProjectPriorities.Highest, ProjectPriorities.Lowest),
+                    Priority = reader.IsDBNull(8) ? null : Math.Clamp(reader.GetInt32(8), ProjectPriorities.Highest, ProjectPriorities.Lowest),
+                    Status = ProjectStatuses.Find(reader.GetString(9)) ?? ProjectStatuses.New,
+                    ClosedAt = reader.IsDBNull(11) ? null : Date(reader, 11),
+                    Outcome = NullableString(reader, 12),
+                    OutcomeNote = NullableString(reader, 13)
+                });
+        }
+        var byNumber = data.Projects.ToDictionary(x => x.Number);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ProjectNumber, Requirement FROM ProjectRequirements ORDER BY ProjectNumber, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (byNumber.TryGetValue(reader.GetInt32(0), out var project)) project.PurchasingRequirements.Add(reader.GetString(1));
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ProjectNumber, Text, CreatedAt, IsInternal, Actor, ActorId FROM ProjectNotes ORDER BY Id;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (byNumber.TryGetValue(reader.GetInt32(0), out var project))
+                    project.Notes.Add(new ProjectNote(reader.GetString(1), Date(reader, 2), reader.GetInt32(3) != 0) { By = ReadActor(reader, 4, 5) });
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT ProjectNumber, Action, Details, CreatedAt, Actor, ActorId FROM ProjectActivities ORDER BY Id;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                if (byNumber.TryGetValue(reader.GetInt32(0), out var project))
+                    project.History.Add(new ProjectActivity(reader.GetString(1), reader.GetString(2), Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
+        }
+    }
+
+    // Called from WriteData after Users and Technicians have been inserted, which Projects points at.
+    private static void WriteProjects(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
+    {
+        InsertStrings(connection, transaction, "PurchasingRequirements", data.PurchasingRequirements);
+        SetMetadata(connection, transaction, "ProjectsVersion", data.ProjectsVersion.ToString(CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "LastProjectNumber", Math.Max(data.LastProjectNumber, data.Projects.Select(x => x.Number).DefaultIfEmpty(0).Max()).ToString(CultureInfo.InvariantCulture));
+        var technicianIds = data.Technicians.Select(x => x.Id).ToHashSet();
+        foreach (var project in data.Projects)
+        {
+            Execute(connection, transaction, "INSERT INTO Projects (Number, Title, RequesterId, TechnicianId, DueDate, ItemsWanted, PurchasingOther, SuggestedPriority, Priority, Status, CreatedAt, ClosedAt, Outcome, OutcomeNote) VALUES ($number,$title,$requester,$technician,$due,$items,$other,$suggested,$priority,$status,$created,$closed,$outcome,$note);",
+                ("$number", project.Number), ("$title", project.Title), ("$requester", project.RequesterId.ToString()),
+                // A technician deleted without the project being unpicked would otherwise break the whole save.
+                ("$technician", project.TechnicianId is { } tech && technicianIds.Contains(tech) ? tech.ToString() : null),
+                ("$due", IsoDay(project.DueDate)), ("$items", project.ItemsWanted), ("$other", project.PurchasingOther ?? string.Empty),
+                ("$suggested", project.SuggestedPriority), ("$priority", project.Priority), ("$status", project.Status),
+                ("$created", Iso(project.CreatedAt)), ("$closed", project.ClosedAt.HasValue ? Iso(project.ClosedAt.Value) : null),
+                ("$outcome", project.Outcome), ("$note", project.OutcomeNote));
+            var position = 0;
+            foreach (var requirement in project.PurchasingRequirements.Distinct(StringComparer.OrdinalIgnoreCase))
+                Execute(connection, transaction, "INSERT INTO ProjectRequirements (ProjectNumber, Requirement, Position) VALUES ($number,$requirement,$position);",
+                    ("$number", project.Number), ("$requirement", requirement), ("$position", position++));
+            foreach (var note in project.Notes)
+                Execute(connection, transaction, "INSERT INTO ProjectNotes (ProjectNumber, Text, CreatedAt, IsInternal, Actor, ActorId) VALUES ($number,$text,$created,$internal,$actor,$actorid);",
+                    ("$number", project.Number), ("$text", note.Text), ("$created", Iso(note.CreatedAt)), ("$internal", note.IsInternal ? 1 : 0),
+                    ("$actor", note.By?.Name), ("$actorid", note.By?.Id?.ToString()));
+            foreach (var activity in project.History)
+                Execute(connection, transaction, "INSERT INTO ProjectActivities (ProjectNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);",
+                    ("$number", project.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)),
+                    ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
+        }
+    }
+}
+
+// One technician's active projects, counted by priority (index 0 is P1). The two flags are set by
+// HelpdeskStore.ProjectWorkloads, which is the only place that can compare everyone at once.
+public sealed record ProjectWorkload(TechnicianRecord Technician, int[] ByPriority)
+{
+    public int Total => ByPriority.Sum();
+    public bool FewestProjects { get; init; }
+    public bool LightestUrgentLoad { get; init; }
+    public int CountAt(int priority) => ByPriority[priority - 1];
+}

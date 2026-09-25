@@ -1,0 +1,33 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Portal.NewProjectModel
+@{ ViewData["Title"] = "Request a project"; }
+<div class="portal-shell">
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Request a project</h1><p class="hero-copy">Ask the IT team to source something. They'll gather quotes and put together a proposal for you.</p></div><a class="button button-secondary" asp-page="/Portal/Projects">← Back</a></div>
+    <section class="panel portal-panel">
+        <form method="post" class="settings-form">
+            <div asp-validation-summary="All" class="validation-summary-errors"></div>
+            <label>Project title<input asp-for="Title" maxlength="@HelpdeskStore.MaxProjectTitleLength" placeholder="e.g. Class set of iPads for Year 7" required autofocus /></label>
+            <label>When do you need the proposal by?<input asp-for="DueDate" type="date" min="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
+            <label>What do you want?<textarea asp-for="ItemsWanted" rows="6" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="One thing per line, with how many - e.g. 30 iPads with keyboards and pencils, and a charging trolley" required></textarea></label>
+            <fieldset class="requirement-choices">
+                <legend>Purchasing requirements</legend>
+                @foreach (var option in Model.RequirementOptions)
+                {
+                    <label class="toggle-label"><input type="checkbox" name="Requirements" value="@option" checked="@Model.Requirements.Contains(option, StringComparer.OrdinalIgnoreCase)" /> @option</label>
+                }
+                <label>Anything else? (optional)<input asp-for="Other" maxlength="@HelpdeskStore.MaxProjectOtherLength" placeholder="e.g. must be delivered before half term" /></label>
+            </fieldset>
+            <fieldset class="priority-choices">
+                <legend>How urgent is it?</legend>
+                <p class="muted">The IT project lead confirms the priority when they assign it, so choose honestly - it helps urgent work reach the right person first.</p>
+                @foreach (var level in ProjectPriorities.All)
+                {
+                    <label class="priority-choice"><input type="radio" name="Priority" value="@level" checked="@(level == Model.Priority)" /><span><strong>@ProjectPriorities.Label(level)</strong><small>@ProjectPriorities.Describe(level)</small></span></label>
+                }
+            </fieldset>
+            <button class="button button-primary portal-button" type="submit">Send to the IT team</button>
+        </form>
+    </section>
+</div>

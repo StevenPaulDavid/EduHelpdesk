@@ -36,6 +36,11 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/PrintLabel", Policy(Modules.Tickets, ModulePermission.View));
     options.Conventions.AuthorizePage("/PrintJobSheet", Policy(Modules.Tickets, ModulePermission.View));
 
+    // Projects are raised from the portal, so the helpdesk side is the list and the detail page. Editing, assigning
+    // (its own flag) and deleting are checked in the handlers, because the detail page serves all of them.
+    options.Conventions.AuthorizePage("/Projects", Policy(Modules.Projects, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Project", Policy(Modules.Projects, ModulePermission.View));
+
     // Assets. The list needs Access, the detail page View, and each page under /Assets/ asks for what it does rather
     // than sharing one folder rule - which is the whole point of separating New from Edit.
     options.Conventions.AuthorizePage("/Assets", Policy(Modules.Assets, ModulePermission.Access));
