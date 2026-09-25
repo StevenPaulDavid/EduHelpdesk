@@ -12,11 +12,39 @@ public class IndexModel(HelpdeskStore store) : PageModel
     [BindProperty] public string Password { get; set; } = "";
     [TempData] public string? Message { get; set; }
 
+    // Set when a technician is signed in to the helpdesk in this browser, so the portal can offer to use that instead
+    // of asking for a portal password they may never have been given.
+    public TechnicianRecord? SignedInTechnician { get; private set; }
+
     public void OnGet()
     {
         var id = PortalIdentity.Resolve(Request, store);
         CurrentUser = id is { } userId ? store.Users.FirstOrDefault(x => x.Id == userId) : null;
+        SignedInTechnician = Technician();
     }
+
+    // "Open staff portal" from the helpdesk's account menu lands here. A plain link (GET) rather than a form, because it
+    // opens in a new tab: a form posted into a new tab is turned into a GET by some browsers and embedded views, and
+    // middle-click or "open in new tab" never posts at all. That is safe here - the only thing a stray link can do is
+    // sign the technician into the portal as themselves (creating their requester record once, if it is missing).
+    public IActionResult OnGetTechnician()
+    {
+        if (Technician() is not { } technician) return RedirectToPage("/Login", new { returnUrl = Url.Page("/Portal/Index") });
+        var (user, error) = store.PortalRequesterForTechnician(technician.Id);
+        if (user is null)
+        {
+            Message = error;
+            return RedirectToPage();
+        }
+        PortalIdentity.Set(Response, user.Id);
+        return RedirectToPage();
+    }
+
+    private TechnicianRecord? Technician() =>
+        User.Identity?.IsAuthenticated == true
+        && Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id)
+            ? store.Technicians.FirstOrDefault(x => x.Id == id && x.IsActive)
+            : null;
 
     public IActionResult OnPostLogin()
     {

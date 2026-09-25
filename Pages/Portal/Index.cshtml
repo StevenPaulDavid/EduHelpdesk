@@ -4,7 +4,15 @@
 <div class="portal-shell">
     <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Report a problem</h1><p class="hero-copy">Log a job with the IT team, or check on one you've already sent in.</p></div></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
-    @if (Model.CurrentUser is null)
+    @if (Model.CurrentUser is null && Model.SignedInTechnician is { } technician)
+    {
+        <section class="panel portal-panel">
+            <h2>Continue as @technician.Name</h2>
+            <p class="muted">You're signed in to the helpdesk, so there's no need for a separate portal password.</p>
+            <a class="button button-primary portal-button" asp-page="/Portal/Index" asp-page-handler="Technician">Continue as @technician.Name</a>
+        </section>
+    }
+    else if (Model.CurrentUser is null)
     {
         <section class="panel portal-panel">
             <h2>Sign in</h2>

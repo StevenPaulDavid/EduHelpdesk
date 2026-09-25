@@ -1016,6 +1016,28 @@ public sealed partial class HelpdeskStore
                 : null;
         }
     }
+    // The requester record a technician uses in the staff portal, so "Open staff portal" can sign them straight in.
+    // Portal tickets belong to a requester, and technicians are kept separately from requesters, so the two are matched
+    // by email. A technician with no requester record gets one on first use - with no portal password, so the only way
+    // into it is from their technician login. An inactive record is left inactive: someone turned it off on purpose.
+    public (UserRecord? User, string? Error) PortalRequesterForTechnician(Guid technicianId)
+    {
+        lock (_sync)
+        {
+            var technician = _data.Technicians.FirstOrDefault(x => x.Id == technicianId);
+            if (technician is null || !technician.IsActive) return (null, "Your technician account couldn't be found.");
+            var email = technician.Email.Trim();
+            if (_data.Users.FirstOrDefault(x => string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase)) is { } existing)
+                return existing.IsActive
+                    ? (existing, null)
+                    : (null, $"Your staff record ({existing.Email}) is marked inactive, so it can't be used in the portal. Ask someone who manages requesters to reactivate it.");
+            var created = new UserRecord(Guid.NewGuid(), technician.Name, email, string.Empty, string.Empty);
+            _data.Users.Add(created);
+            Save();
+            return (created, null);
+        }
+    }
+
     // A repeated serial number is allowed but worth a warning; returns the other asset that has it.
     public AssetRecord? FindDuplicateSerial(string? serialNumber, Guid? excludeAssetId)
     {
