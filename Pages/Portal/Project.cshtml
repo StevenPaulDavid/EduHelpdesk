@@ -7,14 +7,29 @@
     ViewData["Title"] = project.Reference;
 }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div><a class="button button-secondary" asp-page="/Portal/Projects">← My projects</a></div>
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div><a class="button button-secondary" asp-page="/Portal/Projects">← @(Model.IsLead ? "Projects" : "My projects")</a></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+    @if (Model.IsLead && project.IsActive)
+    {
+        <section class="panel portal-panel">
+            <h2>@(project.TechnicianId is null ? "Assign this project" : "Reassign")</h2>
+            <form method="post" asp-page-handler="Assign" asp-route-number="@project.Number" class="settings-form">
+                <label>Priority
+                    <select name="priority">@foreach (var level in ProjectPriorities.All) { <option value="@level" selected="@(level == project.EffectivePriority)">@ProjectPriorities.Label(level) — @ProjectPriorities.Describe(level)</option> }</select>
+                    <small class="muted">@(project.Priority is null ? $"{Model.RequesterName ?? "The requester"} suggested {ProjectPriorities.Label(project.SuggestedPriority)}." : $"Confirmed as {ProjectPriorities.Label(project.Priority.Value)}.")</small>
+                </label>
+                <partial name="_WorkloadPicker" model="@(new WorkloadPicker(Model.Workloads, project.TechnicianId))" />
+                <button class="button button-primary portal-button" type="submit">Save</button>
+            </form>
+        </section>
+    }
     <section class="panel portal-panel">
         <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>
+        @if (!Model.IsOwnProject) { <div class="detail-block"><p class="eyebrow">REQUESTED BY</p><p>@(Model.RequesterName ?? "Unknown")</p></div> }
         <div class="detail-block"><p class="eyebrow">WHO HAS IT</p><p>@(Model.TechnicianName ?? "Waiting to be assigned to a technician")</p></div>
         <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><p>@project.DueDate.ToString("dddd d MMMM yyyy")</p></div>
-        <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? " (your suggestion - the project lead will confirm it)" : "")</p></div>
-        <div class="detail-block"><p class="eyebrow">WHAT YOU ASKED FOR</p><p class="job-description">@project.ItemsWanted</p></div>
+        <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? (Model.IsOwnProject ? " (your suggestion - the project lead will confirm it)" : " (suggested, not confirmed yet)") : "")</p></div>
+        <div class="detail-block"><p class="eyebrow">@(Model.IsOwnProject ? "WHAT YOU ASKED FOR" : "WHAT WAS ASKED FOR")</p><p class="job-description">@project.ItemsWanted</p></div>
         <div class="detail-block"><p class="eyebrow">PURCHASING REQUIREMENTS</p><p>@HelpdeskStore.DescribeRequirements(project)</p></div>
         <div class="detail-block">
             <p class="eyebrow">UPDATES</p>

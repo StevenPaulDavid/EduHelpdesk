@@ -22,7 +22,7 @@ public class UserModel(HelpdeskStore store) : PageModel
         return Page();
     }
 
-    public IActionResult OnPost(Guid? id, string name, string email, string? department, string? location, string? password, bool active, bool canRaiseProjects)
+    public IActionResult OnPost(Guid? id, string name, string email, string? department, string? location, string? password, bool active, bool canRaiseProjects, bool isProjectLead)
     {
         if (!store.UserCan(User, Modules.Requesters, Needed(id))) return Forbid();
         var existing = id.HasValue ? store.Users.FirstOrDefault(x => x.Id == id) : null;
@@ -42,7 +42,7 @@ public class UserModel(HelpdeskStore store) : PageModel
 
         var item = new UserRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (department ?? "").Trim(), (location ?? "").Trim(),
             !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing?.PasswordHash,
-            active) { CanRaiseProjects = canRaiseProjects };
+            active) { CanRaiseProjects = canRaiseProjects, IsProjectLead = isProjectLead };
         if (id.HasValue) store.UpdateUser(item); else store.AddUser(item);
         TempData["Message"] = id.HasValue ? "User updated." : "User added.";
         return RedirectToPage("/People");

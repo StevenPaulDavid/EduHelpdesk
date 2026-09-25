@@ -79,25 +79,6 @@ public class ProjectModel(HelpdeskStore store) : PageModel
         return ok ? RedirectToPage("/Projects") : RedirectToPage(new { number });
     }
 
-    // "2× P1, 1× P4" - the shape of someone's load in a few characters, for the picker and its summary line.
-    public static string DescribeLoad(ProjectWorkload workload) => workload.Total == 0
-        ? "no active projects"
-        : string.Join(", ", ProjectPriorities.All.Where(p => workload.CountAt(p) > 0).Select(p => $"{workload.CountAt(p)}× P{p}"));
-
-    // The two readings of "who has the most room", in one sentence. They often point at different people, and when they
-    // do the lead needs both in front of them rather than a single recommendation that hides the trade-off.
-    public string? WorkloadSummary()
-    {
-        if (Workloads.Count < 2) return null;
-        static string Names(IEnumerable<ProjectWorkload> rows) => string.Join(" and ", rows.Select(x => x.Technician.Name));
-        var fewest = Workloads.Where(x => x.FewestProjects).ToList();
-        var lightest = Workloads.Where(x => x.LightestUrgentLoad).ToList();
-        if (fewest.Select(x => x.Technician.Id).SequenceEqual(lightest.Select(x => x.Technician.Id)))
-            return $"{Names(fewest)} {(fewest.Count == 1 ? "has" : "have")} both the fewest projects and the least urgent work.";
-        return $"{Names(fewest)} {(fewest.Count == 1 ? "has" : "have")} the fewest projects ({fewest[0].Total}). "
-            + $"{Names(lightest)} {(lightest.Count == 1 ? "has" : "have")} the least urgent work ({DescribeLoad(lightest[0])}).";
-    }
-
     private IActionResult Done(int number, (bool Ok, string Message) result)
     {
         Message = result.Message;

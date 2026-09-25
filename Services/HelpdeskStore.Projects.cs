@@ -32,14 +32,40 @@ public sealed partial class HelpdeskStore
     public bool CanWorkProjects(TechnicianRecord technician) =>
         technician.IsActive && RoleAllows(technician.Role, Modules.Projects, ModulePermission.Edit);
 
+    // The project lead works entirely in the staff portal, so every lead-only action there asks this rather than trusting
+    // what the page showed: the tick can be taken away between loading a form and sending it.
+    public bool IsActiveProjectLead(Guid userId)
+    {
+        lock (_sync) return _data.Users.Any(x => x.Id == userId && x.IsActive && x.IsProjectLead);
+    }
+
+    // A portal visitor may open a project they raised, and the lead may open any project - they need to see it to assign it.
+    public ProjectRecord? PortalProject(Guid userId, int number)
+    {
+        lock (_sync)
+        {
+            var project = _data.Projects.FirstOrDefault(x => x.Number == number);
+            return project is not null && (project.RequesterId == userId || IsActiveProjectLead(userId)) ? project : null;
+        }
+    }
+
+    // A line manager's priority is a suggestion for the lead to confirm. When the lead raises a project themselves, their
+    // priority is the decision, and they can hand it to a technician in the same step.
     public (bool Ok, string Message, int Number) RaiseProject(Guid requesterId, string? title, DateOnly? dueDate, string? itemsWanted,
-        IEnumerable<string>? requirements, string? other, int suggestedPriority)
+        IEnumerable<string>? requirements, string? other, int suggestedPriority, Guid? technicianId = null)
     {
         lock (_sync)
         {
             var requester = _data.Users.FirstOrDefault(x => x.Id == requesterId);
             if (requester is null || !requester.IsActive) return (false, "Your account couldn't be found.", 0);
-            if (!requester.CanRaiseProjects) return (false, "Your account isn't set up to raise projects. Ask the IT team if you need to.", 0);
+            if (!requester.MayRaiseProjects) return (false, "Your account isn't set up to raise projects. Ask the IT team if you need to.", 0);
+            if (technicianId is not null && !requester.IsProjectLead) return (false, "Only the project lead can choose the technician.", 0);
+            TechnicianRecord? technician = null;
+            if (technicianId is { } techId)
+            {
+                technician = _data.Technicians.FirstOrDefault(x => x.Id == techId);
+                if (technician is null || !CanWorkProjects(technician)) return (false, "That technician can't be given projects. Choose someone else, or leave it for now.", 0);
+            }
             var today = DateOnly.FromDateTime(DateTime.Now);
             if (dueDate is null) return (false, "Choose the date you need the proposal by.", 0);
             if (dueDate < today) return (false, "The date you need the proposal by can't be in the past.", 0);
@@ -49,16 +75,28 @@ public sealed partial class HelpdeskStore
 
             var number = NextProjectNumber();
             var now = DateTime.UtcNow;
+            var actor = CurrentActor();
+            var history = new List<ProjectActivity>
+            {
+                new("Project raised", requester.IsProjectLead
+                    ? $"Raised by {requester.Name}, the project lead, at priority {ProjectPriorities.Label(suggestedPriority)}. Proposal needed by {Day(dueDate.Value)}."
+                    : $"Raised by {requester.Name} with a suggested priority of {ProjectPriorities.Label(suggestedPriority)}. Proposal needed by {Day(dueDate.Value)}.", now) { By = actor }
+            };
+            if (technician is not null)
+                history.Add(new ProjectActivity("Assignment", $"Assigned to {technician.Name}; Status: {ProjectStatuses.New} → {ProjectStatuses.GatheringQuotes}.", now) { By = actor });
             var project = new ProjectRecord(number, title!.Trim(), requester.Id, dueDate.Value, itemsWanted!.Trim(), now)
             {
                 PurchasingRequirements = resolved,
                 PurchasingOther = (other ?? string.Empty).Trim(),
                 SuggestedPriority = suggestedPriority,
-                History = [new ProjectActivity("Project raised", $"Raised by {requester.Name} with a suggested priority of {ProjectPriorities.Label(suggestedPriority)}. Proposal needed by {Day(dueDate.Value)}.", now) { By = CurrentActor() }]
+                Priority = requester.IsProjectLead ? suggestedPriority : null,
+                TechnicianId = technician?.Id,
+                Status = technician is null ? ProjectStatuses.New : ProjectStatuses.GatheringQuotes,
+                History = history
             };
             _data.Projects.Add(project);
             Save();
-            return (true, $"Project {project.Reference} sent to the IT team.", number);
+            return (true, technician is null ? $"Project {project.Reference} sent to the IT team." : $"Project {project.Reference} raised and assigned to {technician.Name}.", number);
         }
     }
 
@@ -301,9 +339,12 @@ public sealed partial class HelpdeskStore
                 FOREIGN KEY (ProjectNumber) REFERENCES Projects(Number) ON DELETE CASCADE);
             """;
         command.ExecuteNonQuery();
-        using var migration = connection.CreateCommand();
-        migration.CommandText = "ALTER TABLE Users ADD COLUMN CanRaiseProjects INTEGER NOT NULL DEFAULT 0;";
-        try { migration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+        foreach (var sql in new[] { "ALTER TABLE Users ADD COLUMN CanRaiseProjects INTEGER NOT NULL DEFAULT 0;", "ALTER TABLE Users ADD COLUMN IsProjectLead INTEGER NOT NULL DEFAULT 0;" })
+        {
+            using var migration = connection.CreateCommand();
+            migration.CommandText = sql;
+            try { migration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+        }
     }
 
     private static void ReadProjects(SqliteConnection connection, StoreData data)
@@ -398,4 +439,27 @@ public sealed record ProjectWorkload(TechnicianRecord Technician, int[] ByPriori
     public bool FewestProjects { get; init; }
     public bool LightestUrgentLoad { get; init; }
     public int CountAt(int priority) => ByPriority[priority - 1];
+
+    // "2× P1, 1× P4" - the shape of someone's load in a few characters, for the picker and its summary line.
+    public string Describe() => Total == 0
+        ? "no active projects"
+        : string.Join(", ", ProjectPriorities.All.Where(p => CountAt(p) > 0).Select(p => $"{CountAt(p)}× P{p}"));
+
+    // The two readings of "who has the most room", in one sentence. They often point at different people, and when they
+    // do the lead needs both in front of them rather than a single recommendation that hides the trade-off.
+    public static string? Summary(IReadOnlyList<ProjectWorkload> rows)
+    {
+        if (rows.Count < 2) return null;
+        static string Names(IEnumerable<ProjectWorkload> group) => string.Join(" and ", group.Select(x => x.Technician.Name));
+        var fewest = rows.Where(x => x.FewestProjects).ToList();
+        var lightest = rows.Where(x => x.LightestUrgentLoad).ToList();
+        if (fewest.Select(x => x.Technician.Id).SequenceEqual(lightest.Select(x => x.Technician.Id)))
+            return $"{Names(fewest)} {(fewest.Count == 1 ? "has" : "have")} both the fewest projects and the least urgent work.";
+        return $"{Names(fewest)} {(fewest.Count == 1 ? "has" : "have")} the fewest projects ({fewest[0].Total}). "
+            + $"{Names(lightest)} {(lightest.Count == 1 ? "has" : "have")} the least urgent work ({lightest[0].Describe()}).";
+    }
 }
+
+// What the shared technician picker (Pages/Shared/_WorkloadPicker) needs: used by the lead in the staff portal and by the
+// backup Assign on the helpdesk project page, so both show exactly the same comparison.
+public sealed record WorkloadPicker(IReadOnlyList<ProjectWorkload> Rows, Guid? Selected, string NobodyLabel = "Nobody yet");

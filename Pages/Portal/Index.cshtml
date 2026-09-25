@@ -31,13 +31,17 @@
             <a class="button button-primary portal-button" asp-page="/Portal/NewTicket">＋ Report a problem</a>
             <a class="button button-secondary portal-button" asp-page="/Portal/MyTickets">My tickets</a>
         </div>
-        @if (Model.CurrentUser.CanRaiseProjects || Model.HasProjects)
+        @if (Model.CurrentUser.MayRaiseProjects || Model.HasProjects)
         {
             <h2 class="portal-subheading">Projects</h2>
-            <p class="muted">Need something bought? Ask the IT team to gather quotes and put together a proposal.</p>
+            <p class="muted">@(Model.CurrentUser.IsProjectLead ? "Assign new projects to a technician, or raise one yourself." : "Need something bought? Ask the IT team to gather quotes and put together a proposal.")</p>
             <div class="portal-actions">
-                @if (Model.CurrentUser.CanRaiseProjects) { <a class="button button-primary portal-button" asp-page="/Portal/NewProject">＋ Request a project</a> }
-                <a class="button button-secondary portal-button" asp-page="/Portal/Projects">My projects</a>
+                @if (Model.CurrentUser.MayRaiseProjects) { <a class="button button-primary portal-button" asp-page="/Portal/NewProject">＋ Request a project</a> }
+                @if (Model.CurrentUser.IsProjectLead)
+                {
+                    <a class="button button-secondary portal-button" asp-page="/Portal/Projects">Awaiting assignment <span class="badge @(Model.AwaitingAssignment > 0 ? "badge-warning" : "")">@Model.AwaitingAssignment</span></a>
+                }
+                else { <a class="button button-secondary portal-button" asp-page="/Portal/Projects">My projects</a> }
             </div>
         }
     }

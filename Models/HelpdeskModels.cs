@@ -5,6 +5,10 @@ public record UserRecord(Guid Id, string Name, string Email, string Department, 
     // Line managers and SLT, who may raise purchasing projects from the staff portal. Everyone else can only report
     // problems there, so a project request can't come from anyone who isn't meant to be asking for spending.
     public bool CanRaiseProjects { get; init; }
+    // The project lead: confirms each project's priority and chooses the technician, from the staff portal - the lead
+    // has no helpdesk login. Also lets them raise projects themselves, already assigned.
+    public bool IsProjectLead { get; init; }
+    public bool MayRaiseProjects => IsActive && (CanRaiseProjects || IsProjectLead);
 }
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
 // What a role can do with one module. Each is an independent tick rather than a rung on a ladder: a role can be given

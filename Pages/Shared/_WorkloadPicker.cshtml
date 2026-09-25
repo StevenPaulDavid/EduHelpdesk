@@ -1,0 +1,31 @@
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model WorkloadPicker
+@* The technician choice with everyone's open projects counted by priority. Posts "technicianId"; blank means nobody yet. *@
+<fieldset class="workload-picker">
+    <legend>Technician</legend>
+    @if (ProjectWorkload.Summary(Model.Rows) is { } summary) { <p class="workload-summary">@summary</p> }
+    <label class="workload-option">
+        <input type="radio" name="technicianId" value="" checked="@(Model.Selected is null)" />
+        <span class="workload-name">@Model.NobodyLabel</span>
+    </label>
+    @foreach (var row in Model.Rows)
+    {
+        <label class="workload-option">
+            <input type="radio" name="technicianId" value="@row.Technician.Id" checked="@(row.Technician.Id == Model.Selected)" />
+            <span class="workload-name">@row.Technician.Name<small class="muted">@row.Total active @(row.Total == 1 ? "project" : "projects")</small></span>
+            <span class="workload-counts" aria-label="Active projects by priority">
+                @foreach (var level in ProjectPriorities.All)
+                {
+                    <span class="workload-count p@(level) @(row.CountAt(level) == 0 ? "is-zero" : "")" title="@ProjectPriorities.Label(level)">P@(level) <strong>@row.CountAt(level)</strong></span>
+                }
+            </span>
+            <span class="workload-flags">
+                @if (row.FewestProjects) { <span class="badge">Fewest projects</span> }
+                @if (row.LightestUrgentLoad) { <span class="badge">Least urgent work</span> }
+            </span>
+        </label>
+    }
+    @if (Model.Rows.Count == 0) { <p class="muted">Nobody can be given projects yet - ask the IT team to give a technician's role the Projects Edit tick.</p> }
+    <small class="muted">Counts are open projects by their confirmed priority, or the suggested one where it hasn't been confirmed yet.</small>
+</fieldset>

@@ -309,3 +309,4 @@ h3 .csv-link { margin-left: 8px; }
 .workload-flags:empty{display:none}
 .workload-flags .badge{margin-left:0}
 @media(max-width:600px){.workload-option{grid-template-columns:auto 1fr}.workload-counts{grid-column:2}}
+.portal-tabs{margin:0 0 14px}

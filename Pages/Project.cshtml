@@ -37,39 +37,14 @@
         <div class="blade blade-wide" onclick="event.stopPropagation()">
             <button class="blade-close" type="button" onclick="closeBlade('assign')">×</button>
             <h2>Assign @project.Reference</h2>
+            <p class="muted">The project lead normally assigns projects from the staff portal. Use this to reassign one when they can't.</p>
             <form method="post" asp-page-handler="Assign" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
                 <label>Priority
                     <select name="priority">@foreach (var level in ProjectPriorities.All) { <option value="@level" selected="@(level == selectedPriority)">@ProjectPriorities.Label(level) — @ProjectPriorities.Describe(level)</option> }</select>
                     <small class="muted">@(project.Priority is null ? "Not confirmed yet." : $"Confirmed as {ProjectPriorities.Label(project.Priority.Value)}.") The requester suggested @ProjectPriorities.Label(project.SuggestedPriority).</small>
                 </label>
-                <fieldset class="workload-picker">
-                    <legend>Technician</legend>
-                    @if (Model.WorkloadSummary() is { } summary) { <p class="workload-summary">@summary</p> }
-                    <label class="workload-option">
-                        <input type="radio" name="technicianId" value="" checked="@(project.TechnicianId is null)" />
-                        <span class="workload-name">Nobody yet</span>
-                    </label>
-                    @foreach (var row in Model.Workloads)
-                    {
-                        <label class="workload-option">
-                            <input type="radio" name="technicianId" value="@row.Technician.Id" checked="@(row.Technician.Id == project.TechnicianId)" />
-                            <span class="workload-name">@row.Technician.Name<small class="muted">@row.Total active @(row.Total == 1 ? "project" : "projects")</small></span>
-                            <span class="workload-counts" aria-label="Active projects by priority">
-                                @foreach (var level in ProjectPriorities.All)
-                                {
-                                    <span class="workload-count p@(level) @(row.CountAt(level) == 0 ? "is-zero" : "")" title="@ProjectPriorities.Label(level)">P@(level) <strong>@row.CountAt(level)</strong></span>
-                                }
-                            </span>
-                            <span class="workload-flags">
-                                @if (row.FewestProjects) { <span class="badge">Fewest projects</span> }
-                                @if (row.LightestUrgentLoad) { <span class="badge">Least urgent work</span> }
-                            </span>
-                        </label>
-                    }
-                    @if (Model.Workloads.Count == 0) { <p class="muted">Nobody can be given projects yet. A technician's role needs the Projects Edit tick (People → Roles).</p> }
-                    <small class="muted">Counts are open projects by their confirmed priority, or the suggested one where it hasn't been confirmed. Only active accounts whose role can edit projects are listed.</small>
-                </fieldset>
+                <partial name="_WorkloadPicker" model="@(new WorkloadPicker(Model.Workloads, project.TechnicianId))" />
                 <div class="blade-actions"><button class="button button-primary" type="submit">Save assignment</button><button class="button button-secondary" type="button" onclick="closeBlade('assign')">Cancel</button></div>
             </form>
         </div>
@@ -197,7 +172,7 @@
             <div class="detail-block"><p class="eyebrow">OUTCOME</p><strong>@(project.Outcome ?? "Closed")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }<p class="muted">Closed @project.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy")</p></div>
         }
         <div class="detail-block"><p class="eyebrow">PRIORITY</p><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span><p class="muted">@(project.Priority is null ? $"Suggested by the requester; not confirmed yet." : project.Priority == project.SuggestedPriority ? "Confirmed as suggested." : $"Confirmed. The requester suggested {ProjectPriorities.Label(project.SuggestedPriority)}.")</p></div>
-        <div class="detail-block"><p class="eyebrow">TECHNICIAN</p><strong>@(Model.Technician?.Name ?? (project.TechnicianId is null ? "Unassigned" : "Unknown"))</strong>@if (project.TechnicianId is null && project.IsActive) { <p class="muted">@(Model.CanAssign ? "Use Assign to choose someone." : "Waiting for the project lead to assign it.")</p> }</div>
+        <div class="detail-block"><p class="eyebrow">TECHNICIAN</p><strong>@(Model.Technician?.Name ?? (project.TechnicianId is null ? "Unassigned" : "Unknown"))</strong>@if (project.TechnicianId is null && project.IsActive) { <p class="muted">Waiting for the project lead to assign it from the staff portal.</p> }</div>
         <div class="job-meta project-meta"><div><span>Raised</span><strong>@project.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last updated</span><strong>@project.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div></div>
     </aside>
 </div>

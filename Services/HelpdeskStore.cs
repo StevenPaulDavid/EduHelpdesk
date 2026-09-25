@@ -3371,11 +3371,12 @@ public sealed partial class HelpdeskStore
         var data = new StoreData();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects FROM Users;";
+            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead FROM Users;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5), reader.GetInt32(6) != 0)
             {
-                CanRaiseProjects = reader.GetInt32(7) != 0
+                CanRaiseProjects = reader.GetInt32(7) != 0,
+                IsProjectLead = reader.GetInt32(8) != 0
             });
         }
         ReadStrings(connection, "TechnicianTeams", data.TechnicianTeams);
@@ -3846,7 +3847,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
         }
         foreach (var item in data.Users)
-            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0));
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",

@@ -20,14 +20,18 @@
                 <label>Anything else? (optional)<input asp-for="Other" maxlength="@HelpdeskStore.MaxProjectOtherLength" placeholder="e.g. must be delivered before half term" /></label>
             </fieldset>
             <fieldset class="priority-choices">
-                <legend>How urgent is it?</legend>
-                <p class="muted">The IT project lead confirms the priority when they assign it, so choose honestly - it helps urgent work reach the right person first.</p>
+                <legend>@(Model.IsLead ? "Priority" : "How urgent is it?")</legend>
+                <p class="muted">@(Model.IsLead ? "As project lead, the priority you choose here stands." : "The project lead confirms the priority when they assign it, so choose honestly - it helps urgent work reach the right person first.")</p>
                 @foreach (var level in ProjectPriorities.All)
                 {
                     <label class="priority-choice"><input type="radio" name="Priority" value="@level" checked="@(level == Model.Priority)" /><span><strong>@ProjectPriorities.Label(level)</strong><small>@ProjectPriorities.Describe(level)</small></span></label>
                 }
             </fieldset>
-            <button class="button button-primary portal-button" type="submit">Send to the IT team</button>
+            @if (Model.IsLead)
+            {
+                <partial name="_WorkloadPicker" model="@(new WorkloadPicker(Model.Workloads, Guid.TryParse(Model.TechnicianId, out var chosen) ? chosen : null, "Decide later"))" />
+            }
+            <button class="button button-primary portal-button" type="submit">@(Model.IsLead ? "Raise project" : "Send to the IT team")</button>
         </form>
     </section>
 </div>

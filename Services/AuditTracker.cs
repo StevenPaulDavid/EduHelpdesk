@@ -23,7 +23,7 @@ internal static class AuditTracker
 
         foreach (var x in d.Users)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
-            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)));
+            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)));
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
             Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"));

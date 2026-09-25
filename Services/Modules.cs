@@ -73,7 +73,8 @@ public static class Modules
         public static readonly Definition[] All =
         [
             new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
-            new(AssignProjects, "Assign projects", "The project lead's job: confirm a project's priority and choose the technician, with everyone's workload shown.", "Projects"),
+            // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.
+            new(AssignProjects, "Assign projects", "Reassign a project from the helpdesk when the project lead can't. The lead normally does this from the staff portal.", "Projects"),
             new(ReportAssets, "Asset reports", "The asset register report: review list, fleet age, warranty, problem devices.", "Reports"),
             new(ReportTickets, "Ticket reports", "SLA performance, workload and repeat problems.", "Reports"),
             new(ReportParts, "Parts reports", "Low stock.", "Reports"),

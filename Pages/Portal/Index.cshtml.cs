@@ -18,12 +18,15 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 
     // Someone who raised projects before losing the tick can still follow them.
     public bool HasProjects { get; private set; }
+    // For the project lead: open projects nobody has been given yet.
+    public int AwaitingAssignment { get; private set; }
 
     public void OnGet()
     {
         var id = portal.Resolve(Request, store);
         CurrentUser = id is { } userId ? store.Users.FirstOrDefault(x => x.Id == userId) : null;
         HasProjects = CurrentUser is not null && store.Projects.Any(x => x.RequesterId == CurrentUser.Id);
+        if (CurrentUser is { IsProjectLead: true }) AwaitingAssignment = store.Projects.Count(x => x.IsActive && x.TechnicianId is null);
         SignedInTechnician = Technician();
     }
 

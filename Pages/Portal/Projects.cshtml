@@ -1,25 +1,41 @@
 @page
 @using EduHelpdesk.Models
 @model EduHelpdesk.Pages.Portal.ProjectsModel
-@{ ViewData["Title"] = "My projects"; }
+@{ ViewData["Title"] = Model.IsLead ? "Projects" : "My projects"; }
 <div class="portal-shell">
     <div class="page-heading">
-        <div><p class="eyebrow">EDUHELPDESK</p><h1>My projects</h1></div>
+        <div><p class="eyebrow">EDUHELPDESK</p><h1>@ViewData["Title"]</h1>@if (Model.IsLead) { <p class="hero-copy">As project lead, you confirm each project's priority and choose the technician.</p> }</div>
         <div class="heading-actions">
             <a class="button button-secondary" asp-page="/Portal/Index">← Back</a>
-            @if (Model.CurrentUser?.CanRaiseProjects == true) { <a class="button button-primary" asp-page="/Portal/NewProject">＋ Request a project</a> }
+            @if (Model.CurrentUser?.MayRaiseProjects == true) { <a class="button button-primary" asp-page="/Portal/NewProject">＋ Request a project</a> }
         </div>
     </div>
+    @if (Model.IsLead)
+    {
+        <nav class="queue-tabs portal-tabs" aria-label="Project lists">
+            @foreach (var view in EduHelpdesk.Pages.Portal.ProjectsModel.LeadViews)
+            {
+                <a class="queue-tab @(Model.View == view ? "active" : "")" asp-page="/Portal/Projects" asp-route-view="@view">@EduHelpdesk.Pages.Portal.ProjectsModel.ViewLabel(view) <span class="badge @(view == "awaiting" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
+            }
+        </nav>
+    }
     <section class="panel portal-panel directory-panel">
         @foreach (var project in Model.Projects)
         {
+            var technician = project.TechnicianId is { } tech && Model.TechnicianNames.TryGetValue(tech, out var name) ? name : null;
             <a class="directory-row user-ticket-row" asp-page="/Portal/Project" asp-route-number="@project.Number">
                 <div class="directory-person">
-                    <div><strong>@project.Reference · @project.Title</strong><span>Needed by @project.DueDate.ToString("dd MMM yyyy")@(project.TechnicianId is { } tech && Model.TechnicianNames.TryGetValue(tech, out var name) ? " · " + name : "")</span></div>
+                    <div>
+                        <strong>@project.Reference · @project.Title</strong>
+                        <span>@(Model.IsLead ? Model.RequesterNames.GetValueOrDefault(project.RequesterId, "Unknown") + " · " : "")Needed by @project.DueDate.ToString("dd MMM yyyy") · @ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? " (suggested)" : "")@(technician is null ? (project.IsActive ? " · Not assigned yet" : "") : " · " + technician)</span>
+                    </div>
                 </div>
                 <span class="status">@(project.Outcome is { } outcome ? $"{project.Status} · {outcome}" : project.Status)</span>
             </a>
         }
-        @if (Model.Projects.Count == 0) { <p class="empty">You haven't requested any projects yet.</p> }
+        @if (Model.Projects.Count == 0)
+        {
+            <p class="empty">@(Model.View switch { "awaiting" => "Nothing is waiting to be assigned.", "open" => "There are no open projects.", "closed" => "No projects have been closed yet.", _ => "You haven't requested any projects yet." })</p>
+        }
     </section>
 </div>
