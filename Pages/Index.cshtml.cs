@@ -42,6 +42,9 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public bool CanSeeRequesters => store.UserCan(User, Modules.Requesters, ModulePermission.Access);
     public bool CanSeeAssetReport => store.UserHasFlag(User, Modules.Flags.ReportAssets);
     public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
+    // Shown only to people who can do something about it (Settings: Edit opens Backups & data).
+    public HelpdeskStore.BackupSettings? BackupWarning =>
+        store.UserCan(User, Modules.Settings, ModulePermission.Edit) && store.Backups is { } backups && backups.NeedsAttention(DateTime.UtcNow) ? backups : null;
 
     // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
     // staff portal instead of straight to the technician login - a technician still ends up here once signed in.

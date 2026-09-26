@@ -12,6 +12,17 @@
         <p class="hero-copy">@Model.Branding.DashboardDescription</p>
     </div>
 </div>
+@if (Model.BackupWarning is { } backups)
+{
+    <div class="notice notice-warning">
+        <strong>Backups need attention.</strong>
+        @if (!backups.Enabled) { <text>Automatic backups are switched off.</text> }
+        else if (backups.LastError.Length > 0) { <text>The last backup failed: @backups.LastError</text> }
+        else if (backups.LastSuccessAt is { } last) { <text>The last successful backup was @last.ToLocalTime().ToString("dddd d MMM, HH:mm").</text> }
+        else { <text>No backup has been made yet.</text> }
+        <a asp-page="/Settings/Backups">Backups &amp; data</a>
+    </div>
+}
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

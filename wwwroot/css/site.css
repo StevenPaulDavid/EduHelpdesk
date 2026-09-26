@@ -455,3 +455,10 @@ h3 .csv-link { margin-left: 8px; }
 tr.report-total td { border-top: 2px solid var(--ink); }
 tr.workload-unassigned td { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 .report-split { margin-top: 22px; }
+/* Settings -> Backups & data */
+.how-to { margin-top: 10px; }
+.how-to > summary { cursor: pointer; font-weight: 700; }
+.how-to ol { margin: 8px 0 0 18px; padding: 0; display: grid; gap: 6px; }
+.restore-steps { white-space: pre-wrap; font: inherit; font-size: 13px; line-height: 1.55; background: color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 8px; padding: 12px 14px; margin: 10px 0 0; }
+.backup-settings .inline-fields { display: flex; gap: 16px; flex-wrap: wrap; }
+.backup-settings .inline-fields label { min-width: 180px; }

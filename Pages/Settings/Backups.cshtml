@@ -1,0 +1,98 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.BackupsModel
+@{
+    ViewData["Title"] = "Backups & data";
+    var backups = Model.Backups;
+    var now = DateTime.UtcNow;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Backups &amp; data</h1><p class="hero-copy">A copy of everything - tickets, assets, projects, people, attachments and settings - made automatically every night.</p></div>
+    <a class="button button-secondary" asp-page="/Settings">← Settings</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading">
+        <div><p class="eyebrow">LAST BACKUP</p><h2>@(backups.LastSuccessAt is { } last ? last.ToLocalTime().ToString("dddd d MMMM yyyy, HH:mm") : "No backup yet")</h2></div>
+        <form method="post" asp-page-handler="BackupNow"><button class="button button-primary" type="submit">Back up now</button></form>
+    </div>
+    @if (!backups.Enabled)
+    {
+        <div class="notice notice-warning">Automatic backups are switched off. Only backups you make with "Back up now" are being kept.</div>
+    }
+    else if (backups.NeedsAttention(now))
+    {
+        <div class="notice notice-warning">
+            @if (backups.LastError.Length > 0) { <text>The last backup attempt failed@(backups.LastAttemptAt is { } attempt ? $" at {attempt.ToLocalTime():dd MMM HH:mm}" : ""): <strong>@backups.LastError</strong>. It is retried every hour.</text> }
+            else if (backups.LastSuccessAt is null) { <text>No backup has been made yet. The first one runs a minute or so after the app starts, or use "Back up now".</text> }
+            else { <text>The last successful backup is more than two days old. Check the app has been running and can write to the backup folder.</text> }
+        </div>
+    }
+    @if (backups.LastSuccessAt is not null)
+    {
+        <p><strong>@backups.LastFile</strong><br /><span class="muted">@backups.LastSummary</span></p>
+    }
+    <p class="muted">@(backups.Enabled ? $"Next automatic backup: {backups.Hour:00}:00, then every night. " : "")Each backup is checked by reading the copied database back before it is kept.</p>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">WHERE THE DATA LIVES</p><h2>Data folder</h2></div></div>
+    <p><code>@Model.DataFolder</code></p>
+    @if (Model.Location?.CopiedFrom is { } copiedFrom)
+    {
+        <div class="notice">The data was copied here from <code>@copiedFrom</code> when the app started. The old database there was renamed so it can't be used by mistake; see DATA-MOVED.txt in that folder.</div>
+    }
+    @if (Model.Location?.SyncedBy is { } syncedBy)
+    {
+        <div class="notice notice-warning">
+            <strong>This folder is inside @syncedBy.</strong> Sync clients copy files while they are being written, which can corrupt a live database or create conflicting copies of it. Move the data somewhere that isn't synced - backups can still go to @syncedBy.
+            <details class="how-to"><summary>How to move it</summary>
+                <ol>
+                    <li>Choose a folder outside @syncedBy, for example <code>C:\EduHelpdeskData</code>.</li>
+                    <li>Stop the helpdesk app.</li>
+                    <li>In <code>appsettings.json</code> next to the app, add <code>"EduHelpdesk": { "DataPath": "C:\\EduHelpdeskData" }</code> (or set the environment variable <code>EduHelpdesk__DataPath</code>).</li>
+                    <li>Start the app. On that first start it copies everything across from <code>@Model.DataFolder</code>, renames the old database so it can't be used again, and carries on from the new folder.</li>
+                </ol>
+            </details>
+        </div>
+    }
+    else if (Model.Location is { IsDefault: true })
+    {
+        <p class="muted">This is the default location, next to the app. It can be changed with the <code>EduHelpdesk:DataPath</code> setting in appsettings.json.</p>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">SETTINGS</p><h2>Automatic backups</h2></div></div>
+    <form method="post" asp-page-handler="Save" class="settings-form backup-settings">
+        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@backups.Enabled" /> Make a backup automatically every night</label>
+        <label>Backup folder
+            <input name="folder" value="@(backups.FolderIsDefault ? "" : backups.Folder)" placeholder="@Model.DefaultBackupFolder" />
+            <small class="muted">Leave blank for the default. Another drive, a network share (<code>\\server\share\helpdesk</code>) or a OneDrive / SharePoint folder protects against this computer's disk failing. Backups hold everything, including personal data and password hashes, so keep the folder private.</small>
+        </label>
+        <div class="inline-fields">
+            <label>Keep backups for<select name="keepDays">@foreach (var days in new[] { 7, 14, 30, 60, 90, 180, 365 }.Append(backups.KeepDays).Distinct().Order()) { <option value="@days" selected="@(days == backups.KeepDays)">@days days</option> }</select></label>
+            <label>Run at<select name="hour">@for (var hour = 0; hour < 24; hour++) { <option value="@hour" selected="@(hour == backups.Hour)">@hour.ToString("00"):00</option> }</select></label>
+        </div>
+        <p class="muted">Older backups are deleted automatically, but the newest @HelpdeskStore.MinimumBackupsKept are always kept. Only this app's own backup files are ever deleted.</p>
+        <button class="button button-primary" type="submit">Save backup settings</button>
+    </form>
+    @if (Model.BackupSyncedBy is null && Model.SameDriveAsData)
+    {
+        <div class="notice notice-warning">Backups are on the same drive as the data. They protect against mistakes and bad updates, but not against this drive failing or the computer being lost - point the folder at another drive, a share or a synced folder.</div>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">IN THE FOLDER</p><h2>Backups kept</h2></div><span class="badge">@Model.Files.Count</span></div>
+    <p class="muted"><code>@backups.Folder</code></p>
+    <div class="table-wrap"><table><thead><tr><th>Backup</th><th>Made</th><th>Size</th></tr></thead><tbody>
+    @foreach (var file in Model.Files)
+    {
+        <tr><td>@file.Name</td><td>@file.CreatedAt.ToString("ddd dd MMM yyyy, HH:mm")</td><td>@HelpdeskStore.FormatSize(file.Size)</td></tr>
+    }
+    @if (Model.Files.Count == 0) { <tr><td colspan="3" class="empty">No backups in this folder yet.</td></tr> }
+    </tbody></table></div>
+    <details class="how-to"><summary>How to restore from a backup</summary><pre class="restore-steps">@Model.RestoreInstructions</pre></details>
+</section>

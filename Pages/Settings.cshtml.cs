@@ -119,6 +119,8 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     }
 
     public string BackupFolder => store.BackupFolder;
+    public HelpdeskStore.BackupSettings Backups => store.Backups;
+    public string? DataSyncedBy => store.Location?.SyncedBy;
 
     // A successful reset replaces every account with the bootstrap administrator, so the signed-in user no longer
     // exists and has to be signed out rather than left holding a cookie for a deleted account.

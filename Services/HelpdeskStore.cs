@@ -24,16 +24,46 @@ public sealed partial class HelpdeskStore
     private readonly IHttpContextAccessor? _httpContext;
     private readonly PortalIdentity? _portalIdentity;
 
-    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null, PortalIdentity? portalIdentity = null)
+    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null, PortalIdentity? portalIdentity = null, DataLocation? location = null)
     {
         _httpContext = httpContext;
         _portalIdentity = portalIdentity;
-        _path = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.db");
-        _legacyPath = Path.Combine(environment.ContentRootPath, "App_Data", "helpdesk.json");
-        _templatePath = Path.Combine(environment.ContentRootPath, "App_Data", "print-template.docx");
+        Location = location;
+        _webRoot = Path.Combine(environment.ContentRootPath, "wwwroot");
+        var folder = location?.Folder ?? Path.Combine(environment.ContentRootPath, "App_Data");
+        _path = Path.Combine(folder, "helpdesk.db");
+        _legacyPath = Path.Combine(folder, "helpdesk.json");
+        _templatePath = Path.Combine(folder, "print-template.docx");
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         _data = Load();
         _audit = LoadAudit();
+        Prepare();
+        if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
+        {
+            SeedStarterData();
+        }
+        else
+        {
+            SaveBaseline();
+        }
+        // Before EnsureSeedRoles, so an upgrading database converts its existing roles rather than being mistaken for
+        // a fresh install, and before EnsureBootstrapAdministrator so the Administrator role is in its final shape.
+        MigrateRolePermissions();
+        EnsureSeedRoles();
+        EnsureBootstrapAdministrator();
+        SaveBaseline();
+    }
+
+    // Where the data lives (see DataLocation); null only when the store is built outside the app.
+    public DataLocation? Location { get; }
+    private readonly string _webRoot;
+    public string DataFolder => Path.GetDirectoryName(_path)!;
+
+    // Everything done to freshly loaded data before it is used: tidying values older versions stored loosely, and
+    // putting back what the code relies on. Nothing here saves, so it can run again on its own after a failed save
+    // reloads the database (see Persist).
+    private void Prepare()
+    {
         _data.Assets = _data.Assets.Select(x => x with
         {
             Make = x.Make ?? string.Empty,
@@ -99,7 +129,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.AssetMakes, _data.Assets.Select(x => x.Make));
         EnsureOptions(_data.AssetModels, _data.Assets.Select(x => x.Model));
         _data.AssetModelMakes = new Dictionary<string, string>(_data.AssetModelMakes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
-        EnsureFactoryOptions();
+        EnsureSystemOptions();
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
         EnsureOptions(_data.PartCategories, _data.Parts.Select(x => x.Category).Where(x => !string.IsNullOrWhiteSpace(x))!);
         EnsureOptions(_data.PartLocations, _data.Parts.Select(x => x.Location).Where(x => !string.IsNullOrWhiteSpace(x)));
@@ -121,20 +151,6 @@ public sealed partial class HelpdeskStore
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
         EnsureProjectDefaults();
-        if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
-        {
-            SeedStarterData();
-        }
-        else
-        {
-            SaveBaseline();
-        }
-        // Before EnsureSeedRoles, so an upgrading database converts its existing roles rather than being mistaken for
-        // a fresh install, and before EnsureBootstrapAdministrator so the Administrator role is in its final shape.
-        MigrateRolePermissions();
-        EnsureSeedRoles();
-        EnsureBootstrapAdministrator();
-        SaveBaseline();
     }
 
     // Bootstrap credentials for a brand-new install, or an existing database with no login configured yet.
@@ -932,6 +948,9 @@ public sealed partial class HelpdeskStore
             var options = GetOptions(kind);
             var index = options.FindIndex(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (index < 0) return $"{kind} was not found.";
+            // New tickets need somewhere to start: the last open status, priority or category stays.
+            if (options.Count(x => kind != "Status" || !IsBuiltInStatus(x)) <= 1)
+                return $"Keep at least one {(kind == "Status" ? "open status" : kind.ToLowerInvariant())} - new tickets need one.";
             if (_data.Tickets.Any(x => kind switch
             {
                 "Category" => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase),
@@ -2449,7 +2468,24 @@ public sealed partial class HelpdeskStore
         // Nobody would type the old description back in - it describes a system without a portal.
         if (branding.DashboardDescription == OldDefaultDescription) branding.DashboardDescription = defaults.DashboardDescription;
     }
-    // The lists a brand new install starts with. Anything already in use is added on top of these when data is loaded.
+    // Run on every start. Only values the code itself sets or depends on come back if they have been removed - putting
+    // back every starting option meant a school that deleted, say, "Classroom AV" found it again after each restart.
+    // A new built-in value added in a later version needs its own line here, since EnsureFactoryOptions no longer runs
+    // against existing databases.
+    private void EnsureSystemOptions()
+    {
+        // Set by IssueKit and DisposeAsset.
+        EnsureOptions(_data.AssetStatuses, ["On loan", "Disposed"]);
+        // What "finished" means everywhere (see IsBuiltInStatus), plus at least one open status for new tickets to start in.
+        EnsureOptions(_data.Statuses, [TicketInsights.ClosedStatus]);
+        if (!_data.Statuses.Any(x => !IsBuiltInStatus(x))) _data.Statuses.Insert(0, "Open");
+        // A list emptied completely would leave forms with nothing to pick; it gets its starting values back.
+        if (_data.Priorities.Count == 0) EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
+        if (_data.Categories.Count == 0) EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
+        if (_data.LoanReasons.Count == 0) EnsureOptions(_data.LoanReasons, ["Forgot own device", "Supply or visitor", "Own device in repair", "Other"]);
+    }
+
+    // The lists a brand new install (or a factory reset) starts with.
     private void EnsureFactoryOptions()
     {
         // "On loan" and "Disposed" are set by the system itself (see IssueKit and DisposeAsset), so unlike the others
@@ -2638,8 +2674,6 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    public string BackupFolder => Path.Combine(Path.GetDirectoryName(_path)!, "backups");
-
     // Removes everything and puts the system back to how a new install starts (the same demo records Seed creates).
     // The audit log survives unless eraseAudit is set; either way the reset itself is recorded as the first entry.
     public (bool Ok, string Message) ResetFactory(string? confirmation, bool keepBackup = true, bool eraseAudit = false)
@@ -2652,8 +2686,8 @@ public sealed partial class HelpdeskStore
             string? backupName = null;
             if (keepBackup)
             {
-                try { backupName = BackUpBeforeReset(); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
+                try { backupName = WriteBackup("before-reset").Name; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException or InvalidOperationException)
                 {
                     return (false, $"Nothing was changed. The backup could not be saved ({ex.Message}). Fix that, or untick the backup option to reset without one.");
                 }
@@ -2672,7 +2706,9 @@ public sealed partial class HelpdeskStore
             _pendingAudit.Clear();
             _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "System", null, null, "Helpdesk", "Factory reset",
                 "All data was reset to factory settings." + (eraseAudit ? " The previous audit log was erased." : "") + (backupName is null ? " No backup was kept." : $" A backup was saved as {backupName}.")));
+            var previous = _data;
             _data = new StoreData();
+            CarryBackupSettings(previous, _data);
             SeedStarterData();
             // Without these two the reset leaves no Administrator role and no account that can sign in, which locked
             // the system until the app was restarted. They only ran at startup before.
@@ -2694,32 +2730,10 @@ public sealed partial class HelpdeskStore
                 File.Delete(_legacyPath);
             DeleteAllAttachmentFiles();
             return (true, $"System reset to factory settings. Sign in again as {BootstrapAdminEmail} with the password {BootstrapAdminPassword}, and change it straight away."
-                + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in App_Data\\backups."));
+                + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in {BackupFolder}."));
         }
     }
 
-    // A consistent copy of the database (and the print template, if there is one) before it is wiped.
-    private string BackUpBeforeReset()
-    {
-        Directory.CreateDirectory(BackupFolder);
-        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-        var name = $"helpdesk-before-reset-{stamp}.db";
-        using (var source = new SqliteConnection($"Data Source={_path}"))
-        using (var target = new SqliteConnection($"Data Source={Path.Combine(BackupFolder, name)}"))
-        {
-            source.Open();
-            target.Open();
-            source.BackupDatabase(target);
-        }
-        SqliteConnection.ClearAllPools();
-        if (File.Exists(_templatePath))
-            File.Copy(_templatePath, Path.Combine(BackupFolder, $"print-template-before-reset-{stamp}.docx"));
-        if (File.Exists(LogoPath))
-            File.Copy(LogoPath, Path.Combine(BackupFolder, $"logo-before-reset-{stamp}.png"));
-        // Restoring: put this folder back as App_Data\attachments next to the restored database.
-        CopyAttachmentsTo(Path.Combine(BackupFolder, $"attachments-before-reset-{stamp}"));
-        return name;
-    }
     public void SavePrintTemplate(Stream source)
     {
         lock (_sync)
@@ -3037,20 +3051,50 @@ public sealed partial class HelpdeskStore
         for (var i = 0; i < entries.Count; i++)
             if (entries[i].By is null) entries[i] = entries[i] with { By = actor };
 
-        using var connection = new SqliteConnection($"Data Source={_path}");
-        connection.Open();
-        using var transaction = connection.BeginTransaction();
-        WriteData(connection, transaction, _data);
-        SetMetadata(connection, transaction, "SchemaVersion", "5");
-        foreach (var entry in entries)
-            Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId) VALUES ($at,$area,$type,$key,$entity,$action,$details,$actor,$actorid);",
-                ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details),
-                ("$actor", entry.By?.Name), ("$actorid", entry.By?.Id?.ToString()));
-        transaction.Commit();
+        try
+        {
+            using var connection = new SqliteConnection($"Data Source={_path}");
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            WriteData(connection, transaction, _data);
+            SetMetadata(connection, transaction, "SchemaVersion", "5");
+            foreach (var entry in entries)
+                Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId) VALUES ($at,$area,$type,$key,$entity,$action,$details,$actor,$actorid);",
+                    ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details),
+                    ("$actor", entry.By?.Name), ("$actorid", entry.By?.Id?.ToString()));
+            transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+            // Every mutator changes the in-memory data first and saves last. If the save fails, the transaction rolls
+            // back but memory would keep the change - showing people data that vanishes at the next restart, and
+            // making every later save carry it again. So memory goes back to what the database holds, and the caller
+            // is told nothing was changed (SaveFailureFilter turns that into a message on the page).
+            throw new SaveFailedException(ex, restored: RestoreFromDatabase());
+        }
 
         _audit.AddRange(entries);
         _pendingAudit.Clear();
         _snapshot = current;
+    }
+
+    // Called under the lock after a failed save. If even reading fails, the unsaved change stays in memory - there is
+    // nothing better to go back to - and the next successful save writes it after all.
+    private bool RestoreFromDatabase()
+    {
+        _pendingAudit.Clear();
+        try
+        {
+            _data = Load();
+            Prepare();
+            _snapshot = AuditTracker.Take(_data);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"EduHelpdesk: a save failed and the data couldn't be reloaded either: {ex.Message}");
+            return false;
+        }
     }
 
     private List<AuditEntry> LoadAudit()
@@ -3768,6 +3812,7 @@ public sealed partial class HelpdeskStore
         }
         ReadProjects(connection, data);
         ReadProjectTickets(connection, data);
+        ReadBackupSettings(connection, data);
         return data;
     }
 
@@ -3906,6 +3951,7 @@ public sealed partial class HelpdeskStore
         // After Users, Technicians and Suppliers, which Projects and their item suppliers have foreign keys to.
         WriteProjects(connection, transaction, data);
         WriteProjectTickets(connection, transaction, data);
+        WriteBackupSettings(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
@@ -4250,6 +4296,17 @@ public sealed partial class HelpdeskStore
         // A borrower with this many loans inside this many days is flagged on the loan report.
         public int LoanRepeatCount { get; set; } = 3;
         public int LoanRepeatDays { get; set; } = 30;
+        // Automatic backups (Settings → Backups). The folder is blank for the default, backups under the data folder.
+        public bool BackupsEnabled { get; set; } = true;
+        public string BackupFolderSetting { get; set; } = "";
+        public int BackupKeepDays { get; set; } = 14;
+        public int BackupHour { get; set; } = 2;
+        // How the last backups went, shown in Settings and on the overview. Times are UTC.
+        public DateTime? LastBackupAt { get; set; }
+        public string LastBackupFile { get; set; } = "";
+        public string LastBackupSummary { get; set; } = "";
+        public DateTime? LastBackupAttemptAt { get; set; }
+        public string LastBackupError { get; set; } = "";
     // Which days count for work-day and period SLAs, and the lesson periods in each of them (Settings → School day).
     public List<DayOfWeek> SchoolDays { get; set; } = [.. SlaClock.DefaultSchoolDays];
     public List<SchoolPeriod> Periods { get; set; } = [];

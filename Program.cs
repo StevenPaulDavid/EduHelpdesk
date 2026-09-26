@@ -114,21 +114,29 @@ builder.Services.AddRazorPages(options =>
     });
     options.Conventions.AuthorizePage("/Settings/Audit", Policy(Modules.AuditLog, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Settings/AuditPrint", Policy(Modules.AuditLog, ModulePermission.Access));
-});
+})
+    // A save the database refuses becomes a message on the page rather than an error page (see SaveFailureFilter).
+    .AddMvcOptions(options => options.Filters.Add<SaveFailureFilter>());
 builder.Services.AddMemoryCache();
 // The store reads the signed-in account off the current request to attribute changes - see HelpdeskStore.CurrentActor.
 builder.Services.AddHttpContextAccessor();
 // Data Protection encrypts both the technician login cookie and the staff portal cookie (PortalIdentity). Its keys are
-// kept with the rest of the data in App_Data\keys, so sign-ins survive a restart and move with a restored backup, and
+// kept with the rest of the data (in its keys folder), so sign-ins survive a restart and move with a restored backup, and
 // named by application rather than by folder so a changed install path doesn't invalidate them. On Windows the key
-// files are themselves encrypted to this machine: App_Data sits in a synced folder here, and a copied key must not be
+// files are themselves encrypted to this machine: the data folder may sit in a synced folder, and a copied key must not be
 // usable anywhere else. Machine rather than user scope, so running the app under a different account keeps working.
+// Where all of that lives: App_Data by default, or EduHelpdesk:DataPath - see DataLocation. Resolved before anything
+// else touches the data, because the first start in a new location copies the old data across.
+var dataLocation = DataLocation.Resolve(builder.Configuration, builder.Environment);
+if (dataLocation.CopiedFrom is { } copiedFrom) Console.WriteLine($"EduHelpdesk: data copied from {copiedFrom} to {dataLocation.Folder}.");
 var dataProtection = builder.Services.AddDataProtection()
     .SetApplicationName("EduHelpdesk")
-    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys")));
+    .PersistKeysToFileSystem(new DirectoryInfo(dataLocation.KeysFolder));
 if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+builder.Services.AddSingleton(dataLocation);
 builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<HelpdeskStore>();
+builder.Services.AddHostedService<BackupScheduler>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

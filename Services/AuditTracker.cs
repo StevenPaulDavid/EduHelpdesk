@@ -120,6 +120,11 @@ internal static class AuditTracker
             Add(s, "Settings", "Spending band", x.Id.ToString(), $"Spending band: {x.Name}", Track.All,
                 ("Name", x.Name), ("Range", HelpdeskStore.DescribeRange(x)), ("Quotes needed", x.QuotesNeeded.ToString()), ("Requirements", x.Requirements));
         Add(s, "Settings", "Spending band basis", "spending-band-basis", "Spending bands measured", Track.Update, ("Basis", d.SpendingBandsIncludeVat ? "Including VAT" : "Excluding VAT"));
+        // Where the school's data is copied to matters as much as the data itself, so moving it is on the record.
+        // How each backup went is not: that is shown in Settings, and a line a night would bury everything else.
+        Add(s, "Settings", "Backups", "backups", "Automatic backups", Track.Update,
+            ("Automatic", Yn(d.BackupsEnabled)), ("Folder", d.BackupFolderSetting.Length == 0 ? "Default (backups in the data folder)" : d.BackupFolderSetting),
+            ("Keep for days", d.BackupKeepDays.ToString()), ("Runs at", $"{d.BackupHour:00}:00"));
 
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);

@@ -107,7 +107,9 @@ public sealed partial class HelpdeskStore
     {
         < 1024 => $"{bytes} B",
         < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
-        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
+        < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024.0):0.#} MB",
+        // Backup zips can get this big; attachments never do.
+        _ => $"{bytes / (1024.0 * 1024.0 * 1024.0):0.##} GB"
     };
 
     // Just the file name: no folders, no control or reserved characters, and not absurdly long.
@@ -245,14 +247,5 @@ public sealed partial class HelpdeskStore
             _data.TicketLinks.Add(link with { TicketNumber = a, LinkedNumber = b });
         }
         MoveProjectTicketLinks(sourceNumber, targetNumber);
-    }
-
-    // Copies the attachment files next to a backup, for a factory reset.
-    private void CopyAttachmentsTo(string folder)
-    {
-        if (!Directory.Exists(AttachmentsPath)) return;
-        Directory.CreateDirectory(folder);
-        foreach (var file in Directory.GetFiles(AttachmentsPath))
-            File.Copy(file, Path.Combine(folder, Path.GetFileName(file)), true);
     }
 }
