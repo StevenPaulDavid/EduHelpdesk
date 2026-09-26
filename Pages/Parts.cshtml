@@ -34,8 +34,8 @@
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
         <div class="table-wrap"><table><thead><tr>
-            <th>@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all parts on this page" onchange="togglePartPage(this)" /> }</th>
-            <th><a class="sort-link" href="@Model.SortUrl("name")">Part@(Model.SortMark("name"))</a></th>
+            <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all parts on this page" onchange="togglePartPage(this)" /> }</th>
+            <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("name")">Part@(Model.SortMark("name"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("sku")">SKU@(Model.SortMark("sku"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("category")">Category@(Model.SortMark("category"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th>

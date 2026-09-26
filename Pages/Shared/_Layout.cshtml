@@ -47,6 +47,7 @@
             --accent: @Helpdesk.Branding.AccentColor;
         }
     </style>
+    <script src="~/js/layout.js" asp-append-version="true" defer></script>
     <script src="~/js/picker.js" asp-append-version="true" defer></script>
 </head>
 <body>
@@ -55,6 +56,9 @@
     <header class="topbar"><div class="brand">@if (Helpdesk.LogoVersion is { } logoVersion) { <img class="brand-logo" src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> } else { <span class="brand-mark">EH</span> }<span>@Helpdesk.Branding.BrandName</span></div>
     @if (User.Identity?.IsAuthenticated == true)
     {
+        @* Below tablet width the nav and the account menu fold behind the Menu button (wwwroot/js/layout.js). On a wider
+           screen the wrapper is display:contents, so they sit in the bar as they always have. *@
+        <div class="site-menu" id="site-menu">
         <nav>
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
             @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
@@ -81,7 +85,6 @@
                Settings page itself would refuse them. *@
             else if (Can(Modules.AuditLog)) { <a asp-page="/Settings/Audit" class="@(NavOn("/Settings") ? "active" : null)">Audit log</a> }
         </nav>
-        @if (Can(Modules.Tickets, ModulePermission.New)) { <a class="button button-primary header-job-button" asp-page="/NewTicket">＋ Log a ticket</a> }
         <details class="nav-menu user-menu">
             <summary><span class="user-name">@User.Identity!.Name</span><span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">
@@ -91,6 +94,9 @@
                 <form method="post" asp-page="/Logout"><button type="submit">Sign out</button></form>
             </div>
         </details>
+        </div>
+        @if (Can(Modules.Tickets, ModulePermission.New)) { <a class="button button-primary header-job-button" asp-page="/NewTicket" aria-label="Log a ticket">＋<span class="header-job-text"> Log a ticket</span></a> }
+        <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="site-menu"><span aria-hidden="true">☰</span> Menu</button>
     }
     </header>
     <main class="shell">@RenderBody()</main>
@@ -111,21 +117,5 @@
         </form>
     </footer>
     @await RenderSectionAsync("Scripts", required: false)
-    <script>
-        // Only one menu open at a time - header menus and page action menus alike - and clicking away, choosing an
-        // item, or pressing Escape closes them.
-        (function () {
-            const menus = [...document.querySelectorAll("details.nav-menu")];
-            menus.forEach(m => m.addEventListener("toggle", () => {
-                if (m.open) menus.filter(o => o !== m).forEach(o => o.open = false);
-            }));
-            document.addEventListener("click", e => {
-                menus.forEach(m => { if (!m.contains(e.target) || e.target.closest(".nav-panel button, .nav-panel a")) m.open = false; });
-            });
-            document.addEventListener("keydown", e => {
-                if (e.key === "Escape") menus.forEach(m => m.open = false);
-            });
-        })();
-    </script>
 </body>
 </html>

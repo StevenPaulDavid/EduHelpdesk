@@ -43,9 +43,9 @@
         <input type="hidden" name="size" value="@Model.Size" />
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
-        <div class="table-wrap"><table class="asset-table"><thead><tr>
-            <th>@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all assets on this page" onchange="toggleAssetPage(this)" /> }</th>
-            <th><a class="sort-link" href="@Model.SortUrl("tag")">Asset@(Model.SortMark("tag"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("model")">Make and model@(Model.SortMark("model"))</a></th>
+        <div class="table-wrap"><table class="asset-table stack-table"><thead><tr>
+            <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all assets on this page" onchange="toggleAssetPage(this)" /> }</th>
+            <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("tag")">Asset@(Model.SortMark("tag"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("model")">Make and model@(Model.SortMark("model"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("holder")">Held by@(Model.SortMark("holder"))</a></th>

@@ -22,7 +22,7 @@
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">OUT NOW</p><h2>On loan</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.Out.Count</span></div>
     <div class="table-wrap"><table><thead><tr>
-        <th>Type</th><th>What</th><th>Borrower</th><th>Reason</th><th>Out for</th><th>Due back</th><th></th>
+        <th>Type</th><th data-stack="head">What</th><th>Borrower</th><th>Reason</th><th>Out for</th><th>Due back</th><th></th>
     </tr></thead><tbody>
     @foreach (var loan in Model.Out)
     {
@@ -58,7 +58,7 @@
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">RECENTLY BACK</p><h2>Returned</h2></div><span class="badge">Last @LoansModel.RecentLimit</span></div>
     <div class="table-wrap"><table><thead><tr>
-        <th>Type</th><th>What</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Returned</th><th>Kept</th>
+        <th>Type</th><th data-stack="head">What</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Returned</th><th>Kept</th>
     </tr></thead><tbody>
     @foreach (var loan in Model.Recent)
     {

@@ -102,9 +102,9 @@
         @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
-        <div class="table-wrap"><table class="ticket-table"><thead><tr>
-            <th><input id="select-page" type="checkbox" aria-label="Select all tickets on this page" onchange="toggleTicketPage(this)" /></th>
-            <th><a class="sort-link" href="@Model.SortUrl("number")">Ticket@(Model.SortMark("number"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("title")">Title@(Model.SortMark("title"))</a></th>
+        <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
+            <th data-stack="check"><input id="select-page" type="checkbox" aria-label="Select all tickets on this page" onchange="toggleTicketPage(this)" /></th>
+            <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("number")">Ticket@(Model.SortMark("number"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("title")">Title@(Model.SortMark("title"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("requester")">Requester@(Model.SortMark("requester"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("asset")">Asset@(Model.SortMark("asset"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("technician")">Technician@(Model.SortMark("technician"))</a></th>

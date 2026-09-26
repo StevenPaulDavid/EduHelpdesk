@@ -22,7 +22,7 @@
 </section>
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">AUDIT LOG</p><h2>@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalEvents} events" : $"{Model.TotalEvents} events")</h2></div><span class="badge">Page @Model.PageNumber of @Model.TotalPages</span></div>
-    <div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>Area</th><th>Item</th><th>Action</th><th>Details</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">When</th><th>Who</th><th>Area</th><th>Item</th><th>Action</th><th>Details</th></tr></thead><tbody>
     @foreach (var entry in Model.Entries)
     {
         var link = Model.LinkFor(entry);

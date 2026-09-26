@@ -44,8 +44,8 @@
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">PROJECT REGISTER</p><h2>@ProjectsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
-    <div class="table-wrap"><table class="ticket-table"><thead><tr>
-        <th>Project</th><th>Requested by</th><th>Technician</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Updated</th>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
+        <th data-stack="head">Project</th><th>Requested by</th><th>Technician</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Updated</th>
     </tr></thead><tbody>
     @foreach (var project in Model.Rows)
     {

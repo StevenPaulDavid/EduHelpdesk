@@ -601,3 +601,100 @@ a.settings-card:focus-visible{outline:2px solid var(--teal-text);outline-offset:
 .dash-more{margin:12px 0 0}
 .panel .empty{padding:18px}
 @media(max-width:600px){.dash-row{flex-direction:column}.dash-side{flex-direction:row;flex-wrap:wrap;align-items:center}.dash-reasons{max-width:none;justify-content:flex-start}}
+/* --- Stage E: phone and tablet layout ------------------------------------------------------------------------------
+   Header. On a wide screen .site-menu is display:contents, so the nav and account menu are items of the bar itself
+   and "order" puts Log a ticket between them as before. Below 980px (where the full nav stops fitting) they fold behind the Menu button
+   (wwwroot/js/layout.js) into a full-width list under the bar, and Log a ticket stays in the bar as a "+" button. */
+.site-menu{display:contents}
+.topbar nav{order:1}
+.header-job-button{order:2}
+.user-menu{order:3}
+.menu-toggle{display:none}
+@media(max-width:980px){
+  .topbar{height:auto;min-height:60px;flex-wrap:wrap;gap:10px 12px;padding:10px 16px}
+  .brand{flex:1 1 auto;min-width:0;font-size:17px}
+  .brand>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brand-mark,.brand-logo{flex:none}
+  .header-job-button{order:1;margin-left:0;padding:9px 13px;font-size:13px}
+  .menu-toggle{order:2;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:750;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .menu-toggle span{font-size:16px;line-height:1}
+  .menu-toggle[aria-expanded="true"]{border-color:var(--teal-text);color:var(--teal-strong)}
+  .site-menu{display:none;order:3;flex-basis:100%;flex-direction:column;border-top:1px solid var(--line);margin:0 -16px;padding:4px 16px 10px}
+  .topbar.menu-open .site-menu{display:flex}
+  .site-menu nav{display:flex;flex-direction:column;gap:0;margin:0}
+  .topbar .site-menu nav>a,.site-menu .nav-menu>summary{font-size:15px;font-weight:700;padding:12px 2px;border-bottom:1px solid var(--row-line)}
+  .site-menu .nav-menu>summary{justify-content:space-between}
+  .site-menu .nav-panel{position:static;box-shadow:none;border:0;border-radius:0;padding:2px 0 8px 14px;min-width:0;background:transparent}
+  .site-menu .nav-panel form{border-top:0;margin-top:0;padding-top:0}
+  .site-menu .nav-panel a,.site-menu .nav-panel button{font-size:15px;padding:10px 8px}
+  .site-menu .user-menu>summary .user-name{max-width:none}
+  .site-menu .user-menu>summary{border-bottom:0}
+}
+@media(max-width:420px){.header-job-text{display:none}.header-job-button{padding:8px 13px;font-size:16px;line-height:1}}
+/* Phones: working lists become cards (table.stack-table, labelled by wwwroot/js/layout.js). Each row is a card, the
+   "head" cell is its title, each other cell shows its column heading beside the value, and the tick box sits in the
+   corner. Overdue and due-soon rows keep their coloured edge on the card itself. Tablets in portrait get cards too. */
+@media(max-width:800px){
+  .stack-table.is-labelled thead{display:none}
+  .stack-table.is-labelled,.stack-table.is-labelled tbody{display:block;width:100%}
+  .stack-table.is-labelled tr{display:flex;flex-direction:column;gap:6px;position:relative;padding:14px 4px 14px 12px;border-bottom:1px solid var(--line)}
+  .stack-table.is-labelled tr:last-child{border-bottom:0}
+  /* The label sits in a left gutter rather than a grid column: a value can be several pieces (a date, a line
+     break, "Created ..."), and as grid items those scattered across both columns. */
+  .stack-table.is-labelled td{display:block;position:relative;padding:0 0 0 120px;min-height:18px;border:0;font-size:13px;overflow-wrap:anywhere;box-shadow:none!important}
+  .stack-table.is-labelled td::before{content:attr(data-label);position:absolute;left:0;top:2px;width:110px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .stack-table.is-labelled td:not([data-label]){padding-left:0}
+  .stack-table.is-labelled td:not([data-label])::before{content:none}
+  .stack-table.is-labelled td.stack-head{order:-1;font-size:15px;line-height:1.4;padding-right:40px;margin-bottom:2px}
+  .stack-table.is-labelled td.stack-check{position:absolute;top:14px;right:4px;padding:0}
+  .stack-table.is-labelled td.stack-check input{width:22px;height:22px}
+  .stack-table.is-labelled td:empty{display:none}
+  .stack-table.is-labelled td.empty{text-align:center;padding:24px 0}
+  .stack-table.is-labelled tr.row-overdue{box-shadow:inset 4px 0 0 var(--alert)}
+  .stack-table.is-labelled tr.row-soon{box-shadow:inset 4px 0 0 var(--caution)}
+  .stack-table.is-labelled .due-cell br{display:none}
+  .stack-table.is-labelled .due-cell .badge{margin-left:6px}
+  .ticket-table.is-labelled td.due-cell{white-space:normal}
+}
+/* Phones: the rest of the layout. */
+@media(max-width:640px){
+  .shell{padding:22px 16px 24px}
+  .footer{padding:0 16px 24px}
+  .panel{padding:16px;margin-bottom:16px;border-radius:10px}
+  .page-heading{margin-bottom:22px}
+  .page-heading h1,.hero h1{font-size:32px}
+  .hero-copy{font-size:15px;margin-top:10px}
+  .hero{margin-bottom:22px}
+  /* Under 16px, iPhones zoom the whole page in whenever a box is tapped. */
+  input,select,textarea{font-size:16px}
+  .dash-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .dash-metrics .metric{padding:14px}
+  .metric strong{font-size:26px}
+  /* The queues stay one row you can swipe along, rather than wrapping into three. */
+  .queue-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 4px}
+  .queue-tabs::-webkit-scrollbar{display:none}
+  .queue-tab{flex:none;padding:8px 12px;font-size:13px}
+  .queue-bar{align-items:stretch}
+  /* Filter dropdowns two to a row (a column of eight full-width boxes was a whole screen of form); search, tick
+     boxes and the buttons take the full width. */
+  .audit-filters,.audit-filters.people-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .audit-filters>*{min-width:0}
+  .audit-filters .audit-search,.audit-filters .filter-checks,.audit-filters .audit-filter-actions,.audit-filters .filter-chip{grid-column:1/-1}
+  .audit-filters .audit-filter-actions .button{flex:1;text-align:center}
+  .filter-bar .audit-filter-actions{width:100%}
+  .filter-bar .audit-filter-actions .button{flex:1;text-align:center}
+  .bulk-actions label{min-width:0;flex:1 1 100%}
+  .bulk-actions .button{width:100%}
+  .audit-pager{flex-wrap:wrap;justify-content:center}
+  .audit-pager .muted{order:-1;width:100%;text-align:center}
+  .heading-actions{width:100%}
+  .detail-block{padding:16px}
+  .job-description{font-size:15px;margin-bottom:22px}
+  .comment,.history-entry{padding:10px 12px}
+}
+
+/* The ticket page's tabs (Comments, History, Assets, Parts, Attachments) can outgrow a phone once the counts are
+   large, so they scroll sideways rather than wrap. */
+.ticket-tab-buttons{overflow-x:auto;scrollbar-width:none}
+.ticket-tab-buttons::-webkit-scrollbar{display:none}
+.ticket-tab-button{flex:none}

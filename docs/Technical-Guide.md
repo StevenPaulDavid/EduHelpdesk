@@ -384,6 +384,8 @@ Every part at or below its reorder threshold, with quantity against threshold, p
 
 **Light and dark.** Each browser chooses for itself from the **Appearance** switch at the bottom of every page, including the staff portal and the sign-in page: Light, Dark, or Match device, which follows the computer's or phone's own setting. The choice is a cookie on that device, so a technician's laptop and the staffroom PC can differ. Pressing the chosen one again goes back to the school's default, set in **Branding & logo** (a new install uses Match device; an upgraded install keeps the look it had). In dark, the branding background and accent are replaced with dark ones and the primary colour is lightened for text, so any school colour stays readable. Printing is always light.
 
+**Phones and tablets.** The helpdesk works at phone width. Below 980px the top navigation and the account menu fold behind a **Menu** button, and Log a ticket stays in the bar as a **+** button. Below 800px the working lists (tickets, projects, assets, parts, loans, kits and the audit log) become cards: the ticket number and title head each card, every other value is labelled, the tick box for bulk actions sits in the corner, and tapping the card opens it. Filters sit two to a row, the ticket queues are one row you can swipe along, and form fields use 16px text so iPhones don't zoom in on every tap. Reports keep their tables, which scroll sideways on a small screen.
+
 ### Managed lists behave consistently
 
 Across every option list — teams, departments, locations, asset types, categories, part locations and the rest — renaming a value **cascades** to every record using it, and a value still in use **cannot be deleted**. You will get told what is blocking it.
