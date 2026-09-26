@@ -205,6 +205,7 @@ public sealed partial class HelpdeskStore
                 using var connection = new SqliteConnection($"Data Source={_path}");
                 connection.Open();
                 using var transaction = connection.BeginTransaction();
+                using var statements = new StatementScope(transaction);
                 Execute(connection, transaction, "DELETE FROM AuditLog;");
                 transaction.Commit();
                 _audit.Clear();

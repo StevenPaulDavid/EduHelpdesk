@@ -35,6 +35,7 @@ public sealed partial class HelpdeskStore
                 foreach (var department in migrated.Users.Select(x => x.Department).Where(x => !string.IsNullOrWhiteSpace(x)))
                     if (!migrated.Departments.Contains(department, StringComparer.OrdinalIgnoreCase)) migrated.Departments.Add(department);
                 using var transaction = connection.BeginTransaction();
+                using var statements = new StatementScope(transaction);
                 WriteData(connection, transaction, migrated);
                 SetMetadata(connection, transaction, "SchemaVersion", "8");
                 DropLegacyStore(connection, transaction);
@@ -79,6 +80,7 @@ public sealed partial class HelpdeskStore
             using var connection = new SqliteConnection($"Data Source={_path}");
             connection.Open();
             using var transaction = connection.BeginTransaction();
+            using var statements = new StatementScope(transaction);
             WriteData(connection, transaction, _data);
             SetMetadata(connection, transaction, "SchemaVersion", "5");
             foreach (var entry in entries)
@@ -132,6 +134,7 @@ public sealed partial class HelpdeskStore
                 using var connection = new SqliteConnection($"Data Source={_path}");
                 connection.Open();
                 using var transaction = connection.BeginTransaction();
+                using var statements = new StatementScope(transaction);
                 Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId) VALUES ($at,$area,$type,$key,$entity,$action,$details,$actor,$actorid);",
                     ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details),
                     ("$actor", entry.By?.Name), ("$actorid", entry.By?.Id?.ToString()));
@@ -549,7 +552,7 @@ public sealed partial class HelpdeskStore
                 DisposalProceeds = NullableString(reader, 19) is { } proceeds && decimal.TryParse(proceeds, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedProceeds) ? parsedProceeds : null
             });
         }
-        foreach (var asset in data.Assets) ReadAssetChildren(connection, asset);
+        ReadAssetChildren(connection, data.Assets);
         var ticketAssetMap = new Dictionary<int, List<Guid>>();
         using (var command = connection.CreateCommand())
         {
@@ -585,7 +588,7 @@ public sealed partial class HelpdeskStore
                 data.Tickets.Add(ticket);
             }
         }
-        foreach (var ticket in data.Tickets) ReadTicketChildren(connection, ticket);
+        ReadTicketChildren(connection, data.Tickets);
         ReadTicketProcess(connection, data);
         ReadLifecycle(connection, data);
         // The highest number ever handed out, not just the highest still present: deleting the newest ticket must not
@@ -621,47 +624,76 @@ public sealed partial class HelpdeskStore
         while (reader.Read()) target.Add(reader.GetString(0));
     }
 
-    private static void ReadTicketChildren(SqliteConnection connection, TicketRecord ticket)
+    // Each child table is read once, in order, and handed to its ticket or asset - not queried once per record. The
+    // tables have no index on the parent's key, so a query per record read the whole child table every time: with
+    // 40,000 tickets that was billions of rows and a start-up measured in hours.
+    private static void ReadTicketChildren(SqliteConnection connection, List<TicketRecord> tickets)
     {
-        using var comments = connection.CreateCommand();
-        comments.CommandText = "SELECT Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
-        comments.Parameters.AddWithValue("$number", ticket.Number);
-        using var commentReader = comments.ExecuteReader();
-        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1), commentReader.GetInt32(2) != 0) { By = ReadActor(commentReader, 3, 4), FromRequester = commentReader.GetInt32(5) != 0 });
-        using var activities = connection.CreateCommand();
-        activities.CommandText = "SELECT Action, Details, CreatedAt, Actor, ActorId FROM TicketActivities WHERE TicketNumber = $number ORDER BY Id;";
-        activities.Parameters.AddWithValue("$number", ticket.Number);
-        using var activityReader = activities.ExecuteReader();
-        while (activityReader.Read()) ticket.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)) { By = ReadActor(activityReader, 3, 4) });
+        var byNumber = new Dictionary<int, TicketRecord>(tickets.Count);
+        foreach (var ticket in tickets) byNumber[ticket.Number] = ticket;
+        using (var comments = connection.CreateCommand())
+        {
+            comments.CommandText = "SELECT TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester FROM TicketComments ORDER BY Id;";
+            using var reader = comments.ExecuteReader();
+            while (reader.Read())
+                if (byNumber.TryGetValue(reader.GetInt32(0), out var ticket))
+                    ticket.Comments.Add(new(reader.GetString(1), Date(reader, 2), reader.GetInt32(3) != 0) { By = ReadActor(reader, 4, 5), FromRequester = reader.GetInt32(6) != 0 });
+        }
+        using (var activities = connection.CreateCommand())
+        {
+            activities.CommandText = "SELECT TicketNumber, Action, Details, CreatedAt, Actor, ActorId FROM TicketActivities ORDER BY Id;";
+            using var reader = activities.ExecuteReader();
+            while (reader.Read())
+                if (byNumber.TryGetValue(reader.GetInt32(0), out var ticket))
+                    ticket.History.Add(new(reader.GetString(1), reader.GetString(2), Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
+        }
     }
 
-    private static void ReadAssetChildren(SqliteConnection connection, AssetRecord asset)
+    private static void ReadAssetChildren(SqliteConnection connection, List<AssetRecord> assets)
     {
-        using var comments = connection.CreateCommand();
-        comments.CommandText = "SELECT Text, CreatedAt, Actor, ActorId FROM AssetComments WHERE AssetId = $id ORDER BY Id;";
-        comments.Parameters.AddWithValue("$id", asset.Id.ToString());
-        using var commentReader = comments.ExecuteReader();
-        while (commentReader.Read()) asset.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1)) { By = ReadActor(commentReader, 2, 3) });
-        using var activities = connection.CreateCommand();
-        activities.CommandText = "SELECT Action, Details, CreatedAt, Actor, ActorId FROM AssetActivities WHERE AssetId = $id ORDER BY Id;";
-        activities.Parameters.AddWithValue("$id", asset.Id.ToString());
-        using var activityReader = activities.ExecuteReader();
-        while (activityReader.Read()) asset.History.Add(new(activityReader.GetString(0), activityReader.GetString(1), Date(activityReader, 2)) { By = ReadActor(activityReader, 3, 4) });
-        using var assignments = connection.CreateCommand();
-        assignments.CommandText = "SELECT UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId FROM AssetAssignments WHERE AssetId = $id ORDER BY Id;";
-        assignments.Parameters.AddWithValue("$id", asset.Id.ToString());
-        using var assignmentReader = assignments.ExecuteReader();
-        while (assignmentReader.Read())
-            asset.Assignments.Add(new AssetAssignment(NullableGuid(assignmentReader, 0), assignmentReader.GetString(1),
-                assignmentReader.IsDBNull(2) ? null : Date(assignmentReader, 2), assignmentReader.IsDBNull(3) ? null : Date(assignmentReader, 3), NullableDateOnly(assignmentReader, 4))
-            {
-                Reason = NullableString(assignmentReader, 5),
-                KitLoanId = NullableGuid(assignmentReader, 6)
-            });
+        var byId = new Dictionary<Guid, AssetRecord>(assets.Count);
+        foreach (var asset in assets) byId[asset.Id] = asset;
+        AssetRecord? Owner(SqliteDataReader reader) => Guid.TryParse(reader.GetString(0), out var id) && byId.TryGetValue(id, out var asset) ? asset : null;
+        using (var comments = connection.CreateCommand())
+        {
+            comments.CommandText = "SELECT AssetId, Text, CreatedAt, Actor, ActorId FROM AssetComments ORDER BY Id;";
+            using var reader = comments.ExecuteReader();
+            while (reader.Read())
+                Owner(reader)?.Comments.Add(new(reader.GetString(1), Date(reader, 2)) { By = ReadActor(reader, 3, 4) });
+        }
+        using (var activities = connection.CreateCommand())
+        {
+            activities.CommandText = "SELECT AssetId, Action, Details, CreatedAt, Actor, ActorId FROM AssetActivities ORDER BY Id;";
+            using var reader = activities.ExecuteReader();
+            while (reader.Read())
+                Owner(reader)?.History.Add(new(reader.GetString(1), reader.GetString(2), Date(reader, 3)) { By = ReadActor(reader, 4, 5) });
+        }
+        using (var assignments = connection.CreateCommand())
+        {
+            assignments.CommandText = "SELECT AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId FROM AssetAssignments ORDER BY Id;";
+            using var reader = assignments.ExecuteReader();
+            while (reader.Read())
+                Owner(reader)?.Assignments.Add(new AssetAssignment(NullableGuid(reader, 1), reader.GetString(2),
+                    reader.IsDBNull(3) ? null : Date(reader, 3), reader.IsDBNull(4) ? null : Date(reader, 4), NullableDateOnly(reader, 5))
+                {
+                    Reason = NullableString(reader, 6),
+                    KitLoanId = NullableGuid(reader, 7)
+                });
+        }
     }
-
     private static void WriteData(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
     {
+        // Looked up once rather than searched for every row: with thousands of tickets and assets, "does this asset
+        // still exist?" asked of the whole list for each ticket was hundreds of millions of comparisons per save.
+        var assetIds = data.Assets.Select(x => x.Id).ToHashSet();
+        var partIds = data.Parts.Select(x => x.Id).ToHashSet();
+        var supplierIds = data.Suppliers.Select(x => x.Id).ToHashSet();
+        var kitIds = data.LoanKits.Select(x => x.Id).ToHashSet();
+        var assetDefinitionIds = data.AssetAttributeDefinitions.Select(x => x.Id).ToHashSet();
+        var ticketDefinitionIds = data.TicketAttributeDefinitions.Select(x => x.Id).ToHashSet();
+        var partsByTicket = data.TicketParts.ToLookup(x => x.TicketNumber);
+        var valuesByTicket = data.TicketAttributeValues.ToLookup(x => x.TicketNumber);
+        var attachmentsByTicket = data.TicketAttachments.ToLookup(x => x.TicketNumber);
         using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
@@ -748,7 +780,7 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
                 ("$id", item.Id.ToString()), ("$name", item.Name), ("$sku", item.Sku), ("$category", item.Category), ("$quantity", item.QuantityOnHand), ("$created", Iso(item.CreatedAt)), ("$location", item.Location ?? string.Empty), ("$reorder", item.ReorderThreshold));
             foreach (var supplierId in item.SupplierIds.Distinct())
-                if (data.Suppliers.Any(x => x.Id == supplierId))
+                if (supplierIds.Contains(supplierId))
                     Execute(connection, transaction, "INSERT INTO PartSuppliers (PartId, SupplierId) VALUES ($part,$supplier);", ("$part", item.Id.ToString()), ("$supplier", supplierId.ToString()));
             foreach (var assetType in item.AssetTypes.Distinct(StringComparer.OrdinalIgnoreCase))
                 Execute(connection, transaction, "INSERT INTO PartAssetTypes (PartId, AssetType) VALUES ($part,$type);", ("$part", item.Id.ToString()), ("$type", assetType));
@@ -773,10 +805,10 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO LoanKits (Id, Name, Notes, CreatedAt, IsRetired) VALUES ($id,$name,$notes,$created,$retired);",
                 ("$id", kit.Id.ToString()), ("$name", kit.Name), ("$notes", kit.Notes ?? string.Empty), ("$created", Iso(kit.CreatedAt)), ("$retired", kit.IsRetired ? 1 : 0));
             foreach (var assetId in kit.AssetIds.Distinct())
-                if (data.Assets.Any(x => x.Id == assetId))
+                if (assetIds.Contains(assetId))
                     Execute(connection, transaction, "INSERT INTO LoanKitAssets (KitId, AssetId) VALUES ($kit,$asset);", ("$kit", kit.Id.ToString()), ("$asset", assetId.ToString()));
         }
-        foreach (var loan in data.KitLoans.Where(x => data.LoanKits.Any(k => k.Id == x.KitId)))
+        foreach (var loan in data.KitLoans.Where(x => kitIds.Contains(x.KitId)))
             Execute(connection, transaction, "INSERT INTO KitLoans (Id, KitId, BorrowerUserId, BorrowerName, Reason, IssuedAt, DueBack, ReturnedAt, IssuedBy, Notes) VALUES ($id,$kit,$user,$name,$reason,$issued,$due,$returned,$by,$notes);",
                 ("$id", loan.Id.ToString()), ("$kit", loan.KitId.ToString()), ("$user", loan.BorrowerUserId?.ToString()), ("$name", loan.BorrowerName),
                 ("$reason", loan.Reason), ("$issued", Iso(loan.IssuedAt)), ("$due", IsoDay(loan.DueBack)),
@@ -788,7 +820,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO AssetAttributeAssetTypes (AttributeId, AssetType) VALUES ($id,$type);", ("$id", item.Id.ToString()), ("$type", assetType));
         }
         foreach (var item in data.AssetAttributeValues)
-            if (data.Assets.Any(x => x.Id == item.AssetId) && data.AssetAttributeDefinitions.Any(x => x.Id == item.AttributeDefinitionId))
+            if (assetIds.Contains(item.AssetId) && assetDefinitionIds.Contains(item.AttributeDefinitionId))
                 Execute(connection, transaction, "INSERT INTO AssetAttributeValues (AssetId, AttributeDefinitionId, Value) VALUES ($asset,$definition,$value);", ("$asset", item.AssetId.ToString()), ("$definition", item.AttributeDefinitionId.ToString()), ("$value", item.Value));
         foreach (var item in data.TicketAttributeDefinitions)
         {
@@ -801,17 +833,17 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen);",
                 ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)), ("$location", item.Location), ("$seen", item.RequesterSeenAt is { } seen ? Iso(seen) : null));
             foreach (var assetId in item.AssetIds.Distinct())
-                if (data.Assets.Any(x => x.Id == assetId))
+                if (assetIds.Contains(assetId))
                     Execute(connection, transaction, "INSERT INTO TicketAssets (TicketNumber, AssetId) VALUES ($number,$asset);", ("$number", item.Number), ("$asset", assetId.ToString()));
-            foreach (var part in data.TicketParts.Where(x => x.TicketNumber == item.Number))
-                if (data.Parts.Any(x => x.Id == part.PartId))
+            foreach (var part in partsByTicket[item.Number])
+                if (partIds.Contains(part.PartId))
                     Execute(connection, transaction, "INSERT INTO TicketParts (TicketNumber, PartId, Quantity) VALUES ($number,$part,$quantity);", ("$number", item.Number), ("$part", part.PartId.ToString()), ("$quantity", part.Quantity));
-            foreach (var value in data.TicketAttributeValues.Where(x => x.TicketNumber == item.Number))
-                if (data.TicketAttributeDefinitions.Any(x => x.Id == value.AttributeDefinitionId))
+            foreach (var value in valuesByTicket[item.Number])
+                if (ticketDefinitionIds.Contains(value.AttributeDefinitionId))
                     Execute(connection, transaction, "INSERT INTO TicketAttributeValues (TicketNumber, AttributeDefinitionId, Value) VALUES ($number,$definition,$value);", ("$number", value.TicketNumber), ("$definition", value.AttributeDefinitionId.ToString()), ("$value", value.Value));
             foreach (var comment in item.Comments)
                 Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester) VALUES ($number,$text,$created,$internal,$actor,$actorid,$fromRequester);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()), ("$fromRequester", comment.FromRequester ? 1 : 0));
-            foreach (var attachment in data.TicketAttachments.Where(x => x.TicketNumber == item.Number))
+            foreach (var attachment in attachmentsByTicket[item.Number])
                 Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt, VisibleToRequester, FromRequester) VALUES ($id,$number,$name,$type,$size,$uploaded,$visible,$fromRequester);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)), ("$visible", attachment.VisibleToRequester ? 1 : 0), ("$fromRequester", attachment.FromRequester ? 1 : 0));
             foreach (var pause in item.SlaPauses)
                 Execute(connection, transaction, "INSERT INTO TicketSlaPauses (TicketNumber, StartedAt, EndedAt) VALUES ($number,$started,$ended);", ("$number", item.Number), ("$started", Iso(pause.StartedAt)), ("$ended", pause.EndedAt is { } ended ? Iso(ended) : null));
@@ -822,7 +854,7 @@ public sealed partial class HelpdeskStore
         {
             Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla);",
                 ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()));
-            foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && data.TicketAttributeDefinitions.Any(d => d.Id == x.Key)))
+            foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && ticketDefinitionIds.Contains(x.Key)))
                 Execute(connection, transaction, "INSERT INTO TicketTemplateAttributes (TemplateId, AttributeDefinitionId, Value) VALUES ($template,$definition,$value);", ("$template", template.Id.ToString()), ("$definition", pair.Key.ToString()), ("$value", pair.Value));
         }
         SetMetadata(connection, transaction, "LastTicketNumber", Math.Max(data.LastTicketNumber, data.Tickets.Select(x => x.Number).DefaultIfEmpty(1000).Max()).ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -840,12 +872,36 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, $"INSERT INTO {table} (Name) VALUES ($value);", ("$value", value));
     }
 
+    // Each statement is prepared once per transaction and reused for every row it writes, rather than built and
+    // prepared again for each of the tens of thousands of rows a save can hold. StatementScope releases them when the
+    // transaction is done, before the connection closes - a statement left open would keep the database file open.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SqliteTransaction, Dictionary<string, SqliteCommand>> Statements = new();
+
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql, params (string Name, object? Value)[] values)
     {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = sql;
-        foreach (var value in values) command.Parameters.AddWithValue(value.Name, value.Value ?? DBNull.Value);
+        var cache = Statements.GetValue(transaction, _ => new Dictionary<string, SqliteCommand>(StringComparer.Ordinal));
+        if (!cache.TryGetValue(sql, out var command))
+        {
+            command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            foreach (var value in values) command.Parameters.Add(new SqliteParameter(value.Name, value.Value ?? DBNull.Value));
+            cache[sql] = command;
+        }
+        else
+        {
+            foreach (var value in values) command.Parameters[value.Name].Value = value.Value ?? DBNull.Value;
+        }
         command.ExecuteNonQuery();
+    }
+
+    private sealed class StatementScope(SqliteTransaction transaction) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (!Statements.TryGetValue(transaction, out var cache)) return;
+            foreach (var command in cache.Values) command.Dispose();
+            Statements.Remove(transaction);
+        }
     }
 }

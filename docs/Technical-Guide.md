@@ -27,7 +27,14 @@ Everything is linked: a ticket can name the assets it concerns and the parts con
 
 ### How the data is stored
 
-The whole dataset is held in memory and written to SQLite on every change. This keeps the code simple and reads instant, at the cost of rewriting the tables on each save. It has been measured at roughly 2,000 assets and 2,000 tickets with comfortable performance (list views 8–110 ms, bulk operations well under a second). For a single school that is ample headroom.
+The whole dataset is held in memory and written to SQLite on every change. This keeps the code simple and reads instant, at the cost of rewriting the tables on each save - and while a save runs, every other change waits for it. Measured on generated data (September 2026):
+
+| Data | Database | Start-up | Pages | Each save | Memory |
+|---|---|---|---|---|---|
+| One year at a large secondary school: 1,500 staff, 3,000 assets, 8,000 tickets, 40,000 audit lines | 16 MB | 3 s | 5–65 ms | about 0.6 s | 390 MB |
+| Five years of the same, nothing deleted: 6,000 assets, 40,000 tickets with 280,000 comments and history lines, 200,000 audit lines | 71 MB | 8 s | 15–230 ms | about 3 s | 900 MB |
+
+A save costs time in proportion to everything held, so the five-year row is where it starts to be felt: three seconds after every comment, with the rest of the helpdesk waiting. The data retention rules (section 16) keep a school near the one-year row - deleting closed tickets after two or three years, say. If a school ever needs to keep much more, the fix is to write only the rows a change touched rather than every table.
 
 Files that matter, all in the data folder - `App_Data/` unless `EduHelpdesk:DataPath` says otherwise (see section 15):
 

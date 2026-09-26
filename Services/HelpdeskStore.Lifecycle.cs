@@ -437,6 +437,7 @@ public partial class HelpdeskStore
         using var connection = new SqliteConnection($"Data Source={_path}");
         connection.Open();
         using var transaction = connection.BeginTransaction();
+        using var statements = new StatementScope(transaction);
         if (cutoff is { } before)
             Execute(connection, transaction, "DELETE FROM AuditLog WHERE At < $cutoff;", ("$cutoff", Iso(before)));
         foreach (var number in purgedTickets)

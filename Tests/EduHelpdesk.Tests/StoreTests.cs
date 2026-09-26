@@ -46,6 +46,42 @@ public class StoreTests
     }
 
     [Fact]
+    public void Each_record_gets_back_its_own_history_after_a_restart()
+    {
+        using var test = new TestStore();
+        var person = test.AddRequester("Nina Holt");
+        var first = new AssetRecord(Guid.NewGuid(), "TST-10", "Dell", "Latitude 5440", "Laptop", "SN-10", "Room 1", null);
+        var second = first with { Id = Guid.NewGuid(), AssetTag = "TST-11", SerialNumber = "SN-11" };
+        test.Store.AddAsset(first);
+        test.Store.AddAsset(second);
+        test.Store.AddAssetComment(first.Id, "Screen replaced.");
+        test.Store.AddAssetComment(second.Id, "Keyboard sticky.");
+        test.Store.AddAssetComment(first.Id, "Battery replaced.");
+        Assert.True(test.Store.LoanAsset(second.Id, person.Id, DateOnly.FromDateTime(DateTime.Today.AddDays(7)), test.Store.LoanReasons[0]).Ok);
+        var one = test.AddTicket(person.Id, "One");
+        var two = test.AddTicket(person.Id, "Two");
+        test.Store.AddTicketComment(two, "Second ticket, first comment.");
+        test.Store.AddTicketComment(one, "First ticket, first comment.");
+        test.Store.AddTicketComment(two, "Second ticket, second comment.");
+
+        // Everything each record carries, before and after: nothing lost, nothing given to the wrong record, in order.
+        string Shape(HelpdeskStore s) => string.Join("\n",
+            s.Assets.OrderBy(x => x.AssetTag).Select(a => $"{a.AssetTag}: {string.Join("|", a.Comments.Select(c => c.Text))} / {string.Join("|", a.History.Select(h => h.Action + h.Details))} / {string.Join("|", a.Assignments.Select(x => $"{x.UserId}{x.StartedAt:O}{x.EndedAt:O}{x.Reason}"))}")
+            .Concat(s.Tickets.OrderBy(x => x.Number).Select(t => $"#{t.Number}: {string.Join("|", t.Comments.Select(c => c.Text + c.IsInternal))} / {string.Join("|", t.History.Select(h => h.Action + h.Details))}")));
+        var before = Shape(test.Store);
+
+        var store = test.Reopen();
+        Assert.Equal(before, Shape(store));
+        Assert.Equal(["Screen replaced.", "Battery replaced."], store.Assets.Single(x => x.Id == first.Id).Comments.Select(x => x.Text));
+        Assert.Equal(["Keyboard sticky."], store.Assets.Single(x => x.Id == second.Id).Comments.Select(x => x.Text));
+        Assert.Equal(person.Id, store.Assets.Single(x => x.Id == second.Id).Assignments.Single().UserId);
+        Assert.Empty(store.Assets.Single(x => x.Id == first.Id).Assignments);
+        Assert.NotEmpty(store.Assets.Single(x => x.Id == second.Id).History);
+        Assert.Equal(["Second ticket, first comment.", "Second ticket, second comment."], store.Tickets.Single(x => x.Number == two).Comments.Select(x => x.Text));
+        Assert.Equal(["First ticket, first comment."], store.Tickets.Single(x => x.Number == one).Comments.Select(x => x.Text));
+    }
+
+    [Fact]
     public void Ticket_numbers_are_never_reused_even_after_deleting_the_newest_and_restarting()
     {
         using var test = new TestStore();
