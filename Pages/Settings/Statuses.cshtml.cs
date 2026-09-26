@@ -8,7 +8,14 @@ public class StatusesModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyDictionary<string, string> Descriptions => store.StatusDescriptions;
+    public bool Pauses(string status) => store.PausesSla(status);
     [TempData] public string? Message { get; set; }
+
+    public IActionResult OnPostSetPause(string status, bool pauses)
+    {
+        Message = store.SetStatusPausesSla(status, pauses);
+        return RedirectToPage();
+    }
 
     public IActionResult OnPostAdd(string value)
     {

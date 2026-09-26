@@ -46,8 +46,9 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // Saves one uploaded file to a ticket. The error is a sentence for the user.
-    public string? AddTicketAttachment(int number, string? fileName, Stream content, long length)
+    // Saves one uploaded file to a ticket. The error is a sentence for the user. A requester's own uploads (from the
+    // portal) are always visible to them; a technician's only when they choose to share it.
+    public string? AddTicketAttachment(int number, string? fileName, Stream content, long length, bool visibleToRequester = false, bool fromRequester = false)
     {
         var name = CleanFileName(fileName);
         if (name.Length == 0) return "A file with no name could not be attached.";
@@ -77,9 +78,13 @@ public sealed partial class HelpdeskStore
                 return $"{name} was not attached because it is larger than {MaxAttachmentBytes / (1024 * 1024)} MB.";
             }
 
-            _data.TicketAttachments.Add(new TicketAttachment(id, number, name, contentType, written, DateTime.UtcNow));
+            _data.TicketAttachments.Add(new TicketAttachment(id, number, name, contentType, written, DateTime.UtcNow)
+            {
+                VisibleToRequester = visibleToRequester || fromRequester,
+                FromRequester = fromRequester
+            });
             var history = _data.Tickets[index].History.ToList();
-            history.Add(new("Attachment added", $"{name} ({FormatSize(written)}) was attached.", DateTime.UtcNow) { By = CurrentActor() });
+            history.Add(new("Attachment added", $"{name} ({FormatSize(written)}) was attached{(fromRequester ? " from the staff portal" : visibleToRequester ? " and shared with the requester" : "")}.", DateTime.UtcNow) { By = CurrentActor() });
             _data.Tickets[index] = _data.Tickets[index] with { History = history };
             Save();
             return null;

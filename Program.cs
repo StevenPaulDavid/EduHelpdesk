@@ -117,11 +117,13 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Settings/Audit", Policy(Modules.AuditLog, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Settings/AuditPrint", Policy(Modules.AuditLog, ModulePermission.Access));
 
-    // The portal is open to anyone who can reach the site, and none of its forms carries a file, so a post there is
-    // held to 1 MB rather than the helpdesk's 60 MB. Its sessions are kept alive (or cleared) by PortalSessionFilter.
+    // The portal is open to anyone who can reach the site, so a post there is held to 1 MB rather than the helpdesk's
+    // 60 MB - except the two forms that carry files (a new ticket and a reply), which get room for their few attachments
+    // and no more. Its sessions are kept alive (or cleared) by PortalSessionFilter.
     options.Conventions.AddFolderApplicationModelConvention("/Portal", model =>
     {
-        model.Filters.Add(new RequestSizeLimitAttribute(1_000_000));
+        var takesFiles = model.ViewEnginePath is "/Portal/NewTicket" or "/Portal/Ticket";
+        model.Filters.Add(new RequestSizeLimitAttribute(takesFiles ? HelpdeskStore.MaxPortalAttachments * HelpdeskStore.MaxAttachmentBytes + 1_000_000 : 1_000_000));
         model.Filters.Add(new ServiceFilterAttribute(typeof(PortalSessionFilter)));
     });
 })

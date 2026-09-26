@@ -29,7 +29,7 @@ public static class TicketReports
             if (closed is { } closedAt) resolution.Add(Math.Max(0, (closedAt - ticket.CreatedAt).TotalHours));
             if (ticket.DueDate is not { } due) { noDue++; continue; }
             if (closed is { } closedTime) { if (closedTime <= due) onTime++; else late++; }
-            else if (due < now) openOverdue++;
+            else if (TicketInsights.IsOverdue(ticket, now)) openOverdue++;
             else openWithin++;
         }
         resolution.Sort();
@@ -57,7 +57,7 @@ public static class TicketReports
             var closed = mine.Where(t => ClosedTime(t) is { } c && c >= since).ToList();
             var resolution = closed.Select(t => Math.Max(0, (ClosedTime(t)!.Value - t.CreatedAt).TotalHours)).ToList();
             return new WorkloadRow(id, name, team, open.Count, open.Count(t => t.Type == TicketTypes.Incident), open.Count(t => t.Type == TicketTypes.Request),
-                open.Count(t => t.DueDate is { } due && due < now), open.Count == 0 ? null : open.Min(t => t.CreatedAt), closed.Count, resolution.Count == 0 ? null : resolution.Average());
+                open.Count(t => TicketInsights.IsOverdue(t, now)), open.Count == 0 ? null : open.Min(t => t.CreatedAt), closed.Count, resolution.Count == 0 ? null : resolution.Average());
         }
         var rows = technicians.Select(t => Row(t.Id, t.Name, t.Team)).ToList();
         rows.Add(Row(null, "Unassigned", ""));
@@ -77,7 +77,7 @@ public static class TicketReports
                 var mine = tickets.Where(t => string.Equals(TeamFor(t), team, StringComparison.OrdinalIgnoreCase)).ToList();
                 var open = mine.Where(t => !TicketInsights.IsClosed(t)).ToList();
                 return new TeamRow(team!, technicians.Count(t => string.Equals(t.Team, team, StringComparison.OrdinalIgnoreCase)), open.Count,
-                    open.Count(t => t.DueDate is { } due && due < now), mine.Count(t => ClosedTime(t) is { } c && c >= since));
+                    open.Count(t => TicketInsights.IsOverdue(t, now)), mine.Count(t => ClosedTime(t) is { } c && c >= since));
             })
             .OrderByDescending(r => r.Open).ThenBy(r => r.Team, StringComparer.OrdinalIgnoreCase).ToList();
     }

@@ -66,6 +66,60 @@ public static class SlaClock
         return due is { } value ? TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(value, DateTimeKind.Unspecified), zone) : null;
     }
 
+    // A due date moved on by the time a pause took out of the SLA's own clock. An On Hold ticket in an hours SLA gets
+    // every hour back; in a work-days SLA only the school-day time it spent paused; in a periods SLA only the lesson
+    // time. The due date then moves on through the same kind of time - so a pause that covered one whole period moves
+    // the due date to the end of the next period, not simply 60 minutes later.
+    public static DateTime Extend(DateTime dueUtc, DateTime pausedUtc, DateTime resumedUtc, string unit, IReadOnlyCollection<DayOfWeek> schoolDays,
+        IReadOnlyList<SchoolPeriod> periods, TimeZoneInfo? zone = null)
+    {
+        if (resumedUtc <= pausedUtc) return dueUtc;
+        var normalized = SlaUnits.Normalize(unit);
+        // Clock units, and a periods SLA with no timetable (which has no due date to move anyway), count every minute.
+        if (normalized is SlaUnits.Minutes or SlaUnits.Hours or SlaUnits.Days || (normalized == SlaUnits.Periods && periods.Count == 0))
+            return dueUtc + (resumedUtc - pausedUtc);
+
+        zone ??= TimeZoneInfo.Local;
+        DateTime Local(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), zone);
+        var days = schoolDays.Count == 0 ? Enum.GetValues<DayOfWeek>().ToHashSet() : schoolDays.ToHashSet();
+        var from = Local(pausedUtc);
+        var to = Local(resumedUtc);
+        var due = Local(dueUtc);
+
+        var paused = TimeSpan.Zero;
+        foreach (var (start, end) in WorkingTime(from, normalized, days, periods))
+        {
+            if (start >= to) break;
+            var overlap = (end < to ? end : to) - (start > from ? start : from);
+            if (overlap > TimeSpan.Zero) paused += overlap;
+        }
+        if (paused == TimeSpan.Zero) return dueUtc;
+
+        foreach (var (start, end) in WorkingTime(due, normalized, days, periods))
+        {
+            var begin = start > due ? start : due;
+            if (end <= begin) continue;
+            if (end - begin >= paused)
+                return TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(begin + paused, DateTimeKind.Unspecified), zone);
+            paused -= end - begin;
+        }
+        // More than a year of school time to give back - nothing sensible to say, so give back the wall-clock time.
+        return dueUtc + (resumedUtc - pausedUtc);
+    }
+
+    // The stretches of time the SLA counts, in order from the day of `from`: whole school days for work days, lessons for
+    // periods.
+    private static IEnumerable<(DateTime Start, DateTime End)> WorkingTime(DateTime from, string unit, HashSet<DayOfWeek> schoolDays, IReadOnlyList<SchoolPeriod> periods)
+    {
+        var ordered = periods.OrderBy(x => x.Start).ToList();
+        for (var day = from.Date; day <= from.Date.AddDays(MaxDaysAhead); day = day.AddDays(1))
+        {
+            if (!schoolDays.Contains(day.DayOfWeek)) continue;
+            if (unit == SlaUnits.WorkDays) { yield return (day, day.AddDays(1)); continue; }
+            foreach (var period in ordered) yield return (day + period.Start.ToTimeSpan(), day + period.End.ToTimeSpan());
+        }
+    }
+
     // Like "days", but only school days count. Due at the same time of day, N school days on. Logged on a weekend, the
     // clock starts at the beginning of the next school day - so 1 work day from Saturday is the end of Monday.
     private static DateTime? AddWorkDays(DateTime local, int count, HashSet<DayOfWeek> schoolDays)

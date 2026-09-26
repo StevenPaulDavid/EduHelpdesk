@@ -29,10 +29,11 @@
     }
     else
     {
-        <p class="muted">Signed in as <strong>@Model.CurrentUser.Name</strong> · @if (Model.SessionKind != EduHelpdesk.Services.PortalIdentity.Kind.Technician) { <a asp-page="/Portal/Password">Change password</a><text> · </text> }<form method="post" asp-page-handler="Switch" style="display:inline"><button type="submit" class="link-button">Sign out</button></form></p>
+        @* A div, not a p: a form can't sit inside a paragraph, so the browser used to end it early and drop Sign out onto a line of its own. *@
+        <div class="muted portal-account">Signed in as <strong>@Model.CurrentUser.Name</strong> · @if (Model.SessionKind != EduHelpdesk.Services.PortalIdentity.Kind.Technician) { <a asp-page="/Portal/Password">Change password</a><text> · </text> }<form method="post" asp-page-handler="Switch" style="display:inline"><button type="submit" class="link-button">Sign out</button></form></div>
         <div class="portal-actions">
             <a class="button button-primary portal-button" asp-page="/Portal/NewTicket">＋ Report a problem</a>
-            <a class="button button-secondary portal-button" asp-page="/Portal/MyTickets">My tickets</a>
+            <a class="button button-secondary portal-button" asp-page="/Portal/MyTickets">My tickets @if (Model.TicketsWithNews > 0) { <span class="badge badge-reply" title="Tickets with a reply you haven't read yet">@Model.TicketsWithNews new</span> }</a>
         </div>
         @if (Model.CurrentUser.MayRaiseProjects || Model.HasProjects)
         {

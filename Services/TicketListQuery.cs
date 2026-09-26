@@ -2,7 +2,8 @@ using EduHelpdesk.Models;
 
 namespace EduHelpdesk.Services;
 
-public enum DueState { None, Soon, Overdue }
+// Paused: the SLA clock is stopped (a status such as On Hold), so it is neither overdue nor due soon until it restarts.
+public enum DueState { None, Soon, Overdue, Paused }
 
 // What the ticket list needs to know besides the tickets themselves.
 public sealed record TicketContext(
@@ -25,13 +26,19 @@ public static class TicketInsights
     public static DueState DueStateOf(TicketRecord ticket, DateTime now, int soonHours)
     {
         if (IsClosed(ticket) || ticket.DueDate is not { } due) return DueState.None;
+        if (ticket.IsSlaPaused) return DueState.Paused;
         if (due < now) return DueState.Overdue;
         return due <= now.AddHours(soonHours) ? DueState.Soon : DueState.None;
     }
 
+    // Open, past its due date, and not paused - the one test every overdue count uses.
+    public static bool IsOverdue(TicketRecord ticket, DateTime now) =>
+        !IsClosed(ticket) && !ticket.IsSlaPaused && ticket.DueDate is { } due && due < now;
+
     public static string DueText(TicketRecord ticket, DateTime now)
     {
         if (ticket.DueDate is not { } due) return string.Empty;
+        if (!IsClosed(ticket) && ticket.IsSlaPaused) return "SLA paused";
         var gap = due - now;
         var span = gap < TimeSpan.Zero ? -gap : gap;
         var length = span.TotalDays >= 2 ? $"{(int)span.TotalDays} days"
@@ -79,7 +86,7 @@ public sealed class TicketListQuery
         "all" => true,
         "mine" => !TicketInsights.IsClosed(ticket) && context.CurrentTechnicianId is { } me && ticket.TechnicianId == me,
         "unassigned" => !TicketInsights.IsClosed(ticket) && ticket.TechnicianId is null,
-        "overdue" => TicketInsights.DueStateOf(ticket, context.Now, context.DueSoonHours) != DueState.None,
+        "overdue" => TicketInsights.DueStateOf(ticket, context.Now, context.DueSoonHours) is DueState.Overdue or DueState.Soon,
         _ => !TicketInsights.IsClosed(ticket)
     };
 

@@ -206,6 +206,13 @@ public record TicketRecord(
     public List<TicketComment> Comments { get; init; } = [];
     public List<TicketActivity> History { get; init; } = [];
     public string Type { get; init; } = TicketTypes.Incident;
+    // Times the SLA clock was stopped (a status that pauses it, such as On Hold). The last one is open while the ticket
+    // is still paused. Kept as periods rather than a running total, so a due date recalculated later - a priority
+    // change, say - can still add them back in whatever units the new SLA counts. See HelpdeskStore.TicketProcess.
+    public List<SlaPause> SlaPauses { get; init; } = [];
+    public bool IsSlaPaused => SlaPauses.Count > 0 && SlaPauses[^1].EndedAt is null;
+    // When the requester last opened the ticket in the portal, for its "New reply" flag. Null until they first do.
+    public DateTime? RequesterSeenAt { get; init; }
 
     // The newest of creation, any history entry (field changes, parts, attributes, merges, asset links) and any comment.
     public DateTime LastModifiedAt => Comments.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();
@@ -226,7 +233,10 @@ public record AuditEntry(DateTime At, string Area, string? EntityType, string? E
 public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = false)
 {
     public Actor? By { get; init; }
+    // Written by the requester in the staff portal - the Tickets list flags a ticket whose last word is theirs.
+    public bool FromRequester { get; init; }
 }
+public record SlaPause(DateTime StartedAt, DateTime? EndedAt);
 public record TicketActivity(string Action, string Details, DateTime CreatedAt)
 {
     public Actor? By { get; init; }
@@ -436,7 +446,13 @@ public static class ProjectPriorities
     };
 }
 // A file uploaded to a ticket. The file itself is kept on disk under App_Data/attachments, named by Id.
-public record TicketAttachment(Guid Id, int TicketNumber, string FileName, string ContentType, long Size, DateTime UploadedAt);
+public record TicketAttachment(Guid Id, int TicketNumber, string FileName, string ContentType, long Size, DateTime UploadedAt)
+{
+    // Shown in the staff portal: everything the requester uploaded, and anything a technician chose to share.
+    public bool VisibleToRequester { get; init; }
+    // Uploaded by the requester through the portal.
+    public bool FromRequester { get; init; }
+}
 // Kind is "related" (either direction) or "follow-up" (TicketNumber is the original ticket, LinkedNumber the follow-up).
 public record TicketLink(int TicketNumber, int LinkedNumber, string Kind);
 

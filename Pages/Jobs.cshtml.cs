@@ -63,8 +63,16 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
         || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset);
 
+    // The list as last looked at - view, filters, sort and page - so "Back to tickets" on a ticket returns to it rather
+    // than to a fresh, unfiltered list. Only a path on this page is ever stored or followed (see JobModel.BackUrl).
+    public const string BackCookie = "tickets_back";
+
     public void OnGet()
     {
+        Response.Cookies.Append(BackCookie, Request.Path + Request.QueryString, new CookieOptions
+        {
+            HttpOnly = true, SameSite = SameSiteMode.Lax, Secure = Request.IsHttps, IsEssential = true
+        });
         Prepare();
         var context = Context();
         var all = store.Tickets;

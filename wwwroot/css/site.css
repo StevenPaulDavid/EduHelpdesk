@@ -462,3 +462,13 @@ tr.workload-unassigned td { background: color-mix(in srgb, var(--accent) 45%, tr
 .restore-steps { white-space: pre-wrap; font: inherit; font-size: 13px; line-height: 1.55; background: color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 8px; padding: 12px 14px; margin: 10px 0 0; }
 .backup-settings .inline-fields { display: flex; gap: 16px; flex-wrap: wrap; }
 .backup-settings .inline-fields label { min-width: 180px; }
+/* Ticket process: replies waiting, the SLA clock, shared files */
+.badge-reply { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal-dark); }
+.due-flag { margin-top: 6px; display: inline-block; }
+.attachment-share { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.status-pause-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-again { display: grid; gap: 10px; margin-top: 12px; }
+.attachment-info .badge { justify-self: start; }
+.attachment-share .link-button, .status-pause-form .link-button { font-size: 13px; }
+.portal-account { margin: 0 0 16px; font-size: 14px; }
+.portal-account .link-button { font-size: inherit; }

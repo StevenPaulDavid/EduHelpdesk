@@ -127,8 +127,8 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         Overall = TicketReports.Sla("All tickets", cohort, Now);
         var open = all.Where(t => !TicketInsights.IsClosed(t)).ToList();
         OpenNow = open.Count;
-        OverdueNow = open.Count(t => t.DueDate is { } due && due < Now);
-        OverdueOpen = open.Where(t => t.DueDate is { } due && due < Now).OrderBy(t => t.DueDate).Take(OverdueLimit).ToList();
+        OverdueNow = open.Count(t => TicketInsights.IsOverdue(t, Now));
+        OverdueOpen = open.Where(t => TicketInsights.IsOverdue(t, Now)).OrderBy(t => t.DueDate).Take(OverdueLimit).ToList();
 
         ByType = TicketReports.SlaBy(cohort, t => t.Type, Now);
         ByPriority = TicketReports.SlaBy(cohort, t => t.Priority, Now);

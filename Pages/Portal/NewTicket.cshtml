@@ -1,15 +1,22 @@
 @page
+@using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Portal.NewTicketModel
 @{ ViewData["Title"] = "Report a problem"; }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Report a problem</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@(Model.Previous is null ? "Report a problem" : "Report it again")</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+    @if (Model.Previous is { } previous)
+    {
+        <div class="notice">This will be linked to ticket #@previous.Number, so the team can see what was done last time. Tell them what's happening now.</div>
+    }
     <section class="panel portal-panel">
-        <form method="post" class="settings-form">
+        <form method="post" enctype="multipart/form-data" class="settings-form">
             <div asp-validation-summary="All" class="validation-summary-errors"></div>
-            <label>What's the problem?<input asp-for="Title" maxlength="@EduHelpdesk.Services.HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" required autofocus /></label>
-            <label>Tell us more (optional)<textarea asp-for="Description" rows="5" maxlength="@EduHelpdesk.Services.HelpdeskStore.MaxTicketTextLength" placeholder="Anything that might help - what you tried, when it started…"></textarea></label>
+            @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
+            <label>What's the problem?<input asp-for="Title" maxlength="@HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" required autofocus /></label>
+            <label>Tell us more (optional)<textarea asp-for="Description" rows="5" maxlength="@HelpdeskStore.MaxTicketTextLength" placeholder="Anything that might help - what you tried, when it started…"></textarea></label>
             <label>What kind of problem is it?<select asp-for="Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
             <label>Where is it?<select asp-for="Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
+            <label>Attach files (optional)<input type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" /><small class="muted">Up to @HelpdeskStore.MaxPortalAttachments files, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB - a photo of an error message helps.</small></label>
             <button class="button button-primary portal-button" type="submit">Submit</button>
         </form>
     </section>

@@ -151,6 +151,11 @@ public sealed partial class HelpdeskStore
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
         EnsureProjectDefaults();
+        if (_data.ReopenWindowDays is < 0 or > MaxReopenWindowDays) _data.ReopenWindowDays = DefaultReopenWindowDays;
+        _data.SlaPauseStatuses = _data.SlaPauseStatuses.Where(x => _data.Statuses.Contains(x, StringComparer.OrdinalIgnoreCase) && !IsBuiltInStatus(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // Every ticket's clock matches its status: after upgrading, restoring a backup, or a failed save reloading.
+        ReconcileSlaPauses(_ => true);
     }
 
     // Bootstrap credentials for a brand-new install, or an existing database with no login configured yet.
@@ -910,6 +915,8 @@ public sealed partial class HelpdeskStore
             options[index] = newValue;
             if (kind == "Status" && _data.StatusDescriptions.Remove(oldValue, out var existingDescription))
                 _data.StatusDescriptions[newValue] = existingDescription;
+            if (kind == "Status" && _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase)) > 0)
+                _data.SlaPauseStatuses.Add(newValue);
             if (kind == "Priority")
             {
                 var priorityIndex = _data.RequireCloseMessagePriorities.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
@@ -962,6 +969,7 @@ public sealed partial class HelpdeskStore
                 return "That category cannot be deleted because a ticket custom attribute uses it.";
             options.RemoveAt(index);
             if (kind == "Status") _data.StatusDescriptions.Remove(item);
+            if (kind == "Status") _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Priority") _data.RequireCloseMessagePriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.RequireCloseMessageCategories.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             Save();
@@ -1655,7 +1663,10 @@ public sealed partial class HelpdeskStore
             {
                 new("Ticket created", "The ticket was created.", DateTime.UtcNow) { By = CurrentActor() }
             };
-            _data.Tickets.Add(item with { Number = number, History = history });
+            // Created straight into a status that stops the clock (unusual, but a school can set it up that way).
+            var created = WithSlaClock(item with { Number = number }, DateTime.UtcNow);
+            if (created.IsSlaPaused) history.Add(new("SLA paused", $"The SLA clock is stopped while the ticket is {created.Status}.", DateTime.UtcNow) { By = CurrentActor() });
+            _data.Tickets.Add(created with { History = history });
             Save();
             return number;
         }
@@ -1737,12 +1748,9 @@ public sealed partial class HelpdeskStore
 
         var sourceHistory = source.History.ToList();
         sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now) { By = CurrentActor() });
-        _data.Tickets[sourceIndex] = source with
-        {
-            Status = "Closed",
-            ClosedAt = source.ClosedAt ?? now,
-            History = sourceHistory
-        };
+        var closedSource = WithSlaClock(source with { Status = "Closed", ClosedAt = source.ClosedAt ?? now }, now);
+        if (SlaClockActivity(source, closedSource) is { } clockLine) sourceHistory.Add(clockLine with { By = CurrentActor() });
+        _data.Tickets[sourceIndex] = closedSource with { History = sourceHistory };
 
         return null;
     }
@@ -1754,7 +1762,7 @@ public sealed partial class HelpdeskStore
         {
             if (ticket.SlaOverridden) return ticket with { Priority = priority };
             var sla = SlaFor(priority, ticket.Category);
-            return ticket with { Priority = priority, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt) };
+            return ticket with { Priority = priority, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
         }
     }
     public TicketRecord WithCategory(TicketRecord ticket, string category)
@@ -1763,7 +1771,7 @@ public sealed partial class HelpdeskStore
         {
             if (ticket.SlaOverridden) return ticket with { Category = category };
             var sla = SlaFor(ticket.Priority, category);
-            return ticket with { Category = category, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt) };
+            return ticket with { Category = category, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
         }
     }
 
@@ -1889,6 +1897,7 @@ public sealed partial class HelpdeskStore
                         continue;
                     }
                 }
+                changed = WithSlaClock(changed, DateTime.UtcNow);
                 var history = ticket.History.ToList();
                 var from = history.Count;
                 AddTicketActivities(history, ticket, changed);
@@ -1910,17 +1919,20 @@ public sealed partial class HelpdeskStore
     // still not working" lands on a closed ticket that nobody is looking at.
     // Deliberately separate from AddTicketComment: a technician adding a note to a ticket they have just closed should
     // not bounce it straight back open, so only this path reopens.
+    // Only within the reopen window (Settings → Ticket queues): after that a closed ticket takes no more replies, and the
+    // portal offers to report the problem again as a new ticket instead - see RequesterCanReply.
     public (bool Ok, bool Reopened) AddRequesterComment(int number, string text)
     {
         lock (_sync)
         {
             var index = _data.Tickets.FindIndex(x => x.Number == number);
             if (index < 0) return (false, false);
+            if (!RequesterCanReplyCore(_data.Tickets[index], DateTime.UtcNow)) return (false, false);
 
             var actor = CurrentActor();
             var ticket = _data.Tickets[index];
             var comments = ticket.Comments.ToList();
-            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow) { By = actor });
+            comments.Add(new TicketComment(text.Trim(), DateTime.UtcNow) { By = actor, FromRequester = true });
             ticket = ticket with { Comments = comments };
 
             var reopened = false;
@@ -1934,6 +1946,9 @@ public sealed partial class HelpdeskStore
                 // ticket reopens, which is both wrong and noisy. A manually typed due date is the user's, so it stays.
                 if (!ticket.DueDateOverridden && ticket.SlaId is not null)
                     ticket = ticket with { DueDate = CalculateDueDate(ticket.SlaId, DateTime.UtcNow) };
+                var reopenedTicket = WithSlaClock(ticket, DateTime.UtcNow);
+                if (SlaClockActivity(ticket, reopenedTicket) is { } clockLine) reopenedTicket.History.Add(clockLine with { By = actor });
+                ticket = reopenedTicket;
                 reopened = true;
             }
 
@@ -2418,6 +2433,7 @@ public sealed partial class HelpdeskStore
             if (index < 0) return false;
 
             var previous = _data.Tickets[index];
+            item = WithSlaClock(item, DateTime.UtcNow);
             var history = previous.History.ToList();
             var from = history.Count;
             AddTicketActivities(history, previous, item);
@@ -2500,6 +2516,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.AssetStatuses, ["In use", "On loan", "In stock or spare", "In repair", "Lost or stolen", "Disposed"]);
         EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
         EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
+        if (_data.SlaPauseStatuses.Count == 0) _data.SlaPauseStatuses.Add("On Hold");
         EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
         EnsureOptions(_data.LoanReasons, ["Forgot own device", "Supply or visitor", "Own device in repair", "Other"]);
     }
@@ -2948,9 +2965,12 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    private static void AddTicketActivities(List<TicketActivity> history, TicketRecord previous, TicketRecord updated)
+    private void AddTicketActivities(List<TicketActivity> history, TicketRecord previous, TicketRecord updated)
     {
         var now = DateTime.UtcNow;
+        // The SLA clock stopping or starting again explains a due date moving, so it says so rather than the generic line.
+        var slaClockLine = SlaClockActivity(previous, updated);
+        if (slaClockLine is not null) history.Add(slaClockLine);
         if (previous.Title != updated.Title) history.Add(new("Title changed", $"{previous.Title} -> {updated.Title}", now));
         if (previous.Description != updated.Description) history.Add(new("Description changed", "The ticket description was updated.", now));
         if (previous.Status != updated.Status) history.Add(new("Status changed", $"{previous.Status} -> {updated.Status}", now));
@@ -2963,7 +2983,7 @@ public sealed partial class HelpdeskStore
         if (!previous.AssetIds.ToHashSet().SetEquals(updated.AssetIds)) history.Add(new("Assets changed", updated.AssetIds.Count > 0 ? $"Linked assets updated ({updated.AssetIds.Count} linked)." : "All linked assets were removed.", now));
         if (previous.ClosedAt != updated.ClosedAt && previous.Status == updated.Status) history.Add(new("Closure changed", updated.ClosedAt.HasValue ? "The ticket was closed." : "The ticket was reopened.", now));
         if (previous.SlaId != updated.SlaId) history.Add(new("SLA changed", updated.SlaId.HasValue ? "An SLA was assigned." : "The SLA was removed.", now));
-        if (previous.DueDate != updated.DueDate || previous.DueDateOverridden != updated.DueDateOverridden) history.Add(new("Due date changed", updated.DueDate.HasValue ? (updated.DueDateOverridden ? "The due date was manually overridden." : "The due date was recalculated from the SLA.") : "The due date was removed.", now));
+        if ((previous.DueDate != updated.DueDate || previous.DueDateOverridden != updated.DueDateOverridden) && slaClockLine?.Action != SlaRestartedAction) history.Add(new("Due date changed", updated.DueDate.HasValue ? (updated.DueDateOverridden ? "The due date was manually overridden." : "The due date was recalculated from the SLA.") : "The due date was removed.", now));
     }
 
     private static void AddAssetActivities(List<AssetActivity> history, AssetRecord previous, AssetRecord updated, IReadOnlyList<UserRecord> users)
@@ -3405,6 +3425,7 @@ public sealed partial class HelpdeskStore
         roleTable.ExecuteNonQuery();
         EnsureProjectSchema(connection);
         EnsureProjectTicketSchema(connection);
+        EnsureTicketProcessSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -3772,9 +3793,13 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, TicketNumber, FileName, ContentType, Size, UploadedAt FROM TicketAttachments ORDER BY rowid;";
+            command.CommandText = "SELECT Id, TicketNumber, FileName, ContentType, Size, UploadedAt, VisibleToRequester, FromRequester FROM TicketAttachments ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.TicketAttachments.Add(new(Guid.Parse(reader.GetString(0)), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4), Date(reader, 5)));
+            while (reader.Read()) data.TicketAttachments.Add(new(Guid.Parse(reader.GetString(0)), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4), Date(reader, 5))
+            {
+                VisibleToRequester = reader.GetInt32(6) != 0,
+                FromRequester = reader.GetInt32(7) != 0
+            });
         }
         using (var command = connection.CreateCommand())
         {
@@ -3820,7 +3845,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location FROM Tickets;";
+            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt FROM Tickets;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -3832,11 +3857,16 @@ public sealed partial class HelpdeskStore
                 else assetIds = new List<Guid>();
                 var ticket = new TicketRecord(number, reader.GetString(1), reader.GetString(2), Guid.Parse(reader.GetString(3)),
                     assetIds, NullableGuid(reader, 5), reader.GetString(6), reader.GetString(7), reader.GetString(8), Date(reader, 9),
-                    reader.IsDBNull(10) ? null : Date(reader, 10), NullableGuid(reader, 11), reader.IsDBNull(12) ? null : Date(reader, 12), !reader.IsDBNull(13) && reader.GetInt32(13) != 0, !reader.IsDBNull(14) && reader.GetInt32(14) != 0, NullableString(reader, 15), NullableString(reader, 17)) { Type = TicketTypes.Normalize(NullableString(reader, 16)) };
+                    reader.IsDBNull(10) ? null : Date(reader, 10), NullableGuid(reader, 11), reader.IsDBNull(12) ? null : Date(reader, 12), !reader.IsDBNull(13) && reader.GetInt32(13) != 0, !reader.IsDBNull(14) && reader.GetInt32(14) != 0, NullableString(reader, 15), NullableString(reader, 17))
+                {
+                    Type = TicketTypes.Normalize(NullableString(reader, 16)),
+                    RequesterSeenAt = reader.IsDBNull(18) ? null : Date(reader, 18)
+                };
                 data.Tickets.Add(ticket);
             }
         }
         foreach (var ticket in data.Tickets) ReadTicketChildren(connection, ticket);
+        ReadTicketProcess(connection, data);
         // The highest number ever handed out, not just the highest still present: deleting the newest ticket must not
         // give its number to the next one, when job sheets and conversations already carry it.
         data.LastTicketNumber = Convert.ToInt32(ExecuteScalar(connection, "SELECT COALESCE(MAX(Number), 1000) FROM Tickets;"));
@@ -3873,10 +3903,10 @@ public sealed partial class HelpdeskStore
     private static void ReadTicketChildren(SqliteConnection connection, TicketRecord ticket)
     {
         using var comments = connection.CreateCommand();
-        comments.CommandText = "SELECT Text, CreatedAt, IsInternal, Actor, ActorId FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
+        comments.CommandText = "SELECT Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester FROM TicketComments WHERE TicketNumber = $number ORDER BY Id;";
         comments.Parameters.AddWithValue("$number", ticket.Number);
         using var commentReader = comments.ExecuteReader();
-        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1), commentReader.GetInt32(2) != 0) { By = ReadActor(commentReader, 3, 4) });
+        while (commentReader.Read()) ticket.Comments.Add(new(commentReader.GetString(0), Date(commentReader, 1), commentReader.GetInt32(2) != 0) { By = ReadActor(commentReader, 3, 4), FromRequester = commentReader.GetInt32(5) != 0 });
         using var activities = connection.CreateCommand();
         activities.CommandText = "SELECT Action, Details, CreatedAt, Actor, ActorId FROM TicketActivities WHERE TicketNumber = $number ORDER BY Id;";
         activities.Parameters.AddWithValue("$number", ticket.Number);
@@ -3915,7 +3945,7 @@ public sealed partial class HelpdeskStore
         {
             command.Transaction = transaction;
             // Projects first: they point at Users and Technicians, which are cleared further along this same statement.
-            command.CommandText = "DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
@@ -3990,6 +4020,7 @@ public sealed partial class HelpdeskStore
         WriteProjects(connection, transaction, data);
         WriteProjectTickets(connection, transaction, data);
         WriteBackupSettings(connection, transaction, data);
+        WriteTicketProcessSettings(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
@@ -4045,8 +4076,8 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location);",
-                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)), ("$location", item.Location));
+            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen);",
+                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)), ("$location", item.Location), ("$seen", item.RequesterSeenAt is { } seen ? Iso(seen) : null));
             foreach (var assetId in item.AssetIds.Distinct())
                 if (data.Assets.Any(x => x.Id == assetId))
                     Execute(connection, transaction, "INSERT INTO TicketAssets (TicketNumber, AssetId) VALUES ($number,$asset);", ("$number", item.Number), ("$asset", assetId.ToString()));
@@ -4057,9 +4088,11 @@ public sealed partial class HelpdeskStore
                 if (data.TicketAttributeDefinitions.Any(x => x.Id == value.AttributeDefinitionId))
                     Execute(connection, transaction, "INSERT INTO TicketAttributeValues (TicketNumber, AttributeDefinitionId, Value) VALUES ($number,$definition,$value);", ("$number", value.TicketNumber), ("$definition", value.AttributeDefinitionId.ToString()), ("$value", value.Value));
             foreach (var comment in item.Comments)
-                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId) VALUES ($number,$text,$created,$internal,$actor,$actorid);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()));
+                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester) VALUES ($number,$text,$created,$internal,$actor,$actorid,$fromRequester);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()), ("$fromRequester", comment.FromRequester ? 1 : 0));
             foreach (var attachment in data.TicketAttachments.Where(x => x.TicketNumber == item.Number))
-                Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt) VALUES ($id,$number,$name,$type,$size,$uploaded);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)));
+                Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt, VisibleToRequester, FromRequester) VALUES ($id,$number,$name,$type,$size,$uploaded,$visible,$fromRequester);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)), ("$visible", attachment.VisibleToRequester ? 1 : 0), ("$fromRequester", attachment.FromRequester ? 1 : 0));
+            foreach (var pause in item.SlaPauses)
+                Execute(connection, transaction, "INSERT INTO TicketSlaPauses (TicketNumber, StartedAt, EndedAt) VALUES ($number,$started,$ended);", ("$number", item.Number), ("$started", Iso(pause.StartedAt)), ("$ended", pause.EndedAt is { } ended ? Iso(ended) : null));
             foreach (var activity in item.History)
                 Execute(connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);", ("$number", item.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
         }
@@ -4356,6 +4389,9 @@ public sealed partial class HelpdeskStore
         public int AcademicYearStartMonth { get; set; } = AcademicYear.DefaultStartMonth;
         // Open tickets due within this many hours count as "due soon" on the ticket list.
         public int TicketDueSoonHours { get; set; } = 24;
+        // Statuses that stop the SLA clock, and how long after closing a requester's reply still reopens a ticket.
+        public List<string> SlaPauseStatuses { get; set; } = [];
+        public int ReopenWindowDays { get; set; } = DefaultReopenWindowDays;
         // Default minimum stock level for a part with no ReorderThreshold of its own.
         public int PartsDefaultReorderThreshold { get; set; } = 5;
         public List<string> Categories { get; set; } = [];

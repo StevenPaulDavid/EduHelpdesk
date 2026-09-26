@@ -43,7 +43,10 @@ If you have never signed in before, or you have forgotten your password, **ask I
 5. **Where is it?**
    Pick the room or area. Leave it as "Not specified" if it does not apply.
 
-6. **Submit.**
+6. **Attach files (optional)**
+   Up to three files, each up to 10 MB: a photo of the error message, a screenshot, a document that won't open. Pictures, PDFs, Office documents and text files are accepted.
+
+7. **Submit.**
    Your problem gets a ticket number, like #1042. Quote that number if you speak to IT about it.
 
 ### What makes a report easy to act on
@@ -56,13 +59,13 @@ If you have never signed in before, or you have forgotten your password, **ask I
 
 The things worth including every time: **which room or device**, **what you expected to happen**, **what actually happened**, **when it started**, and **what you have already tried**.
 
-**You cannot attach a photo or screenshot in the portal.** If a picture would help, describe what you can see, or show the technician when they come.
+A photo is often the quickest way to show what's wrong - attach it to the report, or to a message later.
 
 ---
 
 ## What happens next
 
-**Nothing will email you.** The system does not send notifications of any kind — no confirmation, no update, no "we've closed it". To find out how your report is getting on, sign in and look.
+**Nothing will email you.** The system does not send notifications of any kind — no confirmation, no update, no "we've closed it". To find out how your report is getting on, sign in and look: the portal's home page shows how many of your tickets have news, and **My tickets** marks each one with **New reply** until you open it.
 
 The IT team decides how urgent it is. You do not set the priority yourself, though you can see it once the ticket is open.
 
@@ -87,10 +90,13 @@ Open any one of them to see:
 
 - The status, priority, category and location.
 - What you originally told us.
+- **Files** — anything you attached, and anything the IT team has shared with you.
 - **Updates** — messages from the IT team.
-- A box to **add a message** of your own.
+- A box to **add a message** of your own, with files if you like.
 
 Use the message box to add anything new: it has got worse, it has fixed itself, you have found a workaround, or you are away next week.
+
+**If a closed ticket's problem comes back** within two weeks, just send a message on it: the ticket reopens and the team see it. After that, the ticket shows **Report it again** instead, which starts a new report already filled in from the old one and linked to it, so the technician can see what was tried last time.
 
 You only ever see **your own** tickets. Technicians also keep private working notes that do not appear here — if it is not in Updates, it was not meant for you, not because anything is being hidden.
 
@@ -121,10 +127,10 @@ Ask IT. There is no self-service reset.
 After five wrong passwords, the portal stops accepting that email for 15 minutes. Wait and try again, or ask IT to set you a new password, which unlocks it straight away.
 
 **My ticket was closed but the problem is back.**
-Report it again as a new problem. You *can* add a message to a closed ticket, but nobody is alerted when you do, so it may sit unnoticed. A fresh report will be picked up.
+If it closed in the last two weeks, send a message on it - that reopens it, so the team see it again. After that, use **Report it again** on the old ticket.
 
 **Can I send a photo?**
-Not through the portal. Describe it as clearly as you can, or show the technician.
+Yes - attach it when you report the problem, or with any message afterwards. Up to three files at a time, 10 MB each.
 
 **Can I see what a colleague reported?**
 No. You only see your own.

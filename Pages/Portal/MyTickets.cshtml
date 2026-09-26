@@ -10,7 +10,7 @@
                 <div class="directory-person">
                     <div><strong>#@ticket.Number · @ticket.Title</strong><span>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")@(string.IsNullOrWhiteSpace(ticket.Location) ? "" : " · " + ticket.Location)</span></div>
                 </div>
-                <span class="status">@ticket.Status</span>
+                <span>@if (EduHelpdesk.Services.HelpdeskStore.HasUpdateForRequester(ticket)) { <span class="badge badge-reply">New reply</span> } <span class="status">@ticket.Status</span></span>
             </a>
         }
         @if (Model.Tickets.Count == 0) { <p class="empty">You haven't reported anything yet.</p> }

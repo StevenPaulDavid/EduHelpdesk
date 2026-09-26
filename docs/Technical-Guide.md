@@ -230,6 +230,15 @@ If a template's category or priority is later deleted it shows "(no longer exist
 
 SLAs are defined in **Settings → SLAs**: a name, a target duration, and optional scoping to particular priorities and categories. Leaving a scope empty means "applies to all". The matching SLA sets a ticket's due date automatically; a technician can override the due date or the SLA on an individual ticket.
 
+**Pausing the clock.** In **Settings → Statuses**, any status except Closed can be set to stop the SLA clock (On Hold does by default). Use it for tickets waiting on someone else.
+- While a ticket is in that status, it shows **SLA paused** instead of overdue or due soon, and stays out of the Overdue / due soon queue and the reports' overdue counts.
+- When it moves to another status, or is closed, a due date worked out from the SLA moves on by the time it was paused. That time is counted the SLA's own way: every minute for hours and days SLAs, school-day time for work days, lesson time for periods.
+- A due date typed by hand is left as it is.
+- A ticket that is already overdue can't be paused. The history says so, rather than letting On Hold hide a missed deadline.
+- Every pause and restart is recorded in the ticket's history, and pauses survive a later priority, category or SLA change.
+
+On the ticket page, the due date carries an **Overdue**, **Due in…** or **SLA paused** flag. **Back to tickets** returns to the list with the filters and sort you were last using.
+
 ### Closing requirements
 
 **Settings → Closing requirements** lets you force a closing message before a ticket can be marked closed, per priority and per category. Everything else closes in one click.
@@ -392,6 +401,13 @@ Once signed in with their email and password, staff can:
 - Open one and add a follow-up message.
 
 They cannot see internal notes, anyone else's tickets, or any of the technician-side pickers (requester, technician, team, SLA, asset). It is deliberately minimal.
+
+- **Files.** Staff can attach up to 3 files (10 MB each, the same types as the helpdesk accepts) to a new ticket or a reply. On the ticket page these show as **From the requester**. A technician's own attachments stay private unless they tick **Share with the requester** when uploading, or use **Share with requester** on the file later. The portal only ever lists the requester's files and shared ones.
+- **Replies to closed tickets.** A reply reopens a closed ticket for 14 days after it closed (**Settings → Ticket queues**; 0 turns reopening off). After that the portal offers **Report it again** instead. That raises a new ticket, pre-filled from the old one and linked to it as related.
+- **Who has the last word.**
+  - A **Reply** badge on the Tickets list marks an open ticket whose latest public message came from the requester.
+  - In the portal, **New reply** marks a ticket with a message from IT, or a status change, that the requester hasn't opened yet. The home page counts them.
+  - Internal notes never count.
 
 **To give a member of staff access**: People → Add user, fill in their details and set a password. Until a password is set they cannot sign in. Passwords are reset the same way. They are asked to choose their own password the first time they sign in, and can change it later from the portal home page.
 

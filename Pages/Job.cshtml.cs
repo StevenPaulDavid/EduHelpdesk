@@ -46,6 +46,14 @@ public class JobModel(HelpdeskStore store) : PageModel
     public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
+    // Overdue, due soon or paused, for the flag beside the due date.
+    public DueState DueState => Ticket is null ? DueState.None : TicketInsights.DueStateOf(Ticket, DateTime.UtcNow, store.TicketDueSoonHours);
+    public string DueText => Ticket is null ? "" : TicketInsights.DueText(Ticket, DateTime.UtcNow);
+    public bool StatusPausesSla(string status) => store.PausesSla(status);
+    // Back to the ticket list as it was last seen (filters, sort, page), or the plain list. Only ever a /Jobs address.
+    public string BackUrl => Request.Cookies[JobsModel.BackCookie] is { } back
+        && (back == "/Jobs" || back.StartsWith("/Jobs?", StringComparison.Ordinal)) && Url.IsLocalUrl(back) ? back : Url.Page("/Jobs")!;
+
     public bool CanEdit => store.UserCan(User, Modules.Tickets, ModulePermission.Edit);
     public bool CanDelete => store.UserCan(User, Modules.Tickets, ModulePermission.Delete);
     // The signed-in account, not the Jobs list's "Working as" choice: taking a ticket is something you do for yourself.
@@ -139,7 +147,7 @@ public class JobModel(HelpdeskStore store) : PageModel
                 Message = "Select a valid SLA.";
                 return RedirectToPage(new { number });
             }
-            ticket = ticket with { SlaId = slaId, SlaOverridden = slaId.HasValue, DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(slaId, ticket.CreatedAt), DueDateOverridden = ticket.DueDateOverridden };
+            ticket = ticket with { SlaId = slaId, SlaOverridden = slaId.HasValue, DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(slaId, ticket.CreatedAt, ticket.SlaPauses), DueDateOverridden = ticket.DueDateOverridden };
         }
 
         else if (field == "location")
@@ -294,7 +302,7 @@ public class JobModel(HelpdeskStore store) : PageModel
     }
 
     // Uploads one or more files. Each is checked on its own, so one bad file does not stop the others.
-    public IActionResult OnPostUploadAttachments(int number, List<IFormFile>? files)
+    public IActionResult OnPostUploadAttachments(int number, List<IFormFile>? files, bool shareWithRequester)
     {
         if (store.Tickets.All(x => x.Number != number)) return NotFound();
         var chosen = (files ?? []).Where(x => x.Length > 0 || !string.IsNullOrEmpty(x.FileName)).ToList();
@@ -308,7 +316,7 @@ public class JobModel(HelpdeskStore store) : PageModel
         foreach (var file in chosen.Take(HelpdeskStore.MaxAttachmentsPerUpload))
         {
             using var stream = file.OpenReadStream();
-            var error = store.AddTicketAttachment(number, file.FileName, stream, file.Length);
+            var error = store.AddTicketAttachment(number, file.FileName, stream, file.Length, visibleToRequester: shareWithRequester);
             if (error is null) added++; else problems.Add(error);
         }
         if (problems.Any(x => x.Contains("not accepted") || x.Contains("no file type")))
@@ -316,6 +324,13 @@ public class JobModel(HelpdeskStore store) : PageModel
         if (chosen.Count > HelpdeskStore.MaxAttachmentsPerUpload)
             problems.Add($"Only {HelpdeskStore.MaxAttachmentsPerUpload} files can be attached at a time, so {chosen.Count - HelpdeskStore.MaxAttachmentsPerUpload} {(chosen.Count - HelpdeskStore.MaxAttachmentsPerUpload == 1 ? "was" : "were")} skipped.");
         Message = string.Join(" ", new[] { added > 0 ? $"{added} file{(added == 1 ? "" : "s")} attached." : null }.Concat(problems).Where(x => x is not null));
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostShareAttachment(int number, Guid id, bool visible)
+    {
+        Message = store.SetAttachmentVisibleToRequester(number, id, visible)
+            ?? (visible ? "The requester can now see that file in the staff portal." : "That file is no longer shown to the requester.");
         return RedirectToPage(new { number });
     }
 

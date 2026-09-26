@@ -4,6 +4,7 @@
 <div class="page-heading"><h1>Statuses</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 <section class="panel">
+    <p class="muted">A status that <strong>stops the SLA clock</strong> is for tickets waiting on someone else - the requester, a part, a supplier. While a ticket is in it, it isn't counted as overdue or due soon. When it moves on, a due date worked out from the SLA moves on by the time it was paused (in the SLA's own time: school days or lessons for those SLAs). A due date typed by hand is left as it is. A ticket that's already overdue can't be paused.</p>
     <form method="post" asp-page-handler="Add" class="settings-form"><label>Add status<input name="value" required /></label><button class="button button-primary">Add</button></form>
     <div class="directory-list">
         @foreach (var status in Model.Statuses)
@@ -24,6 +25,15 @@
                         </div>
                     }
                 </div>
+                @if (!EduHelpdesk.Services.HelpdeskStore.IsBuiltInStatus(status))
+                {
+                    var pauses = Model.Pauses(status);
+                    <form method="post" asp-page-handler="SetPause" class="status-pause-form">
+                        <input type="hidden" name="status" value="@status" /><input type="hidden" name="pauses" value="@(pauses ? "false" : "true")" />
+                        @if (pauses) { <span class="badge">Stops the SLA clock</span> }
+                        <button class="link-button" type="submit">@(pauses ? "Let the SLA clock run in this status" : "Stop the SLA clock in this status")</button>
+                    </form>
+                }
                 <form method="post" asp-page-handler="SaveDescription" class="status-description-form">
                     <input type="hidden" name="status" value="@status" />
                     <label>Description<textarea name="description" rows="2" placeholder="Shown under the status dropdown when this status is selected">@description</textarea></label>

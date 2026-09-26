@@ -82,6 +82,14 @@ public class SettingsModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public int ReopenWindowDays => store.ReopenWindowDays;
+
+    public IActionResult OnPostSaveReopenWindow(int days)
+    {
+        Message = store.SetReopenWindowDays(days);
+        return RedirectToPage();
+    }
+
     public int PartsDefaultReorderThreshold => store.PartsDefaultReorderThreshold;
 
     public IActionResult OnPostSavePartsReorderThreshold(int threshold)

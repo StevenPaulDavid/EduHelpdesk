@@ -10,7 +10,7 @@
 @* The header keeps only the everyday actions as buttons. The three print options share one menu, and merge and delete
    sit under "More" - they are rare, need Tickets: Delete, and a destructive button one slip away from "Mark as closed"
    was never a good neighbour. Back is navigation rather than an action, so it is a plain link above the title. *@
-<a class="back-link no-print" asp-page="/Index">← Back to overview</a>
+<a class="back-link no-print" href="@Model.BackUrl">← Back to tickets</a>
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / TICKET DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
     <div class="heading-actions no-print">
@@ -157,7 +157,7 @@ else
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" onclick="editField('technician')">✎</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">✓</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TEAM</p><button id="team-edit" class="icon-button edit-icon" type="button" title="Edit team" onclick="editField('team')">✎</button></div><strong class="field-value" id="team-value">@(Model.Ticket.TeamName ?? "No team")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="team-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="team" /><select name="value"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" selected="@(team == Model.Ticket.TeamName)">@team</option> }</select><button class="icon-button save-icon" type="submit" title="Save team" aria-label="Save team">✓</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA</p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" onclick="editField('sla')">✎</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">✓</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE</p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" onclick="editField('dueDate')">✎</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">✓</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE</p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" onclick="editField('dueDate')">✎</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">✓</button></form></div>
         </div>
         <div class="ticket-tabs no-print">
             <div class="ticket-tab-buttons" role="tablist">
@@ -173,7 +173,7 @@ else
                     <div class="comment-list">
                         @foreach (var comment in Model.Ticket.Comments.OrderByDescending(x => x.CreatedAt))
                         {
-                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } @if (comment.FromRequester) { <span class="badge badge-reply">From the portal</span> } <strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                         }
                     </div>
                 }
@@ -275,7 +275,17 @@ else
                         {
                             <div class="attachment-row">
                                 @if (HelpdeskStore.IsInlineImage(attachment)) { <a class="attachment-thumb" href="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" target="_blank" rel="noopener"><img loading="lazy" alt="@attachment.FileName" src="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" /></a> }
-                                <div class="attachment-info"><a href="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span></div>
+                                <div class="attachment-info"><a href="@Url.Page("/Job", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                                    @if (attachment.FromRequester) { <span class="badge badge-reply">From the requester</span> }
+                                    else
+                                    {
+                                        <form method="post" asp-page-handler="ShareAttachment" class="attachment-share">
+                                            <input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="id" value="@attachment.Id" /><input type="hidden" name="visible" value="@(attachment.VisibleToRequester ? "false" : "true")" />
+                                            @if (attachment.VisibleToRequester) { <span class="badge">Shown in the portal</span> }
+                                            <button class="link-button" type="submit">@(attachment.VisibleToRequester ? "Stop sharing" : "Share with requester")</button>
+                                        </form>
+                                    }
+                                </div>
                                 <form method="post" asp-page-handler="RemoveAttachment" onsubmit="return confirm('Remove this attachment from the ticket?');">
                                     <input type="hidden" name="number" value="@Model.Ticket.Number" />
                                     <input type="hidden" name="id" value="@attachment.Id" />
@@ -294,6 +304,7 @@ else
                     <label for="ticket-files">Attach files</label>
                     <input id="ticket-files" type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" />
                     <small class="muted">Up to @HelpdeskStore.MaxAttachmentsPerUpload files at a time, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB. Pictures, PDFs, Office documents, text and email files.</small>
+                    <label class="toggle-label"><input type="checkbox" name="shareWithRequester" value="true" /> Share with the requester (they'll see it in the staff portal)</label>
                     <button class="button button-primary" type="submit">Upload</button>
                 </form>
             </div>

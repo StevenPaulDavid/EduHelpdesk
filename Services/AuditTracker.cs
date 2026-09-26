@@ -106,6 +106,9 @@ internal static class AuditTracker
             Add(s, "Lists", "Asset type lifespan", pair.Key.ToLowerInvariant(), $"Lifespan for asset type: {pair.Key}", Track.All, ("Years", pair.Value.ToString()));
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
         Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
+        Add(s, "Settings", "Ticket reopen window", "ticket-reopen-window", "Replies reopen closed tickets", Track.Update, ("For days", d.ReopenWindowDays.ToString()));
+        Add(s, "SLAs", "SLA pause", "sla-pause-statuses", "Statuses that pause the SLA clock", Track.Update,
+            ("Statuses", d.SlaPauseStatuses.Count == 0 ? "(none)" : string.Join(", ", d.SlaPauseStatuses.Order(StringComparer.OrdinalIgnoreCase))));
         Add(s, "Settings", "Parts reorder threshold", "parts-reorder-threshold", "Parts default reorder threshold", Track.Update, ("Threshold", d.PartsDefaultReorderThreshold.ToString()));
         Add(s, "Settings", "Loan repeat threshold", "loan-repeat-threshold", "Loan repeat borrower threshold", Track.Update,
             ("Loans", d.LoanRepeatCount.ToString()), ("Within days", d.LoanRepeatDays.ToString()));

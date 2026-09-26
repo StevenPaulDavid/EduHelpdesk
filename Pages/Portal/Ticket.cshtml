@@ -1,4 +1,5 @@
 @page "{number:int}"
+@using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Portal.TicketModel
 @{ ViewData["Title"] = $"Ticket #{Model.Ticket!.Number}"; }
 <div class="portal-shell">
@@ -16,6 +17,21 @@
         {
             <div class="detail-block"><p class="eyebrow">WHAT YOU TOLD US</p><p class="job-description">@Model.Ticket.Description</p></div>
         }
+        @if (Model.Attachments.Count > 0)
+        {
+            <div class="detail-block">
+                <p class="eyebrow">FILES</p>
+                <div class="attachment-list">
+                    @foreach (var attachment in Model.Attachments)
+                    {
+                        <div class="attachment-row">
+                            @if (HelpdeskStore.IsInlineImage(attachment)) { <a class="attachment-thumb" href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" target="_blank" rel="noopener"><img loading="lazy" alt="@attachment.FileName" src="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" /></a> }
+                            <div class="attachment-info"><a href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @(attachment.FromRequester ? "from you" : "from the IT team") · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</span></div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
         <div class="detail-block">
             <p class="eyebrow">UPDATES</p>
             @if (Model.Comments.Count == 0) { <p class="muted">No updates yet.</p> }
@@ -25,15 +41,26 @@
                     <article class="comment"><p>@comment.Text</p><small>@(comment.By is { } by ? $"{by.Name} · " : "")@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
                 }
             </div>
-            <form method="post" asp-page-handler="Comment" asp-route-number="@Model.Ticket.Number" class="comment-form">
-                <label for="portal-comment">Add a message</label>
-                @if (Model.IsClosed)
-                {
-                    <p class="muted">This ticket is closed. Sending a message will reopen it, so the team know it still needs looking at.</p>
-                }
-                <textarea id="portal-comment" asp-for="Comment" rows="3" maxlength="@EduHelpdesk.Services.HelpdeskStore.MaxTicketTextLength" placeholder="e.g. it's still not working, or here's some more detail…"></textarea>
-                <button class="button button-primary" type="submit">Send</button>
-            </form>
+            @if (Model.CanReply)
+            {
+                <form method="post" enctype="multipart/form-data" asp-page-handler="Comment" asp-route-number="@Model.Ticket.Number" class="comment-form">
+                    <label for="portal-comment">Add a message</label>
+                    @if (Model.IsClosed)
+                    {
+                        <p class="muted">This ticket is closed. Sending a message will reopen it, so the team know it still needs looking at@(Model.ReplyWindowEnds is { } ends ? $" (you can do this until {ends.ToLocalTime():d MMMM})" : "").</p>
+                    }
+                    <textarea id="portal-comment" asp-for="Comment" rows="3" maxlength="@HelpdeskStore.MaxTicketTextLength" placeholder="e.g. it's still not working, or here's some more detail…"></textarea>
+                    <label>Attach files (optional)<input type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" /><small class="muted">Up to @HelpdeskStore.MaxPortalAttachments files, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB - a photo of an error message helps.</small></label>
+                    <button class="button button-primary" type="submit">Send</button>
+                </form>
+            }
+            else
+            {
+                <div class="report-again">
+                    <p class="muted">This ticket was closed on @TicketReports.ClosedTime(Model.Ticket)?.ToLocalTime().ToString("d MMMM yyyy"), so it can't take new messages. If the problem has come back, report it again - the team will see it's linked to this one.</p>
+                    <a class="button button-primary portal-button" asp-page="/Portal/NewTicket" asp-route-again="@Model.Ticket.Number">Report it again</a>
+                </div>
+            }
         </div>
     </section>
 </div>
