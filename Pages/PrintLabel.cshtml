@@ -1,11 +1,11 @@
 @page
 @model PrintLabelModel
-@{ Layout = null; }
+@{ Layout = null; var ticket = Model.Ticket!; }
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Label #@Model.Ticket!.Number</title>
+<title>Label #@ticket.Number</title>
 <style>
     @@page { size: 62mm auto; margin: 10mm; }
     * { box-sizing: border-box; }
@@ -20,9 +20,9 @@
 <script src="~/js/actions.js" asp-append-version="true" defer></script>
 </head>
 <body data-print-on-load>
-    <p class="label-number">#@Model.Ticket.Number</p>
-    <p class="label-title">@Model.Ticket.Title</p>
-    <p class="label-date">Logged @Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</p>
+    <p class="label-number">#@ticket.Number</p>
+    <p class="label-title">@ticket.Title</p>
+    <p class="label-date">Logged @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</p>
     <div class="no-print">
         <button type="button" data-action="print">Print again</button>
         <button type="button" data-action="close">Close</button>
