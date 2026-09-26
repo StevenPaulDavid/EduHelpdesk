@@ -39,9 +39,22 @@ public class RoleModel(HelpdeskStore store) : PageModel
             TempData["Message"] = "The Administrator role cannot be changed.";
             return RedirectToPage("/People", new { tab = "roles" });
         }
+        if (IsOwnRole(Role.Name))
+        {
+            TempData["Message"] = OwnRoleMessage;
+            return RedirectToPage("/People", new { tab = "roles" });
+        }
         CurrentName = Role.Name;
         return Page();
     }
+
+    // Roles: Edit must not be a way to raise your own access: the role you hold can only be changed by an Administrator.
+    // Other roles are fair game - handing out access to colleagues is what the permission is for.
+    private bool IsOwnRole(string? roleName) =>
+        !string.IsNullOrWhiteSpace(roleName)
+        && string.Equals(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, roleName.Trim(), StringComparison.OrdinalIgnoreCase)
+        && !string.Equals(roleName.Trim(), StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase);
+    private const string OwnRoleMessage = "You can't change the role you hold yourself. Ask an Administrator.";
 
     // Ticks arrive as grant=<Module>.<Action> and flags as a repeated flag=<key>. Anything unrecognised is dropped
     // rather than guessed at - a permission model should fail closed.
@@ -51,6 +64,11 @@ public class RoleModel(HelpdeskStore store) : PageModel
         if (!store.UserCan(User, Modules.Roles, adding ? ModulePermission.New : ModulePermission.Edit)) return Forbid();
 
         CurrentName = currentName;
+        if (!adding && IsOwnRole(currentName))
+        {
+            TempData["Message"] = OwnRoleMessage;
+            return RedirectToPage("/People", new { tab = "roles" });
+        }
         var role = new RoleRecord((name ?? string.Empty).Trim());
 
         foreach (var ticked in grant ?? [])

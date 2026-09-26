@@ -12,10 +12,17 @@
             <div class="directory-row status-option-row">
                 <div class="status-option-header">
                     <strong>@status</strong>
-                    <div class="row-actions">
-                        <form method="post" asp-page-handler="Rename"><input type="hidden" name="currentValue" value="@status" /><input name="value" value="@status" required /><button class="button button-secondary">Rename</button></form>
-                        <form method="post" asp-page-handler="Delete"><input type="hidden" name="value" value="@status" /><button class="button button-danger">Delete</button></form>
-                    </div>
+                    @if (EduHelpdesk.Services.HelpdeskStore.IsBuiltInStatus(status))
+                    {
+                        <span class="badge" title="Closing tickets, SLA timers and reports depend on this status, so it can't be renamed or deleted.">Built in</span>
+                    }
+                    else
+                    {
+                        <div class="row-actions">
+                            <form method="post" asp-page-handler="Rename"><input type="hidden" name="currentValue" value="@status" /><input name="value" value="@status" required /><button class="button button-secondary">Rename</button></form>
+                            <form method="post" asp-page-handler="Delete"><input type="hidden" name="value" value="@status" /><button class="button button-danger">Delete</button></form>
+                        </div>
+                    }
                 </div>
                 <form method="post" asp-page-handler="SaveDescription" class="status-description-form">
                     <input type="hidden" name="status" value="@status" />

@@ -1,9 +1,6 @@
 using EduHelpdesk.Services;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Security.Claims;
 
 namespace EduHelpdesk.Pages;
 
@@ -28,16 +25,7 @@ public class LoginModel(HelpdeskStore store) : PageModel
             return Page();
         }
 
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, technician.Id.ToString()),
-            new Claim(ClaimTypes.Name, technician.Name),
-            new Claim(ClaimTypes.Email, technician.Email),
-            new Claim(ClaimTypes.Role, technician.Role)
-        };
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
-            new AuthenticationProperties { IsPersistent = true, IssuedUtc = DateTimeOffset.UtcNow });
+        await TechnicianSession.SignInAsync(HttpContext, technician);
 
         if (technician.RequirePasswordChange) return RedirectToPage("/ChangePassword");
         return Url.IsLocalUrl(returnUrl) ? LocalRedirect(returnUrl) : RedirectToPage("/Index");

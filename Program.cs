@@ -142,13 +142,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         // Idle sliding expiration: stays signed in as long as the account is used at least once every 8 hours.
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
-        options.Events.OnValidatePrincipal = context =>
-        {
-            // Absolute cap on top of the sliding window, so a browser left open can't stay signed in forever.
-            if (context.Properties.IssuedUtc is { } issuedUtc && DateTimeOffset.UtcNow - issuedUtc > TimeSpan.FromDays(14))
-                context.RejectPrincipal();
-            return Task.CompletedTask;
-        };
+        // Every request re-checks the account behind the cookie: gone, deactivated, password reset or past the 14-day
+        // absolute cap ends the session; a changed role or name is picked up at once. See TechnicianSession.
+        options.Events.OnValidatePrincipal = TechnicianSession.ValidateAsync;
     });
 // Each policy is a permission requirement, checked live against the signed-in account's role (see
 // PermissionAuthorizationHandler and HelpdeskStore.RoleGrants) rather than a fixed set of role names - roles and

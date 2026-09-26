@@ -22,7 +22,7 @@ public class ChangePasswordModel(HelpdeskStore store) : PageModel
         return Page();
     }
 
-    public IActionResult OnPost()
+    public async Task<IActionResult> OnPostAsync()
     {
         var technician = CurrentTechnician();
         if (technician is null) return NotFound();
@@ -44,7 +44,10 @@ public class ChangePasswordModel(HelpdeskStore store) : PageModel
             return Page();
         }
 
-        store.UpdateTechnician(technician with { PasswordHash = PasswordHasher.Hash(NewPassword), RequirePasswordChange = false });
+        var updated = technician with { PasswordHash = PasswordHasher.Hash(NewPassword), RequirePasswordChange = false };
+        store.UpdateTechnician(updated);
+        // A new password ends every other session (see TechnicianSession); this one carries on with a fresh cookie.
+        await TechnicianSession.SignInAsync(HttpContext, updated);
         TempData["Message"] = "Password changed.";
         return RedirectToPage("/Index");
     }

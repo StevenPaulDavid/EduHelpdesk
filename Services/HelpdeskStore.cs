@@ -881,10 +881,12 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
+            if (!IsTicketOptionKind(kind)) return "Invalid ticket option.";
             var options = GetOptions(kind);
             var oldValue = currentValue.Trim();
             var newValue = value.Trim();
             if (string.IsNullOrWhiteSpace(newValue)) return $"{kind} name is required.";
+            if (kind == "Status" && IsBuiltInStatus(oldValue)) return BuiltInStatusMessage;
             if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return $"{kind} updated.";
             if (options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
             var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
@@ -926,6 +928,7 @@ public sealed partial class HelpdeskStore
             if (!IsTicketOptionKind(kind)) return "Invalid ticket option.";
             var item = (value ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
+            if (kind == "Status" && IsBuiltInStatus(item)) return BuiltInStatusMessage;
             var options = GetOptions(kind);
             var index = options.FindIndex(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (index < 0) return $"{kind} was not found.";
@@ -946,6 +949,12 @@ public sealed partial class HelpdeskStore
             return $"{kind} deleted.";
         }
     }
+    // "Closed" is what the whole system means by finished: SLA timers stop on it, queues and reports leave it out, the
+    // Close button sets it and a portal reply reopens from it. Renaming it once turned every closed ticket back into an
+    // open, overdue one, so it can't be renamed or deleted. Its description can still be edited.
+    public static bool IsBuiltInStatus(string? status) => string.Equals(status?.Trim(), TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase);
+    private const string BuiltInStatusMessage = "\"Closed\" is built in - closing tickets, SLA timers and reports all depend on it - so it can't be renamed or deleted. You can still change its description.";
+
     public string SetStatusDescription(string status, string? description)
     {
         lock (_sync)
@@ -3746,7 +3755,11 @@ public sealed partial class HelpdeskStore
             }
         }
         foreach (var ticket in data.Tickets) ReadTicketChildren(connection, ticket);
+        // The highest number ever handed out, not just the highest still present: deleting the newest ticket must not
+        // give its number to the next one, when job sheets and conversations already carry it.
         data.LastTicketNumber = Convert.ToInt32(ExecuteScalar(connection, "SELECT COALESCE(MAX(Number), 1000) FROM Tickets;"));
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LastTicketNumber';") as string, out var lastTicket))
+            data.LastTicketNumber = Math.Max(data.LastTicketNumber, lastTicket);
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT BrandName, DashboardEyebrow, DashboardTitle, DashboardDescription, PrimaryColor, AccentColor, BackgroundColor, DarkMode FROM BrandingSettings WHERE Id = 1;";
@@ -3973,6 +3986,7 @@ public sealed partial class HelpdeskStore
             foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && data.TicketAttributeDefinitions.Any(d => d.Id == x.Key)))
                 Execute(connection, transaction, "INSERT INTO TicketTemplateAttributes (TemplateId, AttributeDefinitionId, Value) VALUES ($template,$definition,$value);", ("$template", template.Id.ToString()), ("$definition", pair.Key.ToString()), ("$value", pair.Value));
         }
+        SetMetadata(connection, transaction, "LastTicketNumber", Math.Max(data.LastTicketNumber, data.Tickets.Select(x => x.Number).DefaultIfEmpty(1000).Max()).ToString(System.Globalization.CultureInfo.InvariantCulture));
         var ticketNumbers = data.Tickets.Select(x => x.Number).ToHashSet();
         foreach (var link in data.TicketLinks.Where(x => ticketNumbers.Contains(x.TicketNumber) && ticketNumbers.Contains(x.LinkedNumber)))
             Execute(connection, transaction, "INSERT INTO TicketLinks (TicketNumber, LinkedNumber, Kind) VALUES ($a,$b,$kind);", ("$a", link.TicketNumber), ("$b", link.LinkedNumber), ("$kind", link.Kind));
