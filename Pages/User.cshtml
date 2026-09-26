@@ -50,7 +50,7 @@
         }
         if (held.EquipmentCount > 0 && Model.CanBookBackIn)
         {
-            <form method="post" asp-page-handler="BookBackIn" asp-route-id="@Model.Person.Id" class="leaver-action" onsubmit="return confirm('Book all @held.EquipmentCount item(s) back in from @Model.Person.Name.Replace("'", "")? Assets in use or on loan go back to stock.');">
+            <form method="post" asp-page-handler="BookBackIn" asp-route-id="@Model.Person.Id" class="leaver-action" data-confirm="Book all @held.EquipmentCount item(s) back in from @Model.Person.Name? Assets in use or on loan go back to stock.">
                 <button class="button button-primary" type="submit">Book everything back in</button>
                 <span class="muted">Ends their loans and takes the assets off them. Anything in use or on loan goes back to stock; anything marked in repair or lost keeps that status.</span>
             </form>

@@ -25,7 +25,7 @@
             <input type="hidden" name="id" value="@Model.Asset!.Id" />
             <div class="form-grid">
                 <label>Asset tag<input name="assetTag" value="@Model.Asset.AssetTag" required /></label>
-                <label>Make<select name="make" id="asset-make-select" required><option value="">Select a make</option>@foreach (var make in Model.AssetMakes) { <option value="@make" selected="@(string.Equals(make, Model.Asset.Make, StringComparison.OrdinalIgnoreCase))">@make</option> }</select></label>
+                <label>Make<select name="make" id="asset-make-select" data-model-filter="asset-model-select" data-keep-initial required><option value="">Select a make</option>@foreach (var make in Model.AssetMakes) { <option value="@make" selected="@(string.Equals(make, Model.Asset.Make, StringComparison.OrdinalIgnoreCase))">@make</option> }</select></label>
                 <label>Model<select name="model" id="asset-model-select" required><option value="">Select a model</option>@foreach (var assetModel in Model.AssetModels) { <option value="@assetModel" data-make="@Model.AssetModelMakes.GetValueOrDefault(assetModel)" selected="@(string.Equals(assetModel, Model.Asset.Model, StringComparison.OrdinalIgnoreCase))">@assetModel</option> }</select></label>
                 <label>Type<select name="type" required><option value="">Select a type</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@(string.Equals(type, Model.Asset.Type, StringComparison.OrdinalIgnoreCase))">@type</option> }</select></label>
                 <label>Serial number<input name="serialNumber" value="@Model.Asset.SerialNumber" /></label>
@@ -164,7 +164,7 @@
         <details class="dispose-block">
             <summary>Record a disposal</summary>
             <p class="muted">Use this when the asset leaves the school — sold, recycled, donated or written off. It keeps the record for finance and auditors instead of deleting it. Book it back in, or take it out of its kit, first.</p>
-            <form method="post" asp-page-handler="Dispose" class="import-row" onsubmit="return confirm('Record this asset as disposed?');">
+            <form method="post" asp-page-handler="Dispose" class="import-row" data-confirm="Record this asset as disposed?">
                 <input type="hidden" name="id" value="@Model.Asset.Id" />
                 <label>Date<input name="disposalDate" type="date" max="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
                 <label>How<select name="disposalMethod" required><option value="">Choose…</option>@foreach (var method in Model.DisposalMethods) { <option value="@method">@method</option> }</select></label>
@@ -190,8 +190,8 @@
 <section class="panel">
     <div class="ticket-tabs">
         <div class="ticket-tab-buttons" role="tablist">
-            <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="asset-comments-tab" onclick="showAssetTab('comments')">Comments <span class="badge">@Model.Asset.Comments.Count</span></button>
-            <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-history-tab" onclick="showAssetTab('history')">History <span class="badge">@Model.Asset.History.Count</span></button>
+            <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="asset-comments-tab">Comments <span class="badge">@Model.Asset.Comments.Count</span></button>
+            <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-history-tab">History <span class="badge">@Model.Asset.History.Count</span></button>
         </div>
         <div id="asset-comments-tab" class="ticket-tab-panel active" role="tabpanel">
             @if (Model.Asset.Comments.Count > 0)
@@ -233,15 +233,4 @@
 </section>
 @section Scripts {
 <script src="~/js/model-filter.js" asp-append-version="true"></script>
-<script>
-initModelFilter(document.getElementById("asset-make-select"), document.getElementById("asset-model-select"), { keepInitialSelection: true });
-function showAssetTab(name) {
-    document.querySelectorAll(".ticket-tab-button").forEach(button => {
-        const active = button.getAttribute("aria-controls") === "asset-" + name + "-tab";
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-selected", active);
-    });
-    document.querySelectorAll(".ticket-tab-panel").forEach(panel => panel.hidden = panel.id !== "asset-" + name + "-tab");
-}
-</script>
 }

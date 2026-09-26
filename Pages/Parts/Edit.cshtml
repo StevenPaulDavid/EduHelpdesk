@@ -95,20 +95,5 @@
 }
 
 @section Scripts {
-<script>
-// Shows the total the delivery will make before it is saved, so a typo like 30 for 3 is caught at the desk.
-(function () {
-    const input = document.getElementById("restock-delivered");
-    const preview = document.getElementById("restock-preview");
-    if (!input || !preview) return;
-    const current = Number(preview.dataset.current);
-    const initial = preview.textContent;
-    input.addEventListener("input", () => {
-        const delivered = Number(input.value);
-        preview.textContent = Number.isInteger(delivered) && delivered > 0
-            ? `${current} in stock + ${delivered} delivered = ${current + delivered} after saving.`
-            : initial;
-    });
-})();
-</script>
+<script src="~/js/pages/part-restock.js" asp-append-version="true"></script>
 }

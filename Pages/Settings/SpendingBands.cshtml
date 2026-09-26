@@ -29,7 +29,7 @@
             <label class="band-notes">Requirements<textarea name="requirements" rows="2" maxlength="@HelpdeskStore.MaxBandRequirementsLength">@band.Requirements</textarea></label>
             <span class="band-actions">
                 <button class="button button-secondary" type="submit">Save</button>
-                <button class="button button-danger" type="submit" formaction="@Url.Page("/Settings/SpendingBands", "Delete")" formnovalidate onclick="return confirm('Delete this band?');">Delete</button>
+                <button class="button button-danger" type="submit" formaction="@Url.Page("/Settings/SpendingBands", "Delete")" formnovalidate data-confirm="Delete this band?">Delete</button>
             </span>
         </form>
     }

@@ -69,7 +69,7 @@
                 @{ await TemplateFields(item); }
                 <div class="heading-actions"><button class="button button-primary" type="submit">Save changes</button><a class="button button-secondary" asp-page="/NewTicket" asp-route-template="@item.Id">Try it: log a ticket from this</a></div>
             </form>
-            <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Delete this template? Tickets already created from it are not affected.');"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete template</button></form>
+            <form method="post" asp-page-handler="Delete" data-confirm="Delete this template? Tickets already created from it are not affected."><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete template</button></form>
         </details>
     }
     @if (Model.Templates.Count == 0) { <p class="empty">No templates have been added yet.</p> }

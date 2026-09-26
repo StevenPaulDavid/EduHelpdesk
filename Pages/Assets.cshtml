@@ -29,7 +29,7 @@
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalAssets}" : Model.TotalAssets.ToString())</span></div>
-    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount">
+    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="asset" data-nouns="assets">
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="status" value="@Model.Status" />
         <input type="hidden" name="type" value="@Model.Type" />
@@ -44,7 +44,7 @@
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
         <div class="table-wrap"><table class="asset-table stack-table"><thead><tr>
-            <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all assets on this page" onchange="toggleAssetPage(this)" /> }</th>
+            <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all assets on this page" /> }</th>
             <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("tag")">Asset@(Model.SortMark("tag"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("model")">Make and model@(Model.SortMark("model"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th>
@@ -60,7 +60,7 @@
             var overdue = asset.AssignedUserId is not null && asset.LoanDueDate is { } due && due < Model.Today;
             var expired = asset.WarrantyEnd is { } ends && ends < Model.Today;
             <tr>
-                <td>@if (Model.CanView) { <input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" onchange="assetSelectionChanged()" /> }</td>
+                <td>@if (Model.CanView) { <input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" /> }</td>
                 <td><strong>@if (Model.CanView) { <a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a> } else { @asset.AssetTag }</strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
                 <td>@asset.Type</td>
                 <td>@asset.SerialNumber</td>
@@ -80,7 +80,7 @@
             <div class="bulk-actions">
                 <strong>With selected assets</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation" onchange="switchAssetOperation()">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change location</option> }<option value="export">Export to CSV</option></select></label>
+                <label>Action<select name="operation" id="bulk-operation">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change location</option> }<option value="export" data-button="Export selected">Export to CSV</option></select></label>
                 @if (Model.CanEdit)
                 {
                     <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>
@@ -103,72 +103,5 @@
 </section>
 
 @section Scripts {
-<script>
-const form = document.getElementById("bulk-form");
-const matchCount = parseInt(form.dataset.matchCount || "0", 10);
-const selectAllField = document.getElementById("select-all-matching");
-const banner = document.getElementById("select-banner");
-const rowBoxes = () => [...document.querySelectorAll(".asset-select")];
-
-function selectedTotal() {
-    return selectAllField.value === "true" ? matchCount : rowBoxes().filter(b => b.checked).length;
-}
-function assetSelectionChanged(fromToggle) {
-    if (!fromToggle) selectAllField.value = "false";
-    const boxes = rowBoxes();
-    const checked = boxes.filter(b => b.checked).length;
-    const pageBox = document.getElementById("select-page");
-    if (pageBox) pageBox.checked = boxes.length > 0 && checked === boxes.length;
-    const all = selectAllField.value === "true";
-    const total = selectedTotal();
-    const counter = document.getElementById("selected-count");
-    if (counter) counter.textContent = total === 0 ? "None selected" : total + " selected";
-    // Offer to extend the selection to every match once the whole page is ticked and there are more matches than fit on it.
-    if (all) {
-        banner.hidden = false;
-        banner.innerHTML = "All " + matchCount + " matching assets are selected. <button type=\"button\" class=\"link-button\" onclick=\"clearAssetSelection()\">Clear selection</button>";
-    } else if (boxes.length > 0 && checked === boxes.length && matchCount > boxes.length) {
-        banner.hidden = false;
-        banner.innerHTML = "All " + boxes.length + " assets on this page are selected. <button type=\"button\" class=\"link-button\" onclick=\"selectAllMatching()\">Select all " + matchCount + " matching assets</button>";
-    } else {
-        banner.hidden = true;
-    }
-}
-function toggleAssetPage(box) {
-    rowBoxes().forEach(b => b.checked = box.checked);
-    selectAllField.value = "false";
-    assetSelectionChanged(true);
-}
-function selectAllMatching() {
-    selectAllField.value = "true";
-    assetSelectionChanged(true);
-}
-function clearAssetSelection() {
-    rowBoxes().forEach(b => b.checked = false);
-    selectAllField.value = "false";
-    assetSelectionChanged(true);
-}
-// A role without Assets: Edit gets the export option only, so every field below may legitimately be absent.
-function switchAssetOperation() {
-    const operation = document.getElementById("bulk-operation");
-    if (!operation) return;
-    const op = operation.value;
-    for (const [name, id] of [["status", "bulk-status-field"], ["owner", "bulk-owner-field"], ["location", "bulk-location-field"]]) {
-        const field = document.getElementById(id);
-        if (!field) continue;
-        field.hidden = op !== name;
-        field.querySelector("select").disabled = op !== name;
-    }
-    document.getElementById("bulk-apply").textContent = op === "export" ? "Export selected" : "Apply to selected";
-}
-form.addEventListener("submit", event => {
-    const total = selectedTotal();
-    if (total === 0) { event.preventDefault(); alert("Select at least one asset first."); return; }
-    const operation = document.getElementById("bulk-operation");
-    const op = operation ? operation.value : "export";
-    if (op !== "export" && total > 20 && !confirm("Change " + total + " assets?")) event.preventDefault();
-});
-switchAssetOperation();
-assetSelectionChanged();
-</script>
+<script src="~/js/bulk-select.js" asp-append-version="true"></script>
 }

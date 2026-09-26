@@ -117,3 +117,6 @@ function initKitPicker(root) {
         hint.textContent = tag + " removed. Save the kit to keep the change.";
     });
 }
+
+const kitPicker = document.getElementById("kit-picker");
+if (kitPicker) initKitPicker(kitPicker);

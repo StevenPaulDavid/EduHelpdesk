@@ -20,7 +20,7 @@
                     <h2>@(assigned ? "Assignment" : "Assign this project")</h2>
                     @if (assigned) { <p class="muted">@(Model.TechnicianName ?? "Unknown technician") · @ProjectPriorities.Label(project.EffectivePriority)</p> }
                 </div>
-                @if (assigned) { <button class="button button-secondary" type="button" id="assignment-edit" onclick="toggleAssignment(true)">Edit assignment</button> }
+                @if (assigned) { <button class="button button-secondary" type="button" id="assignment-edit" data-show="assignment-form" data-hide="assignment-edit">Edit assignment</button> }
             </div>
             <form method="post" asp-page-handler="Assign" asp-route-number="@project.Number" class="settings-form" id="assignment-form" hidden="@assigned">
                 <label>Priority
@@ -30,16 +30,10 @@
                 <partial name="_WorkloadPicker" model="@(new WorkloadPicker(Model.Workloads, project.TechnicianId))" />
                 <div class="heading-actions assignment-actions">
                     <button class="button button-primary portal-button" type="submit">Save</button>
-                    @if (assigned) { <button class="button button-secondary" type="button" onclick="toggleAssignment(false)">Cancel</button> }
+                    @if (assigned) { <button class="button button-secondary" type="button" data-show="assignment-edit" data-hide="assignment-form">Cancel</button> }
                 </div>
             </form>
         </section>
-        <script>
-            function toggleAssignment(editing) {
-                document.getElementById("assignment-form").hidden = !editing;
-                document.getElementById("assignment-edit").hidden = editing;
-            }
-        </script>
     }
     <section class="panel portal-panel">
         <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>

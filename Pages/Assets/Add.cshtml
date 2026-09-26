@@ -5,7 +5,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 <section class="panel"><form method="post" class="settings-form">
 <label>Asset tag<input name="assetTag" value="@Model.Posted("assetTag")" required /></label>
-<label>Make<select name="make" id="asset-make-select">@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@(item == Model.Posted("make"))">@item</option> }</select></label>
+<label>Make<select name="make" id="asset-make-select" data-model-filter="asset-model-select">@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@(item == Model.Posted("make"))">@item</option> }</select></label>
 <label>Model<select name="model" id="asset-model-select" required>@foreach (var item in Model.AssetModels) { <option value="@item" data-make="@Model.AssetModelMakes.GetValueOrDefault(item)" selected="@(item == Model.Posted("model"))">@item</option> }</select></label>
 <label>Type<select name="type" required>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@(item == Model.Posted("type"))">@item</option> }</select></label>
 <label>Serial number<input name="serialNumber" value="@Model.Posted("serialNumber")" /></label>
@@ -23,5 +23,5 @@
 </form></section>
 @section Scripts {
 <script src="~/js/model-filter.js" asp-append-version="true"></script>
-<script>initModelFilter(document.getElementById("asset-make-select"), document.getElementById("asset-model-select"));</script>
+
 }

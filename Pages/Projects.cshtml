@@ -52,7 +52,7 @@
         var overdue = project.IsOverdue(Model.Today);
         var soon = project.IsDueSoon(Model.Today);
         var requester = Model.Requesters.GetValueOrDefault(project.RequesterId);
-        <tr class="clickable-row @(overdue ? "row-overdue" : soon ? "row-soon" : "")" onclick="if(!event.target.closest('a')) window.location.href='@Url.Page("/Project", new { number = project.Number })'">
+        <tr class="clickable-row @(overdue ? "row-overdue" : soon ? "row-soon" : "")" data-href="@Url.Page("/Project", new { number = project.Number })">
             <td><strong><a asp-page="/Project" asp-route-number="@project.Number">@project.Reference</a></strong><br /><span class="muted">@project.Title</span></td>
             <td>@(requester?.Name ?? "Unknown")@if (!string.IsNullOrWhiteSpace(requester?.Department)) { <br /><span class="muted">@requester.Department</span> }</td>
             <td>@(project.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unknown" : "Unassigned")</td>

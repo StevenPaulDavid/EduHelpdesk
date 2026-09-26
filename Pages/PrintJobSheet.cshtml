@@ -21,8 +21,9 @@
     .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
     @@media print { .no-print { display: none !important; } body { width: auto; } }
 </style>
+<script src="~/js/actions.js" asp-append-version="true" defer></script>
 </head>
-<body onload="window.print()">
+<body data-print-on-load>
     <div class="sheet-header"><span class="sheet-number">#@Model.Ticket.Number</span><span class="sheet-priority">@Model.Ticket.Priority</span></div>
     <p class="sheet-title">@Model.Ticket.Title</p>
     <p class="sheet-row"><span class="sheet-label">Requester</span>@(Model.Requester?.Name ?? "Unknown")</p>
@@ -40,8 +41,8 @@
         <p class="sheet-desc">@Model.ShortDescription</p>
     }
     <div class="no-print">
-        <button type="button" onclick="window.print()">Print again</button>
-        <button type="button" onclick="window.close()">Close</button>
+        <button type="button" data-action="print">Print again</button>
+        <button type="button" data-action="close">Close</button>
     </div>
 </body>
 </html>

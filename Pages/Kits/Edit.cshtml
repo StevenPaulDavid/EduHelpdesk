@@ -109,7 +109,7 @@
 
         @if (Model.History.Count == 0)
         {
-            <form method="post" asp-page-handler="Delete" class="import-row" onsubmit="return confirm('Delete this kit?');">
+            <form method="post" asp-page-handler="Delete" class="import-row" data-confirm="Delete this kit?">
                 <input type="hidden" name="id" value="@Model.Kit!.Id" />
                 <button class="button button-danger">Delete kit</button>
             </form>
@@ -123,5 +123,5 @@
 
 @section Scripts {
 <script src="~/js/kit-picker.js" asp-append-version="true"></script>
-<script>initKitPicker(document.getElementById("kit-picker"));</script>
+
 }

@@ -20,15 +20,15 @@
         }
         @if (Model.CanEdit && Model.Ticket.Status != "Closed")
         {
-            if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" onclick="openCloseDialog()">Mark as closed</button> }
+            if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" data-open-blade="close-dialog-backdrop">Mark as closed</button> }
             else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }
         }
         <details class="nav-menu action-menu">
             <summary class="button button-secondary">🖨 Print<span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">
-                <button type="button" onclick="window.print()">Ticket</button>
-                <button type="button" onclick="window.open('@Url.Page("/PrintLabel", new { number = Model.Ticket.Number })', '_blank')">Label</button>
-                <button type="button" onclick="window.open('@Url.Page("/PrintJobSheet", new { number = Model.Ticket.Number })', '_blank')">Job sheet</button>
+                <button type="button" data-action="print">Ticket</button>
+                <button type="button" data-open-window="@Url.Page("/PrintLabel", new { number = Model.Ticket.Number })">Label</button>
+                <button type="button" data-open-window="@Url.Page("/PrintJobSheet", new { number = Model.Ticket.Number })">Job sheet</button>
             </div>
         </details>
         @if (Model.CanDelete)
@@ -36,8 +36,8 @@
             <details class="nav-menu action-menu">
                 <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
                 <div class="nav-panel nav-panel-right">
-                    <button type="button" onclick="openMergeDialog()">Merge into another ticket…</button>
-                    <button type="button" class="menu-danger" onclick="openDeleteDialog()">Delete ticket…</button>
+                    <button type="button" data-open-blade="merge-dialog-backdrop">Merge into another ticket…</button>
+                    <button type="button" class="menu-danger" data-open-blade="delete-dialog-backdrop">Delete ticket…</button>
                 </div>
             </details>
         }
@@ -45,39 +45,39 @@
 </div>
 @if (Model.Ticket.Status != "Closed" && Model.RequiresCloseMessage)
 {
-    <div id="close-dialog-backdrop" class="blade-backdrop no-print" onclick="closeCloseDialog()">
-        <div class="blade" onclick="event.stopPropagation()">
-            <button class="blade-close" type="button" onclick="closeCloseDialog()">×</button>
+    <div id="close-dialog-backdrop" class="blade-backdrop no-print">
+        <div class="blade">
+            <button class="blade-close" type="button" data-close-blade>×</button>
             <h2>Close ticket #@Model.Ticket.Number</h2>
             <p class="muted">This ticket is <strong>@Model.Ticket.Priority</strong> priority in the <strong>@Model.Ticket.Category</strong> category, so a closing message is required before it can be closed.</p>
             <form method="post" asp-page-handler="Close" class="blade-form">
                 <input type="hidden" name="number" value="@Model.Ticket.Number" />
                 <label>Closing message<textarea name="closingMessage" rows="5" required placeholder="Explain how this was resolved…"></textarea></label>
-                <div class="blade-actions"><button class="button button-primary" type="submit">Close ticket</button><button class="button button-secondary" type="button" onclick="closeCloseDialog()">Cancel</button></div>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Close ticket</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
             </form>
         </div>
     </div>
 }
-<div id="merge-dialog-backdrop" class="blade-backdrop no-print" onclick="closeMergeDialog()">
-    <div class="blade" onclick="event.stopPropagation()">
-        <button class="blade-close" type="button" onclick="closeMergeDialog()">×</button>
+<div id="merge-dialog-backdrop" class="blade-backdrop no-print">
+    <div class="blade">
+        <button class="blade-close" type="button" data-close-blade>×</button>
         <h2>Merge ticket #@Model.Ticket.Number</h2>
         <p class="muted">Choose the ticket to merge this one into. Comments, linked assets, and assigned parts will be copied across, and this ticket will be closed.</p>
         <form method="post" asp-page-handler="Merge" class="blade-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
             <label>Merge into<select name="targetNumber" required><option value="">Select a ticket…</option>@foreach (var candidate in Model.MergeCandidates) { <option value="@candidate.Number">#@candidate.Number - @candidate.Title</option> }</select></label>
-            <div class="blade-actions"><button class="button button-primary" type="submit">Merge ticket</button><button class="button button-secondary" type="button" onclick="closeMergeDialog()">Cancel</button></div>
+            <div class="blade-actions"><button class="button button-primary" type="submit">Merge ticket</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
         </form>
     </div>
 </div>
-<div id="delete-dialog-backdrop" class="blade-backdrop no-print" onclick="closeDeleteDialog()">
-    <div class="blade" onclick="event.stopPropagation()">
-        <button class="blade-close" type="button" onclick="closeDeleteDialog()">×</button>
+<div id="delete-dialog-backdrop" class="blade-backdrop no-print">
+    <div class="blade">
+        <button class="blade-close" type="button" data-close-blade>×</button>
         <h2>Delete ticket #@Model.Ticket.Number</h2>
         <p class="muted">This permanently removes the ticket, its comments, and history. Any parts assigned to it will be returned to stock. This can't be undone.</p>
         <form method="post" asp-page-handler="Delete" class="blade-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
-            <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" onclick="closeDeleteDialog()">Cancel</button></div>
+            <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
         </form>
     </div>
 </div>
@@ -141,7 +141,7 @@ else
 
 <div class="job-detail-grid">
     <section class="panel job-main printable-job">
-        <div class="panel-heading"><div><p class="eyebrow">DESCRIPTION</p><h2>@Model.Ticket.Title</h2></div><button class="button button-secondary no-print" type="button" onclick="editTicketContent()">Edit details</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">DESCRIPTION</p><h2>@Model.Ticket.Title</h2></div><button class="button button-secondary no-print" type="button" id="ticket-content-edit" data-edit-content>Edit details</button></div>
         <div id="ticket-content-display">
             <p class="job-description">@Model.Ticket.Description</p>
         </div>
@@ -149,23 +149,23 @@ else
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
             <label>Title<input name="title" value="@Model.Ticket.Title" required /></label>
             <label>Description<textarea name="description" rows="7">@Model.Ticket.Description</textarea></label>
-            <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" onclick="cancelTicketContent()">Cancel</button></div>
+            <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" data-cancel-content>Cancel</button></div>
         </form>
         <div class="job-meta"><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last modified</span><strong>@Model.Ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
         <p class="section-heading">Assignment &amp; scheduling</p>
         <div class="job-detail-fields">
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" onclick="editField('technician')">✎</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">✓</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TEAM</p><button id="team-edit" class="icon-button edit-icon" type="button" title="Edit team" onclick="editField('team')">✎</button></div><strong class="field-value" id="team-value">@(Model.Ticket.TeamName ?? "No team")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="team-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="team" /><select name="value"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" selected="@(team == Model.Ticket.TeamName)">@team</option> }</select><button class="icon-button save-icon" type="submit" title="Save team" aria-label="Save team">✓</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA</p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" onclick="editField('sla')">✎</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">✓</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE</p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" onclick="editField('dueDate')">✎</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">✓</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" data-edit-field="technician">✎</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">✓</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TEAM</p><button id="team-edit" class="icon-button edit-icon" type="button" title="Edit team" data-edit-field="team">✎</button></div><strong class="field-value" id="team-value">@(Model.Ticket.TeamName ?? "No team")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="team-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="team" /><select name="value"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" selected="@(team == Model.Ticket.TeamName)">@team</option> }</select><button class="icon-button save-icon" type="submit" title="Save team" aria-label="Save team">✓</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA</p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" data-edit-field="sla">✎</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">✓</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE</p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" data-edit-field="dueDate">✎</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">✓</button></form></div>
         </div>
         <div class="ticket-tabs no-print">
             <div class="ticket-tab-buttons" role="tablist">
-                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="comments-tab" onclick="showTicketTab('comments')">Comments <span class="badge">@Model.Ticket.Comments.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab" onclick="showTicketTab('history')">History <span class="badge">@Model.Ticket.History.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="assets-tab" onclick="showTicketTab('assets')">Assets <span class="badge">@Model.LinkedAssets.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="parts-tab" onclick="showTicketTab('parts')">Parts <span class="badge">@Model.TicketParts.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="attachments-tab" onclick="showTicketTab('attachments')">Attachments <span class="badge">@Model.Attachments.Count</span></button>
+                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="comments-tab">Comments <span class="badge">@Model.Ticket.Comments.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab">History <span class="badge">@Model.Ticket.History.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="assets-tab">Assets <span class="badge">@Model.LinkedAssets.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="parts-tab">Parts <span class="badge">@Model.TicketParts.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="attachments-tab">Attachments <span class="badge">@Model.Attachments.Count</span></button>
             </div>
             <div id="comments-tab" class="ticket-tab-panel active" role="tabpanel">
                 @if (Model.Ticket.Comments.Count > 0)
@@ -185,9 +185,9 @@ else
                     <input type="hidden" name="number" value="@Model.Ticket.Number" />
                     <label for="ticket-comment">Add a comment</label>
                     <textarea id="ticket-comment" name="comment" rows="3" placeholder="Add an update, finding, or next action…"></textarea>
-                    <label class="toggle-label"><input type="checkbox" name="internalNote" value="true" onchange="updateCommentSubmit()" /> Internal note (technicians only, left off the printed ticket)</label>
+                    <label class="toggle-label"><input type="checkbox" name="internalNote" value="true" /> Internal note (technicians only, left off the printed ticket)</label>
                     <label for="comment-status">Status</label>
-                    <select id="comment-status" name="status" data-current="@Model.Ticket.Status" onchange="updateCommentSubmit()">
+                    <select id="comment-status" name="status" data-current="@Model.Ticket.Status">
                         @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))
                         {
                             <option value="" selected>@Model.Ticket.Status</option>
@@ -286,7 +286,7 @@ else
                                         </form>
                                     }
                                 </div>
-                                <form method="post" asp-page-handler="RemoveAttachment" onsubmit="return confirm('Remove this attachment from the ticket?');">
+                                <form method="post" asp-page-handler="RemoveAttachment" data-confirm="Remove this attachment from the ticket?">
                                     <input type="hidden" name="number" value="@Model.Ticket.Number" />
                                     <input type="hidden" name="id" value="@attachment.Id" />
                                     <button class="icon-button delete-icon" type="submit" title="Remove attachment" aria-label="Remove @attachment.FileName">♜</button>
@@ -313,11 +313,11 @@ else
     <aside class="panel detail-sidebar printable-job">
         <div class="detail-block"><p class="eyebrow">REQUESTER</p><h3>@(Model.Requester?.Name ?? "Unknown")</h3><p>@Model.Requester?.Email</p><p>@Model.Requester?.Department · @Model.Requester?.Location</p></div>
         <p class="section-heading">Classification</p>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">STATUS</p><button id="status-edit" class="icon-button edit-icon" type="button" title="Edit status" onclick="editField('status')">✎</button></div><strong class="field-value" id="status-value"><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></strong><form method="post" asp-page-handler="Update" class="inline-control" id="status-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="status" /><select name="value" onchange="updateStatusDescription(this.value)">@foreach (var status in Model.Statuses) { <option value="@status" selected="@(status == Model.Ticket.Status)">@status</option> }</select><button class="icon-button save-icon" type="submit" title="Save status" aria-label="Save status">✓</button><small id="status-description" class="status-description-hint">@(Model.StatusDescriptions.TryGetValue(Model.Ticket.Status, out var currentStatusDescription) ? currentStatusDescription : "")</small></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">PRIORITY</p><button id="priority-edit" class="icon-button edit-icon" type="button" title="Edit priority" onclick="editField('priority')">✎</button></div><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()" id="priority-value">@Model.Ticket.Priority</strong><form method="post" asp-page-handler="Update" class="inline-control" id="priority-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="priority" /><select name="value">@foreach (var priority in Model.Priorities) { <option value="@priority" selected="@(priority == Model.Ticket.Priority)">@priority</option> }</select><button class="icon-button save-icon" type="submit" title="Save priority" aria-label="Save priority">✓</button></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">TYPE</p><button id="type-edit" class="icon-button edit-icon" type="button" title="Edit type" onclick="editField('type')">✎</button></div><strong class="field-value" id="type-value">@Model.Ticket.Type</strong><form method="post" asp-page-handler="Update" class="inline-control" id="type-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="type" /><select name="value">@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Ticket.Type)">@type</option> }</select><button class="icon-button save-icon" type="submit" title="Save type" aria-label="Save type">✓</button></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" onclick="editField('category')">✎</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value">@foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> }</select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">✓</button></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">LOCATION</p><button id="location-edit" class="icon-button edit-icon" type="button" title="Edit location" onclick="editField('location')">✎</button></div><strong class="field-value" id="location-value">@(Model.Ticket.Location ?? "Not specified")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="location-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="location" /><select name="value"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(location == Model.Ticket.Location)">@location</option> }</select><button class="icon-button save-icon" type="submit" title="Save location" aria-label="Save location">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">STATUS</p><button id="status-edit" class="icon-button edit-icon" type="button" title="Edit status" data-edit-field="status">✎</button></div><strong class="field-value" id="status-value"><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></strong><form method="post" asp-page-handler="Update" class="inline-control" id="status-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="status" /><select name="value" data-describe="status-description">@foreach (var status in Model.Statuses) { <option value="@status" data-description="@Model.StatusDescriptions.GetValueOrDefault(status)" selected="@(status == Model.Ticket.Status)">@status</option> }</select><button class="icon-button save-icon" type="submit" title="Save status" aria-label="Save status">✓</button><small id="status-description" class="status-description-hint">@(Model.StatusDescriptions.TryGetValue(Model.Ticket.Status, out var currentStatusDescription) ? currentStatusDescription : "")</small></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">PRIORITY</p><button id="priority-edit" class="icon-button edit-icon" type="button" title="Edit priority" data-edit-field="priority">✎</button></div><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()" id="priority-value">@Model.Ticket.Priority</strong><form method="post" asp-page-handler="Update" class="inline-control" id="priority-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="priority" /><select name="value">@foreach (var priority in Model.Priorities) { <option value="@priority" selected="@(priority == Model.Ticket.Priority)">@priority</option> }</select><button class="icon-button save-icon" type="submit" title="Save priority" aria-label="Save priority">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">TYPE</p><button id="type-edit" class="icon-button edit-icon" type="button" title="Edit type" data-edit-field="type">✎</button></div><strong class="field-value" id="type-value">@Model.Ticket.Type</strong><form method="post" asp-page-handler="Update" class="inline-control" id="type-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="type" /><select name="value">@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Ticket.Type)">@type</option> }</select><button class="icon-button save-icon" type="submit" title="Save type" aria-label="Save type">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" data-edit-field="category">✎</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value">@foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> }</select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">✓</button></form></div>
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">LOCATION</p><button id="location-edit" class="icon-button edit-icon" type="button" title="Edit location" data-edit-field="location">✎</button></div><strong class="field-value" id="location-value">@(Model.Ticket.Location ?? "Not specified")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="location-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="location" /><select name="value"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(location == Model.Ticket.Location)">@location</option> }</select><button class="icon-button save-icon" type="submit" title="Save location" aria-label="Save location">✓</button></form></div>
         <div class="detail-block related-block">
             <p class="eyebrow">RELATED TICKETS</p>
             @if (Model.Relations.Count == 0) { <p class="muted">No related tickets.</p> }
@@ -333,7 +333,7 @@ else
                 <label>Link a related ticket<input name="other" type="number" min="1" step="1" placeholder="Ticket number" required /></label>
                 <button class="button button-secondary" type="submit">Link</button>
             </form>
-            <form method="post" asp-page-handler="CreateFollowUp" class="no-print" onsubmit="return confirm('Create a follow-up ticket for #@Model.Ticket.Number?');">
+            <form method="post" asp-page-handler="CreateFollowUp" class="no-print" data-confirm="Create a follow-up ticket for #@Model.Ticket.Number?">
                 <input type="hidden" name="number" value="@Model.Ticket.Number" />
                 <button class="button button-secondary" type="submit">Create follow-up ticket</button>
                 <small class="muted">A new ticket with the same requester, assets, category and priority.</small>
@@ -387,65 +387,5 @@ else
     </aside>
 </div>
 @section Scripts {
-<script>
-const statusDescriptions = @Html.Raw(Model.StatusDescriptionsJson);
-function updateStatusDescription(value) {
-    const el = document.getElementById("status-description");
-    if (el) el.textContent = statusDescriptions[value] || "";
-}
-function updateCommentSubmit() {
-    const select = document.getElementById("comment-status");
-    const button = document.getElementById("comment-submit");
-    const changed = select.value !== "" && select.value.toLowerCase() !== select.dataset.current.toLowerCase();
-    const noun = document.querySelector("[name=internalNote]")?.checked ? "internal note" : "comment";
-    button.textContent = !changed ? "Add " + noun : select.value === "Closed" ? "Add " + noun + " & close ticket" : "Add " + noun + " & set status to " + select.value;
-}
-function openCloseDialog() {
-    const backdrop = document.getElementById("close-dialog-backdrop");
-    if (backdrop) backdrop.classList.add("open");
-}
-function closeCloseDialog() {
-    const backdrop = document.getElementById("close-dialog-backdrop");
-    if (backdrop) backdrop.classList.remove("open");
-}
-function openMergeDialog() {
-    const backdrop = document.getElementById("merge-dialog-backdrop");
-    if (backdrop) backdrop.classList.add("open");
-}
-function closeMergeDialog() {
-    const backdrop = document.getElementById("merge-dialog-backdrop");
-    if (backdrop) backdrop.classList.remove("open");
-}
-function openDeleteDialog() {
-    const backdrop = document.getElementById("delete-dialog-backdrop");
-    if (backdrop) backdrop.classList.add("open");
-}
-function closeDeleteDialog() {
-    const backdrop = document.getElementById("delete-dialog-backdrop");
-    if (backdrop) backdrop.classList.remove("open");
-}
-function editField(name) {
-    document.getElementById(name + "-value").style.display = "none";
-    document.getElementById(name + "-edit").style.display = "none";
-    document.getElementById(name + "-control").classList.add("visible");
-}
-function editTicketContent() {
-    document.getElementById("ticket-content-display").style.display = "none";
-    document.querySelector(".job-main .panel-heading .button").style.display = "none";
-    document.getElementById("ticket-content-form").classList.add("visible");
-}
-function cancelTicketContent() {
-    document.getElementById("ticket-content-display").style.display = "";
-    document.querySelector(".job-main .panel-heading .button").style.display = "";
-    document.getElementById("ticket-content-form").classList.remove("visible");
-}
-function showTicketTab(name) {
-    document.querySelectorAll(".ticket-tab-button").forEach(button => {
-        const active = button.getAttribute("aria-controls") === name + "-tab";
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-selected", active);
-    });
-    document.querySelectorAll(".ticket-tab-panel").forEach(panel => panel.hidden = panel.id !== name + "-tab");
-}
-</script>
+<script src="~/js/pages/job.js" asp-append-version="true"></script>
 }

@@ -27,7 +27,7 @@
         {
             <form method="post" asp-page-handler="WhoAmI" class="whoami">
                 @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
-                <label>Working as<select name="technicianId" onchange="this.form.submit()"><option value="">Not set</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.CurrentTechnicianId)">@tech.Name</option> }</select></label>
+                <label>Working as<select name="technicianId" data-autosubmit><option value="">Not set</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.CurrentTechnicianId)">@tech.Name</option> }</select></label>
                 <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
             </form>
         }
@@ -98,12 +98,12 @@
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">TICKET REGISTER</p><h2>@JobsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
-    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount">
+    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="ticket" data-nouns="tickets">
         @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
         <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
-            <th data-stack="check"><input id="select-page" type="checkbox" aria-label="Select all tickets on this page" onchange="toggleTicketPage(this)" /></th>
+            <th data-stack="check"><input id="select-page" type="checkbox" aria-label="Select all tickets on this page" /></th>
             <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("number")">Ticket@(Model.SortMark("number"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("title")">Title@(Model.SortMark("title"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("requester")">Requester@(Model.SortMark("requester"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("asset")">Asset@(Model.SortMark("asset"))</a></th>
@@ -118,8 +118,8 @@
             var linkedAssets = ticket.AssetIds.Select(id => Model.AssetsById.GetValueOrDefault(id)).Where(a => a is not null).ToList();
             var due = TicketInsights.DueStateOf(ticket, Model.Now, Model.DueSoonHours);
             var urgent = !TicketInsights.IsClosed(ticket) && string.Equals(ticket.Priority, "Urgent", StringComparison.OrdinalIgnoreCase);
-            <tr class="clickable-row @(due == DueState.Overdue ? "row-overdue" : due == DueState.Soon ? "row-soon" : "") @(urgent ? "row-urgent" : "")" onclick="if(!event.target.closest('a,input,label')) window.location.href='@Url.Page("/Job", new { number = ticket.Number })'">
-                <td><input class="ticket-select" type="checkbox" name="ids" value="@ticket.Number" aria-label="Select ticket @ticket.Number" onchange="ticketSelectionChanged()" /></td>
+            <tr class="clickable-row @(due == DueState.Overdue ? "row-overdue" : due == DueState.Soon ? "row-soon" : "") @(urgent ? "row-urgent" : "")" data-href="@Url.Page("/Job", new { number = ticket.Number })">
+                <td><input class="ticket-select" type="checkbox" name="ids" value="@ticket.Number" aria-label="Select ticket @ticket.Number" /></td>
                 <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">#@ticket.Number</a></strong> <span class="type-tag @(ticket.Type == TicketTypes.Request ? "type-request" : "")">@ticket.Type</span>@if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply" title="The requester replied in the staff portal and is waiting to hear back">Reply</span> }<br /><span class="muted">@ticket.Title</span></td>
                 <td>@(Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "—")</td>
                 <td>@if (linkedAssets.Count == 0) { <span class="muted">—</span> } else { @string.Join(", ", linkedAssets.Select(a => $"{a!.AssetTag} · {a.Model}")) }</td>
@@ -138,20 +138,20 @@
             <div class="bulk-actions">
                 <strong>With selected tickets</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation" onchange="switchTicketOperation()">
-                    <option value="status">Change status</option><option value="technician">Assign technician</option><option value="team">Assign team</option>
+                <label>Action<select name="operation" id="bulk-operation">
+                    <option value="status">Change status</option><option value="technician" data-hint="A technician who is not in a ticket's team is skipped for that ticket.">Assign technician</option><option value="team" data-hint="A technician who is not in the new team is unassigned from the ticket.">Assign team</option>
                     <option value="priority">Change priority</option><option value="category">Change category</option><option value="type">Change type</option><option value="comment">Add a comment</option>
-                    <option value="close">Close with a message</option><option value="merge">Merge into a ticket</option><option value="export">Export to CSV</option>
+                    <option value="close" data-hint="Tickets that need a closing message are skipped if you leave it blank.">Close with a message</option><option value="merge" data-hint="Comments, linked assets and parts are copied into that ticket, and each selected ticket is closed. This cannot be undone." data-confirm="Merge {count} ticket(s) into #{mergeTarget}? The merged tickets will be closed.">Merge into a ticket</option><option value="export" data-button="Export selected">Export to CSV</option>
                 </select></label>
-                <label id="bulk-status-field">New status<select name="newStatus" onchange="updateBulkStatusDescription(this.value)">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select><small id="bulk-status-description" class="status-description-hint">@(Model.Statuses.Count > 0 && Model.StatusDescriptions.TryGetValue(Model.Statuses[0], out var firstStatusDescription) ? firstStatusDescription : "")</small></label>
+                <label id="bulk-status-field">New status<select name="newStatus" data-describe="bulk-status-description">@foreach (var item in Model.Statuses) { <option value="@item" data-description="@Model.StatusDescriptions.GetValueOrDefault(item)">@item</option> }</select><small id="bulk-status-description" class="status-description-hint">@(Model.Statuses.Count > 0 && Model.StatusDescriptions.TryGetValue(Model.Statuses[0], out var firstStatusDescription) ? firstStatusDescription : "")</small></label>
                 <label id="bulk-technician-field" hidden>Technician<select name="newTechnician" disabled><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
                 <label id="bulk-team-field" hidden>Team<select name="newTeam" disabled><option value="@TicketListQuery.None">No team</option>@foreach (var item in Model.Teams) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-priority-field" hidden>New priority<select name="newPriority" disabled>@foreach (var item in Model.Priorities) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-category-field" hidden>New category<select name="newCategory" disabled>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-type-field" hidden>New type<select name="newType" disabled>@foreach (var item in Model.Types) { <option value="@item">@item</option> }</select></label>
-                <label id="bulk-comment-field" class="bulk-wide" hidden>Comment for every selected ticket<textarea name="commentText" rows="2" disabled></textarea><span class="toggle-label"><input type="checkbox" name="commentInternal" value="true" disabled /> Internal note (left off printed tickets)</span></label>
+                <label id="bulk-comment-field" class="bulk-wide" hidden>Comment for every selected ticket<textarea name="commentText" rows="2" disabled data-required-message="Enter a comment first."></textarea><span class="toggle-label"><input type="checkbox" name="commentInternal" value="true" disabled /> Internal note (left off printed tickets)</span></label>
                 <label id="bulk-close-field" class="bulk-wide" hidden>Closing message (required for some priorities and categories)<textarea name="closingMessage" rows="2" disabled></textarea></label>
-                <label id="bulk-merge-field" hidden>Merge into ticket number<input type="number" name="mergeTarget" min="1" step="1" disabled /></label>
+                <label id="bulk-merge-field" hidden>Merge into ticket number<input type="number" name="mergeTarget" min="1" step="1" disabled data-required-message="Enter the number of the ticket to merge into." /></label>
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
             </div>
             <p class="muted bulk-hint" id="bulk-hint" hidden></p>
@@ -169,88 +169,5 @@
 </section>
 
 @section Scripts {
-<script>
-const bulkStatusDescriptions = @Html.Raw(Model.StatusDescriptionsJson);
-function updateBulkStatusDescription(value) {
-    const el = document.getElementById("bulk-status-description");
-    if (el) el.textContent = bulkStatusDescriptions[value] || "";
-}
-const form = document.getElementById("bulk-form");
-const matchCount = parseInt(form.dataset.matchCount || "0", 10);
-const selectAllField = document.getElementById("select-all-matching");
-const banner = document.getElementById("select-banner");
-const rowBoxes = () => [...document.querySelectorAll(".ticket-select")];
-
-function selectedTotal() {
-    return selectAllField.value === "true" ? matchCount : rowBoxes().filter(b => b.checked).length;
-}
-function ticketSelectionChanged(fromToggle) {
-    if (!fromToggle) selectAllField.value = "false";
-    const boxes = rowBoxes();
-    const checked = boxes.filter(b => b.checked).length;
-    const pageBox = document.getElementById("select-page");
-    if (pageBox) pageBox.checked = boxes.length > 0 && checked === boxes.length;
-    const all = selectAllField.value === "true";
-    const total = selectedTotal();
-    const counter = document.getElementById("selected-count");
-    if (counter) counter.textContent = total === 0 ? "None selected" : total + " selected";
-    // Offer to extend the selection to every match once the whole page is ticked and there are more matches than fit on it.
-    if (all) {
-        banner.hidden = false;
-        banner.innerHTML = "All " + matchCount + " matching tickets are selected. <button type=\"button\" class=\"link-button\" onclick=\"clearTicketSelection()\">Clear selection</button>";
-    } else if (boxes.length > 0 && checked === boxes.length && matchCount > boxes.length) {
-        banner.hidden = false;
-        banner.innerHTML = "All " + boxes.length + " tickets on this page are selected. <button type=\"button\" class=\"link-button\" onclick=\"selectAllMatching()\">Select all " + matchCount + " matching tickets</button>";
-    } else {
-        banner.hidden = true;
-    }
-}
-function toggleTicketPage(box) {
-    rowBoxes().forEach(b => b.checked = box.checked);
-    selectAllField.value = "false";
-    ticketSelectionChanged(true);
-}
-function selectAllMatching() {
-    selectAllField.value = "true";
-    ticketSelectionChanged(true);
-}
-function clearTicketSelection() {
-    rowBoxes().forEach(b => b.checked = false);
-    selectAllField.value = "false";
-    ticketSelectionChanged(true);
-}
-const operationFields = { status: "bulk-status-field", technician: "bulk-technician-field", team: "bulk-team-field", priority: "bulk-priority-field", category: "bulk-category-field", type: "bulk-type-field", comment: "bulk-comment-field", close: "bulk-close-field", merge: "bulk-merge-field" };
-const operationHints = {
-    technician: "A technician who is not in a ticket's team is skipped for that ticket.",
-    team: "A technician who is not in the new team is unassigned from the ticket.",
-    merge: "Comments, linked assets and parts are copied into that ticket, and each selected ticket is closed. This cannot be undone.",
-    close: "Tickets that need a closing message are skipped if you leave it blank."
-};
-function switchTicketOperation() {
-    // With nothing in the list there is no bulk bar - this used to throw on every empty result.
-    const operation = document.getElementById("bulk-operation");
-    if (!operation) return;
-    const op = operation.value;
-    for (const [name, id] of Object.entries(operationFields)) {
-        const field = document.getElementById(id);
-        field.hidden = op !== name;
-        field.querySelectorAll("select,textarea,input").forEach(control => control.disabled = op !== name);
-    }
-    document.getElementById("bulk-apply").textContent = op === "export" ? "Export selected" : "Apply to selected";
-    const hint = document.getElementById("bulk-hint");
-    hint.textContent = operationHints[op] || "";
-    hint.hidden = !operationHints[op];
-}
-form.addEventListener("submit", event => {
-    const total = selectedTotal();
-    if (total === 0) { event.preventDefault(); alert("Select at least one ticket first."); return; }
-    const op = document.getElementById("bulk-operation").value;
-    if (op === "merge" && !form.querySelector("[name=mergeTarget]").value) { event.preventDefault(); alert("Enter the number of the ticket to merge into."); return; }
-    if (op === "comment" && !form.querySelector("[name=commentText]").value.trim()) { event.preventDefault(); alert("Enter a comment first."); return; }
-    if (op === "merge" && !confirm("Merge " + total + " ticket(s) into #" + form.querySelector("[name=mergeTarget]").value + "? The merged tickets will be closed.")) event.preventDefault();
-    else if (op !== "export" && op !== "merge" && total > 20 && !confirm("Change " + total + " tickets?")) event.preventDefault();
-});
-switchTicketOperation();
-ticketSelectionChanged();
-</script>
+<script src="~/js/bulk-select.js" asp-append-version="true"></script>
 }

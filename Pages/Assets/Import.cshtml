@@ -101,7 +101,7 @@ else
         }
         @if (plan.Warnings > 0) { <p class="muted">@plan.Warnings warning@(plan.Warnings == 1 ? "" : "s") below. Warnings do not stop a row being imported.</p> }
         <div class="heading-actions import-apply">
-            <form method="post" asp-page-handler="Apply" onsubmit="return confirm('Import @importable.ToString("N0") assets now?');">
+            <form method="post" asp-page-handler="Apply" data-confirm="Import @importable.ToString("N0") assets now?">
                 <input type="hidden" name="t" value="@Model.Token" />
                 <button class="button button-primary" type="submit" disabled="@(importable == 0)">Import @plan.Created.ToString("N0") new and update @plan.Updated.ToString("N0")</button>
             </form>

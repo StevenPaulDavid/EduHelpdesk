@@ -30,7 +30,6 @@ public class JobModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
-    public string StatusDescriptionsJson => System.Text.Json.JsonSerializer.Serialize(StatusDescriptions).Replace("</", "<\\/");
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Locations => store.Locations;

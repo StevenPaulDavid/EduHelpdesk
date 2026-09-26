@@ -60,7 +60,7 @@ The database is created automatically on first run. No migration step is needed 
 - Everything is stored in the data folder, which is backed up nightly (see section 15). Keep the data folder out of OneDrive, Dropbox and similar - a sync client can corrupt a live database. Settings warns if it is inside one.
 - **HTTPS.** Out of the box the site is plain `http://`, so passwords cross the network unencrypted from any other computer; Settings → Sign-in security says so. Once the site has a certificate (in Kestrel, IIS or a reverse proxy), add `"EduHelpdesk": { "RequireHttps": true }` to `appsettings.json`. Plain-HTTP requests are then redirected, browsers are told to stay on HTTPS (HSTS, which browsers never apply to `localhost`), and every cookie is marked Secure. Don't turn it on before the certificate works, or nobody can reach the site.
 - **Behind a proxy** that handles HTTPS itself (Azure App Service, IIS ARR, nginx), set the environment variable `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, so the app sees each visitor's real address and scheme. The sign-in lockout counts failures per address, and without this every visitor looks like the proxy.
-- Every page is sent with a content security policy (only the site's own scripts, styles and images; no framing by other sites), `nosniff`, a same-origin referrer policy and `no-store` caching - see `Services/SecurityHeaders.cs`.
+- Every page is sent with a content security policy (only the site's own script files, styles and images; no inline script, so an injected `<script>` or `onclick=` will not run; no framing by other sites), `nosniff`, a same-origin referrer policy and `no-store` caching - see `Services/SecurityHeaders.cs`.
 
 ---
 
@@ -564,7 +564,6 @@ Things the system deliberately or currently does not do. Worth knowing before so
 | No email at all | No notifications, no email-to-ticket, no outbound replies. Requesters must check the portal. |
 | No in-app notifications | Nothing tells a requester their ticket changed. |
 | No "forgotten password" reset | There is no email, so a forgotten password is reset by a technician. People can change their own once signed in. |
-| Inline scripts are still allowed | The security policy permits inline `<script>` and `onclick=`, because the pages use a lot of them. Moving them into script files would let the policy block injected scripts too. |
 | No ticket or parts CSV import | Assets only. |
 | No scheduled or emailed reports | Reports print to PDF and export to CSV on demand. |
 | No time tracking | Not built, by choice. |
@@ -626,8 +625,10 @@ For anyone maintaining it:
 | Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
 | Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |
 | Themes and phone layout | `Services/Themes.cs`, `wwwroot/css/site.css`, `wwwroot/js/layout.js`, `picker.js` |
+| Page behaviour (buttons, dialogs, tabs, bulk selection) | `wwwroot/js/actions.js` (the `data-` attributes every page uses), `bulk-select.js`, `wwwroot/js/pages/*.js` |
 
-Two conventions to preserve when changing anything:
+Three conventions to preserve when changing anything:
 
 1. **Schema changes** go in `EnsureSchema` as `CREATE TABLE IF NOT EXISTS` or a try/catch `ALTER TABLE`, so existing databases upgrade themselves on startup.
 2. **Multi-value fields** (a list on a record) use a join table with `ON DELETE CASCADE`, an explicit `DELETE FROM` before the parent in `WriteData`, and must be sourced from the stored record in page handlers — never from the posted form model, which will bind them empty and silently wipe them.
+3. **No script in the pages.** The security policy refuses inline `<script>` blocks and `onclick=`/`onchange=` attributes, so they silently do nothing. Use the `data-` attributes described at the top of `wwwroot/js/actions.js` (`data-confirm`, `data-autosubmit`, `data-open-blade` and so on), or put page-specific code in `wwwroot/js/pages/` and load it from the page's `Scripts` section. Data a script needs goes in `data-` attributes.

@@ -15,9 +15,9 @@
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / PROJECT</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div>
     <div class="heading-actions">
-        @if (Model.CanAssign && project.IsActive) { <button class="button button-primary" type="button" onclick="openBlade('assign')">@(project.TechnicianId is null ? "Assign" : "Reassign")</button> }
+        @if (Model.CanAssign && project.IsActive) { <button class="button button-primary" type="button" data-open-blade="assign-blade">@(project.TechnicianId is null ? "Assign" : "Reassign")</button> }
         <a class="button button-secondary" asp-page="/Project" asp-page-handler="Proposal" asp-route-number="@project.Number" title="Front page, contents, cost tables and every quote in one PDF">@(project.Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes ? "Draft proposal (PDF)" : "Proposal (PDF)")</a>
-        @if (Model.CanEdit && project.IsActive) { <button class="button button-secondary" type="button" onclick="openBlade('close')">Close project</button> }
+        @if (Model.CanEdit && project.IsActive) { <button class="button button-secondary" type="button" data-open-blade="close-blade">Close project</button> }
         @if (Model.CanEdit && !project.IsActive)
         {
             <form method="post" asp-page-handler="Status"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="status" value="@ProjectStatuses.GatheringQuotes" /><button class="button button-secondary" type="submit">Reopen</button></form>
@@ -26,7 +26,7 @@
         {
             <details class="nav-menu action-menu">
                 <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
-                <div class="nav-panel nav-panel-right"><button type="button" class="menu-danger" onclick="openBlade('delete')">Delete project…</button></div>
+                <div class="nav-panel nav-panel-right"><button type="button" class="menu-danger" data-open-blade="delete-blade">Delete project…</button></div>
             </details>
         }
     </div>
@@ -35,9 +35,9 @@
 
 @if (Model.CanAssign && project.IsActive)
 {
-    <div id="assign-blade" class="blade-backdrop" onclick="closeBlade('assign')">
-        <div class="blade blade-wide" onclick="event.stopPropagation()">
-            <button class="blade-close" type="button" onclick="closeBlade('assign')">×</button>
+    <div id="assign-blade" class="blade-backdrop">
+        <div class="blade blade-wide">
+            <button class="blade-close" type="button" data-close-blade>×</button>
             <h2>Assign @project.Reference</h2>
             <p class="muted">The project lead normally assigns projects from the staff portal. Use this to reassign one when they can't.</p>
             <form method="post" asp-page-handler="Assign" class="blade-form">
@@ -47,16 +47,16 @@
                     <small class="muted">@(project.Priority is null ? "Not confirmed yet." : $"Confirmed as {ProjectPriorities.Label(project.Priority.Value)}.") The requester suggested @ProjectPriorities.Label(project.SuggestedPriority).</small>
                 </label>
                 <partial name="_WorkloadPicker" model="@(new WorkloadPicker(Model.Workloads, project.TechnicianId))" />
-                <div class="blade-actions"><button class="button button-primary" type="submit">Save assignment</button><button class="button button-secondary" type="button" onclick="closeBlade('assign')">Cancel</button></div>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Save assignment</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
             </form>
         </div>
     </div>
 }
 @if (Model.CanEdit && project.IsActive)
 {
-    <div id="close-blade" class="blade-backdrop" onclick="closeBlade('close')">
-        <div class="blade" onclick="event.stopPropagation()">
-            <button class="blade-close" type="button" onclick="closeBlade('close')">×</button>
+    <div id="close-blade" class="blade-backdrop">
+        <div class="blade">
+            <button class="blade-close" type="button" data-close-blade>×</button>
             <h2>Close @project.Reference</h2>
             <p class="muted">Record how the project ended. It can be reopened later if it comes back.</p>
             <form method="post" asp-page-handler="Close" class="blade-form">
@@ -65,21 +65,21 @@
                     @foreach (var outcome in ProjectOutcomes.All) { <label class="toggle-label"><input type="radio" name="outcome" value="@outcome" required /> @outcome</label> }
                 </fieldset>
                 <label>Note (optional)<textarea name="note" rows="4" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="e.g. approved by the business manager, order placed via the Trust"></textarea></label>
-                <div class="blade-actions"><button class="button button-primary" type="submit">Close project</button><button class="button button-secondary" type="button" onclick="closeBlade('close')">Cancel</button></div>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Close project</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
             </form>
         </div>
     </div>
 }
 @if (Model.CanDelete)
 {
-    <div id="delete-blade" class="blade-backdrop" onclick="closeBlade('delete')">
-        <div class="blade" onclick="event.stopPropagation()">
-            <button class="blade-close" type="button" onclick="closeBlade('delete')">×</button>
+    <div id="delete-blade" class="blade-backdrop">
+        <div class="blade">
+            <button class="blade-close" type="button" data-close-blade>×</button>
             <h2>Delete @project.Reference</h2>
             <p class="muted">This permanently removes the project, its notes and its history. The requester will no longer see it in the portal. To keep the record, close it as Cancelled instead.</p>
             <form method="post" asp-page-handler="Delete" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
-                <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" onclick="closeBlade('delete')">Cancel</button></div>
+                <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
             </form>
         </div>
     </div>
@@ -87,7 +87,7 @@
 
 <div class="job-detail-grid">
     <section class="panel job-main">
-        <div class="panel-heading"><div><p class="eyebrow">WHAT WAS ASKED FOR</p><h2>@project.Title</h2></div>@if (Model.CanEdit) { <button class="button button-secondary" type="button" id="details-edit-button" onclick="toggleDetails(true)">Edit details</button> }</div>
+        <div class="panel-heading"><div><p class="eyebrow">WHAT WAS ASKED FOR</p><h2>@project.Title</h2></div>@if (Model.CanEdit) { <button class="button button-secondary" type="button" id="details-edit-button" data-show="details-form" data-hide="details-display details-edit-button">Edit details</button> }</div>
         <div id="details-display">
             <div class="job-detail-fields project-facts">
                 <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><strong>@project.DueDate.ToString("dddd d MMMM yyyy")</strong>@if (overdue) { <span class="badge badge-warning">Late</span> } else if (soon) { <span class="badge">Due soon</span> }</div>
@@ -116,7 +116,7 @@
                     @foreach (var option in Model.RequirementOptions) { <label class="toggle-label"><input type="checkbox" name="requirements" value="@option" checked="@project.PurchasingRequirements.Contains(option, StringComparer.OrdinalIgnoreCase)" /> @option</label> }
                     <label>Other<input name="other" value="@project.PurchasingOther" maxlength="@HelpdeskStore.MaxProjectOtherLength" /></label>
                 </fieldset>
-                <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" onclick="toggleDetails(false)">Cancel</button></div>
+                <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" data-show="details-display details-edit-button" data-hide="details-form">Cancel</button></div>
             </form>
         }
 
@@ -141,7 +141,7 @@
                     <p class="muted">@project.Items.Count @(project.Items.Count == 1 ? "item" : "items") · @received of @quoteRows.Count @(quoteRows.Count == 1 ? "supplier" : "suppliers") have quoted @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }@if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }</p>
                     @if (project.Items.Count > 1)
                     {
-                        <p class="item-toggles"><button type="button" class="link-button" onclick="toggleItems(true)">Expand all</button> · <button type="button" class="link-button" onclick="toggleItems(false)">Collapse all</button></p>
+                        <p class="item-toggles"><button type="button" class="link-button" data-expand="details.project-item">Expand all</button> · <button type="button" class="link-button" data-collapse="details.project-item">Collapse all</button></p>
                     }
                 </div>
                 @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. *@
@@ -213,7 +213,7 @@
                             <div class="item-actions">
                                 @if (index > 0) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="-1" /><button class="icon-button" type="submit" title="Move up" aria-label="Move @item.Name up">↑</button></form> }
                                 @if (index < project.Items.Count - 1) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="1" /><button class="icon-button" type="submit" title="Move down" aria-label="Move @item.Name down">↓</button></form> }
-                                <form method="post" asp-page-handler="DeleteItem" onsubmit="return confirm('Remove this item and its suppliers from the project?');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="icon-button delete-icon" type="submit" title="Remove item" aria-label="Remove @item.Name">♜</button></form>
+                                <form method="post" asp-page-handler="DeleteItem" data-confirm="Remove this item and its suppliers from the project?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="icon-button delete-icon" type="submit" title="Remove item" aria-label="Remove @item.Name">♜</button></form>
                             </div>
                         }
                     @if (canWork)
@@ -283,7 +283,7 @@
                                 {
                                     <form method="post" asp-page-handler="QuoteStatus" class="quote-status-form">
                                         <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                        <select name="status" aria-label="Quote status" onchange="this.form.submit()">@foreach (var status in QuoteStatuses.All) { <option value="@status" selected="@(status == row.Status)">@status</option> }</select>
+                                        <select name="status" aria-label="Quote status" data-autosubmit>@foreach (var status in QuoteStatuses.All) { <option value="@status" selected="@(status == row.Status)">@status</option> }</select>
                                         <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
                                     </form>
                                 }
@@ -295,7 +295,7 @@
                                     {
                                         <form method="post" asp-page-handler="ValidUntil" class="quote-valid-form">
                                             <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                            <label>Valid until<input name="validUntil" type="date" value="@row.ValidUntil?.ToString("yyyy-MM-dd")" onchange="this.form.submit()" /></label>
+                                            <label>Valid until<input name="validUntil" type="date" value="@row.ValidUntil?.ToString("yyyy-MM-dd")" data-autosubmit /></label>
                                         </form>
                                     }
                                     else if (row.ValidUntil is { } until) { <span class="muted">valid until @until.ToString("d MMM yyyy")</span> }
@@ -303,7 +303,7 @@
                                 }
                                 @if (canWork)
                                 {
-                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" onsubmit="return confirm('Take this supplier off the item? Their quote files, prices and status history go with it.');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">♜</button></form>
+                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" data-confirm="Take this supplier off the item? Their quote files, prices and status history go with it."><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">♜</button></form>
                                 }
                             </div>
                             @* Still inside the supplier-block div, which is markup, so these need their own code block. *@
@@ -334,7 +334,7 @@
                                                 <span class="muted">@HelpdeskStore.FormatSize(document.Size) · @document.UploadedAt.ToLocalTime().ToString("d MMM yyyy")</span>
                                                 @if (canWork)
                                                 {
-                                                    <form method="post" asp-page-handler="RemoveQuoteFile" onsubmit="return confirm('Remove this file from the quote?');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">♜</button></form>
+                                                    <form method="post" asp-page-handler="RemoveQuoteFile" data-confirm="Remove this file from the quote?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">♜</button></form>
                                                 }
                                             </div>
                                         }
@@ -445,7 +445,7 @@
                                                     @if (version.ValidUntil is { } was) { <p class="muted">Was valid until @was.ToString("d MMM yyyy")</p> }
                                                     @if (canWork)
                                                     {
-                                                        <form method="post" asp-page-handler="DeleteQuoteVersion" onsubmit="return confirm('Delete this previous version and its files for good?');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="versionId" value="@version.Id" /><button class="button button-secondary" type="submit">Delete this version</button></form>
+                                                        <form method="post" asp-page-handler="DeleteQuoteVersion" data-confirm="Delete this previous version and its files for good?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="versionId" value="@version.Id" /><button class="button button-secondary" type="submit">Delete this version</button></form>
                                                     }
                                                 </details>
                                             }
@@ -487,8 +487,8 @@
 
         <div class="ticket-tabs">
             <div class="ticket-tab-buttons" role="tablist">
-                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="notes-tab" onclick="showTab('notes')">Notes <span class="badge">@project.Notes.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab" onclick="showTab('history')">History <span class="badge">@project.History.Count</span></button>
+                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="notes-tab">Notes <span class="badge">@project.Notes.Count</span></button>
+                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab">History <span class="badge">@project.History.Count</span></button>
             </div>
             <div id="notes-tab" class="ticket-tab-panel active" role="tabpanel">
                 @if (project.Notes.Count == 0) { <p class="muted">No notes yet.</p> }
@@ -528,7 +528,7 @@
             {
                 <form method="post" asp-page-handler="Status" class="project-status-form">
                     <input type="hidden" name="number" value="@project.Number" />
-                    <select name="status" aria-label="Status" onchange="this.form.submit()">@foreach (var status in ProjectStatuses.All.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select>
+                    <select name="status" aria-label="Status" data-autosubmit>@foreach (var status in ProjectStatuses.All.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select>
                     <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
                 </form>
             }
@@ -570,29 +570,5 @@
 </div>
 
 @section Scripts {
-<script>
-function openBlade(name) { document.getElementById(name + "-blade")?.classList.add("open"); }
-function closeBlade(name) { document.getElementById(name + "-blade")?.classList.remove("open"); }
-document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".blade-backdrop.open").forEach(b => b.classList.remove("open")); });
-function toggleDetails(editing) {
-    document.getElementById("details-display").hidden = editing;
-    document.getElementById("details-form").hidden = !editing;
-    document.getElementById("details-edit-button").hidden = editing;
-}
-function toggleItems(open) { document.querySelectorAll("details.project-item").forEach(d => d.open = open); }
-// A link or redirect to one item (or one supplier's quote) opens the collapsed card it points into.
-(function () {
-    const target = location.hash && document.getElementById(location.hash.slice(1));
-    const card = target && target.closest("details.project-item");
-    if (card && !card.open) { card.open = true; target.scrollIntoView(); }
-})();
-function showTab(name) {
-    document.querySelectorAll(".ticket-tab-button").forEach(b => {
-        const on = b.getAttribute("aria-controls") === name + "-tab";
-        b.classList.toggle("active", on);
-        b.setAttribute("aria-selected", on);
-    });
-    document.querySelectorAll(".ticket-tab-panel").forEach(p => { const on = p.id === name + "-tab"; p.hidden = !on; p.classList.toggle("active", on); });
-}
-</script>
+<script src="~/js/pages/project.js" asp-append-version="true"></script>
 }

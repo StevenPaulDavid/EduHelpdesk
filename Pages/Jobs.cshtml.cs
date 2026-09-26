@@ -43,7 +43,6 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Types => TicketTypes.All;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
-    public string StatusDescriptionsJson => System.Text.Json.JsonSerializer.Serialize(StatusDescriptions).Replace("</", "<\\/");
     public int DueSoonHours => store.TicketDueSoonHours;
     [TempData] public string? Message { get; set; }
 

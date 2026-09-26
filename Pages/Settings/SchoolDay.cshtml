@@ -66,23 +66,5 @@
 </section>
 
 @section Scripts {
-<script>
-(function () {
-    const rows = document.getElementById("period-rows");
-    // Removing a row just takes it out of the form; nothing changes until Save periods.
-    rows.addEventListener("click", e => {
-        const button = e.target.closest(".period-remove");
-        if (button) button.closest("tr").remove();
-    });
-    document.getElementById("period-add").addEventListener("click", () => {
-        const spare = rows.querySelector(".period-spare");
-        const row = spare.cloneNode(true);
-        row.classList.remove("period-spare");
-        row.querySelectorAll("input").forEach(input => input.value = "");
-        row.lastElementChild.innerHTML = '<button type="button" class="icon-button delete-icon period-remove" title="Remove period" aria-label="Remove period">♜</button>';
-        rows.insertBefore(row, spare);
-        row.querySelector("input").focus();
-    });
-})();
-</script>
+<script src="~/js/pages/school-day.js" asp-append-version="true"></script>
 }

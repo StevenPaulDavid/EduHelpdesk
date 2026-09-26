@@ -51,7 +51,7 @@
     }
     @if (rules.AnyOn)
     {
-        <form method="post" asp-page-handler="Apply" onsubmit="return confirm('Apply the retention rules now? A backup is taken first. What the rules remove cannot be undone except by restoring a backup.');">
+        <form method="post" asp-page-handler="Apply" data-confirm="Apply the retention rules now? A backup is taken first. What the rules remove cannot be undone except by restoring a backup.">
             <button class="button button-secondary" type="submit">Back up, then apply now</button>
         </form>
     }

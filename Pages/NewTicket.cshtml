@@ -15,7 +15,7 @@
 {
     <section class="panel template-picker">
         <form method="get">
-            <label>Start from a template<select name="template" onchange="this.form.submit()"><option value="">No template</option>@foreach (var item in Model.Templates) { <option value="@item.Id" selected="@(item.Id == Model.AppliedTemplate?.Id)">@item.Name (@item.Type)</option> }</select></label>
+            <label>Start from a template<select name="template" data-autosubmit><option value="">No template</option>@foreach (var item in Model.Templates) { <option value="@item.Id" selected="@(item.Id == Model.AppliedTemplate?.Id)">@item.Name (@item.Type)</option> }</select></label>
         </form>
         @if (Model.AppliedTemplate is not null) { <p class="muted">Started from <strong>@Model.AppliedTemplate.Name</strong>. Everything below can still be changed. Choose "No template" to start again.</p> }
     </section>
@@ -35,7 +35,7 @@
         <div class="form-grid compact">
             <label>Type<select asp-for="Ticket.Type">@foreach (var type in TicketTypes.All) { <option value="@type">@type</option> }</select><small>An incident is something broken; a request is something being asked for.</small></label>
             <label>Priority<select asp-for="Ticket.Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
-            <label>Category<select asp-for="Ticket.Category" id="ticket-category-select" onchange="filterTicketAttributes(this.value)">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+            <label>Category<select asp-for="Ticket.Category" id="ticket-category-select">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
             <label>Location<select asp-for="Ticket.Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
             <label>Assets<select asp-for="Ticket.AssetIds" multiple size="5" data-picker data-picker-placeholder="Type an asset tag, model or serial…">@foreach (var asset in Model.Assets) { <option value="@asset.Id" data-search="@asset.Make @asset.SerialNumber">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><small>Link as many as the job involves, or none for a general request.</small></label>
         </div>
@@ -83,28 +83,5 @@
     <div class="heading-actions"><button class="button button-primary" type="submit">Create ticket</button><a class="button button-secondary" asp-page="/Index">Cancel</a></div>
 </form>
 @section Scripts {
-<script>
-const technicianSelect = document.getElementById("ticket-technician-select");
-const teamSelect = document.getElementById("ticket-team-select");
-const allTechnicians = Array.from(technicianSelect.options).filter(o => o.value !== "").map(o => ({ value: o.value, text: o.text, team: (o.dataset.team || "").toLowerCase() }));
-
-function filterTechnicians() {
-    const team = teamSelect.value.toLowerCase();
-    const selected = technicianSelect.value;
-    technicianSelect.length = 1;
-    allTechnicians
-        .filter(t => team === "" || t.team === team)
-        .forEach(t => technicianSelect.add(new Option(t.text, t.value, false, t.value === selected)));
-}
-
-teamSelect.addEventListener("change", filterTechnicians);
-filterTechnicians();
-
-function filterTicketAttributes(category) {
-    document.querySelectorAll(".ticket-attribute-field").forEach(field => {
-        const categories = JSON.parse(field.getAttribute("data-categories") || "[]");
-        field.hidden = categories.length > 0 && !categories.some(c => c.toLowerCase() === category.toLowerCase());
-    });
-}
-</script>
+<script src="~/js/pages/new-ticket.js" asp-append-version="true"></script>
 }

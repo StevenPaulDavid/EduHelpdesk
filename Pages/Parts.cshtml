@@ -21,7 +21,7 @@
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">STOCK</p><h2>Parts inventory</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalParts}" : Model.TotalParts.ToString())</span></div>
-    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount">
+    <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="part" data-nouns="parts">
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="category" value="@Model.Category" />
         <input type="hidden" name="location" value="@Model.Location" />
@@ -34,7 +34,7 @@
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
         <div class="table-wrap"><table><thead><tr>
-            <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all parts on this page" onchange="togglePartPage(this)" /> }</th>
+            <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all parts on this page" /> }</th>
             <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("name")">Part@(Model.SortMark("name"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("sku")">SKU@(Model.SortMark("sku"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("category")">Category@(Model.SortMark("category"))</a></th>
@@ -46,7 +46,7 @@
         @foreach (var item in Model.Rows)
         {
             <tr>
-                <td>@if (Model.CanView) { <input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" onchange="partSelectionChanged()" /> }</td>
+                <td>@if (Model.CanView) { <input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" /> }</td>
                 @* /Parts/Edit is the detail page: it opens read-only, but still needs Edit because the stock controls are on it. The pencil goes straight to the form. *@
                 <td><strong>@if (Model.CanEdit) { <a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong></td>
                 <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
@@ -65,7 +65,7 @@
             <div class="bulk-actions">
                 <strong>With selected parts</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation" onchange="switchPartOperation()">@if (Model.CanEdit) { <option value="category">Change category</option><option value="location">Change location</option> }@if (Model.CanDelete) { <option value="delete">Delete</option> }<option value="export">Export to CSV</option></select></label>
+                <label>Action<select name="operation" id="bulk-operation">@if (Model.CanEdit) { <option value="category">Change category</option><option value="location">Change location</option> }@if (Model.CanDelete) { <option value="delete" data-button="Delete selected" data-confirm="Delete {count} part(s)? This cannot be undone.">Delete</option> }<option value="export" data-button="Export selected">Export to CSV</option></select></label>
                 @if (Model.CanEdit)
                 {
                     <label id="bulk-category-field">New category<select name="newCategory"><option value="@PartListQuery.None">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
@@ -87,72 +87,5 @@
 </section>
 
 @section Scripts {
-<script>
-const partForm = document.getElementById("bulk-form");
-const partMatchCount = parseInt(partForm.dataset.matchCount || "0", 10);
-const partSelectAllField = document.getElementById("select-all-matching");
-const partBanner = document.getElementById("select-banner");
-const partRowBoxes = () => [...document.querySelectorAll(".part-select")];
-
-function partSelectedTotal() {
-    return partSelectAllField.value === "true" ? partMatchCount : partRowBoxes().filter(b => b.checked).length;
-}
-function partSelectionChanged(fromToggle) {
-    if (!fromToggle) partSelectAllField.value = "false";
-    const boxes = partRowBoxes();
-    const checked = boxes.filter(b => b.checked).length;
-    const pageBox = document.getElementById("select-page");
-    if (pageBox) pageBox.checked = boxes.length > 0 && checked === boxes.length;
-    const all = partSelectAllField.value === "true";
-    const total = partSelectedTotal();
-    const counter = document.getElementById("selected-count");
-    if (counter) counter.textContent = total === 0 ? "None selected" : total + " selected";
-    // Offer to extend the selection to every match once the whole page is ticked and there are more matches than fit on it.
-    if (all) {
-        partBanner.hidden = false;
-        partBanner.innerHTML = "All " + partMatchCount + " matching parts are selected. <button type=\"button\" class=\"link-button\" onclick=\"clearPartSelection()\">Clear selection</button>";
-    } else if (boxes.length > 0 && checked === boxes.length && partMatchCount > boxes.length) {
-        partBanner.hidden = false;
-        partBanner.innerHTML = "All " + boxes.length + " parts on this page are selected. <button type=\"button\" class=\"link-button\" onclick=\"selectAllMatchingParts()\">Select all " + partMatchCount + " matching parts</button>";
-    } else {
-        partBanner.hidden = true;
-    }
-}
-function togglePartPage(box) {
-    partRowBoxes().forEach(b => b.checked = box.checked);
-    partSelectAllField.value = "false";
-    partSelectionChanged(true);
-}
-function selectAllMatchingParts() {
-    partSelectAllField.value = "true";
-    partSelectionChanged(true);
-}
-function clearPartSelection() {
-    partRowBoxes().forEach(b => b.checked = false);
-    partSelectAllField.value = "false";
-    partSelectionChanged(true);
-}
-// A role without Parts: Edit gets the export option only, so every field below may legitimately be absent.
-function switchPartOperation() {
-    const operation = document.getElementById("bulk-operation");
-    if (!operation) return;
-    const op = operation.value;
-    for (const [name, id] of [["category", "bulk-category-field"], ["location", "bulk-location-field"]]) {
-        const field = document.getElementById(id);
-        if (!field) continue;
-        field.hidden = op !== name;
-        field.querySelector("select").disabled = op !== name;
-    }
-    document.getElementById("bulk-apply").textContent = op === "export" ? "Export selected" : op === "delete" ? "Delete selected" : "Apply to selected";
-}
-partForm.addEventListener("submit", event => {
-    const total = partSelectedTotal();
-    if (total === 0) { event.preventDefault(); alert("Select at least one part first."); return; }
-    const operation = document.getElementById("bulk-operation");
-    const op = operation ? operation.value : "export";
-    if (op !== "export" && total > 20 && !confirm((op === "delete" ? "Delete " : "Change ") + total + " parts?")) event.preventDefault();
-});
-switchPartOperation();
-partSelectionChanged();
-</script>
+<script src="~/js/bulk-select.js" asp-append-version="true"></script>
 }

@@ -48,8 +48,9 @@
     .no-print button { font: inherit; font-size: 11pt; padding: 8px 14px; cursor: pointer; }
     @@media print { .no-print { display: none !important; } }
 </style>
+<script src="~/js/actions.js" asp-append-version="true" defer></script>
 </head>
-<body onload="window.print()">
+<body data-print-on-load>
 
 <div class="head">
     @if (Store.LogoVersion is { } logoVersion) { <img class="logo" src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> }
@@ -65,8 +66,8 @@
 <div class="foot">@footnote</div>
 
 <div class="no-print">
-    <button type="button" onclick="window.print()">Print again</button>
-    <button type="button" onclick="window.close()">Close</button>
+    <button type="button" data-action="print">Print again</button>
+    <button type="button" data-action="close">Close</button>
 </div>
 
 </body>

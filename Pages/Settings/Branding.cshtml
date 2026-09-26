@@ -30,6 +30,6 @@
     <div class="logo-settings">
         <div class="logo-preview">@if (Model.LogoVersion is { } version) { <img src="@Url.Content("~/branding/logo")?v=@version" alt="Current school logo" /> } else { <span class="brand-mark">EH</span><span class="muted">No logo yet</span> }</div>
         <form method="post" enctype="multipart/form-data" asp-page-handler="UploadLogo" class="import-row"><label>@(Model.LogoVersion is null ? "Logo file (.png)" : "Replace with (.png)")<input asp-for="Logo" type="file" accept="image/png,.png" required /></label><button class="button button-primary">@(Model.LogoVersion is null ? "Upload logo" : "Replace logo")</button></form>
-        @if (Model.LogoVersion is not null) { <form method="post" asp-page-handler="RemoveLogo" onsubmit="return confirm('Remove the logo and go back to the initials badge?');"><button class="button button-secondary">Remove logo</button></form> }
+        @if (Model.LogoVersion is not null) { <form method="post" asp-page-handler="RemoveLogo" data-confirm="Remove the logo and go back to the initials badge?"><button class="button button-secondary">Remove logo</button></form> }
     </div>
 </section>

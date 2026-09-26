@@ -13,7 +13,7 @@
         <div class="table-wrap"><table><thead><tr><th>Type</th><th>Record</th></tr></thead><tbody>
         @foreach (var item in Model.DemoRecords) { <tr><td>@item.Kind</td><td>@item.Name</td></tr> }
         </tbody></table></div>
-        <form method="post" asp-page-handler="RemoveDemoData" onsubmit="return confirm('Remove the demo records and go live? This cannot be undone.');">
+        <form method="post" asp-page-handler="RemoveDemoData" data-confirm="Remove the demo records and go live? This cannot be undone.">
             <button class="button button-danger" type="submit">Go live - remove demo data</button>
         </form>
     }
@@ -26,7 +26,7 @@
 <section class="panel danger-zone">
     <div class="panel-heading"><h2>Reset to factory settings</h2></div>
     <p>This erases <strong>everything</strong> and puts the helpdesk back to how a new install starts: all tickets, comments and history, assets and loans, users, technicians, suppliers and parts, projects, SLAs, custom attributes, every list you added to (teams, departments, locations, asset types, makes, models, statuses, categories and priorities), the print template, attached files, and your branding and review settings. Only the small demo set that a new install comes with is left. <strong>This cannot be undone</strong> unless you keep the backup below.</p>
-    <form method="post" asp-page-handler="ResetFactory" class="settings-form" onsubmit="return confirm('Erase all helpdesk data and reset to factory settings? This cannot be undone.');">
+    <form method="post" asp-page-handler="ResetFactory" class="settings-form" data-confirm="Erase all helpdesk data and reset to factory settings? This cannot be undone.">
         <label class="toggle-label"><input type="checkbox" name="keepBackup" value="true" checked /> Save a backup copy of the current data first</label>
         <p class="muted import-hint">Saved as a backup zip in <code>@Model.BackupFolder</code>, restored the same way as any other backup (see <a asp-page="/Settings/Backups">Backups &amp; data</a>). Untick this to leave no new copy behind - the nightly backups already in that folder are not deleted by a reset, and age out on their own.</p>
         <label class="toggle-label"><input type="checkbox" name="eraseAudit" value="true" /> Also erase the audit log</label>
