@@ -29,13 +29,14 @@ Everything is linked: a ticket can name the assets it concerns and the parts con
 
 The whole dataset is held in memory and written to SQLite on every change. This keeps the code simple and reads instant, at the cost of rewriting the tables on each save. It has been measured at roughly 2,000 assets and 2,000 tickets with comfortable performance (list views 8–110 ms, bulk operations well under a second). For a single school that is ample headroom.
 
-Files that matter, all under `App_Data/`:
+Files that matter, all in the data folder - `App_Data/` unless `EduHelpdesk:DataPath` says otherwise (see section 15):
 
 | Path | What it holds |
 |---|---|
 | `helpdesk.db` | Everything: tickets, assets, parts, people, settings, audit log |
 | `attachments/` | Ticket attachments, stored by GUID with no file extension |
-| `backups/` | Copies written before a factory reset |
+| `keys/` | The keys that sign-in cookies are encrypted with. Lose them and everyone signs in again; nothing else is lost |
+| `backups/` | The nightly backup zips, unless the backup folder has been pointed elsewhere |
 | `print-template.docx` | Optional Word template for printing tickets |
 
 ---
@@ -56,7 +57,10 @@ The database is created automatically on first run. No migration step is needed 
 
 - The app must be reachable by staff for the portal to be useful, so it needs to run on a machine that stays on.
 - Run it as a Windows service or scheduled task so it survives a reboot.
-- Everything is stored under `App_Data/`; back that folder up (see section 15).
+- Everything is stored in the data folder, which is backed up nightly (see section 15). Keep the data folder out of OneDrive, Dropbox and similar - a sync client can corrupt a live database. Settings warns if it is inside one.
+- **HTTPS.** Out of the box the site is plain `http://`, so passwords cross the network unencrypted from any other computer; Settings → Sign-in security says so. Once the site has a certificate (in Kestrel, IIS or a reverse proxy), add `"EduHelpdesk": { "RequireHttps": true }` to `appsettings.json`. Plain-HTTP requests are then redirected, browsers are told to stay on HTTPS (HSTS, which browsers never apply to `localhost`), and every cookie is marked Secure. Don't turn it on before the certificate works, or nobody can reach the site.
+- **Behind a proxy** that handles HTTPS itself (Azure App Service, IIS ARR, nginx), set the environment variable `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, so the app sees each visitor's real address and scheme. The sign-in lockout counts failures per address, and without this every visitor looks like the proxy.
+- Every page is sent with a content security policy (only the site's own scripts, styles and images; no framing by other sites), `nosniff`, a same-origin referrer policy and `no-store` caching - see `Services/SecurityHeaders.cs`.
 
 ---
 
@@ -102,7 +106,23 @@ A member of staff who is also a technician needs both records if they want to us
 
 ### Sessions
 
-Sessions last **8 hours of inactivity**, with a hard cap of **14 days** regardless of use. The cookie is `EduHelpdeskAuth`, HTTP-only, SameSite=Lax.
+**Helpdesk:** sessions last **8 hours of inactivity**, with a hard cap of **14 days** regardless of use. The cookie is `EduHelpdeskAuth`, HTTP-only, SameSite=Lax, and Secure when `RequireHttps` is on. Every request re-checks the account: deactivating a technician, resetting their password or changing their role takes effect on their next click.
+
+**Staff portal:** the cookie is `portal_who`, encrypted. How long it lasts depends on the sign-in:
+
+| Sign-in | Lasts |
+|---|---|
+| Password, "Keep me signed in" ticked | 30 days |
+| Password, not ticked (the default) | Until the browser closes, 2 hours without use, or 12 hours in all |
+| A technician's "Open staff portal" | Only while that technician is signed in to the helpdesk in the same browser |
+
+A new password or deactivating the requester ends their portal sessions everywhere.
+
+### Passwords and lockout
+
+- **Rules**, wherever a password is chosen: at least 8 characters, not one of the passwords guessed first (`Password1!`, `Welcome2025`, `Teacher1`…), not made only of numbers, and not containing the person's name or email. There are no "must contain a symbol" rules.
+- **Set by someone else means changed on first use.** A password a technician sets - for a colleague or for a requester's portal account - must be changed before anything else. This applies to every page, not just straight after signing in.
+- **Lockout.** 5 wrong passwords for one email within 15 minutes locks that email for 15 minutes; 30 from one computer (IP address) blocks that computer. The helpdesk and portal forms count separately. The lock is on the email as typed, so it doesn't reveal whether the account exists. Setting a new password lifts it at once, and a restart clears all locks. Each lockout is written to the audit log (area **Sign-in**), and Settings → Sign-in security shows the count for the last 7 days.
 
 ### Roles
 
@@ -129,7 +149,7 @@ Roles are fully custom — create as many as you like from **People → Roles**.
 - **Technicians**: People → Add technician. Requires "manage staff accounts". A new account has no password until someone sets one here; the same form resets passwords.
 - **Requesters (staff)**: People → Add user. Requires "manage requesters". They cannot sign in to the portal until a password is set.
 
-There is no self-service password reset. All password changes go through a technician, or the user's own **Change password** link once signed in.
+There is no self-service "forgotten password" reset, because there is no email. A forgotten password is reset by a technician. Anyone signed in can change their own: technicians from **Change password** in the account menu, portal users from the **Change password** link on the portal home page.
 
 ---
 
@@ -373,7 +393,9 @@ Once signed in with their email and password, staff can:
 
 They cannot see internal notes, anyone else's tickets, or any of the technician-side pickers (requester, technician, team, SLA, asset). It is deliberately minimal.
 
-**To give a member of staff access**: People → Add user, fill in their details and set a password. Until a password is set they cannot sign in. Passwords are reset the same way.
+**To give a member of staff access**: People → Add user, fill in their details and set a password. Until a password is set they cannot sign in. Passwords are reset the same way. They are asked to choose their own password the first time they sign in, and can change it later from the portal home page.
+
+Titles are limited to 200 characters and descriptions and messages to 5,000, and a post to any portal page is capped at 1 MB.
 
 ---
 
@@ -442,24 +464,35 @@ It works by snapshotting the data before and after each save and recording the d
 
 You must type `DELETE` in capitals to confirm. By default it:
 
-- Saves a backup to `App_Data/backups` first (including attachments).
+- Makes a backup zip first, the same checked kind as the nightly backups, in the backup folder.
 - Keeps the audit log, and records the reset itself as an entry.
 
-Both of those can be turned off with the tickboxes. The database is compacted afterwards so deleted rows do not linger in the file.
+Both of those can be turned off with the tickboxes. The backup settings survive the reset. The database is compacted afterwards so deleted rows do not linger in the file.
 
-**To restore a backup**: stop the app, copy the backup over `App_Data/helpdesk.db`, and copy the attachments folder back as `App_Data/attachments`.
+To restore, see section 15.
 
 ---
 
 ## 15. Backups
 
-There is **no automatic backup schedule**. The only automatic backup happens before a factory reset. Set one up yourself — it is the single biggest operational risk in the system.
+**Settings → Backups & data.** Every night (02:00 by default), the app writes one zip, `EduHelpdesk-backup-<date>-<time>.zip`. It holds the database, every attachment, the logo, the print template and `RESTORE.txt`. If the app was off at backup time, the backup runs shortly after it next starts, and a failed attempt retries every hour.
 
-A safe approach:
+- **Checked before it's kept.** The database copy is taken with SQLite's online backup, so there's no need to stop the app. It is integrity-checked and counted before the zip is kept, and the summary (for example "62 tickets, 155 assets…") is shown on the page.
+- **Where.** The `backups` folder inside the data folder by default. Point it at another drive, a network share or a synced folder, so a lost disk doesn't take the backups with it. Backup zips are safe to sync: each is written under a temporary name and renamed only when complete.
+- **How long.** Zips older than the chosen number of days (14 by default) are deleted, but the newest three are always kept. Nothing else in the folder is touched.
+- **Warnings.** The overview warns anyone who can edit Settings when backups are off, failing, or more than two days old.
+- **Not encrypted.** The zips contain personal data (names, emails, ticket text), so keep the backup folder somewhere only IT can read.
 
-1. Stop the app (or accept a copy taken while running — SQLite tolerates this better than most, but a clean copy is safer).
-2. Copy the whole `App_Data/` folder somewhere off the machine.
-3. Keep dated copies with a sensible retention.
+**To restore:**
+1. Stop the app.
+2. Rename the data folder to keep it, and create an empty folder with the original name.
+3. Unzip the backup into the empty folder.
+4. Copy the `keys` folder across from the old one, so sign-ins keep working. Without it, everyone just signs in again.
+5. Start the app.
+
+Each zip's `RESTORE.txt` has the same steps, with the real folder name filled in.
+
+**Moving the data folder:** set `EduHelpdesk:DataPath` in `appsettings.json` (or the environment variable `EduHelpdesk__DataPath`) to a full path, then restart. On the first start with an empty target, the app copies the database, attachments, logo, template and sign-in keys across. It then renames the old database to `helpdesk.db.moved-<time>` and leaves `DATA-MOVED.txt`, so the stale copy can't be used by mistake.
 
 Test a restore at least once, so you know the process works before you need it.
 
@@ -474,8 +507,8 @@ Things the system deliberately or currently does not do. Worth knowing before so
 | No email at all | No notifications, no email-to-ticket, no outbound replies. Requesters must check the portal. |
 | No in-app notifications | Nothing tells a requester their ticket changed. |
 | No "who did it" | History and audit record what and when, never who. |
-| No login rate limiting or lockout | Password guessing is unthrottled. The portal is reachable by anyone on the network. |
-| No self-service password reset | All resets go through a technician. |
+| No "forgotten password" reset | There is no email, so a forgotten password is reset by a technician. People can change their own once signed in. |
+| Inline scripts are still allowed | The security policy permits inline `<script>` and `onclick=`, because the pages use a lot of them. Moving them into script files would let the policy block injected scripts too. |
 | No ticket or parts CSV import | Assets only. |
 | No report exports | Reports are on-screen only. |
 | No time tracking | Not built, by choice. |
@@ -504,6 +537,12 @@ The file was Windows-encoded. Re-save it as UTF-8 and import again.
 **A part will not delete.**
 It is assigned to a ticket. Remove it from the ticket first, or use bulk delete, which skips and counts those.
 
+**"Too many failed sign-ins for this account."**
+5 wrong passwords within 15 minutes locked that email for 15 minutes. Wait, or have someone set a new password for the account, which unlocks it at once. The audit log (area Sign-in) shows when it happened and from which address.
+
+**"Too many failed sign-ins from this computer."**
+30 wrong passwords came from that address, across any accounts. It clears after 15 minutes, or when the app restarts. If the whole school hits this at once, the app is probably behind a proxy without `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` (section 2), so everyone looks like one address.
+
 **Nobody can sign in / the Administrator password is lost.**
 The system guarantees an Administrator account exists, but it cannot be recovered from the UI. Restore from a backup, or — as a last resort on a test copy — clear the `PasswordHash` for that technician row directly in SQLite and sign in with the bootstrap credentials.
 
@@ -525,7 +564,9 @@ For anyone maintaining it:
 | CSV export | `Services/AssetCsv.cs`, `TicketCsv.cs`, `PartCsv.cs` |
 | Asset import | `Services/HelpdeskStore.AssetImport.cs`, `AssetImportTargets.cs`, `CsvReader.cs` |
 | Calculated insights | `Services/AssetInsights.cs`, `PartInsights.cs`, `TicketReports.cs` |
-| Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs` |
+| Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs`, `TechnicianSession.cs` |
+| Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs` |
+| Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
 
 Two conventions to preserve when changing anything:
 

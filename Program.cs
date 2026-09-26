@@ -3,7 +3,9 @@ using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -114,9 +116,34 @@ builder.Services.AddRazorPages(options =>
     });
     options.Conventions.AuthorizePage("/Settings/Audit", Policy(Modules.AuditLog, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Settings/AuditPrint", Policy(Modules.AuditLog, ModulePermission.Access));
+
+    // The portal is open to anyone who can reach the site, and none of its forms carries a file, so a post there is
+    // held to 1 MB rather than the helpdesk's 60 MB. Its sessions are kept alive (or cleared) by PortalSessionFilter.
+    options.Conventions.AddFolderApplicationModelConvention("/Portal", model =>
+    {
+        model.Filters.Add(new RequestSizeLimitAttribute(1_000_000));
+        model.Filters.Add(new ServiceFilterAttribute(typeof(PortalSessionFilter)));
+    });
 })
-    // A save the database refuses becomes a message on the page rather than an error page (see SaveFailureFilter).
-    .AddMvcOptions(options => options.Filters.Add<SaveFailureFilter>());
+    .AddMvcOptions(options =>
+    {
+        // A save the database refuses becomes a message on the page rather than an error page (see SaveFailureFilter).
+        options.Filters.Add<SaveFailureFilter>();
+        // "Must change password" holds on every page, not just straight after sign-in (see PasswordChangeFilter).
+        options.Filters.Add<PasswordChangeFilter>();
+    });
+
+// HTTPS. Off by default, because a first install is usually reached by plain http:// on the school network, and
+// forcing HTTPS without a certificate would lock everyone out. Once the site has a certificate - in Kestrel, IIS or a
+// reverse proxy - set EduHelpdesk:RequireHttps to true: plain-HTTP requests are redirected, browsers are told to use
+// HTTPS from then on (HSTS), and every cookie is marked Secure. Behind a proxy that ends HTTPS itself (Azure App
+// Service, IIS ARR, nginx), also set the environment variable ASPNETCORE_FORWARDEDHEADERS_ENABLED=true so the app sees
+// the visitor's real address and scheme - the sign-in lockout counts failures per address.
+var requireHttps = builder.Configuration.GetValue<bool>("EduHelpdesk:RequireHttps");
+var cookieSecurity = requireHttps ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+builder.Services.AddAntiforgery(options => options.Cookie.SecurePolicy = cookieSecurity);
+builder.Services.Configure<CookieTempDataProviderOptions>(options => options.Cookie.SecurePolicy = cookieSecurity);
+if (requireHttps) builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
 builder.Services.AddMemoryCache();
 // The store reads the signed-in account off the current request to attribute changes - see HelpdeskStore.CurrentActor.
 builder.Services.AddHttpContextAccessor();
@@ -136,6 +163,8 @@ if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLo
 builder.Services.AddSingleton(dataLocation);
 builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<HelpdeskStore>();
+builder.Services.AddSingleton<SignInThrottle>();
+builder.Services.AddScoped<PortalSessionFilter>();
 builder.Services.AddHostedService<BackupScheduler>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
@@ -145,6 +174,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "EduHelpdeskAuth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = cookieSecurity;
         options.LoginPath = "/Login";
         options.AccessDeniedPath = "/AccessDenied";
         // Idle sliding expiration: stays signed in as long as the account is used at least once every 8 hours.
@@ -188,7 +218,10 @@ PdfFonts.Install(app.Environment.ContentRootPath);
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
+    if (requireHttps) app.UseHsts();
 }
+if (requireHttps) app.UseHttpsRedirection();
+app.UseSecurityHeaders();
 
 app.UseRouting();
 

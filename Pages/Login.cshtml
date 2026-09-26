@@ -7,8 +7,9 @@
     <form method="post" class="settings-form">
         <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
         <div asp-validation-summary="All" class="validation-summary-errors"></div>
-        <label>Email<input name="Email" type="email" value="@Model.Email" required autofocus /></label>
-        <label>Password<input name="Password" type="password" required /></label>
+        <label>Email<input name="Email" type="email" value="@Model.Email" maxlength="254" autocomplete="username" required autofocus /></label>
+        <label>Password<input name="Password" type="password" maxlength="256" autocomplete="current-password" required /></label>
         <button class="button button-primary">Sign in</button>
+        <p class="muted">Forgotten your password? Ask an administrator to set you a new one.</p>
     </form>
 </section>

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class LoginModel(HelpdeskStore store) : PageModel
+public class LoginModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
 {
     [BindProperty] public string Email { get; set; } = "";
     [BindProperty] public string Password { get; set; } = "";
@@ -17,13 +17,23 @@ public class LoginModel(HelpdeskStore store) : PageModel
     public async Task<IActionResult> OnPostAsync(string? returnUrl)
     {
         ReturnUrl = returnUrl;
-        var technician = store.Technicians.FirstOrDefault(x => string.Equals(x.Email, (Email ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
-        // Same generic message whether the account is missing, inactive, or has no password set yet - avoids leaking which.
-        if (technician is null || !technician.IsActive || !PasswordHasher.Verify(technician.PasswordHash, Password ?? ""))
+        var address = HttpContext.Connection.RemoteIpAddress;
+        if (throttle.Refusal("helpdesk", Email, address) is { } refusal)
         {
+            ModelState.AddModelError("", refusal);
+            return Page();
+        }
+        var technician = store.Technicians.FirstOrDefault(x => string.Equals(x.Email, (Email ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
+        // Same generic message, and the same hashing time, whether the account is missing, inactive, or has no password
+        // set yet - avoids leaking which.
+        var passwordOk = PasswordHasher.Verify(technician?.PasswordHash, Password ?? "");
+        if (technician is null || !technician.IsActive || !passwordOk)
+        {
+            throttle.Failed("helpdesk", Email, address);
             ModelState.AddModelError("", "Incorrect email or password.");
             return Page();
         }
+        throttle.Succeeded("helpdesk", Email);
 
         await TechnicianSession.SignInAsync(HttpContext, technician);
 

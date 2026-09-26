@@ -5,11 +5,15 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Portal;
 
-public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
+public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrottle throttle) : PageModel
 {
     public UserRecord? CurrentUser { get; private set; }
+    // How the current portal session started - a technician's has no portal password to change.
+    public PortalIdentity.Kind? SessionKind { get; private set; }
     [BindProperty] public string Email { get; set; } = "";
     [BindProperty] public string Password { get; set; } = "";
+    // Unticked by default: a staffroom PC is the case to protect. See PortalIdentity for the lifetimes.
+    [BindProperty] public bool Remember { get; set; }
     [TempData] public string? Message { get; set; }
 
     // Set when a technician is signed in to the helpdesk in this browser, so the portal can offer to use that instead
@@ -23,8 +27,9 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 
     public void OnGet()
     {
-        var id = portal.Resolve(Request, store);
-        CurrentUser = id is { } userId ? store.Users.FirstOrDefault(x => x.Id == userId) : null;
+        var session = portal.Validate(Request, store);
+        SessionKind = session?.Kind;
+        CurrentUser = session is not null ? store.Users.FirstOrDefault(x => x.Id == session.UserId) : null;
         HasProjects = CurrentUser is not null && store.Projects.Any(x => x.RequesterId == CurrentUser.Id);
         if (CurrentUser is { IsProjectLead: true }) AwaitingAssignment = store.Projects.Count(x => x.IsActive && x.TechnicianId is null);
         SignedInTechnician = Technician();
@@ -43,7 +48,7 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
             Message = error;
             return RedirectToPage();
         }
-        portal.Set(Response, user.Id);
+        portal.SignInTechnician(Response, user, technician.Id);
         return RedirectToPage();
     }
 
@@ -55,15 +60,26 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 
     public IActionResult OnPostLogin()
     {
-        var user = store.Users.FirstOrDefault(x => string.Equals(x.Email, (Email ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
-        // Same generic message whether the account is missing, inactive, or has no password set yet - avoids leaking which.
-        if (user is null || !user.IsActive || !PasswordHasher.Verify(user.PasswordHash, Password ?? ""))
+        var address = HttpContext.Connection.RemoteIpAddress;
+        if (throttle.Refusal("portal", Email, address) is { } refusal)
         {
+            ModelState.AddModelError("", refusal);
+            return Page();
+        }
+        var user = store.Users.FirstOrDefault(x => string.Equals(x.Email, (Email ?? "").Trim(), StringComparison.OrdinalIgnoreCase));
+        // Same generic message, and the same hashing time, whether the account is missing, inactive, or has no password
+        // set yet - avoids leaking which.
+        var passwordOk = PasswordHasher.Verify(user?.PasswordHash, Password ?? "");
+        if (user is null || !user.IsActive || !passwordOk)
+        {
+            throttle.Failed("portal", Email, address);
             ModelState.AddModelError("", "Incorrect email or password.");
             return Page();
         }
-        portal.Set(Response, user.Id);
-        return RedirectToPage();
+        throttle.Succeeded("portal", Email);
+        portal.SignIn(Response, user, Remember);
+        // A password a technician set goes straight to choosing their own (PasswordChangeFilter would send them anyway).
+        return user.RequirePasswordChange ? RedirectToPage("/Portal/Password") : RedirectToPage();
     }
 
     public IActionResult OnPostSwitch()

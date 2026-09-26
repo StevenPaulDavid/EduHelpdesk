@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class UserModel(HelpdeskStore store) : PageModel
+public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
 {
     public UserRecord? Person { get; private set; }
     public IReadOnlyList<string> Departments => store.Departments;
@@ -46,18 +46,27 @@ public class UserModel(HelpdeskStore store) : PageModel
             Message = "User was not found.";
             return RedirectToPage(new { id });
         }
+        var newPassword = !string.IsNullOrWhiteSpace(password);
+        if (newPassword && PasswordRules.Problem(password, name, email) is { } problem)
+        {
+            Message = problem;
+            return RedirectToPage(new { id });
+        }
         var user = existing with
         {
             Name = name.Trim(),
             Email = email.Trim(),
             Department = (department ?? string.Empty).Trim(),
             Location = (location ?? string.Empty).Trim(),
-            PasswordHash = !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing.PasswordHash,
+            PasswordHash = newPassword ? PasswordHasher.Hash(password!) : existing.PasswordHash,
+            // A password a technician typed is known to them, so the requester chooses their own on first use.
+            RequirePasswordChange = newPassword || existing.RequirePasswordChange,
             IsActive = active,
             CanRaiseProjects = canRaiseProjects,
             IsProjectLead = isProjectLead
         };
         Message = store.UpdateUserAndTickets(user, selectedNumbers ?? []) ? "User and linked tickets updated." : "User was not found.";
+        if (newPassword) throttle.Clear("portal", user.Email);
         return RedirectToPage(new { id });
     }
 }

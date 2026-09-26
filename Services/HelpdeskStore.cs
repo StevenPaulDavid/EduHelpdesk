@@ -1901,6 +1901,11 @@ public sealed partial class HelpdeskStore
             return new TicketBulkResult(updated, unchanged, skipped, skippedReason, null);
         }
     }
+    // Limits on what the staff portal accepts, checked by its pages and given to its boxes as maxlength. Generous for a
+    // fault report, but they stop one post filling the database (or every technician's screen) with megabytes of text.
+    public const int MaxTicketTitleLength = 200;
+    public const int MaxTicketTextLength = 5000;
+
     // A reply from the person who raised the ticket. If it had been closed it is reopened, because otherwise "it is
     // still not working" lands on a closed ticket that nobody is looking at.
     // Deliberately separate from AddTicketComment: a technician adding a note to a ticket they have just closed should
@@ -3097,6 +3102,37 @@ public sealed partial class HelpdeskStore
         }
     }
 
+    // An event that changes no data - a sign-in lockout - written straight to the audit log. Save would rewrite every
+    // table to record one line, and someone hammering the sign-in page shouldn't be able to make the helpdesk do that.
+    // Never throws: failing to record a lockout mustn't turn into an error page on the sign-in form.
+    public void RecordEvent(AuditEntry entry)
+    {
+        lock (_sync)
+        {
+            try
+            {
+                using var connection = new SqliteConnection($"Data Source={_path}");
+                connection.Open();
+                using var transaction = connection.BeginTransaction();
+                Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId) VALUES ($at,$area,$type,$key,$entity,$action,$details,$actor,$actorid);",
+                    ("$at", Iso(entry.At)), ("$area", entry.Area), ("$type", entry.EntityType), ("$key", entry.EntityKey), ("$entity", entry.Entity), ("$action", entry.Action), ("$details", entry.Details),
+                    ("$actor", entry.By?.Name), ("$actorid", entry.By?.Id?.ToString()));
+                transaction.Commit();
+                _audit.Add(entry);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"EduHelpdesk: couldn't record '{entry.Action}' in the audit log: {ex.Message}");
+            }
+        }
+    }
+
+    // How many audit-log lines one area has had since a moment - the Settings overview's count of recent lockouts.
+    public int CountAuditEntries(string area, DateTime sinceUtc)
+    {
+        lock (_sync) return _audit.Count(x => x.At >= sinceUtc && string.Equals(x.Area, area, StringComparison.OrdinalIgnoreCase));
+    }
+
     private List<AuditEntry> LoadAudit()
     {
         var entries = new List<AuditEntry>();
@@ -3268,6 +3304,7 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Tickets ADD COLUMN Location TEXT NULL;",
             "ALTER TABLE Users ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
+            "ALTER TABLE Users ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Technicians ADD COLUMN Role TEXT NOT NULL DEFAULT 'Technician';",
             "ALTER TABLE Technicians ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Technicians ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
@@ -3444,12 +3481,13 @@ public sealed partial class HelpdeskStore
         var data = new StoreData();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead FROM Users;";
+            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange FROM Users;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5), reader.GetInt32(6) != 0)
             {
                 CanRaiseProjects = reader.GetInt32(7) != 0,
-                IsProjectLead = reader.GetInt32(8) != 0
+                IsProjectLead = reader.GetInt32(8) != 0,
+                RequirePasswordChange = reader.GetInt32(9) != 0
             });
         }
         ReadStrings(connection, "TechnicianTeams", data.TechnicianTeams);
@@ -3926,7 +3964,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
         }
         foreach (var item in data.Users)
-            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead,$requireChange);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0), ("$requireChange", item.RequirePasswordChange ? 1 : 0));
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",

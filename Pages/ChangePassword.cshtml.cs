@@ -6,7 +6,8 @@ using System.Security.Claims;
 
 namespace EduHelpdesk.Pages;
 
-// Reached both when RequirePasswordChange forces it after sign-in, and voluntarily from anywhere while signed in.
+// Reached both when RequirePasswordChange forces it - PasswordChangeFilter sends every other page here until it's done -
+// and voluntarily from anywhere while signed in.
 public class ChangePasswordModel(HelpdeskStore store) : PageModel
 {
     [BindProperty] public string CurrentPassword { get; set; } = "";
@@ -33,9 +34,14 @@ public class ChangePasswordModel(HelpdeskStore store) : PageModel
             ModelState.AddModelError("", "Current password is incorrect.");
             return Page();
         }
-        if (string.IsNullOrWhiteSpace(NewPassword) || NewPassword.Length < 8)
+        if (PasswordRules.Problem(NewPassword, technician.Name, technician.Email) is { } problem)
         {
-            ModelState.AddModelError("", "Choose a new password of at least 8 characters.");
+            ModelState.AddModelError("", problem);
+            return Page();
+        }
+        if (NewPassword == CurrentPassword)
+        {
+            ModelState.AddModelError("", "Choose a password different from the one you have now.");
             return Page();
         }
         if (NewPassword != ConfirmPassword)

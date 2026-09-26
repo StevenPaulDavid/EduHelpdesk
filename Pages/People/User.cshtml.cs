@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.People;
 
-public class UserModel(HelpdeskStore store) : PageModel
+public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
 {
     public IReadOnlyList<string> Departments => store.Departments;
     public IReadOnlyList<string> Locations => store.Locations;
@@ -39,11 +39,23 @@ public class UserModel(HelpdeskStore store) : PageModel
             ModelState.AddModelError("", emailError);
             return Page();
         }
+        var newPassword = !string.IsNullOrWhiteSpace(password);
+        if (newPassword && PasswordRules.Problem(password, name, email) is { } problem)
+        {
+            ModelState.AddModelError("", problem);
+            return Page();
+        }
 
         var item = new UserRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (department ?? "").Trim(), (location ?? "").Trim(),
-            !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing?.PasswordHash,
-            active) { CanRaiseProjects = canRaiseProjects, IsProjectLead = isProjectLead };
+            newPassword ? PasswordHasher.Hash(password!) : existing?.PasswordHash,
+            active)
+        {
+            CanRaiseProjects = canRaiseProjects, IsProjectLead = isProjectLead,
+            // A password a technician typed is known to them, so the requester chooses their own on first use.
+            RequirePasswordChange = newPassword || (existing?.RequirePasswordChange ?? false)
+        };
         if (id.HasValue) store.UpdateUser(item); else store.AddUser(item);
+        if (newPassword) throttle.Clear("portal", item.Email);
         TempData["Message"] = id.HasValue ? "User updated." : "User added.";
         return RedirectToPage("/People");
     }

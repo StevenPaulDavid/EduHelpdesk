@@ -35,6 +35,11 @@ public class TicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
             Message = "Enter a message before sending.";
             return RedirectToPage(new { number });
         }
+        if (Comment.Trim().Length > HelpdeskStore.MaxTicketTextLength)
+        {
+            Message = $"Keep messages under {HelpdeskStore.MaxTicketTextLength} characters - send it in two parts if you need to.";
+            return RedirectToPage(new { number });
+        }
         var (ok, reopened) = store.AddRequesterComment(number, Comment);
         if (!ok) return NotFound();
         Message = reopened

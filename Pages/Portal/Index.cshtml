@@ -18,15 +18,18 @@
             <h2>Sign in</h2>
             <form method="post" asp-page-handler="Login" class="settings-form">
                 <div asp-validation-summary="All" class="validation-summary-errors"></div>
-                <label>Email<input asp-for="Email" type="email" required autofocus /></label>
-                <label>Password<input asp-for="Password" type="password" required /></label>
+                <label>Email<input asp-for="Email" type="email" maxlength="254" autocomplete="username" required autofocus /></label>
+                <label>Password<input asp-for="Password" type="password" maxlength="256" autocomplete="current-password" required /></label>
+                <label class="toggle-label"><input asp-for="Remember" type="checkbox" /> Keep me signed in on this device for 30 days</label>
+                <p class="muted">Leave that unticked on a shared or staffroom computer - you'll be signed out when the browser closes, or after two hours without using the portal.</p>
                 <button class="button button-primary portal-button" type="submit">Sign in</button>
+                <p class="muted">Forgotten your password? Ask the IT team to set you a new one.</p>
             </form>
         </section>
     }
     else
     {
-        <p class="muted">Signed in as <strong>@Model.CurrentUser.Name</strong> · <form method="post" asp-page-handler="Switch" style="display:inline"><button type="submit" class="link-button">Sign out</button></form></p>
+        <p class="muted">Signed in as <strong>@Model.CurrentUser.Name</strong> · @if (Model.SessionKind != EduHelpdesk.Services.PortalIdentity.Kind.Technician) { <a asp-page="/Portal/Password">Change password</a><text> · </text> }<form method="post" asp-page-handler="Switch" style="display:inline"><button type="submit" class="link-button">Sign out</button></form></p>
         <div class="portal-actions">
             <a class="button button-primary portal-button" asp-page="/Portal/NewTicket">＋ Report a problem</a>
             <a class="button button-secondary portal-button" asp-page="/Portal/MyTickets">My tickets</a>

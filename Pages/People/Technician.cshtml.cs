@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.People;
 
-public class TechnicianModel(HelpdeskStore store) : PageModel
+public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
 {
     public IReadOnlyList<string> Teams => store.TechnicianTeams;
     // Administrator is only offered to Administrators - or kept on the list for an account that already holds it, so
@@ -81,6 +81,11 @@ public class TechnicianModel(HelpdeskStore store) : PageModel
             ModelState.AddModelError("", "At least one active Administrator must remain.");
             return Page();
         }
+        if (!string.IsNullOrWhiteSpace(password) && PasswordRules.Problem(password, name, email) is { } problem)
+        {
+            ModelState.AddModelError("", problem);
+            return Page();
+        }
 
         var item = new TechnicianRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (team ?? string.Empty).Trim(), normalizedRole,
             !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing?.PasswordHash,
@@ -88,8 +93,12 @@ public class TechnicianModel(HelpdeskStore store) : PageModel
             (!IsSelf && !string.IsNullOrWhiteSpace(password)) || (existing?.RequirePasswordChange ?? false),
             active);
         if (id.HasValue) store.UpdateTechnician(item); else store.AddTechnician(item);
-        // A new password ends the account's sessions. Resetting your own here keeps you signed in on this one.
-        if (IsSelf && !string.IsNullOrWhiteSpace(password)) await TechnicianSession.SignInAsync(HttpContext, item);
+        if (!string.IsNullOrWhiteSpace(password))
+        {
+            // A new password lifts any sign-in lockout and ends the account's sessions - except this one, when it's your own.
+            throttle.Clear("helpdesk", item.Email);
+            if (IsSelf) await TechnicianSession.SignInAsync(HttpContext, item);
+        }
         TempData["Message"] = id.HasValue ? "Technician updated." : "Technician added.";
         return RedirectToPage("/People", new { tab = "technicians" });
     }

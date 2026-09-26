@@ -25,6 +25,22 @@ On first run (or the first run after upgrading a database with no logins configu
 
 Sign in and change this password immediately (you'll be prompted automatically). New staff accounts are created and assigned a role from **People → Add technician** (requires the "manage staff accounts" permission); a new account has no password until someone with access sets one there. Passwords are reset the same way - there's no self-service "forgot password" email flow yet.
 
+Passwords must be at least 8 characters, and common or name-based passwords are refused. A password someone else set must be changed on first use; this holds on every page, not just straight after signing in. Five wrong passwords lock that email for 15 minutes, and thirty from one computer block that computer. Setting a new password unlocks the account at once, and lockouts are recorded in the audit log.
+
+### HTTPS
+
+The site starts as plain `http://`, and Settings → Sign-in security warns that passwords then cross the network unencrypted. Once the site has a certificate (in Kestrel, IIS or a reverse proxy), turn HTTPS on in `appsettings.json`:
+
+```json
+"EduHelpdesk": { "RequireHttps": true }
+```
+
+Plain-HTTP requests are then redirected, browsers are told to stay on HTTPS, and every cookie is marked Secure. Only do this once HTTPS works, or nobody can reach the site. Behind a proxy that handles HTTPS itself (Azure App Service, IIS ARR, nginx), also set the environment variable `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`.
+
+### Backups and the data folder
+
+Backups run nightly - see **Settings → Backups & data** for the schedule, folder, retention and restore steps. The data lives in `App_Data` unless `"EduHelpdesk": { "DataPath": "C:\\EduHelpdeskData" }` points elsewhere. Keep it out of OneDrive and other synced folders. The first start with a new DataPath copies the data across. See `docs/Technical-Guide.md` section 15.
+
 On the Tickets page, "Working as" (which technician you're logging work under) is preset to your own account. Only a role with the "change Working as" permission can change it to someone else - everyone else is always themselves.
 
 ## CSV imports
@@ -37,4 +53,4 @@ Technicians: `name,email,team,role` (role is optional, defaults to Technician; m
 
 Anyone on the network can reach `/Portal`, and signs in with their own email and password - a separate, much lighter login than the technician one (no roles, no permissions, just "is this really them"). Once signed in, staff can report a problem, see the status of tickets they've submitted, and add a follow-up comment. It's deliberately minimal: no requester/technician/team/SLA/asset pickers, and staff can never see internal notes or another person's ticket.
 
-New staff need a **People → Add user** entry with a password set before they can sign in (requires the "manage requesters" permission) - a user with no password set can't log in yet. Passwords are reset the same way; there's no self-service "forgot password" flow.
+New staff need a **People → Add user** entry with a password set before they can sign in (requires the "manage requesters" permission) - a user with no password set can't log in yet. Passwords are reset the same way; there's no self-service "forgot password" flow. They choose their own password the first time they sign in, and can change it from the portal home page. A portal sign-in lasts until the browser closes (or 2 hours idle), unless they tick "Keep me signed in", which lasts 30 days.

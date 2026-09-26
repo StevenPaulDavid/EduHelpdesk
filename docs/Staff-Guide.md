@@ -17,7 +17,10 @@ You can reach it from any school computer on the network. You will land on the s
 ## Signing in
 
 - **Email** — your school email address.
-- **Password** — set for you by the IT team.
+- **Password** — set for you by the IT team. The first time you sign in with it, you'll be asked to choose your own password, which only you know. At least 8 characters; three random words together works well.
+- **Keep me signed in on this device for 30 days** — tick this only on your own laptop. Leave it unticked on a shared or staffroom computer: you'll be signed out when the browser closes, or after two hours of not using the portal.
+
+You can change your password at any time from **Change password** on the portal's home page.
 
 If you have never signed in before, or you have forgotten your password, **ask IT directly**. There is no "forgot password" link and no reset email — a technician has to set it for you.
 
@@ -113,6 +116,9 @@ Ask IT to set your password. Portal accounts are created by the IT team, so if y
 
 **I've forgotten my password.**
 Ask IT. There is no self-service reset.
+
+**It says "Too many failed sign-ins".**
+After five wrong passwords, the portal stops accepting that email for 15 minutes. Wait and try again, or ask IT to set you a new password, which unlocks it straight away.
 
 **My ticket was closed but the problem is back.**
 Report it again as a new problem. You *can* add a message to a closed ticket, but nobody is alerted when you do, so it may sit unnoticed. A fresh report will be picked up.

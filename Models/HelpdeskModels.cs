@@ -9,6 +9,9 @@ public record UserRecord(Guid Id, string Name, string Email, string Department, 
     // has no helpdesk login. Also lets them raise projects themselves, already assigned.
     public bool IsProjectLead { get; init; }
     public bool MayRaiseProjects => IsActive && (CanRaiseProjects || IsProjectLead);
+    // Set when a technician gives the requester a portal password: someone else knows it, so the portal asks for a new
+    // one before anything else (PasswordChangeFilter).
+    public bool RequirePasswordChange { get; init; }
 }
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
 // What a role can do with one module. Each is an independent tick rather than a rung on a ladder: a role can be given
