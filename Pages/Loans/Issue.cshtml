@@ -32,7 +32,7 @@
 
         <div id="asset-block" hidden>
             <label>Device
-                <select name="assetId">
+                <select name="assetId" data-picker data-picker-placeholder="Type an asset tag, make or model…">
                     <option value="">Choose a device…</option>
                     @foreach (var asset in Model.AvailableAssets)
                     {
@@ -44,7 +44,7 @@
         </div>
 
         <label>Who is borrowing it?
-            <select name="borrowerUserId" id="borrower-user">
+            <select name="borrowerUserId" id="borrower-user" data-picker data-picker-placeholder="Type a name or department…">
                 <option value="">Not listed — type a name below</option>
                 @foreach (var user in Model.Users)
                 {
@@ -83,7 +83,7 @@
 const userSelect = document.getElementById("borrower-user");
 const nameInput = document.getElementById("borrower-name");
 userSelect.addEventListener("change", () => { if (userSelect.value) nameInput.value = ""; });
-nameInput.addEventListener("input", () => { if (nameInput.value.trim()) userSelect.value = ""; });
+nameInput.addEventListener("input", () => { if (nameInput.value.trim()) { userSelect.value = ""; userSelect.pickerRefresh?.(); } });
 
 // Show only the fields that apply. A single device is directory-only and has no notes field of its own, so both are
 // hidden for it - the server enforces the same rules either way.

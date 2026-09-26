@@ -467,5 +467,9 @@ public sealed class BrandingSettings
     public string PrimaryColor { get; set; } = "#067A78";
     public string AccentColor { get; set; } = "#E8F0EF";
     public string BackgroundColor { get; set; } = "#F5F8F8";
-    public bool DarkMode { get; set; }
+    // How the helpdesk looks on a device that hasn't picked for itself (the Appearance switch in the footer). Stored in
+    // the old DarkMode column: 0 and 1 were off and on, so an upgraded install keeps the look it had.
+    public Appearance DefaultAppearance { get; set; } = Appearance.Device;
 }
+
+public enum Appearance { Light = 0, Dark = 1, Device = 2 }

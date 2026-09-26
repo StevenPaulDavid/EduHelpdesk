@@ -96,7 +96,7 @@ internal static class AuditTracker
         var b = d.Branding ?? new BrandingSettings();
         Add(s, "Settings", "Branding", "branding", "Branding", Track.Update,
             ("Brand name", b.BrandName), ("Dashboard eyebrow", b.DashboardEyebrow), ("Dashboard title", b.DashboardTitle), ("Dashboard description", b.DashboardDescription),
-            ("Primary colour", b.PrimaryColor), ("Accent colour", b.AccentColor), ("Background colour", b.BackgroundColor), ("Dark mode", b.DarkMode ? "On" : "Off"));
+            ("Primary colour", b.PrimaryColor), ("Accent colour", b.AccentColor), ("Background colour", b.BackgroundColor), ("Default appearance", Themes.Label(b.DefaultAppearance)));
         foreach (var pair in d.StatusDescriptions)
             Add(s, "Settings", "Status description", pair.Key.ToLowerInvariant(), $"Status description: {pair.Key}", Track.All, ("Description", pair.Value));
         foreach (var pair in d.AssetModelMakes)

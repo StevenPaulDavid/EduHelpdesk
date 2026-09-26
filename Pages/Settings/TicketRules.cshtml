@@ -1,0 +1,36 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.TicketRulesModel
+@{ ViewData["Title"] = "Ticket queues & closing"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / TICKETS</p><h1>Ticket queues &amp; closing</h1><p class="hero-copy">When a ticket counts as due soon, how long a requester's reply can reopen a closed ticket, which tickets need a closing message, and how a printed ticket looks.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel" id="queues">
+    <div class="panel-heading"><h2>Due soon</h2></div>
+    <p class="muted">The Overdue / due soon queue on the ticket list, and the overview, show open tickets that are past their due date, or due within this many hours. Overdue tickets are always included.</p>
+    <form method="post" asp-page-handler="SaveTicketDueSoon" class="import-row"><label>Due soon window (hours)<input name="hours" type="number" min="0" max="720" step="1" value="@Model.TicketDueSoonHours" required /></label><button class="button button-primary">Save</button></form>
+</section>
+
+<section class="panel" id="reopen">
+    <div class="panel-heading"><h2>Replies to closed tickets</h2></div>
+    <p class="muted">When the requester replies in the staff portal to a ticket that was closed within this many days, it reopens so the team see it. After that, the portal asks them to report it again as a new ticket, linked to the old one. 0 means a closed ticket never reopens. Which statuses stop the SLA clock is set on the <a asp-page="/Settings/Statuses">Statuses</a> page.</p>
+    <form method="post" asp-page-handler="SaveReopenWindow" class="import-row"><label>Replies reopen closed tickets for (days)<input name="days" type="number" min="0" max="@HelpdeskStore.MaxReopenWindowDays" step="1" value="@Model.ReopenWindowDays" required /></label><button class="button button-primary">Save</button></form>
+</section>
+
+<section class="panel" id="closing">
+    <div class="panel-heading"><h2>Closing requirements</h2></div>
+    <p class="muted">Tick a priority or category to require technicians to enter a closing message before a matching ticket can be marked closed. Everything else can still be closed with one click.</p>
+    <form method="post" asp-page-handler="SaveCloseRequirements" class="settings-form">
+        <div class="checkbox-grid">
+            <div><p class="eyebrow">Priorities requiring a message</p>@foreach (var priority in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@priority" checked="@Model.RequireCloseMessagePriorities.Contains(priority, StringComparer.OrdinalIgnoreCase)" /> @priority</label> }@if (Model.Priorities.Count == 0) { <p class="empty">No priorities configured yet.</p> }</div>
+            <div><p class="eyebrow">Categories requiring a message</p>@foreach (var category in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="categories" value="@category" checked="@Model.RequireCloseMessageCategories.Contains(category, StringComparer.OrdinalIgnoreCase)" /> @category</label> }@if (Model.Categories.Count == 0) { <p class="empty">No categories configured yet.</p> }</div>
+        </div>
+        <button class="button button-primary" type="submit">Save closing requirements</button>
+    </form>
+</section>
+
+<section class="panel" id="print">
+    <div class="panel-heading"><h2>Ticket print template</h2>@if (Model.HasPrintTemplate) { <span class="badge">Template uploaded</span> }</div>
+    <p class="muted">Upload a Word (.docx) document to control how tickets look when printed. Use placeholders such as <code>{{Job.Number}}</code>, <code>{{Job.Title}}</code>, <code>{{Job.Status}}</code>, <code>{{Job.Comments}}</code> (comments only, never internal notes), <code>{{Requester.Name}}</code>, <code>{{Technician.Name}}</code> and <code>{{Asset.Tag}}</code> in the document - they'll be replaced with each ticket's actual details when printed.</p>
+    <form method="post" enctype="multipart/form-data" asp-page-handler="UploadPrintTemplate" class="import-row"><label>Template file (.docx)<input asp-for="PrintTemplate" type="file" accept=".docx" /></label><button class="button button-primary">Upload template</button></form>
+</section>

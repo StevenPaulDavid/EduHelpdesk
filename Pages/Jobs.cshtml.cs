@@ -10,7 +10,7 @@ namespace EduHelpdesk.Pages;
 public class JobsModel(HelpdeskStore store) : PageModel
 {
     public static readonly int[] PageSizes = [25, 50, 100, 200];
-    private const string MeCookie = "helpdesk_me";
+    private const string MeCookie = WorkingAs.Cookie;
 
     // Short query-string names. "area", "action" and "page" are reserved by routing, so they are avoided.
     [BindProperty(SupportsGet = true, Name = "view")] public string View { get; set; } = "open";
@@ -29,6 +29,9 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true, Name = "size")] public int Size { get; set; } = 50;
+    // Set by the Apply button inside "More filters", so the panel is still open after changing several things in it.
+    // Not part of the list's state: links and the back cookie leave it out, and the panel starts folded.
+    [BindProperty(SupportsGet = true, Name = "more")] public bool ShowMoreFilters { get; set; }
 
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
@@ -57,8 +60,6 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
     // Only roles granted ChangeWorkingAs can work as someone other than themselves; everyone else is fixed to their own account.
     public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
-    private Guid? SignedInTechnicianId =>
-        Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     public bool Descending => Dir == "desc";
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
         || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset);
@@ -69,7 +70,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
 
     public void OnGet()
     {
-        Response.Cookies.Append(BackCookie, Request.Path + Request.QueryString, new CookieOptions
+        var listState = QueryString.Create(Request.Query.Where(x => !string.Equals(x.Key, "more", StringComparison.OrdinalIgnoreCase)));
+        Response.Cookies.Append(BackCookie, Request.Path + listState, new CookieOptions
         {
             HttpOnly = true, SameSite = SameSiteMode.Lax, Secure = Request.IsHttps, IsEssential = true
         });
@@ -205,9 +207,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category); Type = Clean(Type);
         // Technician and Junior Technician are always themselves. Administrator and Senior Technician default to
         // themselves too, but can pick someone else via "Working as" (remembered in this browser's cookie).
-        CurrentTechnicianId = CanChangeWorkingAs && Guid.TryParse(Request.Cookies[MeCookie], out var me) && store.Technicians.Any(x => x.Id == me)
-            ? me
-            : SignedInTechnicianId;
+        CurrentTechnicianId = WorkingAs.Resolve(store, User, Request);
     }
 
     private static List<string> Clean(List<string>? values) => (values ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -269,6 +269,52 @@ public class JobsModel(HelpdeskStore store) : PageModel
     // A queue tab keeps the search and filters but starts on the first page and that queue's own sort order.
     public string? ViewUrl(string view) => Url.Page("/Jobs", RouteFor(1, TicketListQuery.DefaultSort(view).Sort, TicketListQuery.DefaultSort(view).Descending ? "desc" : "asc", view));
     public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View });
+
+    // Filters folded into "More filters" that are switched on - the count on its summary line.
+    public int MoreFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count
+        + new[] { Technician, Team, Requester, Department, Location }.Count(x => !string.IsNullOrWhiteSpace(x));
+
+    public sealed record ActiveFilter(string Label, string? RemoveUrl);
+
+    // Every filter in force, each as a chip that takes just that one off. With the panel folded, this is how the list
+    // says what it is showing.
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string? Without(string key, object? value) { var route = RouteFor(1, Sort!, Dir!, View); route[key] = value; return Url.Page("/Jobs", route); }
+        void Many(string key, string label, List<string> values)
+        {
+            foreach (var value in values)
+            {
+                var rest = values.Where(x => !string.Equals(x, value, StringComparison.OrdinalIgnoreCase)).ToArray();
+                chips.Add(new($"{label}: {value}", Without(key, rest.Length == 0 ? null : rest)));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q", null)));
+        if (!string.IsNullOrWhiteSpace(Technician))
+        {
+            var name = Technician switch
+            {
+                "me" => CurrentTechnician is { } me ? $"Me ({me.Name})" : "Me",
+                "none" => "Unassigned",
+                _ => Guid.TryParse(Technician, out var id) ? Technicians.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Technician
+            };
+            chips.Add(new($"Technician: {name}", Without("tech", null)));
+        }
+        if (!string.IsNullOrWhiteSpace(Team)) chips.Add(new($"Team: {(Team == TicketListQuery.None ? "No team" : Team)}", Without("team", null)));
+        if (!string.IsNullOrWhiteSpace(Requester))
+            chips.Add(new($"Requester: {(Guid.TryParse(Requester, out var requesterId) ? Users.FirstOrDefault(x => x.Id == requesterId)?.Name ?? "Unknown" : Requester)}", Without("requester", null)));
+        if (!string.IsNullOrWhiteSpace(Department)) chips.Add(new($"Department: {Department}", Without("dept", null)));
+        if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Location: {(Location == TicketListQuery.None ? "Not specified" : Location)}", Without("loc", null)));
+        if (!string.IsNullOrWhiteSpace(Asset))
+            chips.Add(new($"Asset: {(Guid.TryParse(Asset, out var assetId) && AssetsById.TryGetValue(assetId, out var asset) ? asset.AssetTag : "Unknown")}", Without("asset", null)));
+        Many("status", "Status", Status);
+        Many("type", "Type", Type);
+        Many("priority", "Priority", Priority);
+        Many("category", "Category", Category);
+        return chips;
+    }
     public string SortMark(string column) => Sort != column ? "" : Descending ? " ▼" : " ▲";
 
     public static string ViewLabel(string view) => view switch

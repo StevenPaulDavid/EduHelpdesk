@@ -1,12 +1,13 @@
 @page "{number:int}"
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Portal.TicketModel
+@inject HelpdeskStore Helpdesk
 @{ ViewData["Title"] = $"Ticket #{Model.Ticket!.Number}"; }
 <div class="portal-shell">
     <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div><a class="button button-secondary" asp-page="/Portal/MyTickets">← My tickets</a></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     <section class="panel portal-panel">
-        <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()">@Model.Ticket.Status</strong></div>
+        <div class="detail-block"><p class="eyebrow">STATUS</p><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></div>
         <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@Model.Ticket.Priority</p></div>
         <div class="detail-block"><p class="eyebrow">CATEGORY</p><p>@Model.Ticket.Category</p></div>
         @if (!string.IsNullOrWhiteSpace(Model.Ticket.Location))

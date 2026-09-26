@@ -1919,7 +1919,7 @@ public sealed partial class HelpdeskStore
     // still not working" lands on a closed ticket that nobody is looking at.
     // Deliberately separate from AddTicketComment: a technician adding a note to a ticket they have just closed should
     // not bounce it straight back open, so only this path reopens.
-    // Only within the reopen window (Settings → Ticket queues): after that a closed ticket takes no more replies, and the
+    // Only within the reopen window (Settings → Ticket queues & closing): after that a closed ticket takes no more replies, and the
     // portal offers to report the problem again as a new ticket instead - see RequesterCanReply.
     public (bool Ok, bool Reopened) AddRequesterComment(int number, string text)
     {
@@ -3876,7 +3876,7 @@ public sealed partial class HelpdeskStore
         {
             command.CommandText = "SELECT BrandName, DashboardEyebrow, DashboardTitle, DashboardDescription, PrimaryColor, AccentColor, BackgroundColor, DarkMode FROM BrandingSettings WHERE Id = 1;";
             using var reader = command.ExecuteReader();
-            if (reader.Read()) data.Branding = new() { BrandName = reader.GetString(0), DashboardEyebrow = reader.GetString(1), DashboardTitle = reader.GetString(2), DashboardDescription = reader.GetString(3), PrimaryColor = reader.GetString(4), AccentColor = reader.GetString(5), BackgroundColor = reader.GetString(6), DarkMode = reader.GetInt32(7) != 0 };
+            if (reader.Read()) data.Branding = new() { BrandName = reader.GetString(0), DashboardEyebrow = reader.GetString(1), DashboardTitle = reader.GetString(2), DashboardDescription = reader.GetString(3), PrimaryColor = reader.GetString(4), AccentColor = reader.GetString(5), BackgroundColor = reader.GetString(6), DefaultAppearance = Enum.IsDefined((Appearance)reader.GetInt32(7)) ? (Appearance)reader.GetInt32(7) : Appearance.Light };
         }
         ReadProjects(connection, data);
         ReadProjectTickets(connection, data);
@@ -4109,7 +4109,7 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO TicketLinks (TicketNumber, LinkedNumber, Kind) VALUES ($a,$b,$kind);", ("$a", link.TicketNumber), ("$b", link.LinkedNumber), ("$kind", link.Kind));
         var branding = data.Branding ?? new BrandingSettings();
         Execute(connection, transaction, "INSERT INTO BrandingSettings (Id, BrandName, DashboardEyebrow, DashboardTitle, DashboardDescription, PrimaryColor, AccentColor, BackgroundColor, DarkMode) VALUES (1,$name,$eyebrow,$title,$description,$primary,$accent,$background,$dark);",
-            ("$name", branding.BrandName), ("$eyebrow", branding.DashboardEyebrow), ("$title", branding.DashboardTitle), ("$description", branding.DashboardDescription), ("$primary", branding.PrimaryColor), ("$accent", branding.AccentColor), ("$background", branding.BackgroundColor), ("$dark", branding.DarkMode ? 1 : 0));
+            ("$name", branding.BrandName), ("$eyebrow", branding.DashboardEyebrow), ("$title", branding.DashboardTitle), ("$description", branding.DashboardDescription), ("$primary", branding.PrimaryColor), ("$accent", branding.AccentColor), ("$background", branding.BackgroundColor), ("$dark", (int)branding.DefaultAppearance));
     }
 
     private static void InsertStrings(SqliteConnection connection, SqliteTransaction transaction, string table, IEnumerable<string> values)

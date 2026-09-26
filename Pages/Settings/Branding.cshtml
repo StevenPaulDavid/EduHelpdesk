@@ -1,0 +1,35 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.BrandingModel
+@{ ViewData["Title"] = "Branding & logo"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Branding &amp; logo</h1><p class="hero-copy">The school's name, colours and logo, the wording at the top of the overview, and whether a device that hasn't chosen for itself starts light or dark.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Name, wording and colours</h2></div>
+    <form method="post" asp-page-handler="SaveBranding" class="settings-form field-narrow branding-form">
+        <label>Brand name<input asp-for="Branding.BrandName" maxlength="80" /></label>
+        <label>Overview eyebrow<input asp-for="Branding.DashboardEyebrow" maxlength="120" /></label>
+        <label>Overview title<input asp-for="Branding.DashboardTitle" maxlength="120" /></label>
+        <label>Overview description<textarea asp-for="Branding.DashboardDescription" rows="3" maxlength="600"></textarea></label>
+        <div class="color-grid">
+            <label>Primary colour<input asp-for="Branding.PrimaryColor" pattern="^#[0-9A-Fa-f]{6}$" /></label>
+            <label>Accent colour<input asp-for="Branding.AccentColor" pattern="^#[0-9A-Fa-f]{6}$" /></label>
+            <label>Background colour<input asp-for="Branding.BackgroundColor" pattern="^#[0-9A-Fa-f]{6}$" /></label>
+        </div>
+        <p class="muted">Six-digit hex values, such as #067A78. The primary colour is used for buttons, links and headings; the accent behind secondary buttons and highlights; the background behind every page. In dark, the background and accent are replaced with dark ones and the primary is lightened for text, so any colour stays readable.</p>
+        <label>Default appearance<select asp-for="Branding.DefaultAppearance">@foreach (var option in Themes.All) { <option value="@option">@Themes.Label(option)</option> }</select></label>
+        <p class="muted">For devices that haven't chosen. Anyone can pick Light, Dark or Match device for their own computer or phone from the Appearance switch at the bottom of every page, including the staff portal, and that choice wins. Match device follows the computer's own light or dark setting.</p>
+        <button class="button button-primary">Save branding</button>
+    </form>
+</section>
+
+<section class="panel" id="logo">
+    <div class="panel-heading"><div><h2>School logo</h2></div>@if (Model.LogoVersion is not null) { <span class="badge">Logo uploaded</span> }</div>
+    <p class="muted">Shown in the header on every page (including sign-in and the staff portal), on printed tickets and on report print-outs, in place of the initials badge. PNG only, up to @(HelpdeskStore.MaxLogoBytes / 1024) KB. A transparent background works best, and it is shown about 40 pixels tall, so a simple crest or badge reads better than a wide banner. In dark, it sits on a small light panel so dark lettering still shows.</p>
+    <div class="logo-settings">
+        <div class="logo-preview">@if (Model.LogoVersion is { } version) { <img src="@Url.Content("~/branding/logo")?v=@version" alt="Current school logo" /> } else { <span class="brand-mark">EH</span><span class="muted">No logo yet</span> }</div>
+        <form method="post" enctype="multipart/form-data" asp-page-handler="UploadLogo" class="import-row"><label>@(Model.LogoVersion is null ? "Logo file (.png)" : "Replace with (.png)")<input asp-for="Logo" type="file" accept="image/png,.png" required /></label><button class="button button-primary">@(Model.LogoVersion is null ? "Upload logo" : "Replace logo")</button></form>
+        @if (Model.LogoVersion is not null) { <form method="post" asp-page-handler="RemoveLogo" onsubmit="return confirm('Remove the logo and go back to the initials badge?');"><button class="button button-secondary">Remove logo</button></form> }
+    </div>
+</section>

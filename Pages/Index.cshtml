@@ -3,9 +3,27 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Overview";
+
+    // One ticket as a row in any of the overview's lists: number and title, who it's for, its status and due date.
+    async Task TicketRow(TicketRecord ticket, bool showTechnician)
+    {
+        var due = TicketInsights.DueStateOf(ticket, Model.Now, Model.DueSoonHours);
+        var who = Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "Unknown requester";
+        if (showTechnician) { who += " · " + (ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned"); }
+        <li class="dash-row @(due == DueState.Overdue ? "is-overdue" : due == DueState.Soon ? "is-soon" : "")">
+            <div class="dash-main">
+                @if (Model.CanOpenTicket) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
+                <span class="muted">@who · <span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span>@if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply">Reply</span> }</span>
+            </div>
+            <div class="dash-side">
+                <span class="status status-@Model.StatusTone(ticket.Status)">@ticket.Status</span>
+                @if (due != DueState.None) { <span class="badge @(due == DueState.Overdue ? "badge-warning" : "")">@TicketInsights.DueText(ticket, Model.Now)</span> }
+            </div>
+        </li>
+    }
 }
 
-<div class="hero">
+<div class="hero dash-hero">
     <div>
         <p class="eyebrow">@Model.Branding.DashboardEyebrow</p>
         <h1>@Model.Branding.DashboardTitle</h1>
@@ -26,69 +44,156 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-<div class="metrics">
-    @if (Model.CanSeeTickets) { <div class="metric"><span>Open tickets</span><strong>@Model.OpenTickets</strong><small>Needs technician action</small></div> }
-    @if (Model.CanSeeAssets) { <div class="metric"><span>Assets tracked</span><strong>@Model.AssetsTracked</strong><small>With searchable history</small></div> }
-    @if (Model.CanSeeRequesters) { <div class="metric"><span>Users imported</span><strong>@Model.Users.Count</strong><small>Requesters available</small></div> }
-    @if (Model.CanSeeStaff) { <div class="metric"><span>Technicians</span><strong>@Model.Technicians.Count</strong><small>Can log and own tickets</small></div> }
-</div>
-
-@if (Model.CanSeeAssets)
+@if (Model.CanSeeTickets || Model.CanSeeProjects)
 {
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
-        <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and loans that are overdue. <a asp-page="/Assets" asp-route-flag="review">Open these in the asset list</a> to change their status, owner or location together.</p>
-        <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Held by</th><th>Why it needs review</th></tr></thead><tbody>
-        @foreach (var item in Model.AssetsToReview.Take(15))
+    <div class="metrics dash-metrics">
+        @if (Model.CanSeeTickets)
         {
-            <tr>
-                <td><strong>@if (Model.CanOpenAsset) { <a asp-page="/Asset" asp-route-id="@item.Asset.Id">@item.Asset.AssetTag</a> } else { @item.Asset.AssetTag }</strong><br /><span class="muted">@item.Asset.Make @item.Asset.Model · @item.Asset.Type</span></td>
-                <td>@(Model.HolderName(item.Asset) ?? "—")</td>
-                <td>@foreach (var reason in item.Reasons) { <div><span class="badge @(reason.Overdue ? "badge-warning" : "")">@reason.Kind</span> @reason.Text</div> }</td>
-            </tr>
+            <a class="metric metric-link" asp-page="/Jobs" asp-route-view="mine"><span>My open tickets</span><strong>@(Model.Me is null ? "—" : Model.MyTickets.Count)</strong><small>@(Model.Me is null ? "Not linked to a technician" : Model.MyOverdueCount > 0 ? $"{Model.MyOverdueCount} overdue" : "Nothing overdue")</small></a>
+            <a class="metric metric-link @(Model.OverdueCount > 0 ? "metric-alert" : "")" asp-page="/Jobs" asp-route-view="overdue"><span>Overdue</span><strong>@Model.OverdueCount</strong><small>@(Model.DueSoonCount == 0 ? "None due soon" : $"{Model.DueSoonCount} more due within {Model.DueSoonHours} h")</small></a>
+            <a class="metric metric-link" asp-page="/Jobs" asp-route-view="unassigned"><span>Unassigned</span><strong>@Model.UnassignedTickets.Count</strong><small>Open, no technician yet</small></a>
+            <a class="metric metric-link" href="#replies"><span>Replies waiting</span><strong>@Model.RepliesWaiting.Count</strong><small>@(Model.RepliesForMe > 0 ? $"{Model.RepliesForMe} on your tickets" : "Requesters awaiting an answer")</small></a>
         }
-        @if (Model.AssetsToReview.Count == 0) { <tr><td colspan="3" class="empty">No assets need review right now.</td></tr> }
-        </tbody></table></div>
-        @if (Model.AssetsToReview.Count > 15 && Model.CanSeeAssetReport) { <p class="muted">Showing the 15 most urgent of @Model.AssetsToReview.Count. <a asp-page="/Reports" asp-fragment="review">See the full list in Reports</a>.</p> }
-        else if (Model.AssetsToReview.Count > 15) { <p class="muted">Showing the 15 most urgent of @Model.AssetsToReview.Count.</p> }
-    </section>
-}
-
-@if (Model.CanSeeParts)
-{
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Parts to review</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
-        <p class="muted">Parts at or below their reorder threshold (default @Model.PartsReorderThreshold, or a part's own threshold). <a asp-page="/Parts" asp-route-flag="low">Open these in the parts list</a> to restock or adjust them.</p>
-        <div class="table-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Location</th><th>Quantity</th></tr></thead><tbody>
-        @foreach (var part in Model.PartsToReview.Take(15))
+        @if (Model.CanSeeProjects)
         {
-            <tr>
-                @* Parts have no read-only detail page - /Parts/Edit is the detail page - so the link needs Edit. *@
-                <td><strong>@if (Model.CanEditParts) { <a asp-page="/Parts/Edit" asp-route-id="@part.Id">@part.Name</a> } else { @part.Name }</strong>@if (!string.IsNullOrWhiteSpace(part.Sku)) { <br /><span class="muted">@part.Sku</span> }</td>
-                <td>@(string.IsNullOrWhiteSpace(part.Category) ? "—" : part.Category)</td>
-                <td>@(string.IsNullOrWhiteSpace(part.Location) ? "—" : part.Location)</td>
-                <td><span class="badge badge-warning">@part.QuantityOnHand in stock</span></td>
-            </tr>
+            <a class="metric metric-link" asp-page="/Projects" asp-route-view="mine"><span>My projects</span><strong>@Model.MyProjects.Count</strong><small>@(Model.ProjectsAwaitingAssignment > 0 ? $"{Model.ProjectsAwaitingAssignment} awaiting assignment" : "None awaiting assignment")</small></a>
         }
-        @if (Model.PartsToReview.Count == 0) { <tr><td colspan="4" class="empty">No parts need review right now.</td></tr> }
-        </tbody></table></div>
-        @if (Model.PartsToReview.Count > 15 && Model.CanSeePartsReport) { <p class="muted">Showing the 15 most urgent of @Model.PartsToReview.Count. <a asp-page="/Reports/Parts">See the full list in Reports</a>.</p> }
-        else if (Model.PartsToReview.Count > 15) { <p class="muted">Showing the 15 most urgent of @Model.PartsToReview.Count.</p> }
-    </section>
+    </div>
 }
 
 @if (Model.CanSeeTickets)
 {
     <section class="panel">
-        <div class="panel-heading">    <div><p class="eyebrow">RECENT ACTIVITY</p><h2>Tickets</h2></div><span class="badge">@Model.Tickets.Count total</span></div>
-        <div class="table-wrap"><table><thead><tr><th>Job</th><th>Requester</th><th>Asset</th><th>Technician</th><th>Priority</th><th>Status</th><th>Created</th><th>Last modified</th></tr></thead><tbody>
-        @foreach (var ticket in Model.Tickets) {
-            var user = Model.Users.FirstOrDefault(x => x.Id == ticket.RequesterId);
-            var tech = Model.Technicians.FirstOrDefault(x => x.Id == ticket.TechnicianId);
-            var linkedAssets = Model.Assets.Where(x => ticket.AssetIds.Contains(x.Id)).ToList();
-            <tr class="@(Model.CanOpenTicket ? "clickable-row" : null)" onclick="@(Model.CanOpenTicket ? $"window.location.href='/Job?number={ticket.Number}'" : null)" tabindex="0" onkeydown="@(Model.CanOpenTicket ? $"if(event.key==='Enter') window.location.href='/Job?number={ticket.Number}'" : null)"><td><strong>#@ticket.Number</strong><br /><span class="muted">@ticket.Title</span></td><td>@user?.Name</td><td>@(linkedAssets.Count == 0 ? "—" : string.Join(", ", linkedAssets.Select(a => $"{a.AssetTag} · {a.Model}")))</td><td>@tech?.Name</td><td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td><td><span class="status">@ticket.Status</span></td><td>@ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td><td>@ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td></tr>
+        <div class="panel-heading"><div><p class="eyebrow">YOUR WORK</p><h2>My tickets</h2></div>@if (Model.Me is not null) { <a class="button button-secondary" asp-page="/Jobs" asp-route-view="mine">All my tickets (@Model.MyTickets.Count)</a> }</div>
+        @if (Model.Me is null)
+        {
+            <p class="muted">@(Model.CanChangeWorkingAs ? "Choose who you are under Working as on the ticket list to see the tickets assigned to you here." : "Your account isn't linked to a technician record, so there are no tickets assigned to you.")</p>
         }
-        @if (Model.Tickets.Count == 0) { <tr><td colspan="8" class="empty">No tickets have been logged yet.</td></tr> }
-        </tbody></table></div>
+        else if (Model.MyTickets.Count == 0)
+        {
+            <p class="empty">Nothing assigned to @Model.Me.Name is open. <a asp-page="/Jobs" asp-route-view="unassigned">Pick something up from Unassigned</a>.</p>
+        }
+        else
+        {
+            <p class="muted dash-note">Assigned to @Model.Me.Name, most urgent first: overdue, then soonest due.</p>
+            <ul class="dash-list">@foreach (var ticket in Model.MyTickets.Take(IndexModel.MyTicketsSize)) { await TicketRow(ticket, false); }</ul>
+            @if (Model.MyTickets.Count > IndexModel.MyTicketsSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="mine">@(Model.MyTickets.Count - IndexModel.MyTicketsSize) more of yours →</a></p> }
+        }
     </section>
+
+    <div class="dash-grid">
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h2>Overdue &amp; due soon</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.DueTickets.Count</span></div>
+            @if (Model.DueTickets.Count == 0) { <p class="empty">Nothing is overdue or due within @Model.DueSoonHours hours.</p> }
+            else
+            {
+                <ul class="dash-list">@foreach (var ticket in Model.DueTickets.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
+                @if (Model.DueTickets.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="overdue">See all @Model.DueTickets.Count →</a></p> }
+            }
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">NEEDS AN OWNER</p><h2>Unassigned</h2></div><span class="badge">@Model.UnassignedTickets.Count</span></div>
+            @if (Model.UnassignedTickets.Count == 0) { <p class="empty">Every open ticket has a technician.</p> }
+            else
+            {
+                <ul class="dash-list">@foreach (var ticket in Model.UnassignedTickets.Take(IndexModel.PanelSize)) { await TicketRow(ticket, false); }</ul>
+                @if (Model.UnassignedTickets.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="unassigned">See all @Model.UnassignedTickets.Count →</a></p> }
+            }
+        </section>
+    </div>
+
+    <section class="panel" id="replies">
+        <div class="panel-heading"><div><p class="eyebrow">WAITING ON US</p><h2>Replies waiting</h2></div><span class="badge @(Model.RepliesWaiting.Count > 0 ? "badge-reply" : "")">@Model.RepliesWaiting.Count</span></div>
+        @if (Model.RepliesWaiting.Count == 0) { <p class="empty">No requester is waiting on an answer.</p> }
+        else
+        {
+            <p class="muted dash-note">The requester had the last word in the staff portal. Yours first, then whoever has waited longest.</p>
+            <ul class="dash-list">@foreach (var ticket in Model.RepliesWaiting.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
+            @if (Model.RepliesWaiting.Count > IndexModel.PanelSize) { <p class="muted dash-more">And @(Model.RepliesWaiting.Count - IndexModel.PanelSize) more - look for the Reply badge on the <a asp-page="/Jobs">ticket list</a>.</p> }
+        }
+    </section>
+}
+
+@if (Model.CanSeeProjects && (Model.MyProjects.Count > 0 || Model.ProjectsAwaitingAssignment > 0))
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">PROJECTS</p><h2>My projects</h2></div><a class="button button-secondary" asp-page="/Projects" asp-route-view="mine">All my projects</a></div>
+        @if (Model.MyProjects.Count == 0) { <p class="empty">No active projects are assigned to you.</p> }
+        else
+        {
+            <ul class="dash-list">
+                @foreach (var project in Model.MyProjects.Take(IndexModel.PanelSize))
+                {
+                    var late = project.IsOverdue(Model.Today);
+                    var soon = project.IsDueSoon(Model.Today);
+                    <li class="dash-row @(late ? "is-overdue" : soon ? "is-soon" : "")">
+                        <div class="dash-main">
+                            @if (Model.CanOpenProject) { <a asp-page="/Project" asp-route-number="@project.Number"><strong>@project.Reference</strong> @project.Title</a> } else { <span><strong>@project.Reference</strong> @project.Title</span> }
+                            <span class="muted">For @(Model.UserNames.GetValueOrDefault(project.RequesterId) ?? "unknown") · <span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span></span>
+                        </div>
+                        <div class="dash-side">
+                            <span class="status">@project.Status</span>
+                            <span class="badge @(late ? "badge-warning" : "")">@(late ? "Proposal late" : "Needed by") @project.DueDate.ToString("d MMM")</span>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        @if (Model.ProjectsAwaitingAssignment > 0) { <p class="muted dash-more"><a asp-page="/Projects" asp-route-view="unassigned">@Model.ProjectsAwaitingAssignment project@(Model.ProjectsAwaitingAssignment == 1 ? "" : "s") awaiting assignment →</a></p> }
+    </section>
+}
+
+@if (Model.CanSeeAssets || Model.CanSeeParts)
+{
+    <div class="dash-grid">
+        @if (Model.CanSeeAssets)
+        {
+            <section class="panel">
+                <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
+                <p class="muted dash-note">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and overdue loans.</p>
+                @if (Model.AssetsToReview.Count == 0) { <p class="empty">No assets need review right now.</p> }
+                else
+                {
+                    <ul class="dash-list">
+                        @foreach (var item in Model.AssetsToReview.Take(IndexModel.PanelSize))
+                        {
+                            <li class="dash-row">
+                                <div class="dash-main">
+                                    @if (Model.CanOpenAsset) { <a asp-page="/Asset" asp-route-id="@item.Asset.Id"><strong>@item.Asset.AssetTag</strong> @item.Asset.Make @item.Asset.Model</a> } else { <span><strong>@item.Asset.AssetTag</strong> @item.Asset.Make @item.Asset.Model</span> }
+                                    <span class="muted">@(Model.HolderName(item.Asset) ?? "Not held by anyone") · @item.Asset.Type</span>
+                                </div>
+                                <div class="dash-side dash-reasons">@foreach (var reason in item.Reasons) { <span class="badge @(reason.Overdue ? "badge-warning" : "")" title="@reason.Text">@reason.Kind</span> }</div>
+                            </li>
+                        }
+                    </ul>
+                    <p class="muted dash-more"><a asp-page="/Assets" asp-route-flag="review">Open all @Model.AssetsToReview.Count in the asset list →</a>@if (Model.CanSeeAssetReport) { <text> · </text><a asp-page="/Reports" asp-fragment="review">Report</a> }</p>
+                }
+            </section>
+        }
+        @if (Model.CanSeeParts)
+        {
+            <section class="panel">
+                <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Parts to reorder</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
+                <p class="muted dash-note">At or below their reorder threshold (default @Model.PartsReorderThreshold, or a part's own).</p>
+                @if (Model.PartsToReview.Count == 0) { <p class="empty">No parts need reordering right now.</p> }
+                else
+                {
+                    <ul class="dash-list">
+                        @foreach (var part in Model.PartsToReview.Take(IndexModel.PanelSize))
+                        {
+                            <li class="dash-row">
+                                <div class="dash-main">
+                                    @* Parts have no read-only detail page - /Parts/Edit is the detail page - so the link needs Edit. *@
+                                    @if (Model.CanEditParts) { <a asp-page="/Parts/Edit" asp-route-id="@part.Id"><strong>@part.Name</strong></a> } else { <strong>@part.Name</strong> }
+                                    <span class="muted">@(string.IsNullOrWhiteSpace(part.Category) ? "No category" : part.Category)@(string.IsNullOrWhiteSpace(part.Location) ? "" : " · " + part.Location)</span>
+                                </div>
+                                <div class="dash-side"><span class="badge badge-warning">@part.QuantityOnHand in stock</span></div>
+                            </li>
+                        }
+                    </ul>
+                    <p class="muted dash-more"><a asp-page="/Parts" asp-route-flag="low">Open all @Model.PartsToReview.Count in the parts list →</a>@if (Model.CanSeePartsReport) { <text> · </text><a asp-page="/Reports/Parts">Report</a> }</p>
+                }
+            </section>
+        }
+    </div>
 }

@@ -1,0 +1,29 @@
+@page
+@model EduHelpdesk.Pages.Settings.InventoryRulesModel
+@{ ViewData["Title"] = "Asset, part & loan rules"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Asset review</h2></div>
+    <p class="muted">The overview lists assets whose warranty ends, or that are due for replacement, within this many days, along with any already past. Overdue loans are always listed.</p>
+    <form method="post" asp-page-handler="SaveAssetReview" class="import-row"><label>Review window (days)<input name="days" type="number" min="0" max="3650" step="1" value="@Model.AssetReviewDays" required /></label><button class="button button-primary">Save</button></form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Academic year</h2></div>
+    <p class="muted">Which month your academic year starts in. The finance and audit report groups purchases and disposals by this, so a July purchase belongs to the year that started the previous September.</p>
+    <form method="post" asp-page-handler="SaveAcademicYear" class="import-row"><label>Starts in<select name="month">@foreach (var m in InventoryRulesModel.AcademicMonths) { <option value="@m.Month" selected="@(m.Month == Model.AcademicYearStartMonth)">@m.Name</option> }</select></label><button class="button button-primary">Save</button></form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Parts reorder threshold</h2></div>
+    <p class="muted">A part is flagged low in stock once its quantity on hand drops to this level or below. Any part can override it with its own threshold.</p>
+    <form method="post" asp-page-handler="SavePartsReorderThreshold" class="import-row"><label>Default reorder threshold<input name="threshold" type="number" min="0" step="1" value="@Model.PartsDefaultReorderThreshold" required /></label><button class="button button-primary">Save</button></form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Repeat borrowing</h2></div>
+    <p class="muted">The loan report flags anyone who has taken this many kits inside this many days, so a line manager can be given a short list worth following up. Reasons are managed on the <a asp-page="/Settings/LoanReasons">Loan reasons</a> page, and let genuine cases (supply cover, a device in repair) be told apart from repeatedly forgetting one.</p>
+    <form method="post" asp-page-handler="SaveLoanThreshold" class="import-row"><label>Flag after this many loans<input name="count" type="number" min="1" max="100" step="1" value="@Model.LoanRepeatCount" required /></label><label>Within this many days<input name="days" type="number" min="1" max="3650" step="1" value="@Model.LoanRepeatDays" required /></label><button class="button button-primary">Save</button></form>
+</section>

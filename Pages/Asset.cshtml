@@ -30,7 +30,7 @@
                 <label>Type<select name="type" required><option value="">Select a type</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@(string.Equals(type, Model.Asset.Type, StringComparison.OrdinalIgnoreCase))">@type</option> }</select></label>
                 <label>Serial number<input name="serialNumber" value="@Model.Asset.SerialNumber" /></label>
                 <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, Model.Asset.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
-                <label>Assigned user<select name="assignedUserId"><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" selected="@(user.Id == Model.Asset.AssignedUserId)">@user.Name</option> }</select></label>
+                <label>Assigned user<select name="assignedUserId" data-picker><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id == Model.Asset.AssignedUserId)">@user.Name</option> }</select></label>
                 <label>Supplier<select name="supplierId"><option value="">No supplier</option>@foreach (var supplier in Model.Suppliers) { <option value="@supplier.Id" selected="@(supplier.Id == Model.Asset.SupplierId)">@supplier.Name</option> }</select></label>
                 <label>Status<select name="status">@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Asset.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 @if (Model.Asset.LoanDueDate is { } onLoanUntil)
@@ -130,7 +130,7 @@
         {
             <form method="post" asp-page-handler="Loan" class="import-row">
                 <input type="hidden" name="id" value="@Model.Asset.Id" />
-                <label>Loan to<select name="userId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name</option> }</select></label>
+                <label>Loan to<select name="userId" required data-picker><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department">@user.Name</option> }</select></label>
                 @* Required, from the same list kit loans use, so this loan can be told apart in the repeat-borrower report. *@
                 <label>Reason<select name="reason" required><option value="">Choose a reason…</option>@foreach (var reason in Model.LoanReasons) { <option value="@reason">@reason</option> }</select></label>
                 <label>Due back<input name="dueBack" type="date" required /></label>

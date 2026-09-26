@@ -141,5 +141,8 @@ Not directly — priority is set by the IT team. If something has become genuine
 **I've fixed it myself / I don't need it any more.**
 Open the ticket and add a message saying so, and the team will close it.
 
+**Can I make it darker, or lighter?**
+Yes, just for the device you're using: at the bottom of every portal page, **Appearance** offers Light, Dark, or Match device, which follows your computer's or phone's own setting. Press the one you've chosen again to go back to the school's standard look.
+
 **Do I need a separate login for anything else?**
 No. This login only works for the staff portal. The full system that technicians use is a separate login that ordinary staff accounts do not have.

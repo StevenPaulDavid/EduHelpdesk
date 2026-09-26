@@ -22,6 +22,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Index");
     // The staff self-service portal - reachable with no login at all, by design (see the plan/README).
     options.Conventions.AllowAnonymousToFolder("/Portal");
+    // The footer's light/dark switch, which the portal and the sign-in page show too. It only sets a cookie.
+    options.Conventions.AllowAnonymousToPage("/Appearance");
 
     // A list page and its folder are two different things to ASP.NET: AuthorizeFolder("/Assets") matches /Assets/Add
     // but never /Assets itself. Assets, Parts and Suppliers were folder-only, which left their list pages - including

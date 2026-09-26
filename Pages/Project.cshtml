@@ -2,6 +2,7 @@
 @using EduHelpdesk.Models
 @using EduHelpdesk.Services
 @model ProjectModel
+@inject HelpdeskStore Helpdesk
 @{
     var project = Model.Project!;
     ViewData["Title"] = project.Reference;
@@ -547,7 +548,7 @@
                 <div class="related-row">
                     <div>
                         @if (Model.CanOpenTickets) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
-                        <span class="status">@ticket.Status</span>
+                        <span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span>
                     </div>
                     @if (Model.CanEdit)
                     {

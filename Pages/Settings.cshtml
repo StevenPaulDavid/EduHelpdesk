@@ -1,68 +1,59 @@
 @page
 @model SettingsModel
-@{ ViewData["Title"]="Settings"; }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / CONFIGURATION</p><h1>Settings</h1><p class="hero-copy">Manage the values used throughout the helpdesk.</p></div><a class="button button-secondary" asp-page="/Index">← Overview</a></div>
-@if(!string.IsNullOrWhiteSpace(Model.Message)){<div class="notice">@Model.Message</div>}
-@if (Model.HasDemoData)
+@{ ViewData["Title"] = "Settings"; }
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / CONFIGURATION</p><h1>Settings</h1><p class="hero-copy">Everything the helpdesk can be set up to do, grouped by what it's about.</p></div><a class="button button-secondary" asp-page="/Index">← Overview</a></div>
+
+@if (!Model.CanEdit)
 {
-<section class="panel"><div class="panel-heading"><h2>Go live</h2><span class="badge">Demo data present</span></div>
-<p class="muted">This system started with a worked example so it could be shown to people before it was used for real. Going live removes those records and leaves you with an empty helpdesk to put your own data into. Anything you have added yourself is left alone, and so are the option list values the example needed (departments, makes, part categories) - delete any of those you don't want from their own pages below.</p>
-<p class="muted import-hint">Check the list first: if you have renamed one of these into a real record, it will still be removed.</p>
-<div class="table-wrap"><table><thead><tr><th>Type</th><th>Record</th></tr></thead><tbody>
-@foreach (var item in Model.DemoRecords) { <tr><td>@item.Kind</td><td>@item.Name</td></tr> }
-</tbody></table></div>
-<form method="post" asp-page-handler="RemoveDemoData" onsubmit="return confirm('Remove the demo records and go live? This cannot be undone.');">
-    <button class="button button-danger" type="submit">Go live - remove demo data</button>
-</form></section>
+    <div class="notice">Your role can see what's here, but not change it. Ask an administrator if something needs setting up differently.</div>
 }
-@{ var backups = Model.Backups; }
-<section class="panel"><div class="panel-heading"><h2>Backups &amp; data</h2>@if (backups.NeedsAttention(DateTime.UtcNow)) { <span class="badge badge-warning">Needs attention</span> } else { <span class="badge">@(backups.Enabled ? "Nightly" : "Off")</span> }</div>
-<p class="muted">@(backups.LastSuccessAt is { } lastBackup ? $"Last backup {lastBackup.ToLocalTime():dddd d MMM, HH:mm} - {backups.LastSummary}." : "No backup has been made yet.")@(backups.LastError.Length > 0 ? $" The last attempt failed: {backups.LastError}" : "")@(Model.DataSyncedBy is { } synced ? $" The data folder is inside {synced}, which can corrupt a live database - see Backups & data for how to move it." : "")</p>
-<div class="settings-links"><a class="button button-secondary" asp-page="/Settings/Backups">Backups &amp; data</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>Sign-in security</h2>@if (Model.IsHttps) { <span class="badge">HTTPS</span> } else { <span class="badge badge-warning">Not encrypted</span> }</div>
-<p class="muted">@(Model.IsHttps ? "This page came over HTTPS, so passwords and tickets are encrypted on their way across the network." : "This page came over plain http://, so from any other computer, passwords and tickets cross the network unencrypted. Once the helpdesk has a certificate, set EduHelpdesk:RequireHttps to true in appsettings.json - see the README.")</p>
-<p class="muted">An account is locked for @((int)EduHelpdesk.Services.SignInThrottle.Window.TotalMinutes) minutes after @EduHelpdesk.Services.SignInThrottle.AccountLimit wrong passwords, and a computer after @EduHelpdesk.Services.SignInThrottle.AddressLimit. Setting someone a new password unlocks them at once. @(Model.RecentLockouts == 0 ? "There have been no lockouts in the last 7 days." : $"{Model.RecentLockouts} lockout{(Model.RecentLockouts == 1 ? "" : "s")} in the last 7 days.")</p>
-@if (Model.RecentLockouts > 0) { <div class="settings-links"><a class="button button-secondary" asp-page="/Settings/Audit" asp-route-section="Sign-in">See lockouts in the audit log</a></div> }
-</section><section class="panel"><h2>Branding</h2><form method="post" asp-page-handler="SaveBranding" class="settings-form branding-form"><label>Brand name<input asp-for="Branding.BrandName" /></label><label>Dashboard eyebrow<input asp-for="Branding.DashboardEyebrow" /></label><label>Dashboard title<input asp-for="Branding.DashboardTitle" /></label><label>Dashboard description<textarea asp-for="Branding.DashboardDescription" rows="3"></textarea></label><div class="color-grid"><label>Primary colour<input asp-for="Branding.PrimaryColor" pattern="^#[0-9A-Fa-f]{6}$" /></label><label>Accent colour<input asp-for="Branding.AccentColor" pattern="^#[0-9A-Fa-f]{6}$" /></label><label>Background colour<input asp-for="Branding.BackgroundColor" pattern="^#[0-9A-Fa-f]{6}$" /></label></div><label class="toggle-label"><input asp-for="Branding.DarkMode" /> Enable dark mode</label><button class="button button-primary">Save branding</button></form></section><section class="panel" id="logo"><div class="panel-heading"><div><h2>School logo</h2></div>@if (Model.LogoVersion is not null) { <span class="badge">Logo uploaded</span> }</div>
-    <p class="muted">Shown in the header on every page (including sign-in and the staff portal), on printed tickets and on report print-outs, in place of the initials badge. PNG only, up to @(EduHelpdesk.Services.HelpdeskStore.MaxLogoBytes / 1024) KB. A transparent background works best, and it is shown about 40 pixels tall, so a simple crest or badge reads better than a wide banner.</p>
-    <div class="logo-settings">
-        <div class="logo-preview">@if (Model.LogoVersion is { } version) { <img src="@Url.Content("~/branding/logo")?v=@version" alt="Current school logo" /> } else { <span class="brand-mark">EH</span><span class="muted">No logo yet</span> }</div>
-        <form method="post" enctype="multipart/form-data" asp-page-handler="UploadLogo" class="import-row"><label>@(Model.LogoVersion is null ? "Logo file (.png)" : "Replace with (.png)")<input asp-for="Logo" type="file" accept="image/png,.png" required /></label><button class="button button-primary">@(Model.LogoVersion is null ? "Upload logo" : "Replace logo")</button></form>
-        @if (Model.LogoVersion is not null) { <form method="post" asp-page-handler="RemoveLogo" onsubmit="return confirm('Remove the logo and go back to the initials badge?');"><button class="button button-secondary">Remove logo</button></form> }
-    </div>
-</section>
-<section class="panel"><div class="panel-heading"><h2>Directory and asset options</h2></div><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/Teams">Teams</a><a class="button button-secondary" asp-page="/Settings/Departments">Departments</a><a class="button button-secondary" asp-page="/Settings/Locations">Locations</a><a class="button button-secondary" asp-page="/Settings/AssetTypes">Asset types</a><a class="button button-secondary" asp-page="/Settings/AssetMakes">Asset makes</a><a class="button button-secondary" asp-page="/Settings/AssetModels">Asset models</a><a class="button button-secondary" asp-page="/Settings/AssetStatuses">Asset statuses</a><a class="button button-secondary" asp-page="/Settings/AssetAttributes">Custom asset attributes</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>Asset review</h2></div><p class="muted">The overview lists assets whose warranty ends, or that are due for replacement, within this many days, along with any already past. Overdue loans are always listed.</p><form method="post" asp-page-handler="SaveAssetReview" class="import-row"><label>Review window (days)<input name="days" type="number" min="0" max="3650" step="1" value="@Model.AssetReviewDays" required /></label><button class="button button-primary">Save</button></form></section>
-<section class="panel"><div class="panel-heading"><h2>Academic year</h2></div><p class="muted">Which month your academic year starts in. The finance and audit report groups purchases and disposals by this, so a July purchase belongs to the year that started the previous September.</p><form method="post" asp-page-handler="SaveAcademicYear" class="import-row"><label>Starts in<select name="month">@foreach (var m in SettingsModel.AcademicMonths) { <option value="@m.Month" selected="@(m.Month == Model.AcademicYearStartMonth)">@m.Name</option> }</select></label><button class="button button-primary">Save</button></form></section>
-<section class="panel"><div class="panel-heading"><h2>Ticket queues</h2></div><p class="muted">The Overdue / due soon queue on the ticket list shows open tickets that are past their due date, or due within this many hours. Overdue tickets are always included.</p><form method="post" asp-page-handler="SaveTicketDueSoon" class="import-row"><label>Due soon window (hours)<input name="hours" type="number" min="0" max="720" step="1" value="@Model.TicketDueSoonHours" required /></label><button class="button button-primary">Save</button></form>
-<p class="muted">When the requester replies in the staff portal to a ticket that was closed within this many days, it reopens so the team see it. After that, the portal asks them to report it again as a new ticket, linked to the old one. 0 means a closed ticket never reopens. Which statuses stop the SLA clock is set on the <a asp-page="/Settings/Statuses">Statuses</a> page.</p>
-<form method="post" asp-page-handler="SaveReopenWindow" class="import-row"><label>Replies reopen closed tickets for (days)<input name="days" type="number" min="0" max="@EduHelpdesk.Services.HelpdeskStore.MaxReopenWindowDays" step="1" value="@Model.ReopenWindowDays" required /></label><button class="button button-primary">Save</button></form></section>
-<section class="panel"><div class="panel-heading"><h2>Parts inventory</h2></div><p class="muted">A part is flagged low in stock once its quantity on hand drops to this level or below. Any part can override it with its own threshold.</p><form method="post" asp-page-handler="SavePartsReorderThreshold" class="import-row"><label>Default reorder threshold<input name="threshold" type="number" min="0" step="1" value="@Model.PartsDefaultReorderThreshold" required /></label><button class="button button-primary">Save</button></form><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/PartCategories">Part categories</a><a class="button button-secondary" asp-page="/Settings/PartLocations">Part locations</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>Loan kits</h2></div><p class="muted">The loan report flags anyone who has taken this many kits inside this many days, so a line manager can be given a short list worth following up. Reasons are managed separately, and let genuine cases (supply cover, a device in repair) be told apart from repeatedly forgetting one.</p><form method="post" asp-page-handler="SaveLoanThreshold" class="import-row"><label>Flag after this many loans<input name="count" type="number" min="1" max="100" step="1" value="@Model.LoanRepeatCount" required /></label><label>Within this many days<input name="days" type="number" min="1" max="3650" step="1" value="@Model.LoanRepeatDays" required /></label><button class="button button-primary">Save</button></form><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/LoanReasons">Loan reasons</a><a class="button button-secondary" asp-page="/Reports/Loans">Loan report</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>Projects</h2></div><p class="muted">The spending bands every project shows for reference, and the purchasing requirements a line manager can tick when they request a project from the staff portal. Who can request one, and who is the project lead that assigns them from the portal, are ticks on each person in People. The "Assign projects" tick on a role lets helpdesk staff reassign as a backup.</p><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/SpendingBands">Spending bands</a><a class="button button-secondary" asp-page="/Settings/PurchasingRequirements">Purchasing requirements</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>Ticket options</h2></div><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/Categories">Categories</a><a class="button button-secondary" asp-page="/Settings/Statuses">Statuses</a><a class="button button-secondary" asp-page="/Settings/Priorities">Priorities</a><a class="button button-secondary" asp-page="/Settings/TicketAttributes">Ticket custom attributes</a><a class="button button-secondary" asp-page="/Settings/Slas">SLAs</a><a class="button button-secondary" asp-page="/Settings/SchoolDay">School day and periods</a><a class="button button-secondary" asp-page="/Settings/TicketTemplates">Ticket templates</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>System audit</h2></div><p class="muted">A filterable record of every change made in the helpdesk: tickets, assets, people, suppliers, parts, lists, SLAs, custom attributes and settings.</p><div class="settings-links"><a class="button button-secondary" asp-page="/Settings/Audit">Open the audit log</a></div></section>
-<section class="panel"><div class="panel-heading"><h2>Closing requirements</h2></div><p class="muted">Tick a priority or category to require technicians to enter a closing message before a matching ticket can be marked closed. Everything else can still be closed with one click.</p><form method="post" asp-page-handler="SaveCloseRequirements" class="settings-form"><div class="checkbox-grid"><div><p class="eyebrow">Priorities requiring a message</p>@foreach (var priority in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@priority" checked="@Model.RequireCloseMessagePriorities.Contains(priority, StringComparer.OrdinalIgnoreCase)" /> @priority</label> }@if (Model.Priorities.Count == 0) { <p class="empty">No priorities configured yet.</p> }</div><div><p class="eyebrow">Categories requiring a message</p>@foreach (var category in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="categories" value="@category" checked="@Model.RequireCloseMessageCategories.Contains(category, StringComparer.OrdinalIgnoreCase)" /> @category</label> }@if (Model.Categories.Count == 0) { <p class="empty">No categories configured yet.</p> }</div></div><button class="button button-primary" type="submit">Save closing requirements</button></form></section>
-<section class="panel"><div class="panel-heading"><h2>Ticket print template</h2>@if(Model.HasPrintTemplate){<span class="badge">Template uploaded</span>}</div><p class="muted">Upload a Word (.docx) document to control how tickets look when printed. Use placeholders such as <code>{{Job.Number}}</code>, <code>{{Job.Title}}</code>, <code>{{Job.Status}}</code>, <code>{{Job.Comments}}</code> (comments only, never internal notes), <code>{{Requester.Name}}</code>, <code>{{Technician.Name}}</code> and <code>{{Asset.Tag}}</code> in the document — they'll be replaced with each ticket's actual details when printed.</p><form method="post" enctype="multipart/form-data" asp-page-handler="UploadPrintTemplate" class="import-row"><label>Template file (.docx)<input asp-for="PrintTemplate" accept=".docx"/></label><button class="button button-primary">Upload template</button></form></section>
-<section class="panel"><h2>Imports</h2>
-<p class="muted">Assets are imported on their own page, with column matching and a preview: <a asp-page="/Assets/Import">Import assets from a CSV file</a>.</p>
-<p class="muted">Users CSV columns, in order, with a header row: <code>Name, Email, Department, Location</code></p>
-<form method="post" enctype="multipart/form-data" asp-page-handler="ImportUsers" class="import-row"><label>Users CSV<input asp-for="UserCsv"/></label><button class="button button-primary">Import users</button><a class="button button-secondary" asp-page="/Settings" asp-page-handler="UserImportTemplate">Download template</a></form>
-<p class="muted">Technicians CSV columns, in order, with a header row: <code>Name, Email, Team, Role</code>. Role is optional and defaults to Technician; it must match the name of an existing role (see the Roles panel on the People page). Imported accounts have no password until someone sets one from the People page.</p>
-<form method="post" enctype="multipart/form-data" asp-page-handler="ImportTechnicians" class="import-row"><label>Technicians CSV<input asp-for="TechnicianCsv"/></label><button class="button button-primary">Import technicians</button><a class="button button-secondary" asp-page="/Settings" asp-page-handler="TechnicianImportTemplate">Download template</a></form>
-<p class="muted">List CSVs have one column, <code>Name</code>, with a header row and one value per row. Asset models also take an optional second column, <code>Make</code>, to link each model to its make; a make that doesn't exist yet is created, and a model that already exists without a make is linked to it. Blank rows and values that already exist are skipped. Each template includes example rows, so replace them with your own before importing.</p>
-@foreach (var list in SettingsModel.ImportLists)
+@* Anything that is putting the school's data at risk comes first, not buried in its group. *@
+@if (Model.CanEdit && Model.Backups.NeedsAttention(DateTime.UtcNow))
 {
-<form method="post" enctype="multipart/form-data" asp-page-handler="ImportOptions" class="import-row"><input type="hidden" name="kind" value="@list.Kind" /><label>@list.Label CSV<input type="file" name="optionCsv" accept=".csv" required /></label><button class="button button-primary">Import @list.Label.ToLowerInvariant()</button><a class="button button-secondary" asp-page="/Settings" asp-page-handler="OptionImportTemplate" asp-route-kind="@list.Kind">Download template</a></form>
+    <div class="notice notice-warning"><strong>Backups need attention.</strong> @(Model.Backups.LastError.Length > 0 ? $"The last attempt failed: {Model.Backups.LastError}" : Model.Backups.Enabled ? "The last successful backup is more than a day old." : "Automatic backups are switched off.") <a asp-page="/Settings/Backups">Backups &amp; data</a></div>
 }
-</section>
-<section class="panel danger-zone"><div class="panel-heading"><h2>Reset to factory settings</h2></div>
-<p>This erases <strong>everything</strong> and puts the helpdesk back to how a new install starts: all tickets, comments and history, assets and loans, users, technicians, suppliers and parts, SLAs, custom attributes, every list you added to (teams, departments, locations, asset types, makes, models, statuses, categories and priorities), the print template, attached files, and your branding and review settings. Only the small demo set that a new install comes with is left. <strong>This cannot be undone</strong> unless you keep the backup below.</p>
-<form method="post" asp-page-handler="ResetFactory" class="settings-form" onsubmit="return confirm('Erase all helpdesk data and reset to factory settings? This cannot be undone.');">
-    <label class="toggle-label"><input type="checkbox" name="keepBackup" value="true" checked /> Save a backup copy of the current data first</label>
-    <p class="muted import-hint">Saved as a backup zip in <code>@Model.BackupFolder</code>, restored the same way as any other backup (see <a asp-page="/Settings/Backups">Backups &amp; data</a>). Untick this to leave no new copy behind - the nightly backups already in that folder are not deleted by a reset, and age out on their own.</p>
-    <label class="toggle-label"><input type="checkbox" name="eraseAudit" value="true" /> Also erase the audit log</label>
-    <p class="muted import-hint">Off by default: the audit log is kept, and the reset is recorded in it.</p>
-    <label>Type <strong>DELETE</strong> to confirm<input name="confirmation" autocomplete="off" required /></label>
-    <button class="button button-danger" type="submit">Erase everything and reset</button>
-</form></section>
+@if (Model.CanEdit && Model.DataSyncedBy is { } synced)
+{
+    <div class="notice notice-warning"><strong>The data folder is inside @synced,</strong> which can corrupt a live database. <a asp-page="/Settings/Backups">See Backups &amp; data</a> for how to move it.</div>
+}
+@if (!Model.IsHttps)
+{
+    <div class="notice notice-warning"><strong>Not encrypted.</strong> This page came over plain http://, so from any other computer, passwords and tickets cross the network unencrypted. Once the helpdesk has a certificate, set EduHelpdesk:RequireHttps to true in appsettings.json - see the README.</div>
+}
+
+<div class="settings-find">
+    <label for="settings-find">Find a setting</label>
+    <input id="settings-find" type="search" placeholder="e.g. logo, reorder, SLA, dark" autocomplete="off" />
+    <p class="muted" id="settings-find-none" hidden>Nothing matches that. Try a different word.</p>
+</div>
+
+@foreach (var group in Model.Groups)
+{
+    <section class="settings-group">
+        <h2 class="section-heading">@group.Title</h2>
+        <div class="settings-cards">
+            @foreach (var card in group.Cards)
+            {
+                var badgeClass = card.Warn ? "badge badge-warning" : "badge";
+                if (card.Open)
+                {
+                    <a class="settings-card" asp-page="@card.Page" asp-all-route-data="@(card.Route ?? new Dictionary<string, string>())" data-keywords="@card.Keywords">
+                        <span class="settings-card-title"><strong>@card.Title</strong>@if (card.Badge is not null) { <span class="@badgeClass">@card.Badge</span> }</span>
+                        <small>@card.Description</small>
+                    </a>
+                }
+                else
+                {
+                    <div class="settings-card is-locked" data-keywords="@card.Keywords">
+                        <span class="settings-card-title"><strong>@card.Title</strong>@if (card.Badge is not null) { <span class="@badgeClass">@card.Badge</span> }</span>
+                        <small>@card.Description</small>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+}
+
+@section Scripts {
+<script src="~/js/settings-find.js" asp-append-version="true"></script>
+}

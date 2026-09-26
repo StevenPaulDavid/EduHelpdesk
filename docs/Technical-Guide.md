@@ -82,10 +82,10 @@ You will be forced to change the password immediately. Do it properly — this a
 
 After signing in, work through:
 
-1. **Settings → Branding** — set the school name and colours.
-2. **Settings → Directory and asset options** — set up Teams, Departments and Locations before importing people.
-3. **People** — add technician accounts and import your staff list.
-4. **Settings → Ticket options** — adjust Categories, Priorities, Statuses and add SLAs.
+1. **Settings → Branding & logo** — set the school name, colours, logo and default appearance.
+2. **Settings → Teams, Departments and Locations** — set these up before importing people.
+3. **People** — add technician accounts, and import your staff list from **Settings → Imports**.
+4. **Settings → Categories, Priorities, Statuses and SLAs** — adjust them to how your team works.
 5. Delete the demo records (Alex Morgan, Jordan Lee, asset LT-1001) once you have real data in.
 
 ---
@@ -155,7 +155,11 @@ There is no self-service "forgotten password" reset, because there is no email. 
 
 ## 5. Tickets
 
-**Tickets** in the top nav (`/Jobs`) is the main working list.
+**Tickets** in the top nav (`/Jobs`) is the main working list. The **Overview** (the home page) is the day's starting point: counts of your open tickets, overdue, unassigned and replies waiting (each opens its queue), then short lists of your tickets (most urgent first), overdue and due soon, unassigned, requesters waiting on a reply, your projects, and the asset and parts review lists. "Your" follows Working as, the same as the My tickets queue. Each panel only appears for a role allowed that module.
+
+Ticket statuses are coloured by what they do rather than their name, here and in the staff portal: the first status in the list (where new tickets start), statuses that stop the SLA clock (waiting), Closed, and everything else (being worked on).
+
+Long dropdowns - requesters, assets, borrowers - are search boxes: type any part of a name, email, department, asset tag, model or serial and pick from the matches. A box for several assets keeps the chosen ones as chips, each with a × to remove it.
 
 ### Queues
 
@@ -171,12 +175,12 @@ Five tabs across the top:
 
 **"Working as"** sets which technician you are logging work as. It defaults to your own account; only a role with the "Change Working as" permission can set it to someone else.
 
-The "due soon" window is configured in **Settings → Ticket queues** (default 24 hours).
+The "due soon" window is configured in **Settings → Ticket queues & closing** (default 24 hours).
 
 ### Finding tickets
 
 - **Search** covers title, description, comments, requester, asset tag and ticket number.
-- **Filters**: status, type, priority and category (multi-select checkboxes); technician (including Me and Unassigned), team, requester, department and location (dropdowns).
+- **Filters**: status, type, priority and category (multi-select checkboxes); technician (including Me and Unassigned), team, requester, department and location (dropdowns). They sit in a **More filters** panel that starts folded, so the list begins near the top of the screen. Every filter in force is shown as a chip under the search box; the × on a chip takes just that one off, and **Clear all** takes them all off.
 - **Sort** by clicking any column header; click again to reverse.
 - **Paging** at 25/50/100/200 per page.
 - **Asset filter**: reached by clicking the ticket count on the Assets list or from an asset's page; shows as a removable chip.
@@ -241,7 +245,7 @@ On the ticket page, the due date carries an **Overdue**, **Due in…** or **SLA 
 
 ### Closing requirements
 
-**Settings → Closing requirements** lets you force a closing message before a ticket can be marked closed, per priority and per category. Everything else closes in one click.
+**Settings → Ticket queues & closing** lets you force a closing message before a ticket can be marked closed, per priority and per category. Everything else closes in one click.
 
 ---
 
@@ -269,7 +273,7 @@ Set an expected lifespan in years per asset type (**Settings → Asset types**).
 
 ### The review list
 
-The Overview page and the asset reports both show **Assets to review** — anything whose warranty ends or replacement falls due within the review window (or has already passed), plus overdue loans. The window is set in **Settings → Asset review** (default 60 days).
+The Overview page and the asset reports both show **Assets to review** — anything whose warranty ends or replacement falls due within the review window (or has already passed), plus overdue loans. The window is set in **Settings → Asset, part & loan rules** (default 60 days).
 
 ### List and bulk actions
 
@@ -310,13 +314,13 @@ Rules worth knowing:
 
 Name (the only required field), SKU, category, location/bin, quantity on hand, reorder threshold, suppliers (optional, several allowed) and compatible asset types (optional).
 
-Categories and locations are managed lists, set up in **Settings → Parts inventory → Part categories / Part locations**. Part locations are deliberately separate from the building-level Locations list used by people and assets, because they describe shelves and cupboards rather than rooms.
+Categories and locations are managed lists, set up in **Settings → Part categories** and **Settings → Part locations**. Part locations are deliberately separate from the building-level Locations list used by people and assets, because they describe shelves and cupboards rather than rooms.
 
 A duplicate SKU is allowed but warns.
 
 ### Low stock
 
-A part is **low** when its quantity on hand is at or below its reorder threshold. Each part can set its own threshold; anything left blank uses the default in **Settings → Parts inventory** (default 5).
+A part is **low** when its quantity on hand is at or below its reorder threshold. Each part can set its own threshold; anything left blank uses the default in **Settings → Asset, part & loan rules** (default 5).
 
 Low parts surface in three places, all using the same rule:
 
@@ -366,19 +370,19 @@ Every part at or below its reorder threshold, with quantity against threshold, p
 
 ## 9. Settings reference
 
-| Area | What it covers |
+**Settings** is an index: one card per settings page, in five groups, with a **Find a setting** box that narrows the cards as you type (Enter opens the only match). Anything that needs attention is flagged at the top and on its card: failing backups, an unencrypted connection, demo data still present.
+
+| Group | Pages |
 |---|---|
-| Branding | School name, dashboard wording, colours, dark mode |
-| Directory and asset options | Teams, Departments, Locations, Asset types (and lifespans), Makes, Models, Asset statuses, Custom asset attributes |
-| Asset review | How many days ahead the review list looks (default 60) |
-| Ticket queues | The "due soon" window in hours (default 24) |
-| Parts inventory | Default reorder threshold, Part categories, Part locations |
-| Ticket options | Categories, Statuses, Priorities, Custom ticket attributes, SLAs, Ticket templates |
-| System audit | The filterable log of every change |
-| Closing requirements | Which priorities/categories need a closing message |
-| Ticket print template | Upload a Word .docx template |
-| Imports | Users, technicians and option lists by CSV |
-| Reset to factory settings | Wipe everything back to a new install |
+| Tickets | **Ticket queues & closing** (the "due soon" window, default 24 hours; how long replies reopen closed tickets, default 14 days; which priorities/categories need a closing message; the Word print template), Statuses, Categories, Priorities, SLAs, School day and periods, Ticket templates, Ticket custom attributes |
+| Assets & inventory | **Asset, part & loan rules** (asset review window, default 60 days; academic year start; default reorder threshold, default 5; repeat-borrowing flag), Asset types (and lifespans), Makes, Models, Asset statuses, Custom asset attributes, Part categories, Part locations, Loan reasons |
+| People & places | Teams, Departments, Locations, **Imports** (users, technicians and option lists by CSV) |
+| Projects | Spending bands, Purchasing requirements |
+| System | **Branding & logo** (school name, overview wording, colours, logo, default appearance), Backups & data, Sign-in security (links to the lockouts in the audit log), Audit log, **Go live & reset** (remove the demo data; factory reset) |
+
+**Who can change what.** Opening the Settings index needs Settings: Access. Every page behind it needs Settings: Edit, except the audit log, which has its own permission. A role with Access alone sees the cards but no links, and the index itself has no forms to post.
+
+**Light and dark.** Each browser chooses for itself from the **Appearance** switch at the bottom of every page, including the staff portal and the sign-in page: Light, Dark, or Match device, which follows the computer's or phone's own setting. The choice is a cookie on that device, so a technician's laptop and the staffroom PC can differ. Pressing the chosen one again goes back to the school's default, set in **Branding & logo** (a new install uses Match device; an upgraded install keeps the look it had). In dark, the branding background and accent are replaced with dark ones and the primary colour is lightened for text, so any school colour stays readable. Printing is always light.
 
 ### Managed lists behave consistently
 
@@ -403,7 +407,7 @@ Once signed in with their email and password, staff can:
 They cannot see internal notes, anyone else's tickets, or any of the technician-side pickers (requester, technician, team, SLA, asset). It is deliberately minimal.
 
 - **Files.** Staff can attach up to 3 files (10 MB each, the same types as the helpdesk accepts) to a new ticket or a reply. On the ticket page these show as **From the requester**. A technician's own attachments stay private unless they tick **Share with the requester** when uploading, or use **Share with requester** on the file later. The portal only ever lists the requester's files and shared ones.
-- **Replies to closed tickets.** A reply reopens a closed ticket for 14 days after it closed (**Settings → Ticket queues**; 0 turns reopening off). After that the portal offers **Report it again** instead. That raises a new ticket, pre-filled from the old one and linked to it as related.
+- **Replies to closed tickets.** A reply reopens a closed ticket for 14 days after it closed (**Settings → Ticket queues & closing**; 0 turns reopening off). After that the portal offers **Report it again** instead. That raises a new ticket, pre-filled from the old one and linked to it as related.
 - **Who has the last word.**
   - A **Reply** badge on the Tickets list marks an open ticket whose latest public message came from the requester.
   - In the portal, **New reply** marks a ticket with a message from IT, or a status change, that the requester hasn't opened yet. The home page counts them.
@@ -458,7 +462,7 @@ Three options on the ticket page:
 
 ### Word templates
 
-Upload a `.docx` at **Settings → Ticket print template**. Placeholders are replaced with the ticket's details:
+Upload a `.docx` at **Settings → Ticket queues & closing**. Placeholders are replaced with the ticket's details:
 
 `{{Job.Number}}`, `{{Job.Title}}`, `{{Job.Status}}`, `{{Job.Comments}}` (public comments only), `{{Requester.Name}}`, `{{Technician.Name}}`, `{{Asset.Tag}}`
 
@@ -466,7 +470,7 @@ Upload a `.docx` at **Settings → Ticket print template**. Placeholders are rep
 
 ## 13. The audit log
 
-**Settings → System audit** records every change made in the system: tickets, assets, parts, people, suppliers, lists, SLAs, custom attributes and settings. Filter by area, action, date or free text.
+**Settings → Audit log** records every change made in the system: tickets, assets, parts, people, suppliers, lists, SLAs, custom attributes and settings. Filter by area, action, date or free text.
 
 It works by snapshotting the data before and after each save and recording the differences, so any new action is audited automatically without having to log itself. Ticket and asset history and comments, and parts stock adjustments, are folded into the same view.
 
@@ -476,7 +480,7 @@ It works by snapshotting the data before and after each save and recording the d
 
 ## 14. Factory reset
 
-**Settings → Reset to factory settings** erases everything and returns the system to a new install: all tickets, assets, people, suppliers, parts, SLAs, custom attributes, every list you added to, the print template, attachments, and branding. Only the small demo set a new install ships with remains.
+**Settings → Go live & reset** erases everything and returns the system to a new install: all tickets, assets, people, suppliers, parts, projects, SLAs, custom attributes, every list you added to, the print template, attachments, and branding. Only the small demo set a new install ships with remains.
 
 You must type `DELETE` in capitals to confirm. By default it:
 

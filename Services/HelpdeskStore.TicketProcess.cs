@@ -20,6 +20,20 @@ public sealed partial class HelpdeskStore
 
     public IReadOnlyList<string> SlaPauseStatuses { get { lock (_sync) return _data.SlaPauseStatuses.ToList(); } }
     public bool PausesSla(string? status) { lock (_sync) return PausesSlaCore(status); }
+
+    // How a status is coloured wherever it is shown (.status-new/-active/-waiting/-closed in site.css). Statuses are
+    // the school's own list, so the tone comes from what a status does rather than its name: Closed is done, one that
+    // stops the SLA clock is waiting on something, the first in the list is where new tickets start, and anything
+    // else is being worked on.
+    public string StatusTone(string? status)
+    {
+        lock (_sync)
+        {
+            if (string.Equals(status, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase)) return "closed";
+            if (PausesSlaCore(status)) return "waiting";
+            return string.Equals(status, _data.Statuses.FirstOrDefault(), StringComparison.OrdinalIgnoreCase) ? "new" : "active";
+        }
+    }
     private bool PausesSlaCore(string? status) =>
         !string.IsNullOrWhiteSpace(status) && !IsBuiltInStatus(status) && _data.SlaPauseStatuses.Contains(status, StringComparer.OrdinalIgnoreCase);
 

@@ -25,7 +25,7 @@
     <div class="form-section">
         <h2>The issue</h2>
         <div class="form-grid compact">
-            <label>Requester<select asp-for="Ticket.RequesterId" required><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id">@user.Name · @user.Department</option> }</select></label>
+            <label>Requester<select asp-for="Ticket.RequesterId" required data-picker data-picker-placeholder="Type a name, email or department…"><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Location">@user.Name · @user.Department</option> }</select></label>
             <label>Ticket title<input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
             <label class="full">Description<textarea asp-for="Ticket.Description" rows="7" placeholder="Symptoms, checks already completed, and next action…"></textarea></label>
         </div>
@@ -37,7 +37,7 @@
             <label>Priority<select asp-for="Ticket.Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
             <label>Category<select asp-for="Ticket.Category" id="ticket-category-select" onchange="filterTicketAttributes(this.value)">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
             <label>Location<select asp-for="Ticket.Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
-            <label>Assets<select asp-for="Ticket.AssetIds" multiple size="5">@foreach (var asset in Model.Assets) { <option value="@asset.Id">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><small>Hold Ctrl (Windows) or Cmd (Mac) to link more than one asset. Leave unselected for a general request.</small></label>
+            <label>Assets<select asp-for="Ticket.AssetIds" multiple size="5" data-picker data-picker-placeholder="Type an asset tag, model or serial…">@foreach (var asset in Model.Assets) { <option value="@asset.Id" data-search="@asset.Make @asset.SerialNumber">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><small>Link as many as the job involves, or none for a general request.</small></label>
         </div>
     </div>
     <div class="form-section">

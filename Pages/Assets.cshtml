@@ -18,7 +18,7 @@
         <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
         <label>Make<select name="make"><option value="">Any make</option>@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@string.Equals(item, Model.Make, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
         <label>Location<select name="location"><option value="">Any location</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No location)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Held by<select name="holder"><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
+        <label>Held by<select name="holder" data-picker><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
         <label>Show<select name="flag"><option value="">All assets</option><option value="review" selected="@(Model.Flag == "review")">Needs review</option><option value="loan" selected="@(Model.Flag == "loan")">On loan</option><option value="overdue" selected="@(Model.Flag == "overdue")">Loan overdue</option></select></label>
         <label>Per page<select name="size">@foreach (var size in AssetsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
         <input type="hidden" name="sort" value="@(Model.Sort == "tag" ? "" : Model.Sort)" />
@@ -84,7 +84,7 @@
                 @if (Model.CanEdit)
                 {
                     <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>
-                    <label id="bulk-owner-field" hidden>New owner<select name="newOwner" disabled><option value="none">Nobody (unassigned)</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label>
+                    <label id="bulk-owner-field" hidden>New owner<select name="newOwner" disabled data-picker><option value="none">Nobody (unassigned)</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label>
                     <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@AssetListQuery.None">No location</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
                 }
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
