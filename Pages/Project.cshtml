@@ -137,6 +137,10 @@
                         <p class="project-total">Chosen quotes: <strong>@HelpdeskStore.FormatMoney(chosenTotals.TermIncVat)</strong> inc. VAT over the term · @HelpdeskStore.FormatMoney(chosenTotals.FirstYearIncVat) in the first year <span class="muted">(@HelpdeskStore.FormatMoney(chosenTotals.TermExVat) ex. VAT) · @itemsChosen of @project.Items.Count @(project.Items.Count == 1 ? "item has" : "items have") a chosen quote</span></p>
                     }
                     <p class="muted">@project.Items.Count @(project.Items.Count == 1 ? "item" : "items") · @received of @quoteRows.Count @(quoteRows.Count == 1 ? "supplier" : "suppliers") have quoted @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }@if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }</p>
+                    @if (project.Items.Count > 1)
+                    {
+                        <p class="item-toggles"><button type="button" class="link-button" onclick="toggleItems(true)">Expand all</button> · <button type="button" class="link-button" onclick="toggleItems(false)">Collapse all</button></p>
+                    }
                 </div>
                 @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. *@
                 <details class="band-info">
@@ -185,9 +189,23 @@
             {
                 var item = project.Items[index];
                 var available = Model.Suppliers.Where(s => item.Suppliers.All(r => r.SupplierId != s.Id)).ToList();
-                <article class="project-item" id="item-@item.Id.ToString("N")">
-                    <div class="project-item-head">
+                var itemKey = item.Id.ToString("N");
+                var quoted = item.Suppliers.Count(x => x.HasQuote);
+                var itemChosen = item.Chosen;
+                @* Collapsible so a long project reads as a list; the summary line says enough to know which one to open.
+                   The item just changed opens again after the page reloads, and a lone item is always open. *@
+                <details class="project-item" id="item-@itemKey" open="@(project.Items.Count == 1 || Model.OpenItem == itemKey)">
+                    <summary class="project-item-head">
                         <h3><span class="item-qty">@item.Quantity ×</span> @item.Name</h3>
+                        <span class="item-summary">
+                            @if (item.SubItems.Count > 0) { <span>@item.SubItems.Count @(item.SubItems.Count == 1 ? "sub-item" : "sub-items")</span> }
+                            <span>@(item.Suppliers.Count == 0 ? "no suppliers yet" : $"{quoted} of {item.Suppliers.Count} quoted")</span>
+                            @if (itemChosen is not null) { <span class="item-summary-chosen">chosen: @HelpdeskStore.FormatMoney(QuoteTotals.Of(itemChosen.PaymentLines).TermIncVat)</span> }
+                            @if (item.Suppliers.Any(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays)) { <span class="badge badge-warning">to chase</span> }
+                            @if (item.Suppliers.Any(x => x.IsExpired(Model.Today))) { <span class="badge badge-warning">expired</span> }
+                        </span>
+                    </summary>
+                    <div class="project-item-body">
                         @if (canWork)
                         {
                             <div class="item-actions">
@@ -196,7 +214,6 @@
                                 <form method="post" asp-page-handler="DeleteItem" onsubmit="return confirm('Remove this item and its suppliers from the project?');"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="icon-button delete-icon" type="submit" title="Remove item" aria-label="Remove @item.Name">♜</button></form>
                             </div>
                         }
-                    </div>
                     @if (canWork)
                     {
                         <details class="item-edit">
@@ -452,7 +469,8 @@
                             </details>
                         }
                     </div>
-                </article>
+                    </div>
+                </details>
             }
             @if (canWork)
             {
@@ -534,6 +552,13 @@ function toggleDetails(editing) {
     document.getElementById("details-form").hidden = !editing;
     document.getElementById("details-edit-button").hidden = editing;
 }
+function toggleItems(open) { document.querySelectorAll("details.project-item").forEach(d => d.open = open); }
+// A link or redirect to one item (or one supplier's quote) opens the collapsed card it points into.
+(function () {
+    const target = location.hash && document.getElementById(location.hash.slice(1));
+    const card = target && target.closest("details.project-item");
+    if (card && !card.open) { card.open = true; target.scrollIntoView(); }
+})();
 function showTab(name) {
     document.querySelectorAll(".ticket-tab-button").forEach(b => {
         const on = b.getAttribute("aria-controls") === name + "-tab";

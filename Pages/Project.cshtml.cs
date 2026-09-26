@@ -96,7 +96,16 @@ public class ProjectModel(HelpdeskStore store) : PageModel
     // Items, sub-items and the suppliers quoting for them. All are Projects: Edit - they are the technician's day-to-day
     // work on the project. Adding a brand-new supplier from here is included: asking a new firm for a quote is part of
     // the job, and the Supplier directory's own permissions still govern editing and deleting them afterwards.
-    public IActionResult OnPostAddItem(int number, string? name, int quantity) => Edit(number, null, () => store.AddProjectItem(number, name, quantity));
+    // A new item opens straight away - adding its sub-items and suppliers is what comes next.
+    public IActionResult OnPostAddItem(int number, string? name, int quantity)
+    {
+        if (!CanEdit) return Forbid();
+        var (ok, message) = store.AddProjectItem(number, name, quantity);
+        Message = message;
+        var added = ok ? store.FindProject(number)?.Items.LastOrDefault() : null;
+        if (added is not null) OpenItem = $"{added.Id:N}";
+        return RedirectToPage(null, null, new { number }, added is null ? "items" : $"item-{added.Id:N}");
+    }
     public IActionResult OnPostItemsFromRequest(int number) => Edit(number, null, () => store.AddItemsFromRequest(number));
     public IActionResult OnPostUpdateItem(int number, Guid itemId, string? name, int quantity) => Edit(number, itemId, () => store.UpdateProjectItem(number, itemId, name, quantity));
     public IActionResult OnPostDeleteItem(int number, Guid itemId) => Edit(number, null, () => store.DeleteProjectItem(number, itemId));
@@ -143,12 +152,15 @@ public class ProjectModel(HelpdeskStore store) : PageModel
 
     // Which quote panel to open again after the page reloads, so adding a price doesn't mean hunting for the panel.
     [TempData] public string? OpenQuote { get; set; }
+    // Likewise the item card, which is collapsed by default once a project has more than one.
+    [TempData] public string? OpenItem { get; set; }
 
     private IActionResult EditQuote(int number, Guid itemId, Guid supplierId, Func<(bool Ok, string Message)> change)
     {
         if (!CanEdit) return Forbid();
         Message = change().Message;
         OpenQuote = $"{itemId:N}-{supplierId:N}";
+        OpenItem = $"{itemId:N}";
         return RedirectToPage(null, null, new { number }, $"quote-{OpenQuote}");
     }
 
@@ -157,6 +169,7 @@ public class ProjectModel(HelpdeskStore store) : PageModel
     {
         if (!CanEdit) return Forbid();
         Message = change().Message;
+        if (itemId is { } open) OpenItem = $"{open:N}";
         return RedirectToPage(null, null, new { number }, itemId is { } id ? $"item-{id:N}" : "items");
     }
 

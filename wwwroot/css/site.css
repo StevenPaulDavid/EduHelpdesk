@@ -430,3 +430,17 @@ h3 .csv-link { margin-left: 8px; }
 .project-items{position:relative}
 .band-info{position:static}
 .band-panel{left:0;right:0;width:auto;top:auto;margin-top:6px}
+/* Collapsible item cards: the summary line is the card's header, and the body holds everything else. */
+.project-item{display:block}
+.project-item>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:flex-start;gap:4px 14px}
+.project-item>summary::-webkit-details-marker{display:none}
+.project-item>summary::before{content:"\25B8";color:var(--teal-dark);font-size:15px;display:inline-block;transition:transform .15s}
+.project-item[open]>summary::before{transform:rotate(90deg)}
+.project-item>summary:hover h3{color:var(--teal)}
+.item-summary{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:13px;color:var(--muted)}
+.item-summary-chosen{color:var(--ink);font-weight:700}
+.item-summary .badge{margin-left:0}
+.project-item-body{display:grid;gap:12px;margin-top:12px;min-width:0}
+.project-item-body>.item-actions{justify-self:end;margin:-6px 0 -8px}
+.item-toggles{margin:6px 0 0;font-size:13px}
+.project-item>summary::before{font-size:20px;line-height:1;width:14px}
