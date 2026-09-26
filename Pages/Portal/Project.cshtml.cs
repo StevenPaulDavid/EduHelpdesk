@@ -8,8 +8,9 @@ namespace EduHelpdesk.Pages.Portal;
 // A project seen from the staff portal: where it has got to and who has it, with the shared notes. The requester sees
 // their own; the project lead sees any, and assigns it from here. Internal notes, quotes and prices stay on the
 // helpdesk side for both.
-public class ProjectModel(HelpdeskStore store, PortalIdentity portal) : PageModel
+public class ProjectModel(HelpdeskStore store, PortalIdentity portal, ILogger<ProjectModel> logger) : PageModel
 {
+    public bool ProposalAvailable => Project is not null && HelpdeskStore.ProposalOpenToPortal(Project);
     public ProjectRecord? Project { get; private set; }
     public string? TechnicianName { get; private set; }
     public string? RequesterName { get; private set; }
@@ -33,6 +34,26 @@ public class ProjectModel(HelpdeskStore store, PortalIdentity portal) : PageMode
         RequesterName = store.Users.FirstOrDefault(x => x.Id == Project.RequesterId)?.Name;
         if (IsLead && Project.IsActive) Workloads = store.ProjectWorkloads();
         return Page();
+    }
+
+    // The proposal is the one place prices and quotes reach the portal: the finished document, once the technician has
+    // marked it ready. Until then it doesn't exist as far as the portal is concerned.
+    public IActionResult OnGetProposal(int number)
+    {
+        var id = portal.Resolve(Request, store);
+        if (id is null) return RedirectToPage("/Portal/Index");
+        var project = store.PortalProject(id.Value, number);
+        if (project is null || !HelpdeskStore.ProposalOpenToPortal(project) || store.ProposalFor(number) is not { } input) return NotFound();
+        try
+        {
+            return File(ProposalPdf.Build(input), "application/pdf", ProposalPdf.FileName(project));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Couldn't make the proposal for project {Number} in the portal", number);
+            Message = "The proposal couldn't be made just now. Please let the IT team know.";
+            return RedirectToPage(new { number });
+        }
     }
 
     public IActionResult OnPostNote(int number)

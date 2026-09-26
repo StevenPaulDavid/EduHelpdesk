@@ -173,6 +173,9 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+// Fonts for the project proposal PDF - see PdfFonts for where they come from.
+PdfFonts.Install(app.Environment.ContentRootPath);
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

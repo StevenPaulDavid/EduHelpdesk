@@ -15,6 +15,7 @@
     <div><p class="eyebrow">EDUHELPDESK / PROJECT</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div>
     <div class="heading-actions">
         @if (Model.CanAssign && project.IsActive) { <button class="button button-primary" type="button" onclick="openBlade('assign')">@(project.TechnicianId is null ? "Assign" : "Reassign")</button> }
+        <a class="button button-secondary" asp-page="/Project" asp-page-handler="Proposal" asp-route-number="@project.Number" title="Front page, contents, cost tables and every quote in one PDF">@(project.Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes ? "Draft proposal (PDF)" : "Proposal (PDF)")</a>
         @if (Model.CanEdit && project.IsActive) { <button class="button button-secondary" type="button" onclick="openBlade('close')">Close project</button> }
         @if (Model.CanEdit && !project.IsActive)
         {

@@ -43,6 +43,14 @@
     }
     <section class="panel portal-panel">
         <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>
+        @if (Model.ProposalAvailable)
+        {
+            <div class="detail-block proposal-block">
+                <p class="eyebrow">PROPOSAL</p>
+                <p>The quotes have been gathered into one document: the costs of each option, the recommended choice, and every supplier's quote.</p>
+                <a class="button button-primary portal-button" asp-page="/Portal/Project" asp-page-handler="Proposal" asp-route-number="@project.Number">Download the proposal (PDF)</a>
+            </div>
+        }
         @if (!Model.IsOwnProject) { <div class="detail-block"><p class="eyebrow">REQUESTED BY</p><p>@(Model.RequesterName ?? "Unknown")</p></div> }
         <div class="detail-block"><p class="eyebrow">WHO HAS IT</p><p>@(Model.TechnicianName ?? "Waiting to be assigned to a technician")</p></div>
         <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><p>@project.DueDate.ToString("dddd d MMMM yyyy")</p></div>

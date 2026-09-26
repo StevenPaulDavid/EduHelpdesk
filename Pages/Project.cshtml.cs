@@ -7,7 +7,7 @@ namespace EduHelpdesk.Pages;
 
 // One project, helpdesk side. The page needs Projects: View to open (Program.cs); every change is checked here, because
 // tidying up, assigning and deleting are three different permissions on the same page.
-public class ProjectModel(HelpdeskStore store) : PageModel
+public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : PageModel
 {
     public ProjectRecord? Project { get; private set; }
     public UserRecord? Requester { get; private set; }
@@ -148,6 +148,27 @@ public class ProjectModel(HelpdeskStore store) : PageModel
         Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";
         if (inline && HelpdeskStore.IsInlineImage(found.Document)) return PhysicalFile(found.Path, found.Document.ContentType);
         return PhysicalFile(found.Path, found.Document.ContentType, found.Document.FileName);
+    }
+
+    // The proposal PDF, at any stage: before the project is marked ready it is how the technician checks it, and it
+    // says "draft" on every page. Anyone who can view the project can download it.
+    public IActionResult OnGetProposal(int number)
+    {
+        if (store.ProposalFor(number) is not { } input) return NotFound();
+        try
+        {
+            return File(ProposalPdf.Build(input), "application/pdf", ProposalPdf.FileName(input.Project));
+        }
+        catch (ProposalException ex)
+        {
+            Message = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Couldn't make the proposal for project {Number}", number);
+            Message = "The proposal couldn't be made. The error has been logged.";
+        }
+        return RedirectToPage(new { number });
     }
 
     // Which quote panel to open again after the page reloads, so adding a price doesn't mean hunting for the panel.
