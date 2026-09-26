@@ -51,6 +51,9 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TabLink> Tabs { get; private set; } = [];
 
     public IReadOnlyList<UserRecord> UserRows { get; private set; } = [];
+    // People marked inactive who still have assets or kits, and how many - flagged on their row, and the "Left, still
+    // holding equipment" filter finds them all.
+    public IReadOnlyDictionary<Guid, int> LeaversHolding { get; private set; } = new Dictionary<Guid, int>();
     public IReadOnlyList<TechnicianRecord> TechnicianRows { get; private set; } = [];
     public int Total { get; private set; }
     public int MatchCount { get; private set; }
@@ -74,10 +77,11 @@ public class PeopleModel(HelpdeskStore store) : PageModel
         {
             var all = store.Users;
             Total = all.Count;
+            LeaversHolding = store.LeaversStillHolding();
             UserRows = Paged(all
                 .Where(x => Matches(Search, x.Name, x.Email, x.Department, x.Location))
                 .Where(x => string.IsNullOrWhiteSpace(Group) || string.Equals(x.Department, Group, StringComparison.OrdinalIgnoreCase))
-                .Where(x => Status switch { "active" => x.IsActive, "inactive" => !x.IsActive, _ => true })
+                .Where(x => Status switch { "active" => x.IsActive, "inactive" => !x.IsActive, "leavers" => LeaversHolding.ContainsKey(x.Id), _ => true })
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList());
         }

@@ -30,7 +30,9 @@ public static class AssetInsights
 
     // Assets a technician should look at: warranty ending within the window (or already over), replacement due within the window
     // (or overdue), and loans past their due-back date. Most urgent first.
-    public static List<ReviewItem> ReviewItems(IEnumerable<AssetRecord> assets, IReadOnlyDictionary<string, int> lifespanYears, int windowDays, DateOnly today)
+    // departedHolders: people marked inactive. An asset still recorded against one of them is flagged, so a leaver's
+    // laptop doesn't sit on their name for ever (HelpdeskStore.DepartedUserIds).
+    public static List<ReviewItem> ReviewItems(IEnumerable<AssetRecord> assets, IReadOnlyDictionary<string, int> lifespanYears, int windowDays, DateOnly today, IReadOnlySet<Guid>? departedHolders = null)
     {
         var horizon = today.AddDays(Math.Max(0, windowDays));
         var items = new List<ReviewItem>();
@@ -46,6 +48,8 @@ public static class AssetInsights
                 reasons.Add(new("Replacement", replacement < today ? $"Overdue since {Format(replacement)}" : replacement == today ? "Due today" : $"Due {Format(replacement)} ({Days(replacement, today)})", replacement, replacement < today));
             if (asset.AssignedUserId is not null && asset.LoanDueDate is { } due && due < today)
                 reasons.Add(new("Loan", $"Overdue: due back {Format(due)} ({today.DayNumber - due.DayNumber} day{(today.DayNumber - due.DayNumber == 1 ? "" : "s")} late)", due, true));
+            if (asset.AssignedUserId is { } holder && departedHolders?.Contains(holder) == true)
+                reasons.Add(new("Leaver", "Held by someone who has left", today, true));
             if (reasons.Count > 0) items.Add(new ReviewItem(asset, reasons));
         }
         return items.OrderBy(x => x.SortDate).ThenBy(x => x.Asset.AssetTag, StringComparer.OrdinalIgnoreCase).ToList();

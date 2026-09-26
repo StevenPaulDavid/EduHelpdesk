@@ -83,7 +83,8 @@ public sealed class AssetListQuery
         switch (Flag?.Trim().ToLowerInvariant())
         {
             case "review":
-                var review = AssetInsights.ReviewItems(all, lifespanYears, reviewDays, today).Select(x => x.Asset.Id).ToHashSet();
+                var departed = users.Where(x => !x.IsActive).Select(x => x.Id).ToHashSet();
+                var review = AssetInsights.ReviewItems(all, lifespanYears, reviewDays, today, departed).Select(x => x.Asset.Id).ToHashSet();
                 query = query.Where(x => review.Contains(x.Id));
                 break;
             case "loan":

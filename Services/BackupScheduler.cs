@@ -1,6 +1,6 @@
 namespace EduHelpdesk.Services;
 
-// Makes the nightly backup. Checks every ten minutes whether one is due (HelpdeskStore.BackupDue): once a day at the
+// Makes the nightly backup, then applies the retention rules (Settings → Data retention) if any are on. Checks every ten minutes whether one is due (HelpdeskStore.BackupDue): once a day at the
 // chosen hour, or on the next check after starting if the app was off then - which also means a brand-new install or
 // an upgrade gets its first backup a minute or so after it starts.
 public sealed class BackupScheduler(HelpdeskStore store, ILogger<BackupScheduler> logger) : BackgroundService
@@ -17,10 +17,19 @@ public sealed class BackupScheduler(HelpdeskStore store, ILogger<BackupScheduler
         {
             try
             {
-                if (!store.BackupDue(DateTime.Now)) continue;
-                var (ok, message) = await Task.Run(() => store.CreateBackup(manual: false), stoppingToken);
-                if (ok) logger.LogInformation("Nightly backup: {Message}", message);
-                else logger.LogError("Nightly backup failed: {Message}", message);
+                if (store.BackupDue(DateTime.Now))
+                {
+                    var (ok, message) = await Task.Run(() => store.CreateBackup(manual: false), stoppingToken);
+                    if (ok) logger.LogInformation("Nightly backup: {Message}", message);
+                    else logger.LogError("Nightly backup failed: {Message}", message);
+                }
+                // Retention runs after the backup, and only once one has worked (HelpdeskStore.RetentionDue), so nothing
+                // is deleted that no backup holds.
+                if (store.RetentionDue(DateTime.Now))
+                {
+                    var (ok, message) = await Task.Run(store.ApplyRetention, stoppingToken);
+                    if (ok) logger.LogInformation("{Message}", message);
+                }
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex)

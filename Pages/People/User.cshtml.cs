@@ -57,6 +57,12 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
         if (id.HasValue) store.UpdateUser(item); else store.AddUser(item);
         if (newPassword) throttle.Clear("portal", item.Email);
         TempData["Message"] = id.HasValue ? "User updated." : "User added.";
+        // Marking someone as having left is the moment to deal with what they still have (the leaver check on /User).
+        if (existing is { IsActive: true } && !active && store.GetHoldings(item.Id) is { EquipmentCount: > 0 } held)
+        {
+            TempData["Message"] = $"User updated. They still hold {held.EquipmentSummary()} - the leaver check on their page can book it all back in.";
+            return RedirectToPage("/User", new { id = item.Id });
+        }
         return RedirectToPage("/People");
     }
 }

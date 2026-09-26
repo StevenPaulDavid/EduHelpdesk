@@ -698,3 +698,19 @@ a.settings-card:focus-visible{outline:2px solid var(--teal-text);outline-offset:
 .ticket-tab-buttons{overflow-x:auto;scrollbar-width:none}
 .ticket-tab-buttons::-webkit-scrollbar{display:none}
 .ticket-tab-button{flex:none}
+/* Stage F: the leaver check on a person's page (Pages/User.cshtml) and Settings → Data retention. */
+.leaver-check.is-leaver{border-color:var(--caution)}
+.leaver-heading{font-size:14px;margin:18px 0 6px;display:flex;align-items:center;gap:8px}
+.leaver-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.leaver-list li{padding:8px 10px;border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}
+.leaver-action{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:14px 0 4px}
+.leaver-action .muted{flex:1 1 280px}
+.leaver-lead{margin:16px 0 0}
+.retention-rules{display:grid;gap:14px}
+.retention-rule{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:6px 18px;align-items:start;padding:14px 0;border-bottom:1px solid var(--line)}
+.retention-rule:last-of-type{border-bottom:0}
+.retention-rule label{display:grid;gap:6px;font-size:12px;font-weight:700}
+.retention-rule h3{margin:0 0 4px;font-size:15px}
+.retention-rule p{margin:0}
+.retention-now{font-size:13px;margin-top:6px!important}
+@media(max-width:640px){.retention-rule{grid-template-columns:1fr}}

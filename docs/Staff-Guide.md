@@ -144,5 +144,8 @@ Open the ticket and add a message saying so, and the team will close it.
 **Can I make it darker, or lighter?**
 Yes, just for the device you're using: at the bottom of every portal page, **Appearance** offers Light, Dark, or Match device, which follows your computer's or phone's own setting. Press the one you've chosen again to go back to the school's standard look.
 
+**What does the helpdesk keep about me?**
+Your name, email, department and location, the problems you've reported with their updates, and any equipment lent to you. Ask the school's data protection lead if you want a copy: IT can produce one. When you leave, your portal account is switched off, and the school's retention policy decides how long your old reports are kept.
+
 **Do I need a separate login for anything else?**
 No. This login only works for the staff portal. The full system that technicians use is a separate login that ordinary staff accounts do not have.

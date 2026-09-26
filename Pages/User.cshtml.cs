@@ -12,11 +12,39 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
     public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     [TempData] public string? Message { get; set; }
+    // What they still have - assets, kits, open tickets, active projects - for the leaver check.
+    public HelpdeskStore.LeaverHoldings? Holdings { get; private set; }
+    public bool CanEdit => store.UserCan(User, Modules.Requesters, ModulePermission.Edit);
+    // Booking equipment back in changes assets and ends loans, so it needs both.
+    public bool CanBookBackIn => store.UserCan(User, Modules.Assets, ModulePermission.Edit) && store.UserCan(User, Modules.Loans, ModulePermission.Edit);
+    public bool CanOpenAssets => store.UserCan(User, Modules.Assets, ModulePermission.View);
+    public bool CanSeeTickets => store.UserCan(User, Modules.Tickets, ModulePermission.Access);
+    public bool CanOpenProjects => store.UserCan(User, Modules.Projects, ModulePermission.View);
 
     public IActionResult OnGet(Guid id)
     {
         Person = store.Users.FirstOrDefault(x => x.Id == id);
-        return Person is null ? NotFound() : Page();
+        if (Person is null) return NotFound();
+        Holdings = store.GetHoldings(id);
+        return Page();
+    }
+
+    public IActionResult OnPostBookBackIn(Guid id)
+    {
+        if (!CanBookBackIn) return Forbid();
+        Message = store.BookEverythingBackIn(id).Message;
+        return RedirectToPage(new { id });
+    }
+
+    // Subject access: a zip of everything held about them (Services/SubjectAccessExport). It includes internal notes
+    // and other people's mentions of them, so it needs Requesters: Edit, and every download is written to the audit log.
+    public IActionResult OnGetExport(Guid id)
+    {
+        if (!CanEdit) return Forbid();
+        if (store.GatherSubjectAccess(id) is not { } data) return NotFound();
+        var zip = SubjectAccessExport.Build(data, store.Branding.BrandName);
+        store.RecordSubjectAccessExport(data);
+        return File(zip, "application/zip", SubjectAccessExport.FileName(data.Person, data.GeneratedAt));
     }
 
     public IActionResult OnPostSave(Guid id, string name, string email, string? department, string? location, string? password, bool active, bool canRaiseProjects, bool isProjectLead, int[]? selectedNumbers)
@@ -66,6 +94,9 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
             IsProjectLead = isProjectLead
         };
         Message = store.UpdateUserAndTickets(user, selectedNumbers ?? []) ? "User and linked tickets updated." : "User was not found.";
+        // Marking someone as having left is the moment to deal with what they still have.
+        if (existing.IsActive && !active && store.GetHoldings(id) is { EquipmentCount: > 0 } held)
+            Message += $" They still hold {held.EquipmentSummary()} - see the leaver check below.";
         if (newPassword) throttle.Clear("portal", user.Email);
         return RedirectToPage(new { id });
     }

@@ -107,6 +107,10 @@ internal static class AuditTracker
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
         Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
         Add(s, "Settings", "Ticket reopen window", "ticket-reopen-window", "Replies reopen closed tickets", Track.Update, ("For days", d.ReopenWindowDays.ToString()));
+        // What gets deleted or anonymised is worth knowing who changed. The runs themselves write their own summary.
+        static string Months(int m) => m == 0 ? "Keep forever" : $"{m} months";
+        Add(s, "Settings", "Data retention", "data-retention", "Data retention rules", Track.Update,
+            ("Closed tickets", Months(d.RetentionTicketMonths)), ("Leavers", Months(d.RetentionLeaverMonths)), ("Audit log", Months(d.RetentionAuditMonths)));
         Add(s, "SLAs", "SLA pause", "sla-pause-statuses", "Statuses that pause the SLA clock", Track.Update,
             ("Statuses", d.SlaPauseStatuses.Count == 0 ? "(none)" : string.Join(", ", d.SlaPauseStatuses.Order(StringComparer.OrdinalIgnoreCase))));
         Add(s, "Settings", "Parts reorder threshold", "parts-reorder-threshold", "Parts default reorder threshold", Track.Update, ("Threshold", d.PartsDefaultReorderThreshold.ToString()));

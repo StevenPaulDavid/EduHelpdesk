@@ -71,7 +71,7 @@ public class ReportsModel(HelpdeskStore store) : PageModel
         ];
 
         // Review list (same rules as the overview)
-        Review = AssetInsights.ReviewItems(assets, lifespans, ReviewWindowDays, today);
+        Review = AssetInsights.ReviewItems(assets, lifespans, ReviewWindowDays, today, store.DepartedUserIds);
 
         // Fleet age and refresh
         var dated = assets.Where(x => x.PurchaseDate.HasValue).ToList();

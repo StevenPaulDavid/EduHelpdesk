@@ -12,6 +12,12 @@ public record UserRecord(Guid Id, string Name, string Email, string Department, 
     // Set when a technician gives the requester a portal password: someone else knows it, so the portal asks for a new
     // one before anything else (PasswordChangeFilter).
     public bool RequirePasswordChange { get; init; }
+    // When they were marked inactive - the leaver date that retention counts from (HelpdeskStore.Lifecycle). Cleared
+    // if they are made active again.
+    public DateTime? LeftAt { get; init; }
+    // Set once retention has replaced their name and contact details. The record stays so their old tickets and loans
+    // still have a requester, but nothing on it identifies them any more.
+    public DateTime? AnonymisedAt { get; init; }
 }
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
 // What a role can do with one module. Each is an independent tick rather than a rung on a ladder: a role can be given

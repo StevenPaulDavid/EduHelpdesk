@@ -24,6 +24,17 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     public bool HasDemoData => store.HasDemoData;
     public IReadOnlyList<Group> Groups { get; private set; } = [];
 
+    private string RetentionSummary()
+    {
+        var rules = store.Retention;
+        if (!rules.AnyOn) return "How long old tickets, leavers' details and the audit log are kept. Everything is kept for now.";
+        var parts = new List<string>();
+        if (rules.TicketMonths > 0) parts.Add($"closed tickets {rules.TicketMonths} months");
+        if (rules.LeaverMonths > 0) parts.Add($"leavers {rules.LeaverMonths} months");
+        if (rules.AuditMonths > 0) parts.Add($"audit log {rules.AuditMonths} months");
+        return "Keeps " + string.Join(", ", parts) + ", then removes them each night.";
+    }
+
     public void OnGet()
     {
         var edit = CanEdit;
@@ -86,6 +97,9 @@ public class SettingsModel(HelpdeskStore store) : PageModel
                     $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Accounts lock for {(int)SignInThrottle.Window.TotalMinutes} minutes after {SignInThrottle.AccountLimit} wrong passwords. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
                     "sign in login password lockout https encryption security", IsHttps ? "HTTPS" : "Not encrypted", !IsHttps,
                     CanSeeAudit, new Dictionary<string, string> { ["section"] = "Sign-in" }),
+                Page("Data retention", "/Settings/Retention", RetentionSummary(),
+                    "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
+                    store.Retention.AnyOn ? "On" : null),
                 new("Audit log", "/Settings/Audit", "Who changed what, and when, across the whole helpdesk.", "audit log history changes who", Open: CanSeeAudit),
                 Page("Go live & reset", "/Settings/Reset", HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.",
                     "demo data go live factory reset erase delete everything", HasDemoData ? "Demo data present" : null),

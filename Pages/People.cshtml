@@ -45,7 +45,7 @@
                     @foreach (var item in onUsers ? Model.Departments : Model.TechnicianTeams) { <option value="@item" selected="@string.Equals(item, Model.Group, StringComparison.OrdinalIgnoreCase)">@item</option> }
                 </select>
             </label>
-            <label>Status<select name="status"><option value="">Any</option><option value="active" selected="@(Model.Status == "active")">Active</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactive</option></select></label>
+            <label>Status<select name="status"><option value="">Any</option><option value="active" selected="@(Model.Status == "active")">Active</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactive</option>@if (Model.Tab == "users") { <option value="leavers" selected="@(Model.Status == "leavers")">Left, still holding equipment</option> }</select></label>
             <label>Per page<select name="size">@foreach (var size in PeopleModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
             <div class="audit-filter-actions"><button class="button button-primary" type="submit">Search</button>@if (Model.IsFiltered) { <a class="button button-secondary" href="@Model.TabUrl(Model.Tab!)">Clear</a> }</div>
         </form>
@@ -55,7 +55,7 @@
         {
             @foreach (var user in Model.UserRows)
             {
-                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id" title="Delete @user.Name">♜</a> }</div></div>
+                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">@(user.AnonymisedAt is null ? "Inactive" : "Anonymised")</span> }@if (Model.LeaversHolding.TryGetValue(user.Id, out var stillHeld)) { <text> </text><span class="badge badge-warning" title="Marked inactive, but assets or kits are still recorded against them">Still holds @stillHeld</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id" title="Delete @user.Name">♜</a> }</div></div>
             }
         }
         else

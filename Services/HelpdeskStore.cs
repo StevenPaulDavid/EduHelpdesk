@@ -156,6 +156,8 @@ public sealed partial class HelpdeskStore
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // Every ticket's clock matches its status: after upgrading, restoring a backup, or a failed save reloading.
         ReconcileSlaPauses(_ => true);
+        // Everyone inactive has a leaver date, and nobody active does (HelpdeskStore.Lifecycle).
+        ReconcileLeaverDates();
     }
 
     // Bootstrap credentials for a brand-new install, or an existing database with no login configured yet.
@@ -353,7 +355,7 @@ public sealed partial class HelpdeskStore
     public static bool TechnicianInTeam(TechnicianRecord technician, string? team) => string.IsNullOrWhiteSpace(team) || string.Equals(technician.Team, team.Trim(), StringComparison.OrdinalIgnoreCase);
     public IReadOnlyList<TechnicianRecord> GetTechniciansForTeam(string? team) { lock (_sync) return _data.Technicians.Where(x => TechnicianInTeam(x, team)).ToList(); }
 
-    public void AddUser(UserRecord item) { lock (_sync) { _data.Users.Add(item); Save(); } }
+    public void AddUser(UserRecord item) { lock (_sync) { _data.Users.Add(WithLeaverDates(item, null)); Save(); } }
     public void AddTechnician(TechnicianRecord item) { lock (_sync) { _data.Technicians.Add(item); Save(); } }
     public string AddTechnicianTeam(string team)
     {
@@ -1557,32 +1559,39 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            var index = _data.KitLoans.FindIndex(x => x.KitId == kitId && x.ReturnedAt is null);
-            if (index < 0) return (false, "That kit is not currently out on loan.");
-            var loan = _data.KitLoans[index];
-            var extra = (notes ?? string.Empty).Trim();
-            _data.KitLoans[index] = loan with
-            {
-                ReturnedAt = DateTime.UtcNow,
-                Notes = extra.Length == 0 ? loan.Notes : (loan.Notes.Length == 0 ? extra : $"{loan.Notes} | Returned: {extra}")
-            };
-
-            var kit = _data.LoanKits.FirstOrDefault(x => x.Id == kitId);
-            var inStock = ResolveAssetStatus(InStockStatus);
-            foreach (var assetId in kit?.AssetIds ?? [])
-            {
-                var assetIndex = _data.Assets.FindIndex(x => x.Id == assetId);
-                if (assetIndex < 0) continue;
-                var asset = _data.Assets[assetIndex];
-                // Only the status this feature set is reversed. If someone has since marked the laptop as in repair or
-                // lost, that is a deliberate decision and booking the kit in should not quietly undo it.
-                var status = inStock is not null && string.Equals(asset.Status, OnLoanStatus, StringComparison.OrdinalIgnoreCase) ? inStock : asset.Status;
-                ApplyAssetUpdate(assetIndex, asset with { AssignedUserId = null, LoanDueDate = null, Status = status });
-            }
-
-            Save();
-            return (true, $"{kit?.Name ?? "Kit"} booked back in from {loan.BorrowerName}.");
+            var result = ReturnKitCore(kitId, notes);
+            if (result.Ok) Save();
+            return result;
         }
+    }
+
+    // Books a kit back in without saving, so a leaver's kits and assets can all be returned in one save.
+    private (bool Ok, string Message) ReturnKitCore(Guid kitId, string? notes)
+    {
+        var index = _data.KitLoans.FindIndex(x => x.KitId == kitId && x.ReturnedAt is null);
+        if (index < 0) return (false, "That kit is not currently out on loan.");
+        var loan = _data.KitLoans[index];
+        var extra = (notes ?? string.Empty).Trim();
+        _data.KitLoans[index] = loan with
+        {
+            ReturnedAt = DateTime.UtcNow,
+            Notes = extra.Length == 0 ? loan.Notes : (loan.Notes.Length == 0 ? extra : $"{loan.Notes} | Returned: {extra}")
+        };
+
+        var kit = _data.LoanKits.FirstOrDefault(x => x.Id == kitId);
+        var inStock = ResolveAssetStatus(InStockStatus);
+        foreach (var assetId in kit?.AssetIds ?? [])
+        {
+            var assetIndex = _data.Assets.FindIndex(x => x.Id == assetId);
+            if (assetIndex < 0) continue;
+            var asset = _data.Assets[assetIndex];
+            // Only the status this feature set is reversed. If someone has since marked the laptop as in repair or
+            // lost, that is a deliberate decision and booking the kit in should not quietly undo it.
+            var status = inStock is not null && string.Equals(asset.Status, OnLoanStatus, StringComparison.OrdinalIgnoreCase) ? inStock : asset.Status;
+            ApplyAssetUpdate(assetIndex, asset with { AssignedUserId = null, LoanDueDate = null, Status = status });
+        }
+
+        return (true, $"{kit?.Name ?? "Kit"} booked back in from {loan.BorrowerName}.");
     }
 
     public string SetLoanRepeatThreshold(int count, int days)
@@ -2080,14 +2089,24 @@ public sealed partial class HelpdeskStore
     public Guid? SlaFor(string priority, string category) =>
         _data.Slas.FirstOrDefault(x => x.Categories.Contains(category, StringComparer.OrdinalIgnoreCase))?.Id
         ?? _data.Slas.FirstOrDefault(x => x.Priorities.Contains(priority, StringComparer.OrdinalIgnoreCase))?.Id;
-    public bool UpdateUser(UserRecord item) => Update(item, _data.Users, x => x.Id == item.Id);
+    public bool UpdateUser(UserRecord item)
+    {
+        lock (_sync)
+        {
+            var index = _data.Users.FindIndex(x => x.Id == item.Id);
+            if (index < 0) return false;
+            _data.Users[index] = WithLeaverDates(item, _data.Users[index]);
+            Save();
+            return true;
+        }
+    }
     public bool UpdateUserAndTickets(UserRecord user, IEnumerable<int> selectedTicketNumbers)
     {
         lock (_sync)
         {
             var userIndex = _data.Users.FindIndex(x => x.Id == user.Id);
             if (userIndex < 0) return false;
-            _data.Users[userIndex] = user;
+            _data.Users[userIndex] = WithLeaverDates(user, _data.Users[userIndex]);
             var selected = selectedTicketNumbers.ToHashSet();
             for (var i = 0; i < _data.Tickets.Count; i++)
             {
@@ -3426,6 +3445,7 @@ public sealed partial class HelpdeskStore
         EnsureProjectSchema(connection);
         EnsureProjectTicketSchema(connection);
         EnsureTicketProcessSchema(connection);
+        EnsureLifecycleSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -3502,13 +3522,15 @@ public sealed partial class HelpdeskStore
         var data = new StoreData();
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange FROM Users;";
+            command.CommandText = "SELECT Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange, LeftAt, AnonymisedAt FROM Users;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Users.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 5), reader.GetInt32(6) != 0)
             {
                 CanRaiseProjects = reader.GetInt32(7) != 0,
                 IsProjectLead = reader.GetInt32(8) != 0,
-                RequirePasswordChange = reader.GetInt32(9) != 0
+                RequirePasswordChange = reader.GetInt32(9) != 0,
+                LeftAt = reader.IsDBNull(10) ? null : Date(reader, 10),
+                AnonymisedAt = reader.IsDBNull(11) ? null : Date(reader, 11)
             });
         }
         ReadStrings(connection, "TechnicianTeams", data.TechnicianTeams);
@@ -3867,6 +3889,7 @@ public sealed partial class HelpdeskStore
         }
         foreach (var ticket in data.Tickets) ReadTicketChildren(connection, ticket);
         ReadTicketProcess(connection, data);
+        ReadLifecycle(connection, data);
         // The highest number ever handed out, not just the highest still present: deleting the newest ticket must not
         // give its number to the next one, when job sheets and conversations already carry it.
         data.LastTicketNumber = Convert.ToInt32(ExecuteScalar(connection, "SELECT COALESCE(MAX(Number), 1000) FROM Tickets;"));
@@ -3994,7 +4017,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
         }
         foreach (var item in data.Users)
-            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead,$requireChange);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0), ("$requireChange", item.RequirePasswordChange ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange, LeftAt, AnonymisedAt) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead,$requireChange,$left,$anonymised);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$left", item.LeftAt is { } left ? Iso(left) : null), ("$anonymised", item.AnonymisedAt is { } anonymised ? Iso(anonymised) : null));
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",
@@ -4021,6 +4044,7 @@ public sealed partial class HelpdeskStore
         WriteProjectTickets(connection, transaction, data);
         WriteBackupSettings(connection, transaction, data);
         WriteTicketProcessSettings(connection, transaction, data);
+        WriteLifecycleSettings(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
@@ -4392,6 +4416,12 @@ public sealed partial class HelpdeskStore
         // Statuses that stop the SLA clock, and how long after closing a requester's reply still reopens a ticket.
         public List<string> SlaPauseStatuses { get; set; } = [];
         public int ReopenWindowDays { get; set; } = DefaultReopenWindowDays;
+        // Retention (Settings → Data retention), in months; 0 keeps everything. See HelpdeskStore.Lifecycle.
+        public int RetentionTicketMonths { get; set; }
+        public int RetentionLeaverMonths { get; set; }
+        public int RetentionAuditMonths { get; set; }
+        public DateTime? LastRetentionRunAt { get; set; }
+        public string LastRetentionSummary { get; set; } = "";
         // Default minimum stock level for a part with no ReorderThreshold of its own.
         public int PartsDefaultReorderThreshold { get; set; } = 5;
         public List<string> Categories { get; set; } = [];

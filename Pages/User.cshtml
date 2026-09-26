@@ -10,6 +10,81 @@
     <a class="button button-secondary" asp-page="/People">&lt;- Back to people</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (Model.Person!.AnonymisedAt is { } anonymisedAt)
+{
+    <div class="notice">Anonymised on @anonymisedAt.ToLocalTime().ToString("d MMMM yyyy") by the retention rules (Settings → Data retention). Their tickets, loans and history are kept, but under "@EduHelpdesk.Services.HelpdeskStore.AnonymisedName" rather than their name.</div>
+}
+
+@{ var held = Model.Holdings!; var leaver = !Model.Person.IsActive; }
+<section class="panel leaver-check @(leaver && held.HoldsAnything ? "is-leaver" : "")" id="holdings">
+    <div class="panel-heading">
+        <div><p class="eyebrow">@(leaver ? "LEAVER CHECK" : "WHAT THEY HOLD")</p><h2>@(held.HoldsAnything ? leaver ? "Still to sort out" : "Held by " + Model.Person.Name : "Nothing outstanding")</h2></div>
+        @if (leaver && Model.Person.LeftAt is { } leftAt) { <span class="badge">Left @leftAt.ToLocalTime().ToString("d MMM yyyy")</span> }
+    </div>
+    @if (!held.HoldsAnything)
+    {
+        <p class="muted">No assets, loan kits, open tickets or active projects@(leaver ? " - nothing is waiting on them leaving." : ".")</p>
+    }
+    else
+    {
+        if (leaver) { <p class="muted">They are marked inactive, so they can no longer use the staff portal. These are still recorded against them.</p> }
+        if (held.Assets.Count > 0)
+        {
+            <h3 class="leaver-heading">Assets <span class="badge">@held.Assets.Count</span></h3>
+            <ul class="leaver-list">
+                @foreach (var asset in held.Assets)
+                {
+                    <li>@if (Model.CanOpenAssets) { <a asp-page="/Asset" asp-route-id="@asset.Id"><strong>@asset.AssetTag</strong></a> } else { <strong>@asset.AssetTag</strong> } <span class="muted">@asset.Make @asset.Model · @asset.Type · @asset.Status</span>@if (asset.LoanDueDate is { } due) { <text> </text><span class="badge @(due < EduHelpdesk.Services.AssetInsights.Today ? "badge-warning" : "")">On loan, due back @due.ToString("d MMM")</span> }</li>
+                }
+            </ul>
+        }
+        if (held.Kits.Count > 0)
+        {
+            <h3 class="leaver-heading">Loan kits <span class="badge">@held.Kits.Count</span></h3>
+            <ul class="leaver-list">
+                @foreach (var (kit, loan) in held.Kits)
+                {
+                    <li><strong>@kit.Name</strong> <span class="muted">issued @loan.IssuedAt.ToLocalTime().ToString("d MMM yyyy") · @kit.AssetIds.Count item@(kit.AssetIds.Count == 1 ? "" : "s")</span> <span class="badge @(loan.IsOverdue(EduHelpdesk.Services.AssetInsights.Today) ? "badge-warning" : "")">Due back @loan.DueBack.ToString("d MMM")</span></li>
+                }
+            </ul>
+        }
+        if (held.EquipmentCount > 0 && Model.CanBookBackIn)
+        {
+            <form method="post" asp-page-handler="BookBackIn" asp-route-id="@Model.Person.Id" class="leaver-action" onsubmit="return confirm('Book all @held.EquipmentCount item(s) back in from @Model.Person.Name.Replace("'", "")? Assets in use or on loan go back to stock.');">
+                <button class="button button-primary" type="submit">Book everything back in</button>
+                <span class="muted">Ends their loans and takes the assets off them. Anything in use or on loan goes back to stock; anything marked in repair or lost keeps that status.</span>
+            </form>
+        }
+        if (held.OpenTickets.Count > 0)
+        {
+            <h3 class="leaver-heading">Open tickets they raised <span class="badge">@held.OpenTickets.Count</span></h3>
+            <p class="muted">@(leaver ? "They can't see replies any more. Close these, or pass them to whoever took over." : "")@if (Model.CanSeeTickets) { <text> </text><a asp-page="/Jobs" asp-route-requester="@Model.Person.Id">Open them in the ticket list</a> }</p>
+        }
+        if (held.ActiveProjects.Count > 0)
+        {
+            <h3 class="leaver-heading">Active projects they asked for <span class="badge">@held.ActiveProjects.Count</span></h3>
+            <ul class="leaver-list">
+                @foreach (var project in held.ActiveProjects)
+                {
+                    <li>@if (Model.CanOpenProjects) { <a asp-page="/Project" asp-route-number="@project.Number"><strong>@project.Reference</strong></a> } else { <strong>@project.Reference</strong> } @project.Title <span class="muted">· @project.Status</span></li>
+                }
+            </ul>
+        }
+        if (held.OnlyProjectLead)
+        {
+            <p class="notice notice-warning leaver-lead"><strong>They are the only project lead.</strong> @(leaver ? "Nobody can assign new projects from the staff portal until someone else is made project lead." : "If they leave, nobody else can assign projects from the staff portal.")</p>
+        }
+    }
+</section>
+
+@if (Model.CanEdit)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">THEIR DATA</p><h2>Subject access</h2></div></div>
+        <p class="muted">A zip of everything the helpdesk holds about them, for a subject access request: their record, the tickets they raised with every update and internal note, attached files, assets and loans, projects, other tickets that mention their name or email, and the audit log lines about them. A README explains what to check before it is sent. Each download is recorded in the audit log.</p>
+        <a class="button button-secondary" asp-page="/User" asp-page-handler="Export" asp-route-id="@Model.Person.Id">Download their data (.zip)</a>
+    </section>
+}
 
 <form method="post" asp-page-handler="Save">
     <input type="hidden" name="id" value="@Model.Person!.Id" />

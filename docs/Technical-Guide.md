@@ -476,7 +476,7 @@ Upload a `.docx` at **Settings → Ticket queues & closing**. Placeholders are r
 
 It works by snapshotting the data before and after each save and recording the differences, so any new action is audited automatically without having to log itself. Ticket and asset history and comments, and parts stock adjustments, are folded into the same view.
 
-**Important limitation**: the log records *what* changed and *when*, but **not who did it**. No part of the system attributes changes to a user — this predates the addition of logins and has not been retrofitted. Treat the audit log as a change history, not an accountability trail.
+Each line records who made the change: the technician's account, the requester's name for anything done in the staff portal, or System for scheduled work such as backups and retention. Lines from before attribution was added show a dash. Retention can trim the log after a set number of months (section 16).
 
 ---
 
@@ -520,7 +520,42 @@ Test a restore at least once, so you know the process works before you need it.
 
 ---
 
-## 16. Known limitations
+## 16. Leavers and personal data
+
+### The leaver check
+
+Mark someone **Inactive** on their person page (People → their name) when they leave. The date is recorded, and the page's **Leaver check** then lists what is still recorded against them: assets they hold, loan kits they have out, open tickets they raised, active projects they asked for, and whether they were the only project lead. **Book everything back in** ends their loans and takes the assets off them in one go; anything that was in use or on loan goes back to stock, and anything marked in repair or lost keeps that status. Open tickets and projects are linked, to close or pass on.
+
+Saving someone as inactive while they still hold equipment says so straight away. People who have left but still hold something are also flagged in the People list (**Still holds 3**; filter **Status: Left, still holding equipment**), and their assets appear on the asset review list as **Leaver** items.
+
+People already inactive when this was added count as having left on the day of the upgrade.
+
+### Subject access
+
+**Download their data (.zip)** on a person's page (needs Requesters: Edit) gives everything the helpdesk holds about them:
+
+- `report.html`: readable in any browser, and printable to PDF. It covers their record; every ticket they raised, with all updates, internal notes (marked INTERNAL), history and custom fields; the assets they hold or have held, with dates; their kit loans; the projects they asked for, with notes; other tickets that mention their full name or email (listed, not copied); and audit log lines about their record, their use of the staff portal and sign-ins with their email.
+- `data.json`: the same, as data.
+- `files/`: the files attached to their tickets.
+- `README.txt`: what to check before sending, such as internal notes, other people named, and the mentions list.
+
+Password hashes are never included. Every download is written to the audit log with who took it. Deciding what to redact or withhold is for the school's DPO, not the software.
+
+### Data retention
+
+**Settings → Data retention** has three rules, each in months (0 keeps everything, which is the default):
+
+| Rule | What it does |
+|---|---|
+| Delete closed tickets | Tickets closed more than N months ago are deleted with their updates, notes, history, files, custom fields and audit lines. Open tickets are never touched. Numbers are never reused; reports for those months stop counting them. Parts used on them are not put back in stock. |
+| Anonymise people who have left | Requesters inactive for more than N months become "Former staff member": name, email, department, location and password go from their record, and their name and email are replaced on the tickets and projects they raised, their loans, asset holding history and asset notes, and in the audit log. Their tickets and loans stay, so counts still add up. Anyone who still holds equipment or has an open ticket or active project is skipped until that is sorted out. Free text other people wrote about them on *other* tickets is not rewritten; the subject access export lists where it is. |
+| Delete old audit entries | Audit log lines older than N months (at least 12) are deleted. Ticket, asset and project history lives with those records and is unaffected. |
+
+The page shows what each rule would remove right now. Rules run every night after the backup, and only once a backup has worked in the last day. **Back up, then apply now** runs them straight away, taking a backup first. Each run writes one summary line to the audit log, with counts and ticket numbers but no names, and changing the rules is audited too. Backups still hold removed data until they age out (section 15).
+
+---
+
+## 17. Known limitations
 
 Things the system deliberately or currently does not do. Worth knowing before someone asks:
 
@@ -528,21 +563,21 @@ Things the system deliberately or currently does not do. Worth knowing before so
 |---|---|
 | No email at all | No notifications, no email-to-ticket, no outbound replies. Requesters must check the portal. |
 | No in-app notifications | Nothing tells a requester their ticket changed. |
-| No "who did it" | History and audit record what and when, never who. |
 | No "forgotten password" reset | There is no email, so a forgotten password is reset by a technician. People can change their own once signed in. |
 | Inline scripts are still allowed | The security policy permits inline `<script>` and `onclick=`, because the pages use a lot of them. Moving them into script files would let the policy block injected scripts too. |
 | No ticket or parts CSV import | Assets only. |
-| No report exports | Reports are on-screen only. |
+| No scheduled or emailed reports | Reports print to PDF and export to CSV on demand. |
 | No time tracking | Not built, by choice. |
 | No approvals or change management | Requests do not route for sign-off. |
 | No asset discovery or agents | Nothing scans the network; the register is what you put in it. |
 | No barcode or QR scanning | Labels print, but carry no scannable code. |
 | No asset stocktake workflow | Parts have stock adjustments; assets do not. |
 | Single school | Locations exist, but there is no multi-site tenancy or scoping. |
+| No Microsoft 365 or Google sign-in | Staff portal accounts have their own passwords, set by IT. |
 
 ---
 
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 **"That team/location/category cannot be deleted because it is in use."**
 Something still references it. Move those records onto a different value first, then delete.
@@ -573,7 +608,7 @@ Another copy is already running. Only one process can hold `helpdesk.db`.
 
 ---
 
-## 18. Where things live in the code
+## 19. Where things live in the code
 
 For anyone maintaining it:
 
@@ -589,6 +624,8 @@ For anyone maintaining it:
 | Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs`, `TechnicianSession.cs` |
 | Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs` |
 | Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
+| Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |
+| Themes and phone layout | `Services/Themes.cs`, `wwwroot/css/site.css`, `wwwroot/js/layout.js`, `picker.js` |
 
 Two conventions to preserve when changing anything:
 
