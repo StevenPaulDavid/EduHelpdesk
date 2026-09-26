@@ -626,9 +626,12 @@ For anyone maintaining it:
 | Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |
 | Themes and phone layout | `Services/Themes.cs`, `wwwroot/css/site.css`, `wwwroot/js/layout.js`, `picker.js` |
 | Page behaviour (buttons, dialogs, tabs, bulk selection) | `wwwroot/js/actions.js` (the `data-` attributes every page uses), `bulk-select.js`, `wwwroot/js/pages/*.js` |
+| Tests | `Tests/EduHelpdesk.Tests` (xUnit): SLA clock, passwords and sign-in lockout, the store against a real database in a temporary folder, leavers and retention, subject access, and the no-inline-script rule |
 
 Three conventions to preserve when changing anything:
 
 1. **Schema changes** go in `EnsureSchema` as `CREATE TABLE IF NOT EXISTS` or a try/catch `ALTER TABLE`, so existing databases upgrade themselves on startup.
 2. **Multi-value fields** (a list on a record) use a join table with `ON DELETE CASCADE`, an explicit `DELETE FROM` before the parent in `WriteData`, and must be sourced from the stored record in page handlers — never from the posted form model, which will bind them empty and silently wipe them.
 3. **No script in the pages.** The security policy refuses inline `<script>` blocks and `onclick=`/`onchange=` attributes, so they silently do nothing. Use the `data-` attributes described at the top of `wwwroot/js/actions.js` (`data-confirm`, `data-autosubmit`, `data-open-blade` and so on), or put page-specific code in `wwwroot/js/pages/` and load it from the page's `Scripts` section. Data a script needs goes in `data-` attributes.
+
+To run the tests: `dotnet test Tests/EduHelpdesk.Tests`. Each test builds its own store in a temporary folder, never the live database. While the helpdesk itself is running from this folder its `bin` is locked, so add `-o` with a folder of your own (for example `-o %TEMP%\eh-tests`).
