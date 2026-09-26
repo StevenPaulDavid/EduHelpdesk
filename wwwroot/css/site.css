@@ -444,3 +444,14 @@ h3 .csv-link { margin-left: 8px; }
 .project-item-body>.item-actions{justify-self:end;margin:-6px 0 -8px}
 .item-toggles{margin:6px 0 0;font-size:13px}
 .project-item>summary::before{font-size:20px;line-height:1;width:14px}
+/* Projects stage 6: ticket links and the projects report. */
+.start-project { margin-top: 10px; }
+.start-project > summary { list-style: none; display: inline-flex; cursor: pointer; }
+.start-project > summary::-webkit-details-marker { display: none; }
+.start-project[open] > summary { margin-bottom: 10px; }
+.start-project-form { display: grid; gap: 10px; }
+.start-project-form select, .start-project-form input, .start-project-form textarea { width: 100%; }
+.report-inline-metrics { margin: 0 0 12px; }
+tr.report-total td { border-top: 2px solid var(--ink); }
+tr.workload-unassigned td { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.report-split { margin-top: 22px; }

@@ -328,6 +328,50 @@ else
                 <small class="muted">A new ticket with the same requester, assets, category and priority.</small>
             </form>
         </div>
+        @if (Model.CanSeeProjects)
+        {
+            <div class="detail-block related-block no-print" id="projects">
+                <p class="eyebrow">PURCHASING PROJECTS</p>
+                @if (Model.LinkedProjects.Count == 0) { <p class="muted">Not linked to a project.</p> }
+                @foreach (var linked in Model.LinkedProjects)
+                {
+                    <div class="related-row">
+                        <div>
+                            @if (Model.CanOpenProjects) { <a asp-page="/Project" asp-route-number="@linked.Number"><strong>@linked.Reference</strong> @linked.Title</a> } else { <span><strong>@linked.Reference</strong> @linked.Title</span> }
+                            <span class="status">@linked.Status@(linked.Outcome is { } outcome ? $" · {outcome}" : "")</span>
+                        </div>
+                        @if (Model.CanLinkProjects)
+                        {
+                            <form method="post" asp-page-handler="UnlinkProject"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="project" value="@linked.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to @linked.Reference" aria-label="Remove link to @linked.Reference">♜</button></form>
+                        }
+                    </div>
+                }
+                @if (Model.CanLinkProjects && Model.LinkableProjects.Count > 0)
+                {
+                    <form method="post" asp-page-handler="LinkProject" class="related-form">
+                        <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                        <label>Link to an open project<select name="project" required><option value="">Choose a project</option>@foreach (var open in Model.LinkableProjects) { <option value="@open.Number">@open.Reference · @open.Title</option> }</select></label>
+                        <button class="button button-secondary" type="submit">Link</button>
+                    </form>
+                }
+                @if (Model.CanStartProject)
+                {
+                    @* Raised for this ticket's requester and left for the project lead to assign, like one raised from the portal. *@
+                    <details class="start-project">
+                        <summary class="button button-secondary">Start a purchasing project…</summary>
+                        <form method="post" asp-page-handler="StartProject" class="settings-form start-project-form">
+                            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                            <p class="muted">Raised for @(Model.Requester?.Name ?? "the requester"), who will see it in the staff portal. It waits for the project lead to confirm the priority and assign it.</p>
+                            <label>Title<input name="title" value="@Model.Ticket.Title" maxlength="@HelpdeskStore.MaxProjectTitleLength" required /></label>
+                            <label>Proposal needed by<input name="dueDate" type="date" value="@Model.DefaultProjectDueDate.ToString("yyyy-MM-dd")" min="@DateTime.Now.ToString("yyyy-MM-dd")" required /></label>
+                            <label>Suggested priority<select name="priority">@foreach (var level in ProjectPriorities.All) { <option value="@level" selected="@(level == ProjectPriorities.Default)">@ProjectPriorities.Label(level) — @ProjectPriorities.Describe(level)</option> }</select></label>
+                            <label>Items wanted<textarea name="itemsWanted" rows="5" maxlength="@HelpdeskStore.MaxProjectTextLength" required>@Model.Ticket.Description</textarea></label>
+                            <button class="button button-primary" type="submit">Start project</button>
+                        </form>
+                    </details>
+                }
+            </div>
+        }
         @if (Model.TicketAttributes.Count > 0) { <div class="detail-block"><p class="eyebrow">CUSTOM ATTRIBUTES</p><form method="post" asp-page-handler="UpdateAttributes"><input type="hidden" name="number" value="@Model.Ticket.Number" />@foreach (var field in Model.TicketAttributes) { var customValue = Model.TicketAttributeValues.GetValueOrDefault(field.Id, ""); if (field.FieldType == "dropdown") { <label>@field.Name<select name="customAttributes[@field.Id]"><option value="">Select an option</option>@foreach (var choice in HelpdeskStore.GetChoices(field)) { <option value="@choice" selected="@(choice == customValue)">@choice</option> }</select></label> } else if (field.FieldType == "checkbox") { <label class="toggle-label">@field.Name<input type="checkbox" name="customAttributes[@field.Id]" value="true" checked="@(customValue.Equals("true", StringComparison.OrdinalIgnoreCase))" /></label> } else if (field.FieldType == "multi-line") { <label>@field.Name<textarea name="customAttributes[@field.Id]" rows="3">@customValue</textarea></label> } else { <label>@field.Name<input name="customAttributes[@field.Id]" value="@customValue" /></label> } }<button class="button button-primary" type="submit">Save attributes</button></form></div> }
     </aside>
 </div>

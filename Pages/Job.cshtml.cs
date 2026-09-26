@@ -349,6 +349,40 @@ public class JobModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { number });
     }
 
+    // Purchasing projects linked to this ticket. The block shows for anyone who can reach the projects list; linking needs
+    // Projects: Edit and starting one Projects: New, on top of the Tickets: Edit every post on this page already needs.
+    public bool CanSeeProjects => store.UserCan(User, Modules.Projects, ModulePermission.Access);
+    public bool CanOpenProjects => store.UserCan(User, Modules.Projects, ModulePermission.View);
+    public bool CanLinkProjects => store.UserCan(User, Modules.Projects, ModulePermission.Edit);
+    public bool CanStartProject => store.UserCan(User, Modules.Projects, ModulePermission.New);
+    public IReadOnlyList<ProjectRecord> LinkedProjects => Ticket is null || !CanSeeProjects ? [] : store.ProjectsForTicket(Ticket.Number);
+    // Open projects not already linked, for the picker. A closed one can still be linked from its own page by ticket number.
+    public IReadOnlyList<ProjectRecord> LinkableProjects => Ticket is null ? [] : store.Projects.Where(x => x.IsActive && !x.TicketNumbers.Contains(Ticket.Number)).ToList();
+    public DateOnly DefaultProjectDueDate => DateOnly.FromDateTime(DateTime.Now).AddDays(HelpdeskStore.DefaultProjectLeadDays);
+
+    public IActionResult OnPostLinkProject(int number, int? project)
+    {
+        if (!CanLinkProjects) return Forbid();
+        Message = project is null ? "Choose the project to link." : store.LinkProjectTicket(project.Value, number).Message;
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostUnlinkProject(int number, int project)
+    {
+        if (!CanLinkProjects) return Forbid();
+        Message = store.UnlinkProjectTicket(project, number).Message;
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostStartProject(int number, string? title, DateOnly? dueDate, string? itemsWanted, int priority)
+    {
+        if (!CanStartProject) return Forbid();
+        var (ok, message, projectNumber) = store.StartProjectFromTicket(number, title, dueDate, itemsWanted, priority);
+        Message = message;
+        // Straight to the new project if it can be opened; otherwise back to the ticket, which now lists it.
+        return ok && CanOpenProjects ? RedirectToPage("/Project", new { number = projectNumber }) : RedirectToPage(new { number });
+    }
+
     public IActionResult OnPostCreateFollowUp(int number)
     {
         var (followUp, error) = store.CreateFollowUpTicket(number);

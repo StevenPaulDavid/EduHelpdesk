@@ -1,0 +1,91 @@
+@page
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Reports.ProjectsPrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Project report";
+    ViewData["ReportSubtitle"] = Model.PeriodLabel;
+    ViewData["ReportFootnote"] = "Values are the chosen supplier quotes over the whole contract, as recorded on each project. "
+        + "Open projects and workload are as they stood when this was generated; the period covers projects raised, proposals made and projects closed in it.";
+    var approved = Model.ByOutcome.First(x => x.Outcome == ProjectOutcomes.Approved);
+}
+
+<div class="note">
+    <strong>@Model.Open.Count</strong> open project@(Model.Open.Count == 1 ? "" : "s"), <strong>@Model.OverdueNow</strong> overdue and
+    <strong>@Model.AwaitingDecision.Count</strong> awaiting a decision (@Model.Money(Model.AwaitingDecision.Sum(x => x.Totals.TermIncVat)) proposed).
+    In @Model.PeriodLabel.ToLowerInvariant(): <strong>@Model.Raised.Count</strong> raised, <strong>@Model.ProposalsMade.Count</strong> proposals made
+    (median @EduHelpdesk.Pages.Reports.ProjectReportsModel.Days(Model.MedianDaysToProposal) from being raised; @Model.OnTime on time, @Model.Late late),
+    and <strong>@approved.Count</strong> approved worth @Model.Money(approved.Totals.TermIncVat) including VAT.
+</div>
+
+<section>
+    <h2>Open projects</h2>
+    <table>
+        <thead><tr><th>Project</th><th>Requester</th><th>Technician</th><th>Priority</th><th>Status</th><th>Needed by</th><th class="num">Chosen quotes</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Open)
+        {
+            var project = row.Project;
+            <tr class="@(project.IsOverdue(Model.Today) ? "flag" : "")">
+                <td><strong>@project.Reference</strong> @project.Title</td>
+                <td>@row.Requester</td>
+                <td>@(row.Technician ?? "Not assigned")</td>
+                <td>P@(project.EffectivePriority)@(project.Priority is null ? " (suggested)" : "")</td>
+                <td>@project.Status</td>
+                <td>@project.DueDate.ToString("dd MMM yyyy")@(project.IsOverdue(Model.Today) ? " (late)" : "")</td>
+                <td class="num">@(project.Items.Any(x => x.Chosen is not null) ? Model.Money(row.Totals.TermIncVat) : "—")</td>
+            </tr>
+        }
+        @if (Model.Open.Count == 0) { <tr><td colspan="7" class="empty">No open projects.</td></tr> }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Technician workload</h2>
+    <table>
+        <thead><tr><th>Technician</th><th class="num">Active</th>@foreach (var level in ProjectPriorities.All) { <th class="num">P@(level)</th> }<th class="num">Overdue</th><th class="num">Awaiting decision</th><th class="num">Proposals made</th><th class="num">Median days</th><th class="num">Closed</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Workload)
+        {
+            <tr>
+                <td>@if (row.IsUnassigned) { <em>@row.Name</em> } else { <strong>@row.Name</strong> }</td>
+                <td class="num count">@row.Active</td>
+                @foreach (var count in row.ByPriority) { <td class="num">@(count > 0 ? count.ToString() : "—")</td> }
+                <td class="num">@(row.Overdue > 0 ? row.Overdue.ToString() : "—")</td>
+                <td class="num">@(row.AwaitingDecision > 0 ? row.AwaitingDecision.ToString() : "—")</td>
+                <td class="num">@(row.IsUnassigned ? "" : row.ProposalsMade.ToString())</td>
+                <td class="num">@(row.IsUnassigned ? "" : row.MedianDays?.ToString("0.#") ?? "—")</td>
+                <td class="num">@(row.IsUnassigned ? "" : row.Closed.ToString())</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Spend by outcome — @Model.PeriodLabel</h2>
+    <table>
+        <thead><tr><th>Outcome</th><th class="num">Projects</th><th class="num">First year inc VAT</th><th class="num">Whole term ex VAT</th><th class="num">Whole term inc VAT</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.ByOutcome)
+        {
+            <tr><td>@row.Outcome</td><td class="num">@row.Count</td><td class="num">@Model.Money(row.Totals.FirstYearIncVat)</td><td class="num">@Model.Money(row.Totals.TermExVat)</td><td class="num">@Model.Money(row.Totals.TermIncVat)</td></tr>
+        }
+        <tr><td class="count">All closed</td><td class="num count">@Model.Closed.Count</td><td class="num count">@Model.Money(Model.ByOutcome.Sum(x => x.Totals.FirstYearIncVat))</td><td class="num count">@Model.Money(Model.ByOutcome.Sum(x => x.Totals.TermExVat))</td><td class="num count">@Model.Money(Model.ByOutcome.Sum(x => x.Totals.TermIncVat))</td></tr>
+        </tbody>
+    </table>
+    @if (Model.Closed.Count > 0)
+    {
+        <h3>Projects closed</h3>
+        <table>
+            <thead><tr><th>Project</th><th>Outcome</th><th>Closed</th><th>Technician</th><th class="num">Whole term inc VAT</th></tr></thead>
+            <tbody>
+            @foreach (var row in Model.Closed)
+            {
+                <tr><td><strong>@row.Project.Reference</strong> @row.Project.Title</td><td>@row.Project.Outcome</td><td>@row.ClosedOn?.ToString("dd MMM yyyy")</td><td>@(row.Technician ?? "—")</td><td class="num">@Model.Money(row.Totals.TermIncVat)</td></tr>
+            }
+            </tbody>
+        </table>
+    }
+</section>

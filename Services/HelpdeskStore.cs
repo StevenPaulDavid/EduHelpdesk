@@ -194,7 +194,7 @@ public sealed partial class HelpdeskStore
                     [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access
                 },
                 Modules.Flags.WorkingAs, Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
-                Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance,
+                Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance, Modules.Flags.ReportProjects,
                 Modules.Flags.ReportExport));
 
             // Runs the inventory outright, reads the supplier directory, and cannot reach staff accounts, roles,
@@ -3314,6 +3314,7 @@ public sealed partial class HelpdeskStore
             """;
         roleTable.ExecuteNonQuery();
         EnsureProjectSchema(connection);
+        EnsureProjectTicketSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)
@@ -3753,6 +3754,7 @@ public sealed partial class HelpdeskStore
             if (reader.Read()) data.Branding = new() { BrandName = reader.GetString(0), DashboardEyebrow = reader.GetString(1), DashboardTitle = reader.GetString(2), DashboardDescription = reader.GetString(3), PrimaryColor = reader.GetString(4), AccentColor = reader.GetString(5), BackgroundColor = reader.GetString(6), DarkMode = reader.GetInt32(7) != 0 };
         }
         ReadProjects(connection, data);
+        ReadProjectTickets(connection, data);
         return data;
     }
 
@@ -3817,7 +3819,7 @@ public sealed partial class HelpdeskStore
         {
             command.Transaction = transaction;
             // Projects first: they point at Users and Technicians, which are cleared further along this same statement.
-            command.CommandText = "DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
+            command.CommandText = "DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
             command.ExecuteNonQuery();
         }
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
@@ -3890,6 +3892,7 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         // After Users, Technicians and Suppliers, which Projects and their item suppliers have foreign keys to.
         WriteProjects(connection, transaction, data);
+        WriteProjectTickets(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",

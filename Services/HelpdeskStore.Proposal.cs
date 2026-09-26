@@ -39,9 +39,7 @@ public sealed partial class HelpdeskStore
     // was made on. A project cancelled before then never had a proposal to share.
     public static bool ProposalOpenToPortal(ProjectRecord project) =>
         project.Status == ProjectStatuses.ProposalReady
-        || (project.Status == ProjectStatuses.Closed && project.History.Any(x =>
-            x.Details.Contains($"→ {ProjectStatuses.ProposalReady}.", StringComparison.Ordinal)
-            || x.Details.StartsWith($"Reopened as {ProjectStatuses.ProposalReady}.", StringComparison.Ordinal)));
+        || (project.Status == ProjectStatuses.Closed && ProposalReadyAt(project) is not null);
 }
 
 public sealed record ProposalInput(

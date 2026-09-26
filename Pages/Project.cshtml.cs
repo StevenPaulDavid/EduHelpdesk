@@ -26,6 +26,10 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     public decimal BandTotal { get; private set; }
     public SpendingBand? CurrentBand { get; private set; }
     public IReadOnlyDictionary<Guid, string> SupplierNames { get; private set; } = new Dictionary<Guid, string>();
+    // The helpdesk tickets this project is linked to. Links are listed for anyone who can see the project; a ticket
+    // only opens for someone who can view tickets.
+    public IReadOnlyList<TicketRecord> LinkedTickets { get; private set; } = [];
+    public bool CanOpenTickets => store.UserCan(User, Modules.Tickets, ModulePermission.View);
     [TempData] public string? Message { get; set; }
 
     public IActionResult OnGet(int number)
@@ -45,7 +49,26 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         BandsIncludeVat = store.SpendingBandsIncludeVat;
         BandTotal = store.BandTotal(Project);
         CurrentBand = store.BandFor(BandTotal);
+        LinkedTickets = store.Tickets.Where(x => Project.TicketNumbers.Contains(x.Number)).OrderBy(x => x.Number).ToList();
         return Page();
+    }
+
+    public IActionResult OnPostLinkTicket(int number, int? ticket)
+    {
+        if (!CanEdit) return Forbid();
+        return Linked(number, ticket is null ? (false, "Enter the number of the ticket to link.") : store.LinkProjectTicket(number, ticket.Value));
+    }
+
+    public IActionResult OnPostUnlinkTicket(int number, int ticket)
+    {
+        if (!CanEdit) return Forbid();
+        return Linked(number, store.UnlinkProjectTicket(number, ticket));
+    }
+
+    private IActionResult Linked(int number, (bool Ok, string Message) result)
+    {
+        Message = result.Message;
+        return RedirectToPage(null, null, new { number }, "tickets");
     }
 
     public IActionResult OnPostDetails(int number, string? title, DateOnly? dueDate, string? itemsWanted, List<string>? requirements, string? other)

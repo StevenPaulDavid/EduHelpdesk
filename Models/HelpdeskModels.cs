@@ -251,8 +251,13 @@ public record ProjectRecord(int Number, string Title, Guid RequesterId, DateOnly
     // What the technician turned the free-text "items wanted" into: the main things being bought, each with its own
     // suppliers and quotes. ItemsWanted stays as the requester wrote it.
     public List<ProjectItem> Items { get; init; } = [];
+    // Helpdesk tickets this project is linked to - the ticket it was started from, or ones raised about the same
+    // purchase. Numbers only: a ticket merged away or deleted is repointed or dropped by the store.
+    public List<int> TicketNumbers { get; init; } = [];
 
     public int EffectivePriority => Priority ?? SuggestedPriority;
+    // What the chosen quotes come to across every item. Items without a chosen quote add nothing.
+    public QuoteTotals ChosenTotals => Items.Select(x => x.Chosen).OfType<ItemSupplier>().Aggregate(new QuoteTotals(), (sum, x) => sum + QuoteTotals.Of(x.PaymentLines));
     public bool IsActive => Status != ProjectStatuses.Closed;
     public string Reference => $"PRJ-{Number:0000}";
     // "Proposal needed by" - it stops mattering once the proposal is ready.

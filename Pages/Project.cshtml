@@ -127,7 +127,7 @@
             var toChase = quoteRows.Count(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays);
             var expired = quoteRows.Count(x => x.IsExpired(Model.Today));
             // What the proposal will total: the chosen quote on each item. Items without one count as nothing yet.
-            var chosenTotals = project.Items.Select(x => x.Chosen).OfType<ItemSupplier>().Aggregate(new QuoteTotals(), (sum, x) => sum + QuoteTotals.Of(x.PaymentLines));
+            var chosenTotals = project.ChosenTotals;
             var itemsChosen = project.Items.Count(x => x.Chosen is not null);
         }
         <div class="project-items" id="items">
@@ -539,6 +539,31 @@
         }
         <div class="detail-block"><p class="eyebrow">PRIORITY</p><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span><p class="muted">@(project.Priority is null ? $"Suggested by the requester; not confirmed yet." : project.Priority == project.SuggestedPriority ? "Confirmed as suggested." : $"Confirmed. The requester suggested {ProjectPriorities.Label(project.SuggestedPriority)}.")</p></div>
         <div class="detail-block"><p class="eyebrow">TECHNICIAN</p><strong>@(Model.Technician?.Name ?? (project.TechnicianId is null ? "Unassigned" : "Unknown"))</strong>@if (project.TechnicianId is null && project.IsActive) { <p class="muted">Waiting for the project lead to assign it from the staff portal.</p> }</div>
+        <div class="detail-block related-block" id="tickets">
+            <p class="eyebrow">LINKED TICKETS</p>
+            @if (Model.LinkedTickets.Count == 0) { <p class="muted">Not linked to a ticket.</p> }
+            @foreach (var ticket in Model.LinkedTickets)
+            {
+                <div class="related-row">
+                    <div>
+                        @if (Model.CanOpenTickets) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
+                        <span class="status">@ticket.Status</span>
+                    </div>
+                    @if (Model.CanEdit)
+                    {
+                        <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@ticket.Number" aria-label="Remove link to #@ticket.Number">♜</button></form>
+                    }
+                </div>
+            }
+            @if (Model.CanEdit)
+            {
+                <form method="post" asp-page-handler="LinkTicket" class="related-form">
+                    <input type="hidden" name="number" value="@project.Number" />
+                    <label>Link a ticket<input name="ticket" type="number" min="1" step="1" placeholder="Ticket number" required /></label>
+                    <button class="button button-secondary" type="submit">Link</button>
+                </form>
+            }
+        </div>
         <div class="job-meta project-meta"><div><span>Raised</span><strong>@project.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last updated</span><strong>@project.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div></div>
     </aside>
 </div>

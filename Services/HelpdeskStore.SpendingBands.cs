@@ -17,7 +17,7 @@ public sealed partial class HelpdeskStore
     // quote - excluding or including VAT as Settings says. Items with no chosen quote add nothing yet.
     public decimal BandTotal(ProjectRecord project)
     {
-        var totals = project.Items.Select(x => x.Chosen).OfType<ItemSupplier>().Aggregate(new QuoteTotals(), (sum, x) => sum + QuoteTotals.Of(x.PaymentLines));
+        var totals = project.ChosenTotals;
         return SpendingBandsIncludeVat ? totals.TermIncVat : totals.TermExVat;
     }
 

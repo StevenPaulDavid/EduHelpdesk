@@ -301,7 +301,7 @@ public static class ProposalPdf
         Fact(facts, "Purchasing requirements", HelpdeskStore.DescribeRequirements(project));
         Fact(facts, "Prepared on", input.PreparedAt.ToString("d MMMM yyyy, HH:mm", Uk));
 
-        var totals = ChosenTotals(project);
+        var totals = project.ChosenTotals;
         section.AddParagraph("Cost of the chosen quotes", StyleNames.Heading2);
         var figures = Table(section, 7, 5, 5);
         var head = figures.AddRow();
@@ -686,8 +686,6 @@ public static class ProposalPdf
         return $"{input.Project.Reference} · {title} · Proposal" + (IsDraft(input.Project) ? " (draft)" : "");
     }
 
-    private static QuoteTotals ChosenTotals(ProjectRecord project) =>
-        project.Items.Select(x => x.Chosen).OfType<ItemSupplier>().Aggregate(new QuoteTotals(), (sum, x) => sum + QuoteTotals.Of(x.PaymentLines));
 
     private static string SupplierName(ProposalInput input, Guid id) => input.SupplierNames.TryGetValue(id, out var name) ? name : "Unknown supplier";
     private static string Describe(ProjectItem item) => $"{item.Quantity} × {item.Name}";

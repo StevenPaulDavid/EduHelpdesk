@@ -227,6 +227,7 @@ public sealed partial class HelpdeskStore
             TryDelete(AttachmentFile(attachment.Id));
         _data.TicketAttachments.RemoveAll(x => x.TicketNumber == number);
         _data.TicketLinks.RemoveAll(x => x.TicketNumber == number || x.LinkedNumber == number);
+        RemoveProjectTicketLinks(number);
     }
 
     // When a ticket is merged into another, its attachments move across and its links point at the ticket it was merged into.
@@ -243,6 +244,7 @@ public sealed partial class HelpdeskStore
             if (a == b || AreLinked(a, b)) continue;
             _data.TicketLinks.Add(link with { TicketNumber = a, LinkedNumber = b });
         }
+        MoveProjectTicketLinks(sourceNumber, targetNumber);
     }
 
     // Copies the attachment files next to a backup, for a factory reset.

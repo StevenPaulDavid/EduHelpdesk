@@ -1,0 +1,125 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.ProjectReportsModel
+@{ ViewData["Title"] = "Project reports"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Project reports</h1><p class="hero-copy">Purchasing projects: what is open and with whom, how quickly proposals come back, and what the decided projects came to.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/ProjectsPrint" asp-route-year="@Model.YearKey" target="_blank">🖨 Print / Save as PDF</a> }
+        @if (Model.CanOpenProjects) { <a class="button button-secondary" asp-page="/Projects">← Projects</a> }
+    </div>
+</div>
+<partial name="_ReportTabs" model="@("/Reports/Projects")" />
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Period<select name="year">
+            @foreach (var year in Model.AvailableYears) { <option value="@year" selected="@(year == Model.StartYear)">Academic year @Model.YearLabel(year)</option> }
+            <option value="@EduHelpdesk.Pages.Reports.ProjectReportsModel.AllTime" selected="@(Model.StartYear is null)">All time</option>
+        </select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Projects">Reset</a></div>
+    </form>
+    <p class="muted">Open projects, workload and anything awaiting a decision are as things stand today. The period covers projects raised, proposals made and projects closed in it. Values are the chosen quotes over the whole contract, including VAT.</p>
+</section>
+
+<div class="metrics">
+    <div class="metric"><span>Open now</span><strong>@Model.Open.Count</strong><small>@Model.Unassigned waiting to be assigned</small></div>
+    <div class="metric"><span>Overdue</span><strong>@Model.OverdueNow</strong><small>Proposal past its needed-by date</small></div>
+    <div class="metric"><span>Awaiting a decision</span><strong>@Model.AwaitingDecision.Count</strong><small>@Model.Money(Model.AwaitingDecision.Sum(x => x.Totals.TermIncVat)) proposed</small></div>
+    @{ var approved = Model.ByOutcome.First(x => x.Outcome == ProjectOutcomes.Approved); }
+    <div class="metric"><span>Approved</span><strong>@approved.Count</strong><small>@Model.Money(approved.Totals.TermIncVat) · @Model.PeriodLabel</small></div>
+</div>
+
+<section class="panel" id="open">
+    <div class="panel-heading"><div><p class="eyebrow">NOW</p><h2>Where projects are</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="open" asp-route-year="@Model.YearKey">⬇ Open projects CSV</a> }<span class="badge">@Model.Open.Count open</span></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Status</th><th>Projects</th><th>Overdue</th><th>Due within @ProjectPriorities.DueSoonDays days</th><th>Chosen quotes</th></tr></thead><tbody>
+    @foreach (var row in Model.ByStatus)
+    {
+        <tr><td>@row.Status</td><td>@row.Count</td><td>@if (row.Overdue > 0) { <span class="badge badge-warning">@row.Overdue</span> } else { <text>—</text> }</td><td>@(row.DueSoon > 0 ? row.DueSoon.ToString() : "—")</td><td>@Model.Money(row.ValueIncVat)</td></tr>
+    }
+    </tbody></table></div>
+    <div class="table-wrap report-split"><table><thead><tr><th>Project</th><th>Requester</th><th>Technician</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Chosen quotes</th></tr></thead><tbody>
+    @foreach (var row in Model.Open)
+    {
+        var project = row.Project;
+        <tr>
+            <td>@if (Model.CanOpenProjects) { <a asp-page="/Project" asp-route-number="@project.Number"><strong>@project.Reference</strong></a> } else { <strong>@project.Reference</strong> } @project.Title</td>
+            <td>@row.Requester</td>
+            <td>@(row.Technician ?? "Not assigned yet")</td>
+            <td><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span>@if (project.Priority is null) { <small class="muted"> suggested</small> }</td>
+            <td>@project.Status</td>
+            <td>@project.DueDate.ToString("dd MMM yyyy")@if (project.IsOverdue(Model.Today)) { <text> </text><span class="badge badge-warning">Late</span> } else if (project.IsDueSoon(Model.Today)) { <text> </text><span class="badge">Due soon</span> }</td>
+            <td>@(project.Items.Any(x => x.Chosen is not null) ? Model.Money(row.Totals.TermIncVat) : "—")</td>
+        </tr>
+    }
+    @if (Model.Open.Count == 0) { <tr><td colspan="7" class="empty">No open projects.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="workload">
+    <div class="panel-heading"><div><p class="eyebrow">WHO HAS WHAT</p><h2>Technician workload</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="workload" asp-route-year="@Model.YearKey">⬇ CSV</a> }</div></div>
+    <p class="muted">Active projects by priority today, as the project lead sees them when assigning. Proposals made, days to proposal and closures are for @Model.PeriodLabel.ToLowerInvariant() and are credited to whoever has the project now.</p>
+    <div class="table-wrap"><table><thead><tr><th>Technician</th><th>Active</th>@foreach (var level in ProjectPriorities.All) { <th>P@(level)</th> }<th>Overdue</th><th>Awaiting a decision</th><th>Proposals made</th><th>Median days to proposal</th><th>Closed</th></tr></thead><tbody>
+    @foreach (var row in Model.Workload)
+    {
+        <tr class="@(row.IsUnassigned ? "workload-unassigned" : "")">
+            <td>@if (row.IsUnassigned) { <em>@row.Name</em> } else { <strong>@row.Name</strong> }</td>
+            <td><strong>@row.Active</strong></td>
+            @foreach (var count in row.ByPriority) { <td>@(count > 0 ? count.ToString() : "—")</td> }
+            <td>@if (row.Overdue > 0) { <span class="badge badge-warning">@row.Overdue</span> } else { <text>—</text> }</td>
+            <td>@(row.AwaitingDecision > 0 ? row.AwaitingDecision.ToString() : "—")</td>
+            <td>@(row.IsUnassigned ? "" : row.ProposalsMade.ToString())</td>
+            <td>@(row.IsUnassigned ? "" : EduHelpdesk.Pages.Reports.ProjectReportsModel.Days(row.MedianDays))</td>
+            <td>@(row.IsUnassigned ? "" : row.Closed.ToString())</td>
+        </tr>
+    }
+    @if (Model.Workload.Count == 0) { <tr><td colspan="12" class="empty">Nobody can be given projects yet - a role needs Projects: Edit.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="turnaround">
+    <div class="panel-heading"><div><p class="eyebrow">@Model.PeriodLabel.ToUpperInvariant()</p><h2>Turnaround</h2></div></div>
+    <div class="metrics report-inline-metrics">
+        <div class="metric"><span>Projects raised</span><strong>@Model.Raised.Count</strong><small>@Model.Raised.Count(x => x.ReadyAt is null && x.Project.IsActive) still without a proposal</small></div>
+        <div class="metric"><span>Proposals made</span><strong>@Model.ProposalsMade.Count</strong><small>First marked ready in the period</small></div>
+        <div class="metric"><span>Median time to proposal</span><strong>@EduHelpdesk.Pages.Reports.ProjectReportsModel.Days(Model.MedianDaysToProposal)</strong><small>From being raised</small></div>
+        <div class="metric"><span>Ready by the needed-by date</span><strong>@Model.OnTime of @Model.ProposalsMade.Count</strong><small>@Model.Late late</small></div>
+    </div>
+    @{ var late = Model.ProposalsMade.Where(x => x.ProposalOnTime == false).ToList(); }
+    @if (late.Count > 0)
+    {
+        <p class="section-heading">Proposals that were late</p>
+        <div class="table-wrap"><table><thead><tr><th>Project</th><th>Technician</th><th>Needed by</th><th>Ready</th><th>Days late</th></tr></thead><tbody>
+        @foreach (var row in late)
+        {
+            <tr><td><strong>@row.Project.Reference</strong> @row.Project.Title</td><td>@(row.Technician ?? "—")</td><td>@row.Project.DueDate.ToString("dd MMM yyyy")</td><td>@row.ReadyOn?.ToString("dd MMM yyyy")</td><td>@(row.ReadyOn!.Value.DayNumber - row.Project.DueDate.DayNumber)</td></tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+
+<section class="panel" id="outcomes">
+    <div class="panel-heading"><div><p class="eyebrow">@Model.PeriodLabel.ToUpperInvariant()</p><h2>Spend by outcome</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="closed" asp-route-year="@Model.YearKey">⬇ Closed projects CSV</a> }<span class="badge">@Model.Closed.Count closed</span></div></div>
+    <p class="muted">Projects closed in the period, valued at their chosen quotes. Approved is what was agreed to be spent; not approved and cancelled show what was asked for and didn't go ahead.</p>
+    <div class="table-wrap"><table><thead><tr><th>Outcome</th><th>Projects</th><th>First year inc VAT</th><th>Whole term ex VAT</th><th>Whole term inc VAT</th></tr></thead><tbody>
+    @foreach (var row in Model.ByOutcome)
+    {
+        <tr><td><strong>@row.Outcome</strong></td><td>@row.Count</td><td>@Model.Money(row.Totals.FirstYearIncVat)</td><td>@Model.Money(row.Totals.TermExVat)</td><td>@Model.Money(row.Totals.TermIncVat)</td></tr>
+    }
+    <tr class="report-total"><td><strong>All closed</strong></td><td><strong>@Model.Closed.Count</strong></td><td><strong>@Model.Money(Model.ByOutcome.Sum(x => x.Totals.FirstYearIncVat))</strong></td><td><strong>@Model.Money(Model.ByOutcome.Sum(x => x.Totals.TermExVat))</strong></td><td><strong>@Model.Money(Model.ByOutcome.Sum(x => x.Totals.TermIncVat))</strong></td></tr>
+    </tbody></table></div>
+    <div class="table-wrap report-split"><table><thead><tr><th>Project</th><th>Outcome</th><th>Closed</th><th>Technician</th><th>Whole term inc VAT</th></tr></thead><tbody>
+    @foreach (var row in Model.Closed)
+    {
+        <tr>
+            <td>@if (Model.CanOpenProjects) { <a asp-page="/Project" asp-route-number="@row.Project.Number"><strong>@row.Project.Reference</strong></a> } else { <strong>@row.Project.Reference</strong> } @row.Project.Title</td>
+            <td>@row.Project.Outcome@if (!string.IsNullOrWhiteSpace(row.Project.OutcomeNote)) { <br /><small class="muted">@row.Project.OutcomeNote</small> }</td>
+            <td>@row.ClosedOn?.ToString("dd MMM yyyy")</td>
+            <td>@(row.Technician ?? "—")</td>
+            <td>@Model.Money(row.Totals.TermIncVat)</td>
+        </tr>
+    }
+    @if (Model.Closed.Count == 0) { <tr><td colspan="5" class="empty">No projects were closed in this period.</td></tr> }
+    </tbody></table></div>
+</section>
