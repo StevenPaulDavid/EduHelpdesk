@@ -235,6 +235,9 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+// A new install's answers to the installer (school name, colours, logo, backups), applied once - see InstallSettings.
+InstallSettings.Apply(app.Services.GetRequiredService<HelpdeskStore>(), dataLocation.Folder, app.Logger);
+
 // Fonts for the project proposal PDF - see PdfFonts for where they come from.
 PdfFonts.Install(app.Environment.ContentRootPath);
 

@@ -14,7 +14,7 @@ The database uses separate tables for users, technicians and teams, departments,
 
 ## Running it for real
 
-`dotnet run` is for development. For the helpdesk people use every day, install it as a Windows service with the scripts in `deploy/` - `Publish.ps1`, then `Install-Service.ps1` from an administrator PowerShell. They move the data out of OneDrive, run it in Production mode, and restart it after a reboot or failure. See section 2 of `docs/Technical-Guide.md`.
+`dotnet run` is for development. Schools - this one included - install EduHelpdesk from a release zip: unzip it and double-click `Install.cmd`, which installs it as a Windows service with its own .NET runtime, asks about the data folder, branding and backups, and upgrades an existing install in place. See `docs/Install-Guide.md`. To make the zip, run `deploy/New-Release.ps1` - see `docs/Release-Guide.md`.
 
 ## Signing in
 

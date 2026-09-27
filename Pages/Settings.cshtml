@@ -35,7 +35,14 @@
             @foreach (var card in group.Cards)
             {
                 var badgeClass = card.Warn ? "badge badge-warning" : "badge";
-                if (card.Open)
+                if (card.Info)
+                {
+                    <div class="settings-card settings-card-info" data-keywords="@card.Keywords">
+                        <span class="settings-card-title"><strong>@card.Title</strong>@if (card.Badge is not null) { <span class="@badgeClass">@card.Badge</span> }</span>
+                        <small>@card.Description</small>
+                    </div>
+                }
+                else if (card.Open)
                 {
                     <a class="settings-card" asp-page="@card.Page" asp-all-route-data="@(card.Route ?? new Dictionary<string, string>())" data-keywords="@card.Keywords">
                         <span class="settings-card-title"><strong>@card.Title</strong>@if (card.Badge is not null) { <span class="@badgeClass">@card.Badge</span> }</span>

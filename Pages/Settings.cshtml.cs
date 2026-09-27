@@ -11,7 +11,7 @@ namespace EduHelpdesk.Pages;
 public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
 {
     public sealed record Card(string Title, string Page, string Description, string Keywords, string? Badge = null, bool Warn = false,
-        bool Open = true, IDictionary<string, string>? Route = null);
+        bool Open = true, IDictionary<string, string>? Route = null, bool Info = false);
     public sealed record Group(string Title, IReadOnlyList<Card> Cards);
 
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
@@ -26,6 +26,8 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     public bool HasDemoData => store.HasDemoData;
     public int RecentErrors { get; private set; }
     public IReadOnlyList<Group> Groups { get; private set; } = [];
+    // 1.2.0, from the version New-Release.ps1 builds with.
+    public static string AppVersion => typeof(SettingsModel).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "development";
 
     private string RetentionSummary()
     {
@@ -109,6 +111,8 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                 new("Audit log", "/Settings/Audit", "Who changed what, and when, across the whole helpdesk.", "audit log history changes who", Open: CanSeeAudit),
                 Page("Error log", "/Settings/Log", RecentErrors == 0 ? "Warnings and errors the helpdesk has recorded. None in the last 7 days." : $"Warnings and errors the helpdesk has recorded. {RecentErrors} error{(RecentErrors == 1 ? "" : "s")} in the last 7 days.",
                     "error log problems crash warning logs reference", RecentErrors > 0 ? $"{RecentErrors} this week" : null, RecentErrors > 0),
+                new("About EduHelpdesk", "/Settings", $"Version {AppVersion}. Made by Steven Davidson; free to use and share under the MIT licence, provided as it is with no warranty.",
+                    "about version licence license author release update", $"v{AppVersion}", Info: true),
                 Page("Go live & reset", "/Settings/Reset", HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.",
                     "demo data go live factory reset erase delete everything", HasDemoData ? "Demo data present" : null),
             ]),

@@ -2028,3 +2028,7 @@ main:focus { outline: none; }
     .recovery-panel { border: 0; }
     .recovery-panel .heading-actions { display: none; }
 }
+
+/* Settings → About: information, not a link. */
+.settings-card-info { cursor: default; }
+.settings-card-info:hover { transform: none; box-shadow: none; }

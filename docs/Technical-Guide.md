@@ -51,26 +51,9 @@ Files that matter, all in the data folder - `App_Data/` unless `EduHelpdesk:Data
 
 ## 2. Installing and running
 
-### For real use: a Windows service
+### For real use: the installer
 
-The helpdesk should run as a Windows service on a machine that stays on: it starts with the computer, restarts itself if it stops, runs in Production mode (so nobody ever sees a developer error page), and keeps its data in a plain local folder. Three scripts in `deploy/` do it. You need the **ASP.NET Core Runtime 10** (the "Hosting Bundle") on that machine.
-
-1. **Publish** a release copy (from any PowerShell):
-   ```powershell
-   .\deploy\Publish.ps1                       # to C:\EduHelpdesk\app
-   ```
-2. **Stop** the copy you run today (close `dotnet run`), so the database isn't copied mid-save.
-3. **Install** from PowerShell opened with *Run as administrator*:
-   ```powershell
-   .\deploy\Install-Service.ps1 -ImportFrom "<project folder>\App_Data" -Url "http://*:5277" -OpenFirewall
-   ```
-   It copies the data (database, attachments, quote files, sign-in keys, logo, template, logs and backups) into `C:\EduHelpdesk\data` - only if that folder has no database yet - and writes `appsettings.Production.json` next to the app with the data folder and the address. Then it registers the **EduHelpdesk** service under its own account (`NT SERVICE\EduHelpdesk`), sets it to restart after a failure, and starts it. `-OpenFirewall` opens the port on domain and private networks. The old `App_Data` is left as it was; archive it once the service is working.
-   - **HTTPS:** put a certificate in *Local Computer → Personal* and pass `-Url "https://*:443" -CertificateSubject "helpdesk.school.org.uk"`. The script points Kestrel at it, turns on RequireHttps, and gives the service read access to its private key.
-   - `-PrepareOnly` copies the data and writes the settings without touching Windows, to check them first.
-4. **Updating** later: run `Publish.ps1` again. It stops the service, copies the new version in, keeps `appsettings.Production.json`, and starts it again. The data folder is never touched.
-5. **Removing:** `Uninstall-Service.ps1` (as administrator) removes the service and its firewall rule, leaving the app and data folders.
-
-If the service won't stay running: Event Viewer → Windows Logs → Application (source EduHelpdesk), and `logs\` in the data folder.
+The helpdesk people use every day runs as a Windows service, installed from a release zip: unzip it and double-click `Install.cmd`. It asks where to keep the data, the school's name, colours and logo, where backups go, HTTPS and the port, then installs the program (with its own .NET runtime - nothing to download), registers the **EduHelpdesk** service, opens the firewall and starts it. Running it again from a newer zip upgrades in place. **`docs/Install-Guide.md`** (`INSTALL.pdf` in the zip) is the full guide for schools, and **`docs/Release-Guide.md`** explains how to make the zip (`deploy/New-Release.ps1`) and how to move an existing `dotnet run` install onto the service.
 
 ### For development
 
