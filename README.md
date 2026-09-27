@@ -12,6 +12,10 @@ Open the local URL printed by ASP.NET Core. Data is stored in the SQLite databas
 
 The database uses separate tables for users, technicians and teams, departments, ticket options, assets, tickets, comments, ticket activity, branding, and migration metadata. Existing databases that used the earlier single-payload `Store` table are migrated automatically.
 
+## Running it for real
+
+`dotnet run` is for development. For the helpdesk people use every day, install it as a Windows service with the scripts in `deploy/` - `Publish.ps1`, then `Install-Service.ps1` from an administrator PowerShell. They move the data out of OneDrive, run it in Production mode, and restart it after a reboot or failure. See section 2 of `docs/Technical-Guide.md`.
+
 ## Signing in
 
 Staff sign in with an email and password. **Roles are fully custom**, managed from the Roles panel on the **People** page: each role is a name plus nine permission toggles (Settings, manage roles, manage staff accounts, manage requesters, manage assets, manage suppliers, manage parts, delete/merge tickets, change "Working as"). Anyone signed in can already do the day-to-day ticket work (comment, assign, change status/priority/category, attachments, close) regardless of role - only the two destructive ticket actions are permission-gated.

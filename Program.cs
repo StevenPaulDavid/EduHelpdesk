@@ -7,7 +7,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
-var builder = WebApplication.CreateBuilder(args);
+// Run as a Windows service (deploy/Install-Service.ps1), the working folder is System32, so the app's own folder is
+// named as the content root - where appsettings.json, wwwroot and the fonts are. From a console or `dotnet run` nothing
+// changes. A service starts in Production unless told otherwise, so the developer error page never appears there.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : null
+});
+builder.Host.UseWindowsService(options => options.ServiceName = "EduHelpdesk");
 
 // Room for a ticket upload of several attachments at once (each file is still limited to 10 MB in the store).
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 60_000_000);
