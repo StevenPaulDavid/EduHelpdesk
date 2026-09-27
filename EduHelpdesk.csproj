@@ -8,8 +8,8 @@
     <!-- deploy/ holds the release tooling (its own small C# tool included) and installer/ the scripts shipped in the
          release zip; releases/ is where the zips are made. None of them are part of the app. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**;deploy/**;installer/**;releases/**</DefaultItemExcludes>
-    <!-- The release number schools see (Settings Ã¢â€ â€™ About). deploy/New-Release.ps1 sets it for each release. -->
-    <Version>1.0.0</Version>
+    <!-- The release number schools see (Settings ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ About). deploy/New-Release.ps1 sets it for each release. -->
+    <Version>1.1.0</Version>
     <Authors>Steven Davidson</Authors>
     <Product>EduHelpdesk</Product>
     <Copyright>Copyright (c) 2026 Steven Davidson. MIT licence.</Copyright>
