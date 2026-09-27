@@ -1,0 +1,26 @@
+name: Upload EduHelpdesk Release Asset
+
+permissions:
+  contents: write
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Upload EduHelpdesk ZIP
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: releases/EduHelpdesk-1.1.zip
+          asset_name: EduHelpdesk-1.1.zip
+          asset_content_type: application/zip
