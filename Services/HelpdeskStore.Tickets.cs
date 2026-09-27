@@ -555,14 +555,36 @@ public sealed partial class HelpdeskStore
             ["{{Asset.Serial}}"] = assets.Count > 0 ? string.Join(", ", assets.Select(x => x.SerialNumber)) : "",
             ["{{Asset.Location}}"] = assets.Count > 0 ? string.Join(", ", assets.Select(x => x.Location)) : ""
         };
+        // Each paragraph's text with the placeholders filled in, HTML-encoded, and line breaks kept.
+        string Fill(string text)
+        {
+            foreach (var value in values) text = text.Replace(value.Key, value.Value ?? "", StringComparison.OrdinalIgnoreCase);
+            return WebUtility.HtmlEncode(text).Replace("\n", "<br />");
+        }
         var html = new StringBuilder();
         foreach (var element in body.Elements())
         {
-            var content = element.InnerText;
-            foreach (var value in values) content = content.Replace(value.Key, value.Value ?? "", StringComparison.OrdinalIgnoreCase);
-            var encoded = WebUtility.HtmlEncode(content).Replace("\n", "<br />");
-            if (element is Table) html.Append($"<div class=\"template-table\">{encoded}</div>");
-            else if (!string.IsNullOrWhiteSpace(encoded)) html.Append($"<p>{encoded}</p>");
+            // A table keeps its rows and cells (and merged cells), where it used to come out as one run-on line.
+            if (element is Table table)
+            {
+                html.Append("<table class=\"template-table\">");
+                foreach (var row in table.Elements<TableRow>())
+                {
+                    html.Append("<tr>");
+                    foreach (var cell in row.Elements<TableCell>())
+                    {
+                        var span = cell.TableCellProperties?.GridSpan?.Val?.Value ?? 1;
+                        html.Append(span > 1 ? $"<td colspan=\"{span}\">" : "<td>")
+                            .Append(Fill(string.Join("\n", cell.Elements<Paragraph>().Select(x => x.InnerText))))
+                            .Append("</td>");
+                    }
+                    html.Append("</tr>");
+                }
+                html.Append("</table>");
+                continue;
+            }
+            var encoded = Fill(element.InnerText);
+            if (!string.IsNullOrWhiteSpace(encoded)) html.Append($"<p>{encoded}</p>");
         }
         return html.ToString();
     }

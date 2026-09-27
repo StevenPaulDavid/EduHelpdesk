@@ -17,6 +17,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/");
     options.Conventions.AllowAnonymousToPage("/Login");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
+    // A portal visitor or a signed-out one can hit an error too, and shouldn't be sent to the technician sign-in for it.
+    options.Conventions.AllowAnonymousToPage("/Error");
     // The root page allows anonymous access so it can redirect signed-out visitors to the portal itself (see
     // IndexModel.OnGet) instead of bouncing them straight to the technician login.
     options.Conventions.AllowAnonymousToPage("/Index");
@@ -135,6 +137,8 @@ builder.Services.AddRazorPages(options =>
         options.Filters.Add<SaveFailureFilter>();
         // "Must change password" holds on every page, not just straight after sign-in (see PasswordChangeFilter).
         options.Filters.Add<PasswordChangeFilter>();
+        // A handler the page doesn't have is "not found", not a crash (see UnknownHandlerFilter).
+        options.Filters.Add<UnknownHandlerFilter>();
     });
 
 // HTTPS. Off by default, because a first install is usually reached by plain http:// on the school network, and
@@ -223,6 +227,13 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
     if (requireHttps) app.UseHsts();
+}
+else
+{
+    // Development shows the whole error - stack trace, code and file paths. That is for the person debugging at this
+    // machine, not for everyone reaching it over the network, so anyone else gets the ordinary error page.
+    app.UseWhen(context => context.Connection.RemoteIpAddress is { } address && !System.Net.IPAddress.IsLoopback(address),
+        branch => branch.UseExceptionHandler("/Error"));
 }
 if (requireHttps) app.UseHttpsRedirection();
 app.UseSecurityHeaders();

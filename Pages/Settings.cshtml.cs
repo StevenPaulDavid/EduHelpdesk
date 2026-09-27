@@ -44,7 +44,9 @@ public class SettingsModel(HelpdeskStore store) : PageModel
             Page(title, page, description, keywords, $"{values.Count}");
 
         var backups = Backups;
-        var backupBadge = backups.NeedsAttention(DateTime.UtcNow) ? "Needs attention" : backups.Enabled ? "Nightly" : "Off";
+        // Backups beside the data survive a mistake or a bad update, but not the drive failing - worth a flag here too.
+        var sameDrive = string.Equals(Path.GetPathRoot(Path.GetFullPath(backups.Folder)), Path.GetPathRoot(Path.GetFullPath(store.DataFolder)), StringComparison.OrdinalIgnoreCase);
+        var backupBadge = backups.NeedsAttention(DateTime.UtcNow) ? "Needs attention" : !backups.Enabled ? "Off" : sameDrive ? "Same drive as data" : "Nightly";
         var lastBackup = backups.LastSuccessAt is { } last ? $"Last backup {last.ToLocalTime():ddd d MMM, HH:mm}." : "No backup has been made yet.";
 
         Groups =
@@ -92,7 +94,7 @@ public class SettingsModel(HelpdeskStore store) : PageModel
                 Page("Branding & logo", "/Settings/Branding", $"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()}).",
                     "branding brand name colour color logo crest dark mode light appearance theme overview wording"),
                 Page("Backups & data", "/Settings/Backups", lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""),
-                    "backup restore data folder onedrive", backupBadge, backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null),
+                    "backup restore data folder onedrive", backupBadge, backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
                 new("Sign-in security", "/Settings/Audit",
                     $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Accounts lock for {(int)SignInThrottle.Window.TotalMinutes} minutes after {SignInThrottle.AccountLimit} wrong passwords. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
                     "sign in login password lockout https encryption security", IsHttps ? "HTTPS" : "Not encrypted", !IsHttps,

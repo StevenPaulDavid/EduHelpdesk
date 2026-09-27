@@ -333,6 +333,8 @@ tr:last-child td { border: 0; }
 @media print {
     .uploaded-print-template { display: block; font-size: 9pt; line-height: 1.35; }
     .uploaded-print-template p { margin: 0 0 3mm; }
+    .uploaded-print-template .template-table { width: 100%; border-collapse: collapse; margin: 0 0 3mm; }
+    .uploaded-print-template .template-table td { border: 1px solid #b9cbcd; padding: 1.5mm 2mm; vertical-align: top; }
     .uploaded-print-template+.notice { display: none !important; }
 }
 
@@ -2003,3 +2005,8 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 @media(max-width:640px) {
     .retention-rule { grid-template-columns: 1fr; }
 }
+
+/* Keyboard users can jump past the header straight to the page (the first Tab on every page). */
+.skip-link { position: absolute; left: -9999px; top: 12px; z-index: 100; padding: 10px 16px; border-radius: 8px; background: var(--surface); color: var(--teal-text); font-weight: 700; box-shadow: 0 4px 16px rgba(23,37,47,.2); }
+.skip-link:focus { left: 16px; }
+main:focus { outline: none; }
