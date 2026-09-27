@@ -1,0 +1,39 @@
+@page
+@model EduHelpdesk.Pages.Settings.LogModel
+@using EduHelpdesk.Services
+@{ ViewData["Title"] = "Error log"; }
+
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Error log</h1><p class="hero-copy">Warnings and errors the helpdesk has recorded, newest first. Files are kept for @FileLogProvider.KeepDays days.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Reference from an error page<input name="reference" value="@Model.Reference" placeholder="e.g. 0HN7…:00000001" /></label>
+        <label class="toggle-label"><input type="checkbox" name="errors" value="true" checked="@Model.ErrorsOnly" /> Errors only</label>
+        <div class="heading-actions"><button class="button button-primary" type="submit">Show</button>@if (Model.Reference is not null || Model.ErrorsOnly) { <a class="button button-secondary" asp-page="/Settings/Log">Clear</a> }</div>
+    </form>
+    <p class="muted">The files are in <code>@Model.Folder</code>. They can hold names or ticket text from the moment something went wrong, so treat them like the rest of the helpdesk's data.</p>
+</section>
+
+<section class="panel">
+    @if (Model.Entries.Count == 0)
+    {
+        <p class="muted">@(Model.Reference is not null ? "Nothing in the log carries that reference." : "Nothing has been logged. That is how it should be.")</p>
+    }
+    else
+    {
+        <div class="table-wrap"><table class="log-table stack-table"><thead><tr><th>When</th><th>Level</th><th data-stack="head">What happened</th><th>Reference</th></tr></thead><tbody>
+        @foreach (var entry in Model.Entries)
+        {
+            <tr>
+                <td class="due-cell">@entry.At.ToString("dd MMM yyyy, HH:mm:ss")</td>
+                <td><span class="badge @(entry.Level is "ERROR" or "CRITICAL" ? "badge-warning" : "")">@entry.Level</span></td>
+                <td>
+                    <strong>@entry.Message</strong><br /><span class="muted">@entry.Source</span>
+                    @if (entry.Details.Length > 0) { <details class="log-details"><summary>Details</summary><pre>@entry.Details</pre></details> }
+                </td>
+                <td>@if (entry.Reference != "-") { <code>@entry.Reference</code> } else { <span class="muted">—</span> }</td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+</section>

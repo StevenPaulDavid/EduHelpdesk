@@ -513,20 +513,56 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    public void SavePrintTemplate(Stream source)
+    // The upload is opened as a Word document before it replaces anything: a damaged file used to be stored as it was,
+    // and every ticket page then failed to render.
+    public (bool Ok, string Message) SavePrintTemplate(Stream source)
     {
+        using var buffer = new MemoryStream();
+        source.CopyTo(buffer);
+        try
+        {
+            buffer.Position = 0;
+            using var document = WordprocessingDocument.Open(buffer, false);
+            if (document.MainDocumentPart?.Document?.Body is null) return (false, "That Word document has no content to use as a template.");
+        }
+        catch (Exception ex) when (ex is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException)
+        {
+            return (false, "That file isn't a Word document that can be opened. Save it again from Word as a .docx and upload that.");
+        }
         lock (_sync)
         {
-            using (var destination = File.Create(_templatePath))
-                source.CopyTo(destination);
+            var temporary = _templatePath + ".uploading";
+            File.WriteAllBytes(temporary, buffer.ToArray());
+            File.Move(temporary, _templatePath, overwrite: true);
             _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Settings", null, null, "Ticket print template", "Uploaded", "The ticket print template was replaced."));
             Save();
+            return (true, "Print template uploaded.");
         }
     }
 
     public string RenderPrintTemplate(TicketRecord ticket, UserRecord? requester, TechnicianRecord? technician, IReadOnlyList<AssetRecord> assets)
     {
         if (!File.Exists(_templatePath)) return string.Empty;
+        // A template that can't be read (damaged after upload, or from before uploads were checked) falls back to the
+        // standard printout rather than taking every ticket page down with it.
+        try { return RenderPrintTemplateCore(ticket, requester, technician, assets); }
+        catch (Exception ex) when (ex is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException)
+        {
+            // Once per template file, not on every ticket opened.
+            var stamp = File.GetLastWriteTimeUtc(_templatePath);
+            if (_unreadableTemplateLogged != stamp)
+            {
+                _unreadableTemplateLogged = stamp;
+                _logger?.LogWarning(ex, "The ticket print template couldn't be read, so tickets print with the standard layout. Upload it again in Settings → Ticket queues & closing.");
+            }
+            return string.Empty;
+        }
+    }
+
+    private DateTime? _unreadableTemplateLogged;
+
+    private string RenderPrintTemplateCore(TicketRecord ticket, UserRecord? requester, TechnicianRecord? technician, IReadOnlyList<AssetRecord> assets)
+    {
         using var document = WordprocessingDocument.Open(_templatePath, false);
         var body = document.MainDocumentPart?.Document?.Body;
         if (body is null) return string.Empty;

@@ -169,6 +169,11 @@ var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataLocation.KeysFolder));
 if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
 builder.Services.AddSingleton(dataLocation);
+// Warnings and errors also go to a file a day in the data folder's logs folder (Settings → Error log), because a
+// service has no console for them to scroll past in. See FileLogProvider.
+var fileLog = new FileLogProvider(Path.Combine(dataLocation.Folder, "logs"));
+builder.Logging.AddProvider(fileLog);
+builder.Services.AddSingleton(fileLog);
 builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<HelpdeskStore>();
 builder.Services.AddSingleton<SignInThrottle>();

@@ -17,9 +17,18 @@ public sealed partial class HelpdeskStore
     // constructed outside a web request - then there is no actor and changes are recorded against the system.
     private readonly IHttpContextAccessor? _httpContext;
     private readonly PortalIdentity? _portalIdentity;
+    // Problems the store works round but someone should know about (the error log). Null outside the app, e.g. in tests.
+    private readonly ILogger<HelpdeskStore>? _logger;
 
-    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null, PortalIdentity? portalIdentity = null, DataLocation? location = null)
+    private void LogProblem(Exception exception, string message)
     {
+        if (_logger is not null) _logger.LogError(exception, "{Problem}", message);
+        else Console.Error.WriteLine($"EduHelpdesk: {message}: {exception.Message}");
+    }
+
+    public HelpdeskStore(IHostEnvironment environment, IHttpContextAccessor? httpContext = null, PortalIdentity? portalIdentity = null, DataLocation? location = null, ILogger<HelpdeskStore>? logger = null)
+    {
+        _logger = logger;
         _httpContext = httpContext;
         _portalIdentity = portalIdentity;
         Location = location;

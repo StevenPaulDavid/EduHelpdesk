@@ -117,7 +117,7 @@ public sealed partial class HelpdeskStore
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"EduHelpdesk: a save failed and the data couldn't be reloaded either: {ex.Message}");
+            LogProblem(ex, "A save failed and the data couldn't be reloaded either");
             return false;
         }
     }
@@ -143,7 +143,7 @@ public sealed partial class HelpdeskStore
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"EduHelpdesk: couldn't record '{entry.Action}' in the audit log: {ex.Message}");
+                LogProblem(ex, $"Couldn't record '{entry.Action}' in the audit log");
             }
         }
     }

@@ -312,7 +312,7 @@ public partial class HelpdeskStore
 
             // The data is saved; now the audit log, which is kept apart from it. Files go last, once nothing refers to them.
             try { TrimAuditLog(auditCutoff, purgedTickets, anonymised); }
-            catch (SqliteException ex) { Console.Error.WriteLine($"EduHelpdesk: retention saved the data but couldn't update the audit log: {ex.Message}"); }
+            catch (SqliteException ex) { LogProblem(ex, "Retention saved the data but couldn't update the audit log"); }
             foreach (var file in files) TryDelete(file);
             return (true, summary);
         }

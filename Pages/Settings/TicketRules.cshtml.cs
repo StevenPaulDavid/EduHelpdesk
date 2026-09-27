@@ -45,8 +45,7 @@ public class TicketRulesModel(HelpdeskStore store) : PageModel
             return RedirectToPage();
         }
         using var stream = PrintTemplate.OpenReadStream();
-        store.SavePrintTemplate(stream);
-        Message = "Print template uploaded.";
+        Message = store.SavePrintTemplate(stream).Message;
         return RedirectToPage();
     }
 }

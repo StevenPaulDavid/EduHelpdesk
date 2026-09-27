@@ -2010,3 +2010,7 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 .skip-link { position: absolute; left: -9999px; top: 12px; z-index: 100; padding: 10px 16px; border-radius: 8px; background: var(--surface); color: var(--teal-text); font-weight: 700; box-shadow: 0 4px 16px rgba(23,37,47,.2); }
 .skip-link:focus { left: 16px; }
 main:focus { outline: none; }
+
+/* Settings → Error log. */
+.log-details summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--teal-text); margin-top: 6px; }
+.log-details pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 360px; overflow: auto; }

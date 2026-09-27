@@ -208,7 +208,7 @@ public sealed partial class HelpdeskStore
             catch (SqliteException ex)
             {
                 // Only the "New reply" flag is lost; the next full save writes the in-memory value anyway.
-                Console.Error.WriteLine($"EduHelpdesk: couldn't record that ticket #{number} was seen: {ex.Message}");
+                LogProblem(ex, $"Couldn't record that ticket #{number} was seen");
             }
         }
     }

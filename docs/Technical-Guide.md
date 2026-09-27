@@ -44,6 +44,7 @@ Files that matter, all in the data folder - `App_Data/` unless `EduHelpdesk:Data
 | `attachments/` | Ticket attachments, stored by GUID with no file extension |
 | `keys/` | The keys that sign-in cookies are encrypted with. Lose them and everyone signs in again; nothing else is lost |
 | `backups/` | The nightly backup zips, unless the backup folder has been pointed elsewhere |
+| `logs/` | The error log: warnings and errors, one file a day, kept for 30 days. Read it in **Settings → Error log** |
 | `print-template.docx` | Optional Word template for printing tickets |
 
 ---
@@ -585,6 +586,9 @@ Things the system deliberately or currently does not do. Worth knowing before so
 
 ## 18. Troubleshooting
 
+**Someone saw "Something went wrong" with a reference.**
+Open **Settings → Error log** and search for the reference: the entry has what failed and the technical details. Anyone reaching the helpdesk over the network sees only the plain error page; the full developer error page appears only on the machine running it, and only in Development.
+
 **"That team/location/category cannot be deleted because it is in use."**
 Something still references it. Move those records onto a different value first, then delete.
 
@@ -630,6 +634,7 @@ For anyone maintaining it:
 | Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs`, `TechnicianSession.cs` |
 | Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs` |
 | Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
+| Error log and error page | `Services/FileLog.cs`, `UnknownHandlerFilter.cs`, `Pages/Error.cshtml`, `Pages/Settings/Log.cshtml` |
 | Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |
 | Themes and phone layout | `Services/Themes.cs`, `wwwroot/css/site.css`, `wwwroot/js/layout.js`, `picker.js` |
 | Page behaviour (buttons, dialogs, tabs, bulk selection) | `wwwroot/js/actions.js` (the `data-` attributes every page uses), `bulk-select.js`, `wwwroot/js/pages/*.js` |

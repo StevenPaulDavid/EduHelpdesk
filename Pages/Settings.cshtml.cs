@@ -8,7 +8,7 @@ namespace EduHelpdesk.Pages;
 // fifteen forms, and since the page itself only needs Settings: Access, a role given Access and not Edit could post
 // every one of them - branding, imports, even the factory reset. Every form now lives on a page under /Settings, which
 // needs Settings: Edit (Program.cs), and this page has no handlers at all.
-public class SettingsModel(HelpdeskStore store) : PageModel
+public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
 {
     public sealed record Card(string Title, string Page, string Description, string Keywords, string? Badge = null, bool Warn = false,
         bool Open = true, IDictionary<string, string>? Route = null);
@@ -22,6 +22,7 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     public bool IsHttps => Request.IsHttps;
     public int RecentLockouts => store.CountAuditEntries("Sign-in", DateTime.UtcNow.AddDays(-7));
     public bool HasDemoData => store.HasDemoData;
+    public int RecentErrors { get; private set; }
     public IReadOnlyList<Group> Groups { get; private set; } = [];
 
     private string RetentionSummary()
@@ -38,6 +39,7 @@ public class SettingsModel(HelpdeskStore store) : PageModel
     public void OnGet()
     {
         var edit = CanEdit;
+        RecentErrors = FileLog.CountSince(log.Folder, DateTime.Now.AddDays(-7));
         Card Page(string title, string page, string description, string keywords, string? badge = null, bool warn = false) =>
             new(title, page, description, keywords, badge, warn, edit);
         Card List(string title, string page, IReadOnlyCollection<string> values, string description, string keywords) =>
@@ -103,6 +105,8 @@ public class SettingsModel(HelpdeskStore store) : PageModel
                     "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
                     store.Retention.AnyOn ? "On" : null),
                 new("Audit log", "/Settings/Audit", "Who changed what, and when, across the whole helpdesk.", "audit log history changes who", Open: CanSeeAudit),
+                Page("Error log", "/Settings/Log", RecentErrors == 0 ? "Warnings and errors the helpdesk has recorded. None in the last 7 days." : $"Warnings and errors the helpdesk has recorded. {RecentErrors} error{(RecentErrors == 1 ? "" : "s")} in the last 7 days.",
+                    "error log problems crash warning logs reference", RecentErrors > 0 ? $"{RecentErrors} this week" : null, RecentErrors > 0),
                 Page("Go live & reset", "/Settings/Reset", HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.",
                     "demo data go live factory reset erase delete everything", HasDemoData ? "Demo data present" : null),
             ]),
