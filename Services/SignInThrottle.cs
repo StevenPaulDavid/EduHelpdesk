@@ -36,7 +36,7 @@ public sealed class SignInThrottle(HelpdeskStore store, ILogger<SignInThrottle> 
             if (Remaining(AddressKey(address), now) is { } addressWait)
                 return $"Too many failed sign-ins from this computer. Try again in {Minutes(addressWait)}.";
             if (Remaining(AccountKey(form, email), now) is { } accountWait)
-                return $"Too many failed sign-ins for this account. Try again in {Minutes(accountWait)}, or ask {(form == "portal" ? "the IT team" : "an administrator")} to reset the password.";
+                return $"Too many failed sign-ins for this account. Try again in {Minutes(accountWait)}, or ask {(form == "portal" ? "the IT team" : "an administrator")} to reset {(form.EndsWith("-code", StringComparison.Ordinal) ? "your two-step sign-in" : "the password")}.";
             return null;
         }
     }

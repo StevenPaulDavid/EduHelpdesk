@@ -91,6 +91,7 @@
             <summary><span class="user-name">@User.Identity!.Name</span><span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">
                 <a asp-page="/ChangePassword">Change password</a>
+                <a asp-page="/TwoFactor">Two-step sign-in</a>
                 @* Signs the technician straight into the portal as themselves (Portal/Index OnPostTechnician). *@
                 <a asp-page="/Portal/Index" asp-page-handler="Technician" target="_blank" rel="noopener">Open staff portal ↗</a>
                 <form method="post" asp-page="/Logout"><button type="submit">Sign out</button></form>

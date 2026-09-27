@@ -2014,3 +2014,17 @@ main:focus { outline: none; }
 /* Settings → Error log. */
 .log-details summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--teal-text); margin-top: 6px; }
 .log-details pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 360px; overflow: auto; }
+
+/* Two-step sign-in set-up (Pages/TwoFactor). The QR code stays black on white in dark mode too, or phones can't read it. */
+.setup-steps { display: grid; gap: 14px; padding-left: 20px; margin: 0 0 18px; }
+.qr-block { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 12px; }
+.qr-block img { background: #fff; padding: 8px; border-radius: 8px; border: 1px solid var(--line); image-rendering: pixelated; }
+.qr-block p { max-width: 320px; margin: 0; }
+.setup-key { display: inline-block; margin-top: 6px; font-size: 15px; letter-spacing: .08em; word-break: break-all; }
+.recovery-panel { border-color: var(--caution); }
+.recovery-codes { list-style: none; padding: 0; margin: 14px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.recovery-codes code { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; letter-spacing: .06em; text-align: center; background: var(--surface-2); }
+@media print {
+    .recovery-panel { border: 0; }
+    .recovery-panel .heading-actions { display: none; }
+}

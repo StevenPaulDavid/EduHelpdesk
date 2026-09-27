@@ -1,0 +1,41 @@
+@page
+@model EduHelpdesk.Pages.Settings.SignInModel
+@using EduHelpdesk.Services
+@{
+    ViewData["Title"] = "Sign-in security";
+    var withTwoFactor = Model.Staff.Count(x => x.TwoFactor is not null);
+}
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Sign-in security</h1><p class="hero-copy">How staff accounts are protected. The staff portal has its own passwords and isn't covered by two-step sign-in.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <h2>Two-step sign-in</h2>
+    <p>@withTwoFactor of @Model.Staff.Count active staff account@(Model.Staff.Count == 1 ? " has" : "s have") it set up. The DfE's cyber security standard for schools expects it on accounts like these, which can change anything in the helpdesk.</p>
+    <form method="post" asp-page-handler="Require" data-confirm="@(Model.Required ? "Make two-step sign-in optional? Those who have it keep it." : "Require two-step sign-in for every staff account? Anyone without it will have to set it up before they can do anything else.")">
+        <input type="hidden" name="required" value="@(Model.Required ? "false" : "true")" />
+        <p>@(Model.Required ? "It is required: anyone without it sets it up the next time they use the helpdesk." : "It is each person's choice at the moment.")</p>
+        <button class="button @(Model.Required ? "button-secondary" : "button-primary")">@(Model.Required ? "Make it optional" : "Require it for everyone")</button>
+    </form>
+    <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Staff account</th><th>Role</th><th>Two-step sign-in</th></tr></thead><tbody>
+    @foreach (var person in Model.Staff)
+    {
+        <tr>
+            <td>@if (Model.CanEditStaff) { <a asp-page="/People/Technician" asp-route-id="@person.Id">@person.Name</a> } else { @person.Name }<br /><span class="muted">@person.Email</span></td>
+            <td>@person.Role</td>
+            <td>@if (person.TwoFactor is { } twoFactor) { <span class="badge">On since @twoFactor.EnabledAt.ToLocalTime().ToString("d MMM yyyy")</span> } else { <span class="badge @(Model.Required ? "badge-warning" : "")">Not set up</span> }</td>
+        </tr>
+    }
+    </tbody></table></div>
+    <p class="muted">Someone who has lost their phone and their recovery codes: open their staff account and reset it, then they set it up again.</p>
+</section>
+
+<section class="panel">
+    <h2>Passwords and lockouts</h2>
+    <dl class="detail-list">
+        <dt>Encryption</dt><dd>@(Model.IsHttps ? "Passwords reach the helpdesk encrypted (HTTPS)." : "This page came over plain HTTP, so passwords cross the network unencrypted. Give the site a certificate and turn on EduHelpdesk:RequireHttps - see the Technical Guide.")</dd>
+        <dt>Passwords</dt><dd>At least @PasswordRules.MinimumLength characters, and not one of the passwords guessed first or the person's own name.</dd>
+        <dt>Lockout</dt><dd>@SignInThrottle.AccountLimit wrong passwords (or two-step codes) for one account within @((int)SignInThrottle.Window.TotalMinutes) minutes lock it for @((int)SignInThrottle.Window.TotalMinutes) minutes; @SignInThrottle.AddressLimit from one computer block that computer.</dd>
+        <dt>Last 7 days</dt><dd>@(Model.RecentLockouts == 0 ? "No lockouts." : $"{Model.RecentLockouts} lockout{(Model.RecentLockouts == 1 ? "" : "s")}.") @if (Model.CanSeeAudit) { <a asp-page="/Settings/Audit" asp-route-section="Sign-in">See the sign-in audit</a> }</dd>
+        <dt>Signing out</dt><dd>Ends the session on the server, so a copied sign-in cookie stops working too.</dd>
+    </dl>
+</section>

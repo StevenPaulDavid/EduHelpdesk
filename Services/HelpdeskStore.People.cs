@@ -84,7 +84,16 @@ public sealed partial class HelpdeskStore
             return true;
         }
     }
-    public bool UpdateTechnician(TechnicianRecord item) => Update(item, _data.Technicians, x => x.Id == item.Id);
+    // Two-step sign-in belongs to the store (HelpdeskStore.TwoFactor): the edit form builds a new record without it, so it
+    // is carried over rather than wiped by every save of someone's name or team.
+    public bool UpdateTechnician(TechnicianRecord item)
+    {
+        lock (_sync)
+        {
+            var previous = _data.Technicians.FirstOrDefault(x => x.Id == item.Id);
+            return Update(previous is null ? item : item with { TwoFactor = previous.TwoFactor }, _data.Technicians, x => x.Id == item.Id);
+        }
+    }
 
     public string? DeleteUser(Guid id)
     {

@@ -163,6 +163,16 @@ There is no self-service "forgotten password" reset, because there is no email. 
 
 ---
 
+### Two-step sign-in
+
+Staff accounts can use a code from an authenticator app (Microsoft Authenticator, Google Authenticator or any other that shows six-digit codes) as well as their password. The DfE's cyber security standard for schools expects this on accounts like these.
+
+- **Setting it up:** account menu → **Two-step sign-in**. Scan the QR code (or type the key), enter the code the app shows, and keep the ten **recovery codes** it then shows once. Turning it on signs the account out everywhere else.
+- **Signing in:** after the password, the helpdesk asks for the code (`/LoginCode`). A recovery code works instead, once each. Codes can't be reused, and 5 wrong codes lock the account for 15 minutes, as wrong passwords do.
+- **Requiring it:** **Settings → Sign-in security** can require it of every staff account. Anyone without it is then sent to set it up before they can do anything else (after changing their password, if they must do that too). While it is required, nobody can turn theirs off.
+- **Lost phone:** someone with Staff accounts: Edit opens the person's staff account and presses **Reset two-step sign-in**; they set it up again. Only an Administrator can reset an Administrator's, and nobody resets their own that way.
+- The staff portal has its own passwords and doesn't use two-step sign-in.
+- Every change - turned on, reset, required, recovery code used - is in the audit log under **Sign-in**. The app secrets are stored in the database like the rest of the data (so a restored backup still works on another machine); treat backups accordingly.
 ## 5. Tickets
 
 **Tickets** in the top nav (`/Jobs`) is the main working list. The **Overview** (the home page) is the day's starting point: counts of your open tickets, overdue, unassigned and replies waiting (each opens its queue), then short lists of your tickets (most urgent first), overdue and due soon, unassigned, requesters waiting on a reply, your projects, and the asset and parts review lists. "Your" follows Working as, the same as the My tickets queue. Each panel only appears for a role allowed that module.
@@ -388,7 +398,7 @@ Every part at or below its reorder threshold, with quantity against threshold, p
 | Assets & inventory | **Asset, part & loan rules** (asset review window, default 60 days; academic year start; default reorder threshold, default 5; repeat-borrowing flag), Asset types (and lifespans), Makes, Models, Asset statuses, Custom asset attributes, Part categories, Part locations, Loan reasons |
 | People & places | Teams, Departments, Locations, **Imports** (users, technicians and option lists by CSV) |
 | Projects | Spending bands, Purchasing requirements |
-| System | **Branding & logo** (school name, overview wording, colours, logo, default appearance), Backups & data, Sign-in security (links to the lockouts in the audit log), Audit log, **Go live & reset** (remove the demo data; factory reset) |
+| System | **Branding & logo** (school name, overview wording, colours, logo, default appearance), Backups & data, **Sign-in security** (HTTPS status, lockouts, requiring two-step sign-in and who has it), **Error log**, Audit log, **Go live & reset** (remove the demo data; factory reset) |
 
 **Who can change what.** Opening the Settings index needs Settings: Access. Every page behind it needs Settings: Edit, except the audit log, which has its own permission. A role with Access alone sees the cards but no links, and the index itself has no forms to post.
 
@@ -612,6 +622,9 @@ It is assigned to a ticket. Remove it from the ticket first, or use bulk delete,
 **"Too many failed sign-ins from this computer."**
 30 wrong passwords came from that address, across any accounts. It clears after 15 minutes, or when the app restarts. If the whole school hits this at once, the app is probably behind a proxy without `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` (section 2), so everyone looks like one address.
 
+**A technician has lost their phone (two-step sign-in).**
+They can sign in with one of their recovery codes. Without those, someone with Staff accounts: Edit resets their two-step sign-in from their staff account, and they set it up again. If every Administrator is locked out, restore from a backup - or, on a test copy only, clear `TotpSecret` for that technician row in SQLite.
+
 **Nobody can sign in / the Administrator password is lost.**
 The system guarantees an Administrator account exists, but it cannot be recovered from the UI. Restore from a backup, or — as a last resort on a test copy — clear the `PasswordHash` for that technician row directly in SQLite and sign in with the bootstrap credentials.
 
@@ -634,7 +647,7 @@ For anyone maintaining it:
 | Asset import | `Services/HelpdeskStore.AssetImport.cs`, `AssetImportTargets.cs`, `CsvReader.cs` |
 | Calculated insights | `Services/AssetInsights.cs`, `PartInsights.cs`, `TicketReports.cs` |
 | Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs`, `TechnicianSession.cs` |
-| Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs`, `HelpdeskStore.Sessions.cs` |
+| Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs`, `HelpdeskStore.Sessions.cs`, `HelpdeskStore.TwoFactor.cs`, `Totp.cs`, `TwoFactorPending.cs`, `Pages/TwoFactor.cshtml`, `Pages/LoginCode.cshtml` |
 | Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
 | Error log and error page | `Services/FileLog.cs`, `UnknownHandlerFilter.cs`, `Pages/Error.cshtml`, `Pages/Settings/Log.cshtml` |
 | Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |

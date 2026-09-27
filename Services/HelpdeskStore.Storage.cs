@@ -154,6 +154,12 @@ public sealed partial class HelpdeskStore
         lock (_sync) return _audit.Count(x => x.At >= sinceUtc && string.Equals(x.Area, area, StringComparison.OrdinalIgnoreCase));
     }
 
+    // Lockouts only - the Sign-in area also records two-step sign-in being set up, reset and so on (SignInThrottle).
+    public int CountLockouts(DateTime sinceUtc)
+    {
+        lock (_sync) return _audit.Count(x => x.At >= sinceUtc && x.Area == "Sign-in" && x.Action is "Locked out" or "Address blocked");
+    }
+
     private List<AuditEntry> LoadAudit()
     {
         var entries = new List<AuditEntry>();
@@ -289,6 +295,7 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AcademicYearStartMonth';") as string, out var academicStart)) data.AcademicYearStartMonth = academicStart;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PermissionModelVersion';") as string, out var permissionVersion)) data.PermissionModelVersion = permissionVersion;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
+        data.RequireTwoFactor = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequireTwoFactor';") as string == "1";
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
@@ -427,13 +434,16 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive FROM Technicians;";
+            command.CommandText = "SELECT Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive, TotpSecret, TwoFactorSince, TotpLastStep, RecoveryCodes FROM Technicians;";
             using var reader = command.ExecuteReader();
             // Trusts the stored value as-is rather than validating against Roles here: on first run after an upgrade the
             // Roles table is still being seeded (see EnsureSeedRoles, called after Load()), so it can't be checked yet.
             // Permission lookups (RoleGrants) are case-insensitive, so this doesn't need to be exact.
             while (reader.Read()) data.Technicians.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), NullableString(reader, 3) ?? "",
-                NullableString(reader, 4) is { Length: > 0 } role ? role : StaffRoles.DefaultRole, NullableString(reader, 5), reader.GetInt32(6) != 0, reader.GetInt32(7) != 0));
+                NullableString(reader, 4) is { Length: > 0 } role ? role : StaffRoles.DefaultRole, NullableString(reader, 5), reader.GetInt32(6) != 0, reader.GetInt32(7) != 0)
+            {
+                TwoFactor = ReadTwoFactor(reader)
+            });
         }
         using (var command = connection.CreateCommand())
         {
@@ -728,6 +738,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "AcademicYearStartMonth", data.AcademicYearStartMonth.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "PermissionModelVersion", data.PermissionModelVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "RequireTwoFactor", data.RequireTwoFactor ? "1" : "0");
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));
@@ -750,8 +761,9 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange, LeftAt, AnonymisedAt) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead,$requireChange,$left,$anonymised);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$left", item.LeftAt is { } left ? Iso(left) : null), ("$anonymised", item.AnonymisedAt is { } anonymised ? Iso(anonymised) : null));
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
-            Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active);",
-                ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", string.IsNullOrWhiteSpace(item.Team) ? null : item.Team), ("$role", string.IsNullOrWhiteSpace(item.Role) ? StaffRoles.DefaultRole : item.Role), ("$hash", item.PasswordHash), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$active", item.IsActive ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive, TotpSecret, TwoFactorSince, TotpLastStep, RecoveryCodes) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active,$totp,$totpSince,$totpStep,$recovery);",
+                ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$team", string.IsNullOrWhiteSpace(item.Team) ? null : item.Team), ("$role", string.IsNullOrWhiteSpace(item.Role) ? StaffRoles.DefaultRole : item.Role), ("$hash", item.PasswordHash), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$active", item.IsActive ? 1 : 0),
+                ("$totp", item.TwoFactor?.Secret), ("$totpSince", item.TwoFactor is { } twoFactor ? Iso(twoFactor.EnabledAt) : null), ("$totpStep", item.TwoFactor?.LastUsedStep), ("$recovery", item.TwoFactor is { } codes ? string.Join(",", codes.RecoveryCodeHashes) : null));
         foreach (var item in data.Roles)
         {
             // The nine Allow* columns are NOT NULL DEFAULT 0, so leaving them out retires them cleanly - the same way

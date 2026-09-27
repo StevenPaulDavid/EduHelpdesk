@@ -34,6 +34,16 @@ public sealed class PasswordChangeFilter(HelpdeskStore store, PortalIdentity por
             return;
         }
 
+        // Settings can require two-step sign-in of every staff account. Anyone signed in without it can only set it up
+        // (or sign out) until they have - checked on every page, like the password change above.
+        if (store.RequireTwoFactor && TechnicianWithoutTwoFactor(context.HttpContext.User)
+            && !TwoFactorAllowed.Contains(page)
+            && (!isPortal || (page.Equals("/Portal/Index", StringComparison.OrdinalIgnoreCase) && handler == "Technician")))
+        {
+            context.Result = new RedirectToPageResult("/TwoFactor");
+            return;
+        }
+
         if (isPortal && !page.Equals("/Portal/Password", StringComparison.OrdinalIgnoreCase) && handler != "Switch"
             && portal.Validate(context.HttpContext.Request, store) is { Kind: not PortalIdentity.Kind.Technician } session
             && store.Users.FirstOrDefault(x => x.Id == session.UserId) is { RequirePasswordChange: true })
@@ -44,6 +54,14 @@ public sealed class PasswordChangeFilter(HelpdeskStore store, PortalIdentity por
 
         await next();
     }
+
+    private static readonly HashSet<string> TwoFactorAllowed = new(StringComparer.OrdinalIgnoreCase)
+        { "/TwoFactor", "/ChangePassword", "/Logout", "/Login", "/LoginCode", "/Error", "/AccessDenied", "/Appearance" };
+
+    private bool TechnicianWithoutTwoFactor(ClaimsPrincipal user) =>
+        user.Identity?.IsAuthenticated == true
+        && Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id)
+        && store.Technicians.FirstOrDefault(x => x.Id == id) is { TwoFactor: null };
 
     private bool TechnicianMustChange(ClaimsPrincipal user) =>
         user.Identity?.IsAuthenticated == true

@@ -19,7 +19,16 @@ public record UserRecord(Guid Id, string Name, string Email, string Department, 
     // still have a requester, but nothing on it identifies them any more.
     public DateTime? AnonymisedAt { get; init; }
 }
-public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true);
+public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true)
+{
+    // Two-step sign-in with an authenticator app (Services/Totp.cs, HelpdeskStore.TwoFactor.cs). Null until the technician
+    // sets it up. Owned by the store: edit forms build a new record without it, and UpdateTechnician carries it over.
+    public TwoFactorSetup? TwoFactor { get; init; }
+}
+
+// The shared secret, when it was turned on, the last code step used (so a code can't be replayed), and the hashes of the
+// recovery codes not yet used.
+public sealed record TwoFactorSetup(string Secret, DateTime EnabledAt, long LastUsedStep, IReadOnlyList<string> RecoveryCodeHashes);
 // What a role can do with one module. Each is an independent tick rather than a rung on a ladder: a role can be given
 // Delete without Edit, or New without Access, because which combinations make sense is the school's call, not ours.
 // Flags so one value holds a module's whole set.

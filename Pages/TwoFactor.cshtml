@@ -1,0 +1,55 @@
+@page
+@model TwoFactorModel
+@{ ViewData["Title"] = "Two-step sign-in"; var setup = Model.Me.TwoFactor; }
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / YOUR ACCOUNT</p><h1>Two-step sign-in</h1><p class="hero-copy">After your password, the helpdesk asks for a code from an app on your phone, so a password on its own - guessed, reused or seen over a shoulder - isn't enough to get in.</p></div></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+@if (Model.RecoveryCodes.Count > 0)
+{
+    <section class="panel recovery-panel">
+        <h2>Your recovery codes</h2>
+        <p>Each one signs you in once if your phone is lost or flat. Print them or write them down and keep them somewhere safe - <strong>this is the only time they are shown</strong>.</p>
+        <ul class="recovery-codes">@foreach (var code in Model.RecoveryCodes) { <li><code>@code</code></li> }</ul>
+        <p class="heading-actions"><button class="button button-secondary" type="button" data-action="print">Print them</button><a class="button button-primary" href="/">I've kept them safe</a></p>
+    </section>
+}
+
+@if (setup is null)
+{
+    @if (Model.Required) { <div class="notice notice-warning">Your school requires two-step sign-in for every staff account. Set it up to carry on using the helpdesk.</div> }
+    <section class="panel">
+        <h2>Set it up</h2>
+        <ol class="setup-steps">
+            <li>On your phone, install an authenticator app if you don't have one: Microsoft Authenticator, Google Authenticator or any other that shows six-digit codes.</li>
+            <li>In the app, add an account and scan this code.<div class="qr-block"><img src="@Model.QrCode" alt="QR code to scan with your authenticator app" width="246" height="246" /><p class="muted">Can't scan it? Choose to enter a key instead and type:<br /><code class="setup-key">@Model.SetupKey</code></p></div></li>
+            <li>Type the six-digit code the app now shows for the helpdesk.</li>
+        </ol>
+        <form method="post" asp-page-handler="Enable" class="settings-form" style="max-width:320px;">
+            <input type="hidden" name="setupToken" value="@Model.SetupToken" />
+            <div asp-validation-summary="All" class="validation-summary-errors"></div>
+            <label>Code from the app<input name="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required /></label>
+            <button class="button button-primary">Turn on two-step sign-in</button>
+        </form>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <h2>Two-step sign-in is on</h2>
+        <p>Set up on @setup.EnabledAt.ToLocalTime().ToString("d MMMM yyyy"). @(setup.RecoveryCodeHashes.Count == 0 ? "You have no recovery codes left - make new ones now." : $"You have {setup.RecoveryCodeHashes.Count} recovery code{(setup.RecoveryCodeHashes.Count == 1 ? "" : "s")} left.")</p>
+        <p class="muted">New phone? Ask an administrator to reset your two-step sign-in, then set it up again here.</p>
+        <form method="post" asp-page-handler="RecoveryCodes" data-confirm="Make new recovery codes? The ones you have now will stop working.">
+            <button class="button button-secondary">Make new recovery codes</button>
+        </form>
+    </section>
+    @if (!Model.Required)
+    {
+        <section class="panel">
+            <h2>Turn it off</h2>
+            <form method="post" asp-page-handler="Disable" class="settings-form" style="max-width:320px;">
+                <label>A code from the app, or a recovery code<input name="Code" autocomplete="one-time-code" maxlength="12" required /></label>
+                <button class="button button-danger">Turn off two-step sign-in</button>
+            </form>
+        </section>
+    }
+}

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class LoginModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
+public class LoginModel(HelpdeskStore store, SignInThrottle throttle, TwoFactorPending pending) : PageModel
 {
     [BindProperty] public string Email { get; set; } = "";
     [BindProperty] public string Password { get; set; } = "";
@@ -34,6 +34,13 @@ public class LoginModel(HelpdeskStore store, SignInThrottle throttle) : PageMode
             return Page();
         }
         throttle.Succeeded("helpdesk", Email);
+
+        // With two-step sign-in the password is only half of it: nothing is signed in until the code (Pages/LoginCode).
+        if (technician.TwoFactor is not null)
+        {
+            pending.Start(Response, technician);
+            return RedirectToPage("/LoginCode", new { returnUrl });
+        }
 
         await TechnicianSession.SignInAsync(HttpContext, technician);
 

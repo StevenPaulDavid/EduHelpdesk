@@ -229,6 +229,7 @@ public sealed partial class HelpdeskStore
         EnsureTicketProcessSchema(connection);
         EnsureLifecycleSchema(connection);
         EnsureSessionSchema(connection);
+        EnsureTwoFactorSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)

@@ -86,6 +86,6 @@ public static class TechnicianSession
 
     // Changes whenever the password does, so resetting someone's password signs them out everywhere. A short digest of
     // the stored hash rather than the hash itself, which never needs to leave the server.
-    private static string Stamp(TechnicianRecord technician) =>
+    public static string Stamp(TechnicianRecord technician) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(technician.PasswordHash ?? "")))[..16];
 }

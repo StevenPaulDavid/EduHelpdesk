@@ -16,6 +16,8 @@ builder.Services.AddRazorPages(options =>
     // Everyone must be signed in by default; individual pages/folders opt out or tighten further below.
     options.Conventions.AuthorizeFolder("/");
     options.Conventions.AllowAnonymousToPage("/Login");
+    // The second step of signing in, for accounts with two-step sign-in. Opens only with a right password behind it.
+    options.Conventions.AllowAnonymousToPage("/LoginCode");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
     // A portal visitor or a signed-out one can hit an error too, and shouldn't be sent to the technician sign-in for it.
     options.Conventions.AllowAnonymousToPage("/Error");
@@ -175,6 +177,7 @@ var fileLog = new FileLogProvider(Path.Combine(dataLocation.Folder, "logs"));
 builder.Logging.AddProvider(fileLog);
 builder.Services.AddSingleton(fileLog);
 builder.Services.AddSingleton<PortalIdentity>();
+builder.Services.AddSingleton<TwoFactorPending>();
 builder.Services.AddSingleton<HelpdeskStore>();
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddScoped<PortalSessionFilter>();

@@ -51,6 +51,8 @@ public sealed partial class HelpdeskStore
         public int AcademicYearStartMonth { get; set; } = AcademicYear.DefaultStartMonth;
         // Open tickets due within this many hours count as "due soon" on the ticket list.
         public int TicketDueSoonHours { get; set; } = 24;
+        // Settings → Sign-in security: every staff account must use two-step sign-in (HelpdeskStore.TwoFactor).
+        public bool RequireTwoFactor { get; set; }
         // Statuses that stop the SLA clock, and how long after closing a requester's reply still reopens a ticket.
         public List<string> SlaPauseStatuses { get; set; } = [];
         public int ReopenWindowDays { get; set; } = DefaultReopenWindowDays;

@@ -20,7 +20,9 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     public HelpdeskStore.BackupSettings Backups => store.Backups;
     public string? DataSyncedBy => store.Location?.SyncedBy;
     public bool IsHttps => Request.IsHttps;
-    public int RecentLockouts => store.CountAuditEntries("Sign-in", DateTime.UtcNow.AddDays(-7));
+    public int RecentLockouts => store.CountLockouts(DateTime.UtcNow.AddDays(-7));
+    public int ActiveStaff => store.Technicians.Count(x => x.IsActive);
+    public int TwoFactorCount => store.Technicians.Count(x => x.IsActive && x.TwoFactor is not null);
     public bool HasDemoData => store.HasDemoData;
     public int RecentErrors { get; private set; }
     public IReadOnlyList<Group> Groups { get; private set; } = [];
@@ -97,10 +99,10 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                     "branding brand name colour color logo crest dark mode light appearance theme overview wording"),
                 Page("Backups & data", "/Settings/Backups", lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""),
                     "backup restore data folder onedrive", backupBadge, backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
-                new("Sign-in security", "/Settings/Audit",
-                    $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Accounts lock for {(int)SignInThrottle.Window.TotalMinutes} minutes after {SignInThrottle.AccountLimit} wrong passwords. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
-                    "sign in login password lockout https encryption security", IsHttps ? "HTTPS" : "Not encrypted", !IsHttps,
-                    CanSeeAudit, new Dictionary<string, string> { ["section"] = "Sign-in" }),
+                Page("Sign-in security", "/Settings/SignIn",
+                    $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Two-step sign-in {(store.RequireTwoFactor ? "is required" : $"is set up for {TwoFactorCount} of {ActiveStaff} staff")}. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
+                    "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor", !IsHttps ? "Not encrypted" : store.RequireTwoFactor ? "Two-step required" : "HTTPS",
+                    !IsHttps || (!store.RequireTwoFactor && TwoFactorCount < ActiveStaff)),
                 Page("Data retention", "/Settings/Retention", RetentionSummary(),
                     "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
                     store.Retention.AnyOn ? "On" : null),

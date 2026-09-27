@@ -102,4 +102,23 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle) : Pag
         TempData["Message"] = id.HasValue ? "Technician updated." : "Technician added.";
         return RedirectToPage("/People", new { tab = "technicians" });
     }
+
+    public bool TwoFactorRequired => store.RequireTwoFactor;
+
+    // For someone who has lost their phone and their recovery codes. The same rules as the rest of the account: only an
+    // Administrator touches an Administrator's, and your own is reset from your own Two-step sign-in page instead.
+    public IActionResult OnPostResetTwoFactor(Guid id)
+    {
+        if (!store.UserCan(User, Modules.StaffAccounts, ModulePermission.Edit)) return Forbid();
+        var target = store.Technicians.FirstOrDefault(x => x.Id == id);
+        if (target is null) return NotFound();
+        if (target.Id == SignedInId) TempData["Message"] = "Your own two-step sign-in is managed from Two-step sign-in in your account menu.";
+        else if (target.Role == StaffRoles.Administrator && !IsAdministrator) TempData["Message"] = "Only an Administrator can reset an Administrator's two-step sign-in.";
+        else
+        {
+            TempData["Message"] = store.ResetTwoFactor(id).Message;
+            throttle.Clear(LoginCodeModel.ThrottleForm, target.Email);
+        }
+        return RedirectToPage(new { id });
+    }
 }
