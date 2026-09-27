@@ -37,6 +37,7 @@ This guide is for whoever looks after IT at the school. Installing takes about t
 | Use HTTPS | yes, if there's a certificate | Only asked when the computer has a certificate. See *HTTPS*. |
 | Port | 80 (443 with HTTPS) | Leave it unless something else on the computer uses that port; the installer suggests another if so. With 80 or 443, staff don't need to type a port. |
 | Open the firewall | yes | Lets other computers on the school network reach the helpdesk. |
+| Public networks too | yes | Only asked if Windows has the computer's network down as **Public** (common on a network it doesn't recognise), because there it blocks other computers. Better still, make the network Private or join the domain - see *Troubleshooting*. |
 
 Everything the school name, colours, logo and backups questions set can be changed later in **Settings**.
 
@@ -44,7 +45,7 @@ Everything the school name, colours, logo and backups questions set can be chang
 
 - Copies the program to `C:\Program Files\EduHelpdesk`.
 - Registers a Windows service called **EduHelpdesk**. It starts with Windows, restarts itself if it ever stops, and runs under its own limited account, `NT SERVICE\EduHelpdesk`, which can only change the data folder.
-- Opens the port in Windows Firewall (domain and private networks), if you said yes.
+- Opens the port in Windows Firewall for EduHelpdesk (domain and private networks, and public ones if you said so), and removes any rule Windows made earlier to block it.
 - Starts the service and checks the site answers.
 - Keeps a log of the install in `C:\ProgramData\EduHelpdesk`.
 
@@ -119,6 +120,7 @@ Install.cmd -AnswersFile install-answers.json
 | `BackupFolder`, `BackupHour` | As the questions above. |
 | `UseHttps`, `CertificateThumbprint` | For HTTPS: the thumbprint of the certificate in Local Computer → Personal. |
 | `Port`, `OpenFirewall` | As the questions above. |
+| `AllowOnPublicNetwork` | `true` to open the port on Public networks too (only used if the computer is on one). |
 
 Anything left out takes the suggested value. A wrong answer stops the install with a message rather than guessing.
 
@@ -150,7 +152,14 @@ Double-click `Uninstall.cmd` (from any copy of the zip). It removes the service,
 
 **"Something else on this computer is already using port 80."** Another web server (often IIS) has it. Choose another port, such as 5277; staff then type it in the address, for example `http://helpdesk-pc:5277/`.
 
-**It works on the helpdesk computer but not from others.** Check the firewall question was answered yes (or open the port yourself), and that other computers can find the name - try the IP address instead.
+**It works on the helpdesk computer but not from others.**
+- **The network is Public.** Windows files a network it doesn't recognise as *Public* and blocks incoming connections there. Check with `Get-NetConnectionProfile` in PowerShell. Either make it Private (**Settings → Network & internet →** the network **→ Private**) or join the computer to the domain, or run `Install.cmd` again: run over an existing install it repairs the firewall and includes Public networks when the computer is on one.
+- **The firewall wasn't opened.** Run `Install.cmd` again, or open the port yourself from an administrator PowerShell (use your port):
+  ```
+  New-NetFirewallRule -DisplayName "EduHelpdesk (80)" -Direction Inbound -Protocol TCP -LocalPort 80 -Program "C:\Program Files\EduHelpdesk\EduHelpdesk.exe" -Action Allow -Profile Domain,Private,Public
+  ```
+- **The name doesn't resolve.** The installer lists the computer's IP addresses at the end - try `http://<address>/` instead.
+- Running `EduHelpdesk.exe` by hand while the service is stopped makes Windows ask to allow it through the firewall. There's no need: the service is what people use, and the installer's rule already covers the program.
 
 **The service won't stay running.** Look in the data folder's `logs`, and in **Event Viewer → Windows Logs → Application** (source EduHelpdesk). A common cause after adding HTTPS is the service not being allowed to read the certificate's private key.
 

@@ -12,5 +12,6 @@
     "UseHttps": false,
     "CertificateThumbprint": "",
     "Port": 80,
-    "OpenFirewall": true
+    "OpenFirewall": true,
+    "AllowOnPublicNetwork": true
 }

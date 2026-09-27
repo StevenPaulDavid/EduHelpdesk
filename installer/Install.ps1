@@ -149,8 +149,45 @@ function WriteInstallRecord([string]$programFolder, $settings, [version]$version
         UseHttps = [bool]$settings.UseHttps
         Port = [int]$settings.Port
         CertificateName = $settings.CertificateName
+        OpenFirewall = [bool]$settings.OpenFirewall
+        FirewallPublic = [bool]$settings.FirewallPublic
         InstalledAt = (Get-Date).ToString("s")
     } | ConvertTo-Json | Set-Content -Path (Join-Path $programFolder "install.json") -Encoding UTF8
+}
+
+# The kinds of network this computer is on right now: Domain, Private and/or Public.
+function ConnectedNetworkCategories {
+    return @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.NetworkCategory } | Select-Object -Unique)
+}
+
+# Lets other computers reach the helpdesk. The rule names both the port and the program, so Windows also counts the
+# program itself as allowed and never pops up its "allow access" prompt for it. Public networks only when asked: a
+# school server is normally on the domain network, but Windows files an unrecognised network as Public, and there it
+# blocks everything not explicitly allowed - which is how "works on this PC, not from others" happens.
+function OpenFirewall([string]$exe, [int]$port, [bool]$includePublic) {
+    $profiles = @("Domain", "Private")
+    if ($includePublic) { $profiles += "Public" }
+    Get-NetFirewallRule -DisplayName "EduHelpdesk (*)" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+    # A cancelled "allow access" prompt leaves a rule blocking the program, and a block beats any allow.
+    $blocked = @(Get-NetFirewallApplicationFilter -ErrorAction SilentlyContinue | Where-Object { $_.Program -ieq $exe } |
+        Get-NetFirewallRule | Where-Object { $_.Direction -eq "Inbound" -and $_.Action -eq "Block" })
+    if ($blocked.Count -gt 0) { $blocked | Remove-NetFirewallRule; Say "Removed $($blocked.Count) firewall rule(s) Windows had made to block EduHelpdesk." }
+    New-NetFirewallRule -DisplayName "EduHelpdesk ($port)" -Description "Lets other computers reach the EduHelpdesk website. Made by the EduHelpdesk installer." `
+        -Direction Inbound -Protocol TCP -LocalPort $port -Program $exe -Action Allow -Profile $profiles | Out-Null
+    Say "Firewall: port $port is open to EduHelpdesk on $($profiles -join ', ') networks."
+}
+
+# The addresses other computers can use when the computer's name doesn't resolve for them.
+function LanAddresses {
+    return @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" -and $_.AddressState -eq "Preferred" } |
+        Select-Object -ExpandProperty IPAddress)
+}
+
+function SayHowToReachIt($settings) {
+    $scheme = if ($settings.UseHttps) { "https" } else { "http" }
+    $default = ($settings.UseHttps -and $settings.Port -eq 443) -or (-not $settings.UseHttps -and $settings.Port -eq 80)
+    foreach ($address in LanAddresses) { Say "Or by address: ${scheme}://$address$(if (-not $default) { ":$($settings.Port)" })/" }
 }
 
 function GrantCertificateKey($certificate, [string]$account) {
@@ -221,16 +258,24 @@ if (($service -or $NoService) -and (Test-Path $record)) {
     if (Test-Path $previous) { Remove-Item -LiteralPath $previous -Recurse -Force }
     Copy-Item -LiteralPath $programFolder -Destination $previous -Recurse
     CopyProgram $programFolder
-    $settings = [pscustomobject]@{ DataFolder = $dataFolder; UseHttps = [bool]$installed.UseHttps; Port = [int]$installed.Port; CertificateName = $installed.CertificateName }
+    # Installs from before these were recorded: the firewall was opened if its rule is there, and Public networks are
+    # included if this computer is on one now - which repairs "works here but not from other PCs".
+    $hadRule = $null -ne (Get-NetFirewallRule -DisplayName "EduHelpdesk (*)" -ErrorAction SilentlyContinue)
+    $openFirewall = if ($null -ne $installed.OpenFirewall) { [bool]$installed.OpenFirewall } else { $hadRule }
+    $firewallPublic = if ($null -ne $installed.FirewallPublic) { [bool]$installed.FirewallPublic } else { (ConnectedNetworkCategories) -contains "Public" }
+    $settings = [pscustomobject]@{ DataFolder = $dataFolder; UseHttps = [bool]$installed.UseHttps; Port = [int]$installed.Port; CertificateName = $installed.CertificateName
+        OpenFirewall = $openFirewall; FirewallPublic = $firewallPublic }
     WriteInstallRecord $programFolder $settings $newVersion
     Say "Program files replaced (the previous version is kept in $previous)."
 
     if ($NoService) { Heading "Upgraded the files only (-NoService)."; return }
+    if ($openFirewall) { OpenFirewall (Join-Path $programFolder "EduHelpdesk.exe") $settings.Port $firewallPublic }
 
     Say "Starting the service..."
     Start-Service -Name $ServiceName
     if (WaitUntilAnswering (LocalUrl $settings)) {
         Heading "EduHelpdesk is now version $newVersion and running at $(PublicUrl $settings)"
+        SayHowToReachIt $settings
         Say "The data was upgraded in place; the backup above is there if anything looks wrong."
     } else {
         Warn "Version $newVersion didn't start answering, so the previous version is being put back."
@@ -328,11 +373,18 @@ $port = [int](Ask "Port" "Port" "$defaultPort" {
     if (PortInUse $n) { return "Something on this computer is already using port $n. Choose another." }
 })
 $openFirewall = AskYesNo "OpenFirewall" "Let other computers on the school network reach it (opens the port in Windows Firewall)?" $true
+$firewallPublic = $false
+if ($openFirewall -and (ConnectedNetworkCategories) -contains "Public") {
+    Say "Windows has this computer's network down as Public, and on a Public network it blocks other computers unless told otherwise."
+    Say "Best is to make it Private (Settings > Network & internet > the network > Private), or join the computer to the school's domain."
+    $firewallPublic = AskYesNo "AllowOnPublicNetwork" "Open the port on Public networks too, so other computers can reach it now?" $true
+}
 
 $settings = [pscustomobject]@{
     DataFolder = $dataFolder; UseHttps = $useHttps; Port = $port
     CertificateSubject = $(if ($certificate) { $certificate.GetNameInfo("SimpleName", $false) } else { $null })
     CertificateName = $(if ($certificate) { $certificate.GetNameInfo("DnsName", $false) } else { $null })
+    OpenFirewall = $openFirewall; FirewallPublic = $firewallPublic
 }
 
 Heading "Ready to install"
@@ -340,7 +392,7 @@ Say "Program:      $programFolder"
 Say "Data:         $dataFolder$(if ($existingData) { ' (existing data kept)' } elseif ($ImportFrom) { " (copied from $ImportFrom)" })"
 if (-not $keepsItsOwnSettings) { Say "School:       $schoolName   colours $primary / $accent$(if ($logo) { "   logo $logo" })" }
 Say "Backups:      $backupFolder at ${backupHour}:00"
-Say "Address:      $(PublicUrl $settings)$(if ($openFirewall) { '   (firewall opened)' })"
+Say "Address:      $(PublicUrl $settings)$(if ($openFirewall) { "   (firewall opened$(if ($firewallPublic) { ', Public networks included' }))" })"
 if (-not $unattended -and -not (AskYesNo "Confirm" "Install now?" $true)) { Fail "Nothing was installed." }
 
 # ---- New install: doing it -----------------------------------------------------------------------------------------
@@ -383,11 +435,7 @@ if (-not $backupFolder.StartsWith("\\") -and -not $backupFolder.StartsWith($data
 if ($logo) { & icacls $logo /grant "${account}:R" /Q | Out-Null }
 Say "Service registered: runs as $account, starts with Windows, restarts after a failure."
 if ($certificate) { GrantCertificateKey $certificate $account }
-if ($openFirewall) {
-    Get-NetFirewallRule -DisplayName "EduHelpdesk (*)" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    New-NetFirewallRule -DisplayName "EduHelpdesk ($port)" -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow -Profile Domain, Private | Out-Null
-    Say "Firewall opened for port $port on domain and private networks."
-}
+if ($openFirewall) { OpenFirewall (Join-Path $programFolder "EduHelpdesk.exe") $port $firewallPublic }
 
 Say "Starting the service..."
 Start-Service -Name $ServiceName
@@ -396,6 +444,8 @@ if (-not (WaitUntilAnswering (LocalUrl $settings))) {
 }
 
 Heading "EduHelpdesk $newVersion is running at $(PublicUrl $settings)"
+SayHowToReachIt $settings
+if (-not $openFirewall) { Warn "The firewall wasn't opened, so only this computer can reach it. Run the installer again from a newer zip, or open port $port in Windows Firewall." }
 if (-not $keepsItsOwnSettings) {
     Say "Sign in straight away as $BootstrapEmail with the password $BootstrapPassword - you'll be asked"
     Say "to choose your own. Until you do, anyone on the network who has read the guide could sign in first."
