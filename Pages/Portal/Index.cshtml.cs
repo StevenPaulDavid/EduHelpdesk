@@ -51,7 +51,7 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrott
             Message = error;
             return RedirectToPage();
         }
-        portal.SignInTechnician(Response, user, technician.Id);
+        portal.SignInTechnician(Response, store, user, technician.Id);
         return RedirectToPage();
     }
 
@@ -80,14 +80,14 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrott
             return Page();
         }
         throttle.Succeeded("portal", Email);
-        portal.SignIn(Response, user, Remember);
+        portal.SignIn(Response, store, user, Remember);
         // A password a technician set goes straight to choosing their own (PasswordChangeFilter would send them anyway).
         return user.RequirePasswordChange ? RedirectToPage("/Portal/Password") : RedirectToPage();
     }
 
     public IActionResult OnPostSwitch()
     {
-        PortalIdentity.Clear(Response);
+        portal.SignOut(HttpContext, store);
         return RedirectToPage();
     }
 }

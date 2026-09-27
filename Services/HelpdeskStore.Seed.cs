@@ -237,7 +237,9 @@ public sealed partial class HelpdeskStore
             if (File.Exists(_legacyPath))
                 File.Delete(_legacyPath);
             DeleteAllAttachmentFiles();
-            return (true, $"System reset to factory settings. Sign in again as {BootstrapAdminEmail} with the password {BootstrapAdminPassword}, and change it straight away."
+            // Every account was replaced, so nobody's sign-in carries on.
+        EndAllSessions();
+        return (true, $"System reset to factory settings. Sign in again as {BootstrapAdminEmail} with the password {BootstrapAdminPassword}, and change it straight away."
                 + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in {BackupFolder}."));
         }
     }

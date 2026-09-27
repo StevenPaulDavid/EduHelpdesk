@@ -1,18 +1,18 @@
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class LogoutModel : PageModel
+// Signing out ends the session on the server (HelpdeskStore.Sessions), not just the cookie in this browser.
+public class LogoutModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 {
     public async Task<IActionResult> OnPostAsync()
     {
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        await TechnicianSession.SignOutAsync(HttpContext);
         // "Open staff portal" signs a technician into the portal as themselves. Leaving that behind on a shared PC would
         // let the next person raise tickets in their name, so signing out of the helpdesk signs out of the portal too.
-        EduHelpdesk.Services.PortalIdentity.Clear(Response);
+        portal.SignOut(HttpContext, store);
         return RedirectToPage("/Login");
     }
 }

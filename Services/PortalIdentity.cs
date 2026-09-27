@@ -19,7 +19,9 @@ namespace EduHelpdesk.Services;
 //   after 2 hours without using the portal or 12 hours in all, whichever comes first - browsers that restore their
 //   tabs can keep "session" cookies for days.
 // - A technician's "Open staff portal": only while that technician is signed in to the helpdesk in the same browser.
-// Every kind ends when the requester is deactivated, and the password kinds when the password changes.
+// Every kind ends when the requester is deactivated, and the password kinds when the password changes. Each cookie also
+// names a session recorded on the server (HelpdeskStore.Sessions), and signing out ends it, so a copy of the cookie is
+// no use afterwards.
 public sealed class PortalIdentity(IDataProtectionProvider provider)
 {
     public const string CookieName = "portal_who";
@@ -35,7 +37,7 @@ public sealed class PortalIdentity(IDataProtectionProvider provider)
 
     // What the cookie says. Stamp is a digest of the password hash (see TechnicianSession); TechnicianId is set only for
     // the Technician kind.
-    public sealed record Session(Guid UserId, Kind Kind, DateTimeOffset SignedInAt, DateTimeOffset LastSeenAt, string Stamp, Guid? TechnicianId);
+    public sealed record Session(Guid UserId, Kind Kind, DateTimeOffset SignedInAt, DateTimeOffset LastSeenAt, string Stamp, Guid? TechnicianId, string SessionId);
 
     // The requester the cookie names, if it is genuine and hasn't run out. Doesn't check the directory - see Resolve.
     // Used on its own only to put a name to changes made from the portal (HelpdeskStore.CurrentActor).
@@ -50,6 +52,7 @@ public sealed class PortalIdentity(IDataProtectionProvider provider)
         if (Current(request) is not { } session) return null;
         var user = store.Users.FirstOrDefault(x => x.Id == session.UserId && x.IsActive);
         if (user is null) return null;
+        if (!store.SessionActive(session.SessionId, HelpdeskStore.PortalSession, session.UserId)) return null;
         if (session.Kind == Kind.Technician)
         {
             // The helpdesk cookie has already been checked by its own OnValidatePrincipal before any page runs, so a
@@ -61,17 +64,40 @@ public sealed class PortalIdentity(IDataProtectionProvider provider)
         return session.Stamp == Stamp(user.PasswordHash) ? session : null;
     }
 
-    public void SignIn(HttpResponse response, UserRecord user, bool remember)
+    public void SignIn(HttpResponse response, HelpdeskStore store, UserRecord user, bool remember)
     {
         var now = DateTimeOffset.UtcNow;
-        Write(response, new Session(user.Id, remember ? Kind.Remembered : Kind.Session, now, now, Stamp(user.PasswordHash), null));
+        var kind = remember ? Kind.Remembered : Kind.Session;
+        Write(response, new Session(user.Id, kind, now, now, Stamp(user.PasswordHash), null, NewSession(response, store, user.Id, now + Lifetime(kind))));
     }
 
-    public void SignInTechnician(HttpResponse response, UserRecord user, Guid technicianId)
+    public void SignInTechnician(HttpResponse response, HelpdeskStore store, UserRecord user, Guid technicianId)
     {
         var now = DateTimeOffset.UtcNow;
-        Write(response, new Session(user.Id, Kind.Technician, now, now, "", technicianId));
+        Write(response, new Session(user.Id, Kind.Technician, now, now, "", technicianId, NewSession(response, store, user.Id, now + Lifetime(Kind.Technician))));
     }
+
+    // Ends the session behind this browser's cookie, then removes the cookie.
+    public void SignOut(HttpContext context, HelpdeskStore store)
+    {
+        store.EndSession(Current(context.Request)?.SessionId);
+        Clear(context.Response);
+    }
+
+    // The session this browser had before is ended rather than left to run out.
+    private string NewSession(HttpResponse response, HelpdeskStore store, Guid userId, DateTimeOffset expires)
+    {
+        store.EndSession(Current(response.HttpContext.Request)?.SessionId);
+        return store.StartSession(HelpdeskStore.PortalSession, userId, expires.UtcDateTime);
+    }
+
+    // The longest a session of this kind can last; the idle limit is checked from the cookie as before.
+    private static TimeSpan Lifetime(Kind kind) => kind switch
+    {
+        Kind.Remembered => RememberedLifetime,
+        Kind.Session => SessionLifetime,
+        _ => TechnicianSession.AbsoluteLifetime
+    };
 
     // After the requester changes their own password: same session, new stamp, so it carries on while any other
     // browser signed in with the old password is signed out.
@@ -103,11 +129,11 @@ public sealed class PortalIdentity(IDataProtectionProvider provider)
             return null;
         }
         var parts = payload.Split('|');
-        if (parts.Length != 6 || !Guid.TryParse(parts[0], out var userId) || !Enum.TryParse<Kind>(parts[1], out var kind)
+        if (parts.Length != 7 || !Guid.TryParse(parts[0], out var userId) || !Enum.TryParse<Kind>(parts[1], out var kind)
             || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var signedIn)
             || !long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var lastSeen)) return null;
         var session = new Session(userId, kind, new DateTimeOffset(signedIn, TimeSpan.Zero), new DateTimeOffset(lastSeen, TimeSpan.Zero), parts[4],
-            Guid.TryParse(parts[5], out var technicianId) ? technicianId : null);
+            Guid.TryParse(parts[5], out var technicianId) ? technicianId : null, parts[6]);
         var now = DateTimeOffset.UtcNow;
         var expired = session.Kind == Kind.Remembered
             ? now - session.SignedInAt > RememberedLifetime
@@ -118,7 +144,7 @@ public sealed class PortalIdentity(IDataProtectionProvider provider)
     private void Write(HttpResponse response, Session session)
     {
         var payload = string.Join('|', session.UserId, session.Kind, session.SignedInAt.UtcTicks.ToString(CultureInfo.InvariantCulture),
-            session.LastSeenAt.UtcTicks.ToString(CultureInfo.InvariantCulture), session.Stamp, session.TechnicianId?.ToString() ?? "");
+            session.LastSeenAt.UtcTicks.ToString(CultureInfo.InvariantCulture), session.Stamp, session.TechnicianId?.ToString() ?? "", session.SessionId);
         response.Cookies.Append(CookieName, _protector.Protect(payload), new CookieOptions
         {
             HttpOnly = true,

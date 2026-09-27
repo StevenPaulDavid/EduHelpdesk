@@ -126,6 +126,8 @@ A member of staff who is also a technician needs both records if they want to us
 
 A new password or deactivating the requester ends their portal sessions everywhere.
 
+**Signing out ends the session on the server,** for the helpdesk and the portal alike. Each sign-in is recorded in the `Sessions` table and its cookie names it; signing out deletes the record, so a copy of the cookie taken before then - from a shared PC's browser, say - is refused. Sessions survive a restart. A password change keeps the browser that made it signed in and signs out every other one; a factory reset signs out everyone.
+
 ### Passwords and lockout
 
 - **Rules**, wherever a password is chosen: at least 8 characters, not one of the passwords guessed first (`Password1!`, `Welcome2025`, `Teacher1`…), not made only of numbers, and not containing the person's name or email. There are no "must contain a symbol" rules.
@@ -632,7 +634,7 @@ For anyone maintaining it:
 | Asset import | `Services/HelpdeskStore.AssetImport.cs`, `AssetImportTargets.cs`, `CsvReader.cs` |
 | Calculated insights | `Services/AssetInsights.cs`, `PartInsights.cs`, `TicketReports.cs` |
 | Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs`, `TechnicianSession.cs` |
-| Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs` |
+| Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs`, `HelpdeskStore.Sessions.cs` |
 | Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
 | Error log and error page | `Services/FileLog.cs`, `UnknownHandlerFilter.cs`, `Pages/Error.cshtml`, `Pages/Settings/Log.cshtml` |
 | Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |

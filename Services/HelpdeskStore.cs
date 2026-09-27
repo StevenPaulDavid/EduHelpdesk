@@ -40,6 +40,7 @@ public sealed partial class HelpdeskStore
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         _data = Load();
         _audit = LoadAudit();
+        LoadSessions();
         Prepare();
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {
