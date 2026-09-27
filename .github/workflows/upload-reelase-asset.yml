@@ -1,5 +1,8 @@
 name: Upload EduHelpdesk Release Asset
 
+permissions:
+  contents: write
+
 on:
   release:
     types: [published]
