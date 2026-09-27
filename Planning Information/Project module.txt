@@ -1,0 +1,35 @@
+Initial FORM
+
+Project title Free text
+
+due date:DatePicker
+
+items wanted: Multi line free text
+
+purchasing requirments: check boxes with and other being free text
+
+Priority: seperate to the tickets numerical value 1-5 5 being low - this has to be assigned sensibly as this will be taken into account when assigning the tech
+
+technician assigned: this will take into account the project load of that tech, so if RB has 5 projects and SD has 8, it would recommend to assign it to RB not SD but is RB has 3 P1 projects and SD only has 1 it will give 2 piece of information, RB has less project workload but higher priority work, where SD has lower Priority projects but more projects allowing the project lead (KOM) to make a better informed decision on the assignment.
+
+Notes/updates/comments
+
+
+when the project has been created, the technician can tidy up the project.
+
+items wanted are separated into separate items, this is because a single project can have multiple main items, for example iPads and a charging trolly that would be 2 items, these items would have sub items, for example the iPads would have keyboard, pencil, charging plug, screen protector as sub items, the trolley would have none.
+
+technicians can then assign suppliers to the item for who they have ask for quotes from, with a status for their quote, being not requested, requested, received.
+
+
+
+when a quote is received.
+
+the technician will go onto the project, locate the item and add a quote to the relevant supplier, this can be multiple attachments, and that would mark the status as received, the tech can then change the status to requested update if they need to ask for a change, when an update is received, be asked to update the attachments, this removes the old and allows attaching the new, but have the option to keep the old in a separate area.
+
+for each main item the technician can enter the price to be used in the report, this is entered with the payment frequency and term, so it can be single payment, quarterly 3 years, annually 5 years, mix and match.
+
+have a button that will create a printout of all the quotes, a table of content, front page, table of costs per main item, even if they are empty, just make those line items £0, essentially a proposal.
+
+
+the module project details page should have a information icon that will tell me the spending bands, set in settings and the quotes needed per band and any requirements needed for that band, just for reference information.
