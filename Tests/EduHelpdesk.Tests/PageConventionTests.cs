@@ -58,4 +58,22 @@ public class PageConventionTests
             .ToList();
         Assert.True(missing.Count == 0, "These pages don't exist, so their rules protect nothing:\n" + string.Join("\n", missing));
     }
+
+    // A link to a page that doesn't exist renders with no address at all - asp-page="/Onboarding" for the Onboarding
+    // menu did exactly that, silently, because the page is Pages/Onboarding/Index.cshtml.
+    [Fact]
+    public void Every_page_a_link_or_redirect_names_exists()
+    {
+        var root = ProjectRoot();
+        var files = Directory.EnumerateFiles(Path.Combine(root, "Pages"), "*.cs*", SearchOption.AllDirectories)
+            .Where(x => x.EndsWith(".cshtml", StringComparison.Ordinal) || x.EndsWith(".cshtml.cs", StringComparison.Ordinal));
+        var missing = files
+            .SelectMany(file => Regex.Matches(File.ReadAllText(file), @"(?:asp-page=|RedirectToPage\(|Url\.Page\()""(/[^""]*)""")
+                .Select(x => (Page: x.Groups[1].Value, File: Path.GetRelativePath(root, file))))
+            .Where(x => !File.Exists(Path.Combine(root, "Pages", x.Page.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".cshtml")))
+            .Select(x => $"{x.File}: {x.Page}")
+            .Distinct()
+            .ToList();
+        Assert.True(missing.Count == 0, "These links point at pages that don't exist, so they render with no address:\n" + string.Join("\n", missing));
+    }
 }

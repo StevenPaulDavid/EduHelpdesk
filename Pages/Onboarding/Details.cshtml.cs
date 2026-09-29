@@ -85,7 +85,7 @@ public class DetailsModel(HelpdeskStore store) : PageModel
         var name = store.Users.FirstOrDefault(x => x.Id == record.StarterId)?.Name ?? "the new starter";
         var error = store.DeleteTicket(number);
         TempData["Message"] = error ?? $"The onboarding for {name} was deleted. They are still in People.";
-        return error is null ? RedirectToPage("/Onboarding") : RedirectToPage(new { number });
+        return error is null ? RedirectToPage("/Onboarding/Index") : RedirectToPage(new { number });
     }
 
     private IActionResult Back(int number, string message, string? fragment = null)

@@ -64,7 +64,7 @@
         <nav>
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
             @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
-            @if (Can(Modules.Onboarding)) { <a asp-page="/Onboarding" class="@(NavOn("/Onboarding") ? "active" : null)">Onboarding</a> }
+            @if (Can(Modules.Onboarding)) { <a asp-page="/Onboarding/Index" class="@(NavOn("/Onboarding") ? "active" : null)">Onboarding</a> }
             @if (Can(Modules.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
             @* People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough. *@
             @if (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) { <a asp-page="/People" class="@(NavOn("/People") ? "active" : null)">People</a> }
