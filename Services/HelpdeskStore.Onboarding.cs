@@ -45,6 +45,20 @@ public sealed partial class HelpdeskStore
     // ---- Templates (Settings → Onboarding) ----
 
     // The example checklist, put in place once (see EnsureProjectDefaults for why it is version-gated).
+    public const string OnboardingOfficerRole = "Onboarding officer";
+
+    // The person who runs onboarding may not be a technician: a role holding only the Onboarding module, added once to
+    // new and existing installs alike. Nobody holds it until given it, so adding it grants nothing. Called after
+    // EnsureSeedRoles, never before: a fresh install whose role list already had this in it would look set up, and the
+    // standard roles would never be seeded.
+    private void EnsureOnboardingRole()
+    {
+        if (_data.OnboardingVersion >= 2 || _data.Roles.Count == 0) return;
+        if (!_data.Roles.Any(x => string.Equals(x.Name, OnboardingOfficerRole, StringComparison.OrdinalIgnoreCase)))
+            _data.Roles.Add(Role(OnboardingOfficerRole, new() { [Modules.Onboarding] = Full }));
+        _data.OnboardingVersion = 2;
+    }
+
     private void EnsureOnboardingDefaults()
     {
         if (_data.OnboardingVersion >= 1) return;

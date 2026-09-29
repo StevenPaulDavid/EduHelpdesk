@@ -131,6 +131,44 @@ public class OnboardingTests
     }
 
     [Fact]
+    public void The_ticket_queues_show_onboardings_with_IT_work_and_put_named_tasks_in_My_tickets()
+    {
+        using var test = new TestStore();
+        var (number, record) = Start(test);
+        var jo = test.Store.Technicians.First(x => x.IsActive && x.Role != StaffRoles.Administrator);
+        var itTask = record.Tasks.First(x => x.Owner == OnboardingOwners.IT);
+        TicketContext Context(Guid? me) => new(test.Store.Users, test.Store.Technicians, test.Store.Assets, test.Store.Priorities, test.Store.Statuses,
+            DateTime.UtcNow, 24, me, test.Store.Onboardings.ToDictionary(x => x.TicketNumber));
+        bool In(string view, Guid? me) => TicketListQuery.InView(test.Store.Tickets.Single(x => x.Number == number), view, Context(me));
+
+        Assert.True(In("onboarding", null));
+        Assert.False(In("mine", jo.Id));
+        test.Store.AssignOnboardingTask(number, itTask.Id, jo.Id);
+        Assert.True(In("mine", jo.Id));
+
+        // With every IT task done it leaves the Onboarding queue and My tickets, though the officer's tasks remain.
+        foreach (var task in test.Store.FindOnboarding(number)!.ItTasks) test.Store.SetOnboardingTaskDone(number, task.Id, true);
+        Assert.False(In("onboarding", null));
+        Assert.False(In("mine", jo.Id));
+        Assert.True(In("open", null));
+    }
+
+    [Fact]
+    public void A_new_install_has_the_standard_roles_and_an_onboarding_officer()
+    {
+        using var test = new TestStore();
+        var roles = test.Store.Roles.Select(x => x.Name).ToList();
+        Assert.Contains("Technician", roles);
+        Assert.Contains("Senior Technician", roles);
+        var officer = test.Store.Roles.Single(x => x.Name == HelpdeskStore.OnboardingOfficerRole);
+        Assert.Equal(ModulePermission.Access | ModulePermission.View | ModulePermission.New | ModulePermission.Edit | ModulePermission.Delete, officer.GrantsFor(Modules.Onboarding));
+        Assert.Equal(ModulePermission.None, officer.GrantsFor(Modules.Tickets));
+        // Deleted, it isn't put back on the next start.
+        test.Store.DeleteRole(HelpdeskStore.OnboardingOfficerRole);
+        Assert.DoesNotContain(test.Reopen().Roles, x => x.Name == HelpdeskStore.OnboardingOfficerRole);
+    }
+
+    [Fact]
     public void Templates_are_validated_and_copies_are_independent()
     {
         using var test = new TestStore();

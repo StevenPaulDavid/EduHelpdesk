@@ -323,7 +323,20 @@ Tasks can be added or removed for one person without changing the template. Movi
 - When every task is ticked, the ticket closes itself. Unticking a task opens it again.
 - If the person won't be starting, **Cancel** closes it without deleting anything, and it can be resumed.
 
-**In the ticket list**, onboarding tickets open the onboarding page. They can't be merged.
+**The Onboarding menu** lists every onboarding in tabs, with a search by name, email, job title, department or checklist:
+- In progress
+- Not started yet
+- Overdue tasks
+- IT tasks left
+- Finished
+
+**In the ticket list:**
+- Onboarding tickets carry an *Onboarding* tag and "IT tasks 2 of 4 done", and open the onboarding page.
+- The **Onboarding** queue holds the open ones with IT tasks still to do.
+- **My tickets**, on the list and the Overview, includes any onboarding where one of your unfinished IT tasks is given to you, as well as the ones you lead.
+- Onboarding tickets can't be merged.
+
+**The Onboarding officer role** holds only the Onboarding module, for whoever runs onboarding without being a technician. They see Overview and Onboarding, and can do everything on an onboarding, IT tasks included. The role was added once to every install. Nobody holds it until you give it to someone, and if you delete it, it stays deleted. New installs also give Senior Technician full Onboarding permissions.
 
 **Onboarding is internal.** It never appears in the staff portal, to the new starter or anyone else.
 

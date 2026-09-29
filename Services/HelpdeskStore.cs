@@ -54,6 +54,7 @@ public sealed partial class HelpdeskStore
         // a fresh install, and before EnsureBootstrapAdministrator so the Administrator role is in its final shape.
         MigrateRolePermissions();
         EnsureSeedRoles();
+        EnsureOnboardingRole();
         EnsureBootstrapAdministrator();
         SaveBaseline();
     }

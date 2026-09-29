@@ -9,7 +9,7 @@ public class StoreTests
     {
         using var test = new TestStore();
         Assert.Contains(test.Store.Technicians, x => x.Role == StaffRoles.Administrator && x.IsActive);
-        Assert.Equal(["Administrator", "Junior Technician", "Senior Technician", "Technician"], test.Store.Roles.Select(x => x.Name).Order());
+        Assert.Equal(["Administrator", "Junior Technician", "Onboarding officer", "Senior Technician", "Technician"], test.Store.Roles.Select(x => x.Name).Order());
         Assert.Contains("Closed", test.Store.Statuses);
     }
 

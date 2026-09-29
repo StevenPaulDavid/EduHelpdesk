@@ -55,7 +55,7 @@ public sealed partial class HelpdeskStore
             _data.Roles.Add(Role("Senior Technician",
                 new()
                 {
-                    [Modules.Tickets] = Full, [Modules.Projects] = Full, [Modules.Assets] = Full,
+                    [Modules.Tickets] = Full, [Modules.Projects] = Full, [Modules.Onboarding] = Full, [Modules.Assets] = Full,
                     [Modules.Kits] = Full, [Modules.Loans] = Full,
                     [Modules.Parts] = Full, [Modules.Suppliers] = Full,
                     [Modules.Requesters] = Full, [Modules.StaffAccounts] = Full,

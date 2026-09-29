@@ -8,6 +8,18 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
+    <nav class="queue-tabs" aria-label="Onboarding lists">
+        @foreach (var view in EduHelpdesk.Pages.Onboarding.IndexModel.Views)
+        {
+            <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)" aria-current="@(Model.View == view ? "page" : null)">@EduHelpdesk.Pages.Onboarding.IndexModel.ViewLabel(view) <span class="badge @(view == "overdue" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
+        }
+    </nav>
+    <form method="get" class="filter-bar onboarding-search">
+        <input type="hidden" name="view" value="@(Model.View == "active" ? "" : Model.View)" />
+        <label class="filter-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, email, job title, department or checklist" /></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Search</button>@if (!string.IsNullOrWhiteSpace(Model.Search)) { <a class="button button-secondary" href="@Url.Page("/Onboarding/Index", new { view = Model.View == "active" ? null : Model.View })">Clear</a> }</div>
+    </form>
+
     <div class="table-wrap">
         <table class="stack-table onboarding-list">
             <thead><tr><th data-stack="head">New starter</th><th>Start date</th><th>Progress</th><th>IT tasks left</th><th>Status</th><th>Ticket</th></tr></thead>
@@ -17,7 +29,7 @@
                     var record = row.Record;
                     var overdue = record.OverdueCount(Model.Today);
                     var itLeft = record.ItTasks.Count(x => !x.IsDone);
-                    <tr data-href="@Url.Page("/Onboarding/Details", new { number = record.TicketNumber })">
+                    <tr class="clickable-row" data-href="@Url.Page("/Onboarding/Details", new { number = record.TicketNumber })">
                         <td><a asp-page="/Onboarding/Details" asp-route-number="@record.TicketNumber"><strong>@(row.Starter?.Name ?? "Unknown")</strong></a><br /><span class="muted">@string.Join(" · ", new[] { record.JobTitle, row.Starter?.Department }.Where(x => !string.IsNullOrWhiteSpace(x)))</span></td>
                         <td>@record.StartDate.ToString("ddd d MMM yyyy")<br /><span class="muted">@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today)</span></td>
                         <td>@record.Done of @record.Tasks.Count done @if (overdue > 0) { <span class="badge badge-warning">@overdue overdue</span> }</td>
@@ -26,7 +38,10 @@
                         <td>#@record.TicketNumber</td>
                     </tr>
                 }
-                @if (Model.Rows.Count == 0) { <tr><td colspan="6" class="empty">No onboardings yet.@(Model.CanStart ? " Start one for your next new starter." : "")</td></tr> }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr><td colspan="6" class="empty">@(!string.IsNullOrWhiteSpace(Model.Search) ? "No onboardings match that search." : Model.View == "active" ? "No onboardings in progress." + (Model.CanStart ? " Start one for your next new starter." : "") : "Nothing here.")</td></tr>
+                }
             </tbody>
         </table>
     </div>

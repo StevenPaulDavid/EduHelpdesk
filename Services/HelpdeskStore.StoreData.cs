@@ -113,7 +113,8 @@ public sealed partial class HelpdeskStore
         // Onboarding new staff (HelpdeskStore.Onboarding): the checklist templates, and one record per onboarding ticket.
         public List<OnboardingTemplate> OnboardingTemplates { get; set; } = [];
         public List<OnboardingRecord> Onboardings { get; set; } = [];
-        // 0 before onboarding existed; 1 once the example Teacher template has been put in place.
+        // 0 before onboarding existed; 1 once the example Teacher template has been put in place; 2 once the Onboarding
+        // officer role has been.
         public int OnboardingVersion { get; set; }
         public BrandingSettings Branding { get; set; } = new();
     }

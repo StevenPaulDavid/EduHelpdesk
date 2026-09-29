@@ -14,7 +14,12 @@ public sealed record TicketContext(
     IReadOnlyList<string> Statuses,
     DateTime Now,
     int DueSoonHours,
-    Guid? CurrentTechnicianId);
+    Guid? CurrentTechnicianId,
+    // Onboarding tickets' checklists, by ticket number, for the Onboarding queue and for "My tickets".
+    IReadOnlyDictionary<int, OnboardingRecord>? Onboardings = null)
+{
+    public OnboardingRecord? OnboardingFor(TicketRecord ticket) => Onboardings?.GetValueOrDefault(ticket.Number);
+}
 
 public static class TicketInsights
 {
@@ -54,9 +59,10 @@ public sealed class TicketListQuery
 {
     // Filter values that mean "blank" or "nobody".
     public const string None = "(none)";
-    // open: not closed, mine: open and assigned to the current technician, unassigned: open with no technician,
-    // overdue: open and past due or due soon, all: everything including closed.
-    public static readonly string[] Views = ["open", "mine", "unassigned", "overdue", "all"];
+    // open: not closed, mine: open and assigned to the current technician (or an onboarding with an IT task they are
+    // named on), unassigned: open with no technician, overdue: open and past due or due soon, onboarding: open
+    // onboardings with IT tasks still to do, all: everything including closed.
+    public static readonly string[] Views = ["open", "mine", "unassigned", "overdue", "onboarding", "all"];
     public static readonly string[] SortColumns = ["number", "title", "requester", "asset", "technician", "priority", "status", "due", "created", "updated"];
 
     public string View { get; set; } = "open";
@@ -84,9 +90,11 @@ public sealed class TicketListQuery
     public static bool InView(TicketRecord ticket, string view, TicketContext context) => view switch
     {
         "all" => true,
-        "mine" => !TicketInsights.IsClosed(ticket) && context.CurrentTechnicianId is { } me && ticket.TechnicianId == me,
+        "mine" => !TicketInsights.IsClosed(ticket) && context.CurrentTechnicianId is { } me
+            && (ticket.TechnicianId == me || context.OnboardingFor(ticket) is { } onboarding && onboarding.ItTasks.Any(x => !x.IsDone && x.TechnicianId == me)),
         "unassigned" => !TicketInsights.IsClosed(ticket) && ticket.TechnicianId is null,
         "overdue" => TicketInsights.DueStateOf(ticket, context.Now, context.DueSoonHours) is DueState.Overdue or DueState.Soon,
+        "onboarding" => !TicketInsights.IsClosed(ticket) && context.OnboardingFor(ticket) is { } record && record.ItTasks.Any(x => !x.IsDone),
         _ => !TicketInsights.IsClosed(ticket)
     };
 

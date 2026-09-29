@@ -182,7 +182,11 @@ public class JobsModel(HelpdeskStore store) : PageModel
         return Back();
     }
 
-    private TicketContext Context() => new(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, Now, store.TicketDueSoonHours, CurrentTechnicianId);
+    private TicketContext Context() => new(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, Now, store.TicketDueSoonHours, CurrentTechnicianId, Onboardings);
+
+    // Onboarding tickets' checklists, for the Onboarding queue, "My tickets", and each row's IT progress.
+    private IReadOnlyDictionary<int, OnboardingRecord>? _onboardings;
+    public IReadOnlyDictionary<int, OnboardingRecord> Onboardings => _onboardings ??= store.Onboardings.ToDictionary(x => x.TicketNumber);
 
     private TicketListQuery BuildQuery() => new()
     {
@@ -321,6 +325,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         "mine" => "My tickets",
         "unassigned" => "Unassigned",
         "overdue" => "Overdue / due soon",
+        "onboarding" => "Onboarding",
         "all" => "All tickets",
         _ => "Open"
     };

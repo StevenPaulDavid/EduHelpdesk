@@ -46,7 +46,11 @@
     }
     else if (Model.View == "mine")
     {
-        <p class="muted queue-hint">Open tickets assigned to @currentTechnician!.Name.</p>
+        <p class="muted queue-hint">Open tickets assigned to @currentTechnician!.Name, and onboardings with an IT task given to them.</p>
+    }
+    else if (Model.View == "onboarding")
+    {
+        <p class="muted queue-hint">New starters' onboardings with IT tasks still to do. Each opens its checklist.</p>
     }
     else if (Model.View == "unassigned")
     {
@@ -118,9 +122,22 @@
             var linkedAssets = ticket.AssetIds.Select(id => Model.AssetsById.GetValueOrDefault(id)).Where(a => a is not null).ToList();
             var due = TicketInsights.DueStateOf(ticket, Model.Now, Model.DueSoonHours);
             var urgent = !TicketInsights.IsClosed(ticket) && string.Equals(ticket.Priority, "Urgent", StringComparison.OrdinalIgnoreCase);
-            <tr class="clickable-row @(due == DueState.Overdue ? "row-overdue" : due == DueState.Soon ? "row-soon" : "") @(urgent ? "row-urgent" : "")" data-href="@Url.Page("/Job", new { number = ticket.Number })">
+            // An onboarding opens its checklist, and says how far IT has got with it.
+            Model.Onboardings.TryGetValue(ticket.Number, out var onboarding);
+            var rowUrl = onboarding is null ? Url.Page("/Job", new { number = ticket.Number }) : Url.Page("/Onboarding/Details", new { number = ticket.Number });
+            <tr class="clickable-row @(due == DueState.Overdue ? "row-overdue" : due == DueState.Soon ? "row-soon" : "") @(urgent ? "row-urgent" : "")" data-href="@rowUrl">
                 <td><input class="ticket-select" type="checkbox" name="ids" value="@ticket.Number" aria-label="Select ticket @ticket.Number" /></td>
-                <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">#@ticket.Number</a></strong> <span class="type-tag @(ticket.Type == TicketTypes.Request ? "type-request" : "")">@ticket.Type</span>@if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply" title="The requester replied in the staff portal and is waiting to hear back">Reply</span> }<br /><span class="muted">@ticket.Title</span></td>
+                <td><strong><a href="@rowUrl">#@ticket.Number</a></strong>
+                    @if (onboarding is not null)
+                    {
+                        var itTasks = onboarding.ItTasks.ToList();
+                        <span class="type-tag type-onboarding">Onboarding</span> <span class="muted onboarding-it-progress">IT tasks @itTasks.Count(x => x.IsDone) of @itTasks.Count done</span>
+                    }
+                    else
+                    {
+                        <span class="type-tag @(ticket.Type == TicketTypes.Request ? "type-request" : "")">@ticket.Type</span>
+                    }
+                    @if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply" title="The requester replied in the staff portal and is waiting to hear back">Reply</span> }<br /><span class="muted">@ticket.Title</span></td>
                 <td>@(Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "—")</td>
                 <td>@if (linkedAssets.Count == 0) { <span class="muted">—</span> } else { @string.Join(", ", linkedAssets.Select(a => $"{a!.AssetTag} · {a.Model}")) }</td>
                 <td>@(ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned")@if (!string.IsNullOrWhiteSpace(ticket.TeamName)) { <br /><span class="muted">@ticket.TeamName</span> }</td>

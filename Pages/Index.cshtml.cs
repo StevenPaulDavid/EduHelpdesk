@@ -79,7 +79,10 @@ public class IndexModel(HelpdeskStore store) : PageModel
             Me = meId is { } id ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
             var open = store.Tickets.Where(x => !TicketInsights.IsClosed(x)).ToList();
 
-            var mine = open.Where(x => meId is { } me && x.TechnicianId == me).ToList();
+            // As the ticket list's My tickets: assigned to them, or an onboarding with an IT task given to them.
+            var onboardings = store.Onboardings.ToDictionary(x => x.TicketNumber);
+            var mine = open.Where(x => meId is { } me && (x.TechnicianId == me
+                || onboardings.TryGetValue(x.Number, out var onboarding) && onboarding.ItTasks.Any(t => !t.IsDone && t.TechnicianId == me))).ToList();
             MyOverdueCount = mine.Count(x => TicketInsights.IsOverdue(x, Now));
             MyTickets = ByUrgency(mine).ToList();
 
