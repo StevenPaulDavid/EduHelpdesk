@@ -10,6 +10,7 @@ namespace EduHelpdesk.Pages.Settings;
 public class OnboardingModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<OnboardingTemplate> Templates => store.OnboardingTemplates;
+    public IReadOnlyList<string> AssetTypes => store.AssetTypes;
     [TempData] public string? Message { get; set; }
 
     public void OnGet() { }
@@ -27,10 +28,10 @@ public class OnboardingModel(HelpdeskStore store) : PageModel
         Message = store.DeleteOnboardingTemplate(id).Message;
         return RedirectToPage();
     }
-    public IActionResult OnPostAddTask(Guid id, string? title, string? stage, int offsetDays, string? owner) =>
-        Done(id, store.AddOnboardingTemplateTask(id, title, stage, offsetDays, owner));
-    public IActionResult OnPostUpdateTask(Guid id, Guid taskId, string? title, string? stage, int offsetDays, string? owner) =>
-        Done(id, store.UpdateOnboardingTemplateTask(id, taskId, title, stage, offsetDays, owner));
+    public IActionResult OnPostAddTask(Guid id, string? title, string? stage, int offsetDays, string? owner, string? action) =>
+        Done(id, store.AddOnboardingTemplateTask(id, title, stage, offsetDays, owner, action));
+    public IActionResult OnPostUpdateTask(Guid id, Guid taskId, string? title, string? stage, int offsetDays, string? owner, string? action) =>
+        Done(id, store.UpdateOnboardingTemplateTask(id, taskId, title, stage, offsetDays, owner, action));
     public IActionResult OnPostDeleteTask(Guid id, Guid taskId) => Done(id, store.DeleteOnboardingTemplateTask(id, taskId));
 
     // Back to the template that was changed, rather than the top of a long page.
@@ -39,6 +40,9 @@ public class OnboardingModel(HelpdeskStore store) : PageModel
         Message = result.Message;
         return RedirectToPage(null, null, $"template-{id}");
     }
+
+    // The "Does" dropdown on a task row: the chosen value (OnboardingActions.Encode) and the asset types to offer.
+    public sealed record ActionField(string Value, IReadOnlyList<string> AssetTypes);
 
     // "5 days before", "on the day", "3 days after" - how the offset reads next to the number box.
     public static string DescribeOffset(int days) => days switch

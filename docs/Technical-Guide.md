@@ -317,6 +317,19 @@ Their school email is optional, since creating it is often one of the tasks. Sta
 
 Tasks can be added or removed for one person without changing the template. Moving the start date moves every due date with it.
 
+**Tasks that do the job for you.** A task's **Does** setting can make ticking it do more than tick it:
+- **Makes their staff portal account.**
+  - Ticking it gives the new starter a temporary password (to change at first sign-in) and opens their quick start guide to print, password included.
+  - It needs their school email in the details first.
+  - Whoever can work the onboarding can print that guide from the task, without needing People permissions.
+- **Issues a Laptop** (or any asset type).
+  - The task shows the free devices of that type: not disposed, held by nobody, and not in a loan kit, with in-stock ones first.
+  - Issuing one assigns it to the new starter as their own (not a loan) and links it to the onboarding ticket.
+  - **Take it back** returns it to stock and makes the task to do again.
+  - Issuing needs Assets: Edit or Onboarding: Edit.
+
+The example Teacher template has both: *Build and set up laptop* issues a Laptop, and *Create their staff portal account* makes the account. Existing installs had them added to their Teacher template once.
+
 **Working one.** The onboarding page shows the checklist, the new starter's details, and the ticket's notes and history. Ticking a task records who did it and when, in the ticket's history.
 - IT tasks can be given to a named technician.
 - The ticket's due date is the earliest task still to do, so overdue onboardings show in the ticket queues like any other ticket.

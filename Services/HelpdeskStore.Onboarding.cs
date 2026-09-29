@@ -59,12 +59,31 @@ public sealed partial class HelpdeskStore
         _data.OnboardingVersion = 2;
     }
 
+    private const string ExampleLaptopTask = "Build and set up laptop";
+    private const string ExamplePortalTask = "Create their staff portal account";
+
     private void EnsureOnboardingDefaults()
     {
+        // 3: the tasks that do the work for you. An install that already had the example Teacher template (versions 1
+        // and 2) gets them added to it once, where it still has the example laptop task and no actions of its own.
+        if (_data.OnboardingVersion == 2)
+        {
+            foreach (var index in Enumerable.Range(0, _data.OnboardingTemplates.Count))
+            {
+                var template = _data.OnboardingTemplates[index];
+                if (!string.Equals(template.Name, "Teacher", StringComparison.OrdinalIgnoreCase) || template.Tasks.Any(x => x.Action != OnboardingActions.None)) continue;
+                var tasks = template.Tasks.Select(x => x.Title == ExampleLaptopTask && _data.AssetTypes.Contains("Laptop", StringComparer.OrdinalIgnoreCase)
+                    ? x with { Action = OnboardingActions.IssueAsset, AssetType = "Laptop" } : x).ToList();
+                tasks.Add(new OnboardingTemplateTask(Guid.NewGuid(), ExamplePortalTask, OnboardingStages.FirstDay, 0, OnboardingOwners.IT) { Action = OnboardingActions.PortalAccount });
+                _data.OnboardingTemplates[index] = template with { Tasks = tasks };
+            }
+            _data.OnboardingVersion = 3;
+        }
         if (_data.OnboardingVersion >= 1) return;
         if (_data.OnboardingTemplates.Count == 0)
         {
-            OnboardingTemplateTask Task(string title, string stage, int offset, string owner) => new(Guid.NewGuid(), title, stage, offset, owner);
+            OnboardingTemplateTask Task(string title, string stage, int offset, string owner, string action = OnboardingActions.None, string? assetType = null) =>
+                new(Guid.NewGuid(), title, stage, offset, owner) { Action = action, AssetType = assetType };
             _data.OnboardingTemplates.Add(new OnboardingTemplate(Guid.NewGuid(), "Teacher")
             {
                 Tasks =
@@ -73,9 +92,10 @@ public sealed partial class HelpdeskStore
                     Task("Create school email account", OnboardingStages.BeforeArrival, -10, OnboardingOwners.IT),
                     Task("Create MIS and network accounts", OnboardingStages.BeforeArrival, -10, OnboardingOwners.IT),
                     Task("Add to staff email groups and Teams", OnboardingStages.BeforeArrival, -5, OnboardingOwners.IT),
-                    Task("Build and set up laptop", OnboardingStages.BeforeArrival, -5, OnboardingOwners.IT),
+                    Task(ExampleLaptopTask, OnboardingStages.BeforeArrival, -5, OnboardingOwners.IT, OnboardingActions.IssueAsset, "Laptop"),
                     Task("Programme keyfob / door access", OnboardingStages.BeforeArrival, -3, OnboardingOwners.IT),
                     Task("Take ID badge photo", OnboardingStages.FirstDay, 0, OnboardingOwners.Officer),
+                    Task(ExamplePortalTask, OnboardingStages.FirstDay, 0, OnboardingOwners.IT, OnboardingActions.PortalAccount),
                     Task("Hand over laptop, keyfob and sign-in details", OnboardingStages.FirstDay, 0, OnboardingOwners.IT),
                     Task("Site tour and fire procedures", OnboardingStages.FirstDay, 0, OnboardingOwners.Officer),
                     Task("Sign the acceptable use policy", OnboardingStages.FirstDay, 0, OnboardingOwners.Officer),
@@ -119,21 +139,21 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    public (bool Ok, string Message) AddOnboardingTemplateTask(Guid templateId, string? title, string? stage, int offset, string? owner) => EditTemplate(templateId, template =>
+    public (bool Ok, string Message) AddOnboardingTemplateTask(Guid templateId, string? title, string? stage, int offset, string? owner, string? action = null) => EditTemplate(templateId, template =>
     {
-        var task = CheckTask(title, stage, offset, owner);
+        var task = CheckTask(title, stage, offset, owner, action);
         if (task.Error is { } error) return (null, error);
-        return (template with { Tasks = [.. template.Tasks, new OnboardingTemplateTask(Guid.NewGuid(), task.Title, task.Stage, task.Offset, task.Owner)] }, $"\"{task.Title}\" added.");
+        return (template with { Tasks = [.. template.Tasks, new OnboardingTemplateTask(Guid.NewGuid(), task.Title, task.Stage, task.Offset, task.Owner) { Action = task.Action, AssetType = task.AssetType }] }, $"\"{task.Title}\" added.");
     });
 
-    public (bool Ok, string Message) UpdateOnboardingTemplateTask(Guid templateId, Guid taskId, string? title, string? stage, int offset, string? owner) => EditTemplate(templateId, template =>
+    public (bool Ok, string Message) UpdateOnboardingTemplateTask(Guid templateId, Guid taskId, string? title, string? stage, int offset, string? owner, string? action = null) => EditTemplate(templateId, template =>
     {
         var index = template.Tasks.FindIndex(x => x.Id == taskId);
         if (index < 0) return (null, "That task couldn't be found.");
-        var task = CheckTask(title, stage, offset, owner);
+        var task = CheckTask(title, stage, offset, owner, action);
         if (task.Error is { } error) return (null, error);
         var tasks = template.Tasks.ToList();
-        tasks[index] = tasks[index] with { Title = task.Title, Stage = task.Stage, OffsetDays = task.Offset, Owner = task.Owner };
+        tasks[index] = tasks[index] with { Title = task.Title, Stage = task.Stage, OffsetDays = task.Offset, Owner = task.Owner, Action = task.Action, AssetType = task.AssetType };
         return (template with { Tasks = tasks }, $"\"{task.Title}\" saved.");
     });
 
@@ -164,15 +184,42 @@ public sealed partial class HelpdeskStore
         return _data.OnboardingTemplates.Any(x => x.Id != except && string.Equals(x.Name, text, StringComparison.OrdinalIgnoreCase)) ? $"There is already a template called {text}." : null;
     }
 
-    private static (string Title, string Stage, int Offset, string Owner, string? Error) CheckTask(string? title, string? stage, int offset, string? owner)
+    private sealed record CheckedTask(string Title, string Stage, int Offset, string Owner, string Action, string? AssetType, string? Error)
+    {
+        public static CheckedTask Refused(string error) => new("", "", 0, "", OnboardingActions.None, null, error);
+    }
+
+    // `action` is the encoded form value (OnboardingActions.Encode): blank, "portal" or "asset:Laptop".
+    private CheckedTask CheckTask(string? title, string? stage, int offset, string? owner, string? action)
     {
         var text = (title ?? "").Trim();
-        if (text.Length == 0) return ("", "", 0, "", "Say what the task is.");
-        if (text.Length > MaxOnboardingTextLength) return ("", "", 0, "", $"Keep the task under {MaxOnboardingTextLength} characters.");
-        if (OnboardingStages.Find(stage) is not { } validStage) return ("", "", 0, "", "Choose when the task happens.");
-        if (OnboardingOwners.Find(owner) is not { } validOwner) return ("", "", 0, "", "Choose who does the task.");
-        if (Math.Abs(offset) > MaxOnboardingOffsetDays) return ("", "", 0, "", $"Keep the task within {MaxOnboardingOffsetDays} days of the start date.");
-        return (text, validStage, offset, validOwner, null);
+        if (text.Length == 0) return CheckedTask.Refused("Say what the task is.");
+        if (text.Length > MaxOnboardingTextLength) return CheckedTask.Refused($"Keep the task under {MaxOnboardingTextLength} characters.");
+        if (OnboardingStages.Find(stage) is not { } validStage) return CheckedTask.Refused("Choose when the task happens.");
+        if (OnboardingOwners.Find(owner) is not { } validOwner) return CheckedTask.Refused("Choose who does the task.");
+        if (Math.Abs(offset) > MaxOnboardingOffsetDays) return CheckedTask.Refused($"Keep the task within {MaxOnboardingOffsetDays} days of the start date.");
+        var (kind, assetType) = OnboardingActions.Decode(action);
+        if (kind == OnboardingActions.IssueAsset)
+        {
+            assetType = _data.AssetTypes.FirstOrDefault(x => string.Equals(x, assetType, StringComparison.OrdinalIgnoreCase));
+            if (assetType is null) return CheckedTask.Refused("Choose an asset type from the list.");
+        }
+        return new CheckedTask(text, validStage, offset, validOwner, kind, assetType, null);
+    }
+
+    // Free devices of a type for an IssueAsset task: in the register, not disposed, held by nobody and not part of a loan
+    // kit. What is marked in stock comes first.
+    public IReadOnlyList<AssetRecord> AssetsFreeToIssue(string? assetType)
+    {
+        lock (_sync)
+        {
+            if (string.IsNullOrWhiteSpace(assetType)) return [];
+            return _data.Assets
+                .Where(x => string.Equals(x.Type, assetType, StringComparison.OrdinalIgnoreCase) && !IsDisposed(x) && x.AssignedUserId is null && KitContainingCore(x.Id) is null)
+                .OrderBy(x => string.Equals(x.Status, InStockStatus, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(x => x.AssetTag, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
     }
 
     // ---- Starting an onboarding ----
@@ -200,7 +247,7 @@ public sealed partial class HelpdeskStore
                 JobTitle = (details.JobTitle ?? "").Trim(),
                 TemplateName = template?.Name ?? "",
                 LineManagerId = details.LineManagerId,
-                Tasks = template?.Tasks.Select(x => new OnboardingTask(Guid.NewGuid(), x.Title, x.Stage, x.OffsetDays, x.Owner)).ToList() ?? []
+                Tasks = template?.Tasks.Select(x => new OnboardingTask(Guid.NewGuid(), x.Title, x.Stage, x.OffsetDays, x.Owner) { Action = x.Action, AssetType = x.AssetType }).ToList() ?? []
             };
             _data.Onboardings.Add(record);
 
@@ -270,8 +317,72 @@ public sealed partial class HelpdeskStore
     public (bool Ok, string Message) SetOnboardingTaskDone(int number, Guid taskId, bool done) => EditTask(number, taskId, (record, task) =>
     {
         if (task.IsDone == done) return (null, done ? "That task was already done." : "That task wasn't done yet.", []);
+        // A device task is done by handing one over and undone by taking it back (IssueOnboardingAsset,
+        // ReturnOnboardingAsset), so the register always agrees with the tick.
+        if (task.Action == OnboardingActions.IssueAsset)
+            return (null, done ? $"Choose which {task.AssetType} to issue." : "Take the device back to undo this task.", []);
+        // Ticking the portal task is what makes the account (CreateOnboardingPortalAccount) - unless they have one already.
+        if (done && task.Action == OnboardingActions.PortalAccount && _data.Users.FirstOrDefault(x => x.Id == record.StarterId) is { PasswordHash: null })
+            return (null, "Their staff portal account hasn't been made yet.", []);
         var updated = done ? task with { CompletedAt = DateTime.UtcNow, CompletedBy = CurrentActor() } : task with { CompletedAt = null, CompletedBy = null };
         return (updated, done ? $"\"{task.Title}\" done." : $"\"{task.Title}\" is to do again.", [Line(done ? "Onboarding task done" : "Onboarding task reopened", task.Title)]);
+    });
+
+    // The portal task: the new starter gets a temporary password (hashed by the caller, which keeps the password itself
+    // for their quick start guide) and must choose their own at first sign-in. Needs their school email, which is what
+    // they sign in with.
+    public (bool Ok, string Message) CreateOnboardingPortalAccount(int number, Guid taskId, string passwordHash) => EditTask(number, taskId, (record, task) =>
+    {
+        if (task.Action != OnboardingActions.PortalAccount) return (null, "That task doesn't make a portal account.", []);
+        if (task.IsDone) return (null, "That task was already done.", []);
+        var index = _data.Users.FindIndex(x => x.Id == record.StarterId);
+        if (index < 0) return (null, "The new starter's record in People couldn't be found.", []);
+        var starter = _data.Users[index];
+        if (string.IsNullOrWhiteSpace(starter.Email)) return (null, "Add their school email to the details first: it's what they sign in with.", []);
+        if (starter.PasswordHash is not null) return (null, "They already have a portal password. Tick the task without making a new one, or give them a temporary password from their page in People.", []);
+        _data.Users[index] = WithLeaverDates(starter with { PasswordHash = passwordHash, RequirePasswordChange = true, IsActive = true }, starter);
+        return (task with { CompletedAt = DateTime.UtcNow, CompletedBy = CurrentActor() }, $"{starter.Name}'s staff portal account is ready.",
+            [Line("Onboarding task done", $"{task.Title}: staff portal account made for {starter.Email}, with a temporary password.")]);
+    });
+
+    // The device task: a free device of the task's type, assigned to the new starter as their own (not a loan), and
+    // linked to the onboarding ticket so it shows there too.
+    public (bool Ok, string Message) IssueOnboardingAsset(int number, Guid taskId, Guid assetId) => EditTask(number, taskId, (record, task) =>
+    {
+        if (task.Action != OnboardingActions.IssueAsset) return (null, "That task doesn't issue a device.", []);
+        if (task.IsDone) return (null, "That task was already done.", []);
+        var index = _data.Assets.FindIndex(x => x.Id == assetId);
+        if (index < 0) return (null, "That asset couldn't be found.", []);
+        var asset = _data.Assets[index];
+        if (!string.Equals(asset.Type, task.AssetType, StringComparison.OrdinalIgnoreCase)) return (null, $"{asset.AssetTag} isn't a {task.AssetType}.", []);
+        if (IsDisposed(asset)) return (null, $"{asset.AssetTag} has been disposed of.", []);
+        if (HeldBlock(asset, "issued") is { } held) return (null, held, []);
+        if (KitContainingCore(assetId) is { } kit) return (null, $"{asset.AssetTag} is part of {kit.Name}. Take it out of the kit first.", []);
+        if (!_data.Users.Any(x => x.Id == record.StarterId)) return (null, "The new starter's record in People couldn't be found.", []);
+
+        ApplyAssetUpdate(index, asset with { AssignedUserId = record.StarterId, LoanDueDate = null, Status = ResolveAssetStatus("In use") ?? asset.Status });
+        var ticketIndex = _data.Tickets.FindIndex(x => x.Number == number);
+        if (ticketIndex >= 0 && !_data.Tickets[ticketIndex].AssetIds.Contains(assetId))
+            _data.Tickets[ticketIndex] = _data.Tickets[ticketIndex] with { AssetIds = [.. _data.Tickets[ticketIndex].AssetIds, assetId] };
+        return (task with { CompletedAt = DateTime.UtcNow, CompletedBy = CurrentActor(), AssetId = assetId }, $"{asset.AssetTag} issued to {UserName(record.StarterId)}.",
+            [Line("Onboarding task done", $"{task.Title}: {asset.AssetTag} ({asset.Make} {asset.Model}) issued.")]);
+    });
+
+    // Undoes the device task: the device comes back into stock and the task is to do again.
+    public (bool Ok, string Message) ReturnOnboardingAsset(int number, Guid taskId) => EditTask(number, taskId, (record, task) =>
+    {
+        if (task.Action != OnboardingActions.IssueAsset || !task.IsDone) return (null, "That task hasn't issued anything.", []);
+        var index = task.AssetId is { } id ? _data.Assets.FindIndex(x => x.Id == id) : -1;
+        var tag = "the device";
+        // Only taken back if it is still theirs: if it has since moved on, the register already says where it is.
+        if (index >= 0 && _data.Assets[index].AssignedUserId == record.StarterId)
+        {
+            var asset = _data.Assets[index];
+            tag = asset.AssetTag;
+            ApplyAssetUpdate(index, asset with { AssignedUserId = null, LoanDueDate = null, Status = ResolveAssetStatus(InStockStatus) ?? asset.Status });
+        }
+        return (task with { CompletedAt = null, CompletedBy = null, AssetId = null }, $"{tag} is back in stock, and \"{task.Title}\" is to do again.",
+            [Line("Onboarding task reopened", $"{task.Title}: {tag} taken back into stock.")]);
     });
 
     // Only IT tasks name a technician: the officer's tasks are the officer's.
@@ -284,11 +395,11 @@ public sealed partial class HelpdeskStore
             [Line("Onboarding task assigned", $"{task.Title}: {TechnicianName(task.TechnicianId)} → {TechnicianName(technicianId)}")]);
     });
 
-    public (bool Ok, string Message) AddOnboardingTask(int number, string? title, string? stage, int offset, string? owner) => EditOnboarding(number, record =>
+    public (bool Ok, string Message) AddOnboardingTask(int number, string? title, string? stage, int offset, string? owner, string? action = null) => EditOnboarding(number, record =>
     {
-        var task = CheckTask(title, stage, offset, owner);
+        var task = CheckTask(title, stage, offset, owner, action);
         if (task.Error is { } error) return (null, error, []);
-        var added = new OnboardingTask(Guid.NewGuid(), task.Title, task.Stage, task.Offset, task.Owner);
+        var added = new OnboardingTask(Guid.NewGuid(), task.Title, task.Stage, task.Offset, task.Owner) { Action = task.Action, AssetType = task.AssetType };
         return (record with { Tasks = [.. record.Tasks, added] }, $"\"{task.Title}\" added.",
             [Line("Onboarding task added", $"{task.Title} ({task.Stage}, {task.Owner}, due {record.DueOn(added):d MMM yyyy})")]);
     });
@@ -444,7 +555,24 @@ public sealed partial class HelpdeskStore
                 Stage TEXT NOT NULL, OffsetDays INTEGER NOT NULL, Owner TEXT NOT NULL, TechnicianId TEXT NULL, CompletedAt TEXT NULL, Actor TEXT NULL, ActorId TEXT NULL);
             """;
         command.ExecuteNonQuery();
+        // Stage 3: what a task does when ticked, and the device an issue task handed over.
+        foreach (var sql in new[]
+        {
+            "ALTER TABLE OnboardingTemplateTasks ADD COLUMN Action TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE OnboardingTemplateTasks ADD COLUMN AssetType TEXT NULL;",
+            "ALTER TABLE OnboardingTasks ADD COLUMN Action TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE OnboardingTasks ADD COLUMN AssetType TEXT NULL;",
+            "ALTER TABLE OnboardingTasks ADD COLUMN AssetId TEXT NULL;",
+        })
+        {
+            using var migration = connection.CreateCommand();
+            migration.CommandText = sql;
+            try { migration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
+        }
     }
+
+    private static string ReadAction(SqliteDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? OnboardingActions.None : reader.GetString(ordinal) is OnboardingActions.PortalAccount or OnboardingActions.IssueAsset ? reader.GetString(ordinal) : OnboardingActions.None;
 
     private static void ReadOnboarding(SqliteConnection connection, StoreData data)
     {
@@ -463,12 +591,16 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT TemplateId, Id, Title, Stage, OffsetDays, Owner FROM OnboardingTemplateTasks ORDER BY TemplateId, Position;";
+            command.CommandText = "SELECT TemplateId, Id, Title, Stage, OffsetDays, Owner, Action, AssetType FROM OnboardingTemplateTasks ORDER BY TemplateId, Position;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
                 if (templates.TryGetValue(Guid.Parse(reader.GetString(0)), out var template))
                     template.Tasks.Add(new OnboardingTemplateTask(Guid.Parse(reader.GetString(1)), reader.GetString(2),
-                        OnboardingStages.Find(reader.GetString(3)) ?? OnboardingStages.FirstDay, reader.GetInt32(4), OnboardingOwners.Find(reader.GetString(5)) ?? OnboardingOwners.IT));
+                        OnboardingStages.Find(reader.GetString(3)) ?? OnboardingStages.FirstDay, reader.GetInt32(4), OnboardingOwners.Find(reader.GetString(5)) ?? OnboardingOwners.IT)
+                    {
+                        Action = ReadAction(reader, 6),
+                        AssetType = NullableString(reader, 7)
+                    });
         }
         var records = new Dictionary<int, OnboardingRecord>();
         using (var command = connection.CreateCommand())
@@ -490,7 +622,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT TicketNumber, Id, Title, Stage, OffsetDays, Owner, TechnicianId, CompletedAt, Actor, ActorId FROM OnboardingTasks ORDER BY TicketNumber, Position;";
+            command.CommandText = "SELECT TicketNumber, Id, Title, Stage, OffsetDays, Owner, TechnicianId, CompletedAt, Actor, ActorId, Action, AssetType, AssetId FROM OnboardingTasks ORDER BY TicketNumber, Position;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
                 if (records.TryGetValue(reader.GetInt32(0), out var record))
@@ -499,7 +631,10 @@ public sealed partial class HelpdeskStore
                     {
                         TechnicianId = NullableGuid(reader, 6),
                         CompletedAt = reader.IsDBNull(7) ? null : Date(reader, 7),
-                        CompletedBy = reader.IsDBNull(7) ? null : ReadActor(reader, 8, 9)
+                        CompletedBy = reader.IsDBNull(7) ? null : ReadActor(reader, 8, 9),
+                        Action = ReadAction(reader, 10),
+                        AssetType = NullableString(reader, 11),
+                        AssetId = NullableGuid(reader, 12)
                     });
         }
     }
@@ -512,8 +647,9 @@ public sealed partial class HelpdeskStore
             Execute(connection, transaction, "INSERT INTO OnboardingTemplates (Id, Name) VALUES ($id,$name);", ("$id", template.Id.ToString()), ("$name", template.Name));
             var position = 0;
             foreach (var task in template.Tasks)
-                Execute(connection, transaction, "INSERT INTO OnboardingTemplateTasks (Id, TemplateId, Position, Title, Stage, OffsetDays, Owner) VALUES ($id,$template,$position,$title,$stage,$offset,$owner);",
-                    ("$id", task.Id.ToString()), ("$template", template.Id.ToString()), ("$position", position++), ("$title", task.Title), ("$stage", task.Stage), ("$offset", task.OffsetDays), ("$owner", task.Owner));
+                Execute(connection, transaction, "INSERT INTO OnboardingTemplateTasks (Id, TemplateId, Position, Title, Stage, OffsetDays, Owner, Action, AssetType) VALUES ($id,$template,$position,$title,$stage,$offset,$owner,$action,$assetType);",
+                    ("$id", task.Id.ToString()), ("$template", template.Id.ToString()), ("$position", position++), ("$title", task.Title), ("$stage", task.Stage), ("$offset", task.OffsetDays), ("$owner", task.Owner),
+                    ("$action", task.Action), ("$assetType", task.AssetType));
         }
         var ticketNumbers = data.Tickets.Select(x => x.Number).ToHashSet();
         foreach (var record in data.Onboardings.Where(x => ticketNumbers.Contains(x.TicketNumber)))
@@ -523,10 +659,11 @@ public sealed partial class HelpdeskStore
                 ("$manager", record.LineManagerId?.ToString()), ("$template", record.TemplateName), ("$created", Iso(record.CreatedAt)), ("$cancelled", record.CancelledAt is { } cancelled ? Iso(cancelled) : null));
             var position = 0;
             foreach (var task in record.Tasks)
-                Execute(connection, transaction, "INSERT INTO OnboardingTasks (Id, TicketNumber, Position, Title, Stage, OffsetDays, Owner, TechnicianId, CompletedAt, Actor, ActorId) VALUES ($id,$number,$position,$title,$stage,$offset,$owner,$tech,$completed,$actor,$actorid);",
+                Execute(connection, transaction, "INSERT INTO OnboardingTasks (Id, TicketNumber, Position, Title, Stage, OffsetDays, Owner, TechnicianId, CompletedAt, Actor, ActorId, Action, AssetType, AssetId) VALUES ($id,$number,$position,$title,$stage,$offset,$owner,$tech,$completed,$actor,$actorid,$action,$assetType,$asset);",
                     ("$id", task.Id.ToString()), ("$number", record.TicketNumber), ("$position", position++), ("$title", task.Title), ("$stage", task.Stage), ("$offset", task.OffsetDays),
                     ("$owner", task.Owner), ("$tech", task.TechnicianId?.ToString()), ("$completed", task.CompletedAt is { } done ? Iso(done) : null),
-                    ("$actor", task.CompletedBy?.Name), ("$actorid", task.CompletedBy?.Id?.ToString()));
+                    ("$actor", task.CompletedBy?.Name), ("$actorid", task.CompletedBy?.Id?.ToString()),
+                    ("$action", task.Action), ("$assetType", task.AssetType), ("$asset", task.AssetId?.ToString()));
         }
     }
 }

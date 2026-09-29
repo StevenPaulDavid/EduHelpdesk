@@ -11,7 +11,7 @@ namespace EduHelpdesk.Pages.Onboarding;
 // - IT tasks can be ticked, and notes added, with Tickets: Edit or Onboarding: Edit;
 // - the officer's tasks, the details, the task list, the lead technician and cancelling need Onboarding: Edit;
 // - deleting needs Onboarding: Delete.
-public class DetailsModel(HelpdeskStore store) : PageModel
+public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {
     public OnboardingRecord Record { get; private set; } = null!;
     public TicketRecord Ticket { get; private set; } = null!;
@@ -28,8 +28,16 @@ public class DetailsModel(HelpdeskStore store) : PageModel
     public bool CanEdit => store.UserCan(User, Modules.Onboarding, ModulePermission.Edit);
     public bool CanWorkIt => CanEdit || store.UserCan(User, Modules.Tickets, ModulePermission.Edit);
     public bool CanDelete => store.UserCan(User, Modules.Onboarding, ModulePermission.Delete);
-    public bool CanTick(OnboardingTask task) => !Record.IsCancelled && (task.Owner == OnboardingOwners.IT ? CanWorkIt : CanEdit);
+    public bool CanTick(OnboardingTask task) => !Record.IsCancelled && MayTick(task);
+    private bool MayTick(OnboardingTask task) => task.Owner == OnboardingOwners.IT ? CanWorkIt : CanEdit;
+    // Handing over a device changes the asset register, so it needs the right to change assets too - or the onboarding
+    // itself, since the onboarding officer may have no other permissions.
+    public bool CanIssue(OnboardingTask task) => CanTick(task) && (CanEdit || store.UserCan(User, Modules.Assets, ModulePermission.Edit));
     private bool CanView => store.UserCan(User, Modules.Onboarding, ModulePermission.View) || store.UserCan(User, Modules.Tickets, ModulePermission.View);
+
+    // Free devices for each asset type an unfinished device task needs, and the devices finished ones handed over.
+    public IReadOnlyDictionary<string, IReadOnlyList<AssetRecord>> FreeAssets { get; private set; } = new Dictionary<string, IReadOnlyList<AssetRecord>>();
+    public IReadOnlyDictionary<Guid, AssetRecord> IssuedAssets { get; private set; } = new Dictionary<Guid, AssetRecord>();
 
     public IActionResult OnGet(int number)
     {
@@ -41,15 +49,46 @@ public class DetailsModel(HelpdeskStore store) : PageModel
     {
         if (store.FindOnboarding(number) is not { } record) return NotFound();
         if (record.Tasks.FirstOrDefault(x => x.Id == taskId) is not { } task) return Back(number, "That task couldn't be found.");
-        if (!(task.Owner == OnboardingOwners.IT ? CanWorkIt : CanEdit)) return Forbid();
+        if (!MayTick(task)) return Forbid();
+        // Ticking the portal task makes the account: a temporary password, kept for an hour so the quick start guide it
+        // opens can print it (TemporaryPasswords), and marked so the guide shows it to whoever ticked it.
+        if (done && task.Action == OnboardingActions.PortalAccount && store.Users.FirstOrDefault(x => x.Id == record.StarterId) is { PasswordHash: null } starter)
+        {
+            var temporary = TemporaryPasswords.Generate(starter.Name, starter.Email);
+            var hash = PasswordHasher.Hash(temporary);
+            var (ok, message) = store.CreateOnboardingPortalAccount(number, taskId, hash);
+            if (!ok) return Back(number, message, $"task-{taskId}");
+            passwords.Remember(starter.Id, temporary, hash);
+            EduHelpdesk.Pages.People.QuickStartModel.MarkJustAdded(TempData, starter.Id);
+            return RedirectToPage("/People/QuickStart", new { user = starter.Id, onboarding = number });
+        }
         return Back(number, store.SetOnboardingTaskDone(number, taskId, done).Message, $"task-{taskId}");
+    }
+
+    public IActionResult OnPostIssue(int number, Guid taskId, Guid? assetId)
+    {
+        if (!Load(number)) return NotFound();
+        if (Record.Tasks.FirstOrDefault(x => x.Id == taskId) is not { } task) return Back(number, "That task couldn't be found.");
+        if (!CanIssue(task)) return Forbid();
+        if (assetId is not { } chosen) return Back(number, $"Choose which {task.AssetType} to issue.", $"task-{taskId}");
+        return Back(number, store.IssueOnboardingAsset(number, taskId, chosen).Message, $"task-{taskId}");
+    }
+
+    public IActionResult OnPostReturn(int number, Guid taskId)
+    {
+        if (!Load(number)) return NotFound();
+        if (Record.Tasks.FirstOrDefault(x => x.Id == taskId) is not { } task) return Back(number, "That task couldn't be found.");
+        if (!CanIssue(task)) return Forbid();
+        return Back(number, store.ReturnOnboardingAsset(number, taskId).Message, $"task-{taskId}");
     }
 
     public IActionResult OnPostAssignTask(int number, Guid taskId, Guid? technicianId) =>
         CanEdit ? Back(number, store.AssignOnboardingTask(number, taskId, technicianId).Message, $"task-{taskId}") : Forbid();
 
-    public IActionResult OnPostAddTask(int number, string? title, string? stage, int offsetDays, string? owner) =>
-        CanEdit ? Back(number, store.AddOnboardingTask(number, title, stage, offsetDays, owner).Message, "checklist") : Forbid();
+    public IActionResult OnPostAddTask(int number, string? title, string? stage, int offsetDays, string? owner, string? action) =>
+        CanEdit ? Back(number, store.AddOnboardingTask(number, title, stage, offsetDays, owner, action).Message, "checklist") : Forbid();
+
+    public IReadOnlyList<string> AssetTypes => store.AssetTypes;
 
     public IActionResult OnPostRemoveTask(int number, Guid taskId) =>
         CanEdit ? Back(number, store.RemoveOnboardingTask(number, taskId).Message, "checklist") : Forbid();
@@ -106,6 +145,11 @@ public class DetailsModel(HelpdeskStore store) : PageModel
         TechnicianNames = technicians.ToDictionary(x => x.Id, x => x.Name);
         ActiveTechnicians = technicians.Where(x => x.IsActive).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
         if (CanEdit) People = users.Where(x => x.IsActive && x.AnonymisedAt is null && x.Id != record.StarterId).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        var deviceTasks = record.Tasks.Where(x => x.Action == OnboardingActions.IssueAsset).ToList();
+        FreeAssets = deviceTasks.Where(x => !x.IsDone && x.AssetType is not null).Select(x => x.AssetType!).Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(type => type, type => store.AssetsFreeToIssue(type), StringComparer.OrdinalIgnoreCase);
+        var issued = deviceTasks.Where(x => x.AssetId is not null).Select(x => x.AssetId!.Value).ToHashSet();
+        IssuedAssets = issued.Count == 0 ? new Dictionary<Guid, AssetRecord>() : store.Assets.Where(x => issued.Contains(x.Id)).ToDictionary(x => x.Id);
         return true;
     }
 

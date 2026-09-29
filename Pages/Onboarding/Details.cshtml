@@ -45,9 +45,16 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                 {
                     var late = record.IsOverdue(task, Model.Today);
                     <li class="onboarding-task @(task.IsDone ? "is-done" : "") @(late ? "is-overdue" : "")" id="task-@task.Id">
+                        @{
+                            var isDevice = task.Action == OnboardingActions.IssueAsset;
+                            var isPortal = task.Action == OnboardingActions.PortalAccount;
+                            var noEmail = string.IsNullOrWhiteSpace(starter?.Email);
+                            // A device task's box only shows its state: it is done by issuing a device and undone by taking it back.
+                            var boxLocked = !Model.CanTick(task) || isDevice || (isPortal && !task.IsDone && noEmail && starter?.PasswordHash is null);
+                        }
                         <form method="post" asp-page-handler="Tick" class="onboarding-tick">
                             <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
-                            <input type="checkbox" name="done" value="true" checked="@task.IsDone" disabled="@(!Model.CanTick(task))" data-autosubmit aria-label="@(task.IsDone ? "Mark as not done" : "Mark as done"): @task.Title" />
+                            <input type="checkbox" name="done" value="true" checked="@task.IsDone" disabled="@boxLocked" data-autosubmit aria-label="@(task.IsDone ? "Mark as not done" : "Mark as done"): @task.Title" />
                         </form>
                         <div class="onboarding-task-text">
                             <strong>@task.Title</strong>
@@ -57,6 +64,62 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                                 else if (late) { <span class="badge badge-warning">@Model.DueText(task)</span> <text>(due @record.DueOn(task).ToString("ddd d MMM"))</text> }
                                 else { <text>@Model.DueText(task)</text> }
                             </span>
+                            @if (isDevice)
+                            {
+                                if (task.IsDone && task.AssetId is { } assetId)
+                                {
+                                    Model.IssuedAssets.TryGetValue(assetId, out var issued);
+                                    <div class="onboarding-action">
+                                        <span>Issued <a asp-page="/Asset" asp-route-id="@assetId"><strong>@(issued?.AssetTag ?? "a device")</strong></a>@(issued is null ? "" : $" · {issued.Make} {issued.Model}")@(issued is not null && issued.AssignedUserId != record.StarterId ? " (since moved on)" : "")</span>
+                                        @if (Model.CanIssue(task))
+                                        {
+                                            <form method="post" asp-page-handler="Return" data-confirm="Take @(issued?.AssetTag ?? "the device") back into stock? This task will be to do again.">
+                                                <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
+                                                <button class="link-button" type="submit">Take it back</button>
+                                            </form>
+                                        }
+                                    </div>
+                                }
+                                else if (Model.CanIssue(task))
+                                {
+                                    var free = task.AssetType is { } type && Model.FreeAssets.TryGetValue(type, out var list) ? list : [];
+                                    if (free.Count == 0)
+                                    {
+                                        <div class="onboarding-action muted">No free @task.AssetType in the asset register. Add one, or return one to stock, to issue it here.</div>
+                                    }
+                                    else
+                                    {
+                                        <form method="post" asp-page-handler="Issue" class="onboarding-action onboarding-issue">
+                                            <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
+                                            <select name="assetId" required data-picker aria-label="Which @task.AssetType to issue"><option value="">Choose a @task.AssetType…</option>@foreach (var asset in free) { <option value="@asset.Id" data-search="@asset.SerialNumber @asset.Location @asset.Status">@asset.AssetTag · @asset.Make @asset.Model@(string.IsNullOrWhiteSpace(asset.Status) ? "" : $" ({asset.Status})")</option> }</select>
+                                            <button class="button button-secondary" type="submit">Issue to @(starter?.Name ?? "them")</button>
+                                        </form>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="onboarding-action muted">Issues a @task.AssetType from the asset register.</div>
+                                }
+                            }
+                            else if (isPortal)
+                            {
+                                if (task.IsDone)
+                                {
+                                    <div class="onboarding-action"><a asp-page="/People/QuickStart" asp-route-user="@record.StarterId" asp-route-onboarding="@ticket.Number">Print their quick start guide</a></div>
+                                }
+                                else if (starter?.PasswordHash is not null)
+                                {
+                                    <div class="onboarding-action muted">They already have a staff portal password, so ticking this makes no new one.</div>
+                                }
+                                else if (noEmail)
+                                {
+                                    <div class="onboarding-action muted">Add their school email to the details first: it's what they sign in with.</div>
+                                }
+                                else
+                                {
+                                    <div class="onboarding-action muted">Ticking this makes their staff portal account, with a temporary password, and opens their quick start guide to print.</div>
+                                }
+                            }
                         </div>
                         @if (Model.CanEdit && !record.IsCancelled)
                         {
@@ -89,6 +152,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                     <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option">@option</option> }</select></label>
                     <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required /></label>
                     <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner">@owner</option> }</select></label>
+                    <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField("", Model.AssetTypes))" />
                     <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>
                 </form>
             </details>

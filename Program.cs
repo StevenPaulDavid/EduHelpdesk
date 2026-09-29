@@ -99,8 +99,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/People/DeleteUser", Policy(Modules.Requesters, ModulePermission.Delete));
     options.Conventions.AuthorizePage("/People/Technician", Policy(Modules.StaffAccounts, NewOrEdit));
     options.Conventions.AuthorizePage("/People/DeleteTechnician", Policy(Modules.StaffAccounts, ModulePermission.Delete));
-    // A requester's guide or a technician's: the page checks New or Edit on whichever module the account belongs to.
-    options.Conventions.AuthorizePage("/People/QuickStart", PermissionRequirement.PeoplePolicy);
+    // /People/QuickStart has no rule of its own beyond being signed in: the page checks each case itself - New or Edit
+    // on whichever module the account belongs to, a batch only for whoever issued it, and a new starter's guide for
+    // whoever can work their onboarding (the onboarding officer may hold no People permission at all).
     options.Conventions.AuthorizePage("/People/Role", Policy(Modules.Roles, NewOrEdit));
     options.Conventions.AuthorizePage("/People/DeleteRole", Policy(Modules.Roles, ModulePermission.Delete));
 

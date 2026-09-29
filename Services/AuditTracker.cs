@@ -53,7 +53,7 @@ internal static class AuditTracker
             // In the order the checklist shows them, so a diff reads as the list does.
             Add(s, "Onboarding", "Onboarding template", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name),
                 ("Tasks", string.Join("; ", x.Tasks.OrderBy(t => OnboardingStages.Order(t.Stage)).ThenBy(t => t.OffsetDays)
-                    .Select(t => $"{t.Title} ({t.Stage}, {t.Owner}, day {t.OffsetDays:+0;-0;0})"))));
+                    .Select(t => $"{t.Title} ({t.Stage}, {t.Owner}, day {t.OffsetDays:+0;-0;0}{(t.Action == OnboardingActions.None ? "" : "; " + OnboardingActions.Describe(t.Action, t.AssetType).ToLowerInvariant())})"))));
         foreach (var x in d.LoanKits)
             Add(s, "Loan kits", "Loan kit", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Notes", x.Notes), ("Contents", x.AssetIds.Count.ToString()), ("Retired", Yn(x.IsRetired)));

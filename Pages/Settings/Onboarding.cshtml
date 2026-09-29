@@ -48,6 +48,7 @@
                     <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option" selected="@(option == task.Stage)">@option</option> }</select></label>
                     <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="@task.OffsetDays" required title="@EduHelpdesk.Pages.Settings.OnboardingModel.DescribeOffset(task.OffsetDays)" /></label>
                     <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner" selected="@(owner == task.Owner)">@owner</option> }</select></label>
+                    <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField(OnboardingActions.Encode(task.Action, task.AssetType), Model.AssetTypes))" />
                     <span class="band-actions">
                         <button class="button button-secondary" type="submit">Save</button>
                         <button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Settings/Onboarding", "DeleteTask")" formnovalidate title="Remove task" aria-label="Remove @task.Title">♜</button>
@@ -62,8 +63,10 @@
             <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option">@option</option> }</select></label>
             <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required /></label>
             <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner">@owner</option> }</select></label>
+            <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField("", Model.AssetTypes))" />
             <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>
         </form>
         <p class="muted">Days from start: -5 is five days before their first day, 0 is their first day, 3 is three days after. It sets each task's due date.</p>
+        <p class="muted">Does: a task can do the job for you when it's ticked. <em>Makes their staff portal account</em> gives them a temporary password and opens their quick start guide to print. <em>Issues a Laptop</em> (or any asset type) picks a free device from the asset register and assigns it to them.</p>
     </section>
 }

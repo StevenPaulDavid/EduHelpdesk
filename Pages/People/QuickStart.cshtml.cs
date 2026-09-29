@@ -37,7 +37,10 @@ public class QuickStartModel(HelpdeskStore store, TemporaryPasswords passwords) 
     public BrandingSettings Branding => store.Branding;
     public string? LogoVersion => store.LogoVersion;
     public string SignInAddress => Address + (ForTechnicians ? "Login" : "Portal");
-    public string BackUrl => IsBatch || JustAdded || Sheets.Count != 1
+    // Set when the guide was opened for a new starter from their onboarding, which is where Done goes back to.
+    public int? OnboardingNumber { get; private set; }
+    public string BackUrl => OnboardingNumber is { } number ? Url.Page("/Onboarding/Details", new { number })!
+        : IsBatch || JustAdded || Sheets.Count != 1
         ? Url.Page("/People", new { tab = ForTechnicians ? "technicians" : "users" })!
         : ForTechnicians ? Url.Page("/People/Technician", new { id = Sheets[0].Technician!.Id })! : Url.Page("/User", new { id = Sheets[0].Person!.Id })!;
 
@@ -45,7 +48,7 @@ public class QuickStartModel(HelpdeskStore store, TemporaryPasswords passwords) 
     // made, once. Anything else needs Edit.
     public static void MarkJustAdded(ITempDataDictionary tempData, Guid id) => tempData[JustAddedKey] = id.ToString();
 
-    public IActionResult OnGet(Guid? technician, Guid? user, Guid? batch)
+    public IActionResult OnGet(Guid? technician, Guid? user, Guid? batch, int? onboarding)
     {
         // TempData hands a GUID back as a Guid, not the string it was given, so both sides are compared as text.
         JustAdded = (technician ?? user) is { } requested && TempData[JustAddedKey]?.ToString() == requested.ToString();
@@ -73,9 +76,14 @@ public class QuickStartModel(HelpdeskStore store, TemporaryPasswords passwords) 
         }
         else if (user is { } userId)
         {
-            if (!store.UserCanAny(User, Modules.Requesters, ModulePermission.New | ModulePermission.Edit)) return Forbid();
+            // A new starter's guide also opens from their onboarding, for whoever can work it - the onboarding officer
+            // and technicians needn't be able to manage everyone else's portal accounts to hand over this one.
+            var viaOnboarding = onboarding is { } number && store.FindOnboarding(number)?.StarterId == userId
+                && (store.UserCan(User, Modules.Onboarding, ModulePermission.Edit) || store.UserCan(User, Modules.Tickets, ModulePermission.Edit));
+            if (!viaOnboarding && !store.UserCanAny(User, Modules.Requesters, ModulePermission.New | ModulePermission.Edit)) return Forbid();
             if (store.Users.FirstOrDefault(x => x.Id == userId) is not { AnonymisedAt: null } account) return NotFound();
-            Sheets = [RequesterSheet(account, JustAdded || store.UserCan(User, Modules.Requesters, ModulePermission.Edit))];
+            if (viaOnboarding) OnboardingNumber = onboarding;
+            Sheets = [RequesterSheet(account, JustAdded || viaOnboarding || store.UserCan(User, Modules.Requesters, ModulePermission.Edit))];
         }
         else return NotFound();
 

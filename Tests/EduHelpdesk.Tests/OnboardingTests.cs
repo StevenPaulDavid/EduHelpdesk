@@ -12,6 +12,28 @@ public class OnboardingTests
         return (number, test.Store.FindOnboarding(number)!);
     }
 
+    private static AssetRecord AddLaptop(TestStore test, string tag = "LT-TEST1")
+    {
+        var laptop = new AssetRecord(Guid.NewGuid(), tag, "Dell", "Latitude 5440", "Laptop", "SN-" + tag, "", null) { Status = "In stock or spare" };
+        test.Store.AddAsset(laptop);
+        return laptop;
+    }
+
+    // Does every task the way it has to be done: devices issued, the portal account made, the rest ticked.
+    private static void CompleteAll(TestStore test, int number, bool onlyIt = false)
+    {
+        foreach (var task in test.Store.FindOnboarding(number)!.Tasks.Where(x => !onlyIt || x.Owner == OnboardingOwners.IT))
+        {
+            var (ok, message) = task.Action switch
+            {
+                OnboardingActions.IssueAsset => test.Store.IssueOnboardingAsset(number, task.Id, AddLaptop(test, "LT-" + task.Id.ToString("N")[..6]).Id),
+                OnboardingActions.PortalAccount => test.Store.CreateOnboardingPortalAccount(number, task.Id, PasswordHasher.Hash("Temporary-Otter-Maple-12")),
+                _ => test.Store.SetOnboardingTaskDone(number, task.Id, true)
+            };
+            Assert.True(ok, message);
+        }
+    }
+
     [Fact]
     public void Starting_one_adds_the_starter_and_a_ticket_with_the_templates_checklist()
     {
@@ -39,9 +61,8 @@ public class OnboardingTests
     public void The_ticket_closes_when_every_task_is_done_and_reopens_when_one_is_unticked()
     {
         using var test = new TestStore();
-        var (number, record) = Start(test);
-        foreach (var task in record.Tasks)
-            Assert.True(test.Store.SetOnboardingTaskDone(number, task.Id, true).Ok);
+        var (number, record) = Start(test, email: "jane.smith@school.example");
+        CompleteAll(test, number);
 
         var ticket = test.Reopen().Tickets.Single(x => x.Number == number);
         Assert.True(TicketInsights.IsClosed(ticket));
@@ -53,6 +74,62 @@ public class OnboardingTests
         ticket = test.Store.Tickets.Single(x => x.Number == number);
         Assert.False(TicketInsights.IsClosed(ticket));
         Assert.NotNull(ticket.DueDate);
+    }
+
+    [Fact]
+    public void The_portal_task_makes_their_account_once_they_have_an_email()
+    {
+        using var test = new TestStore();
+        var (number, record) = Start(test);
+        var portalTask = record.Tasks.Single(x => x.Action == OnboardingActions.PortalAccount);
+
+        // Plain ticking can't stand in for making the account, and there's no account without an email to sign in with.
+        Assert.False(test.Store.SetOnboardingTaskDone(number, portalTask.Id, true).Ok);
+        Assert.False(test.Store.CreateOnboardingPortalAccount(number, portalTask.Id, PasswordHasher.Hash("Temporary-Otter-Maple-12")).Ok);
+
+        var starter = test.Store.Users.Single(x => x.Id == record.StarterId);
+        test.Store.UpdateOnboardingDetails(number, new HelpdeskStore.OnboardingDetails(starter.Name, "jane.smith@school.example", record.JobTitle, null, null, record.StartDate, null));
+        Assert.True(test.Store.CreateOnboardingPortalAccount(number, portalTask.Id, PasswordHasher.Hash("Temporary-Otter-Maple-12")).Ok);
+
+        starter = test.Reopen().Users.Single(x => x.Id == record.StarterId);
+        Assert.True(PasswordHasher.Verify(starter.PasswordHash, "Temporary-Otter-Maple-12"));
+        Assert.True(starter.RequirePasswordChange);
+        Assert.True(test.Store.FindOnboarding(number)!.Tasks.Single(x => x.Id == portalTask.Id).IsDone);
+        // With an account, the portal task can be unticked and ticked again without a new password.
+        Assert.True(test.Store.SetOnboardingTaskDone(number, portalTask.Id, false).Ok);
+        Assert.True(test.Store.SetOnboardingTaskDone(number, portalTask.Id, true).Ok);
+    }
+
+    [Fact]
+    public void The_laptop_task_issues_a_free_laptop_and_taking_it_back_returns_it_to_stock()
+    {
+        using var test = new TestStore();
+        var (number, record) = Start(test);
+        var laptopTask = record.Tasks.Single(x => x.Action == OnboardingActions.IssueAsset);
+        Assert.Equal("Laptop", laptopTask.AssetType);
+        var laptop = AddLaptop(test);
+        var someoneElse = test.AddRequester("Other Person");
+        var taken = AddLaptop(test, "LT-TAKEN");
+        test.Store.UpdateAsset(taken with { AssignedUserId = someoneElse.Id });
+
+        var free = test.Store.AssetsFreeToIssue("Laptop");
+        Assert.Contains(free, x => x.Id == laptop.Id);
+        Assert.DoesNotContain(free, x => x.Id == taken.Id);
+        Assert.False(test.Store.SetOnboardingTaskDone(number, laptopTask.Id, true).Ok);
+        Assert.False(test.Store.IssueOnboardingAsset(number, laptopTask.Id, taken.Id).Ok);
+
+        Assert.True(test.Store.IssueOnboardingAsset(number, laptopTask.Id, laptop.Id).Ok);
+        var issued = test.Reopen().Assets.Single(x => x.Id == laptop.Id);
+        Assert.Equal(record.StarterId, issued.AssignedUserId);
+        Assert.Null(issued.LoanDueDate);
+        Assert.Contains(laptop.Id, test.Store.Tickets.Single(x => x.Number == number).AssetIds);
+        Assert.Equal(laptop.Id, test.Store.FindOnboarding(number)!.Tasks.Single(x => x.Id == laptopTask.Id).AssetId);
+
+        Assert.True(test.Store.ReturnOnboardingAsset(number, laptopTask.Id).Ok);
+        var back = test.Store.Assets.Single(x => x.Id == laptop.Id);
+        Assert.Null(back.AssignedUserId);
+        Assert.Equal("In stock or spare", back.Status);
+        Assert.False(test.Store.FindOnboarding(number)!.Tasks.Single(x => x.Id == laptopTask.Id).IsDone);
     }
 
     [Fact]
@@ -134,7 +211,7 @@ public class OnboardingTests
     public void The_ticket_queues_show_onboardings_with_IT_work_and_put_named_tasks_in_My_tickets()
     {
         using var test = new TestStore();
-        var (number, record) = Start(test);
+        var (number, record) = Start(test, email: "jane.smith@school.example");
         var jo = test.Store.Technicians.First(x => x.IsActive && x.Role != StaffRoles.Administrator);
         var itTask = record.Tasks.First(x => x.Owner == OnboardingOwners.IT);
         TicketContext Context(Guid? me) => new(test.Store.Users, test.Store.Technicians, test.Store.Assets, test.Store.Priorities, test.Store.Statuses,
@@ -147,7 +224,7 @@ public class OnboardingTests
         Assert.True(In("mine", jo.Id));
 
         // With every IT task done it leaves the Onboarding queue and My tickets, though the officer's tasks remain.
-        foreach (var task in test.Store.FindOnboarding(number)!.ItTasks) test.Store.SetOnboardingTaskDone(number, task.Id, true);
+        CompleteAll(test, number, onlyIt: true);
         Assert.False(In("onboarding", null));
         Assert.False(In("mine", jo.Id));
         Assert.True(In("open", null));

@@ -27,6 +27,38 @@ public static class OnboardingOwners
     public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
+// What ticking a task does besides ticking it. Most tasks do nothing more; these two do the job for you:
+// - PortalAccount gives the new starter a temporary staff portal password and prints their quick start guide;
+// - IssueAsset picks a free device of AssetType from the asset register and assigns it to them.
+public static class OnboardingActions
+{
+    public const string None = "";
+    public const string PortalAccount = "PortalAccount";
+    public const string IssueAsset = "IssueAsset";
+
+    // As one form value: "", "portal", or "asset:Laptop".
+    public static string Encode(string action, string? assetType) => action switch
+    {
+        PortalAccount => "portal",
+        IssueAsset => $"asset:{assetType}",
+        _ => ""
+    };
+
+    public static (string Action, string? AssetType) Decode(string? value) => value?.Trim() switch
+    {
+        "portal" => (PortalAccount, null),
+        { } text when text.StartsWith("asset:", StringComparison.Ordinal) && text.Length > 6 => (IssueAsset, text[6..].Trim()),
+        _ => (None, null)
+    };
+
+    public static string Describe(string action, string? assetType) => action switch
+    {
+        PortalAccount => "Makes their staff portal account",
+        IssueAsset => $"Issues a {assetType} from the register",
+        _ => ""
+    };
+}
+
 // A checklist for one kind of new starter - Teacher, Support staff, Supply/cover - edited in Settings → Onboarding.
 public record OnboardingTemplate(Guid Id, string Name)
 {
@@ -34,7 +66,11 @@ public record OnboardingTemplate(Guid Id, string Name)
 }
 
 // OffsetDays is days from the start date: -5 is five days before they start, 0 their first day.
-public record OnboardingTemplateTask(Guid Id, string Title, string Stage, int OffsetDays, string Owner);
+public record OnboardingTemplateTask(Guid Id, string Title, string Stage, int OffsetDays, string Owner)
+{
+    public string Action { get; init; } = OnboardingActions.None;
+    public string? AssetType { get; init; }
+}
 
 // One new starter's onboarding. The person themselves is a requester record (StarterId), made when the onboarding
 // starts, which is where their name, email, department and location live - and what equipment is assigned to.
@@ -67,5 +103,9 @@ public record OnboardingTask(Guid Id, string Title, string Stage, int OffsetDays
     public Guid? TechnicianId { get; init; }
     public DateTime? CompletedAt { get; init; }
     public Actor? CompletedBy { get; init; }
+    public string Action { get; init; } = OnboardingActions.None;
+    public string? AssetType { get; init; }
+    // The device an IssueAsset task handed over, while it is done.
+    public Guid? AssetId { get; init; }
     public bool IsDone => CompletedAt is not null;
 }

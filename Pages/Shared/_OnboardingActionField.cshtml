@@ -1,0 +1,18 @@
+@model EduHelpdesk.Pages.Settings.OnboardingModel.ActionField
+@* What ticking a task does besides ticking it (Models/OnboardingModels.cs, OnboardingActions). Used by the checklist
+   templates and by "Add a task" on an onboarding. An asset type that has since been removed from the list is still
+   offered while a task uses it, so saving the row doesn't quietly change what it does. *@
+@{
+    var types = Model.AssetTypes.ToList();
+    var (action, current) = OnboardingActions.Decode(Model.Value);
+    if (action == OnboardingActions.IssueAsset && current is not null && !types.Contains(current, StringComparer.OrdinalIgnoreCase)) { types.Add(current); }
+}
+<label>Does<select name="action">
+    <option value="">Nothing more</option>
+    <option value="portal" selected="@(action == OnboardingActions.PortalAccount)">Makes their staff portal account</option>
+    @foreach (var type in types)
+    {
+        var value = OnboardingActions.Encode(OnboardingActions.IssueAsset, type);
+        <option value="@value" selected="@(action == OnboardingActions.IssueAsset && string.Equals(current, type, StringComparison.OrdinalIgnoreCase))">Issues a @type</option>
+    }
+</select></label>
