@@ -111,6 +111,16 @@ public sealed partial class HelpdeskStore
                 _data.Tickets[i] = ticket;
             }
 
+            // A real onboarding loses a demo line manager or a demo technician's name on its tasks, nothing more.
+            for (var i = 0; i < _data.Onboardings.Count; i++)
+            {
+                var onboarding = _data.Onboardings[i];
+                if (onboarding.LineManagerId is { } manager && userIds.Contains(manager)) onboarding = onboarding with { LineManagerId = null };
+                if (onboarding.Tasks.Any(x => x.TechnicianId is { } tech && technicianIds.Contains(tech)))
+                    onboarding = onboarding with { Tasks = onboarding.Tasks.Select(x => x.TechnicianId is { } tech && technicianIds.Contains(tech) ? x with { TechnicianId = null } : x).ToList() };
+                _data.Onboardings[i] = onboarding;
+            }
+
             _data.Projects.RemoveAll(x => projectNumbers.Contains(x.Number));
             for (var i = 0; i < _data.Projects.Count; i++)
             {
@@ -460,5 +470,50 @@ public sealed partial class HelpdeskStore
         };
         _data.Projects.Add(project);
         Remember("Project", project.Number.ToString());
+
+        // A teacher starting in two weeks, from the example Teacher template, with the first jobs already ticked - so the
+        // Onboarding list, the Overview's New starters card and the ticket list's Onboarding queue all have one to show.
+        // Sam is the line manager; the laptop task is Jo's. The laptop and portal tasks are left for someone to try. Two weeks
+        // out, the earliest task falls due today, so what is ticked was done on time and nothing starts overdue.
+        var starter = new UserRecord(Guid.NewGuid(), "Alex Morgan" + DemoSuffix, "alex.morgan@demo.local", "Teaching", "Main Building");
+        _data.Users.Add(starter);
+        Remember("User", starter.Id.ToString());
+        var teacher = _data.OnboardingTemplates.FirstOrDefault(x => string.Equals(x.Name, "Teacher", StringComparison.OrdinalIgnoreCase));
+        var startDate = DateOnly.FromDateTime(DateTime.Now).AddDays(14);
+        var onboardingNumber = ++_data.LastTicketNumber;
+        var ticked = 0;
+        var onboarding = new OnboardingRecord(onboardingNumber, starter.Id, startDate, now.AddDays(-1))
+        {
+            JobTitle = "Teacher of Science",
+            TemplateName = teacher?.Name ?? "",
+            LineManagerId = requester.Id,
+            PackDocumentIds = teacher?.DocumentIds.Where(id => _data.OnboardingDocuments.Any(x => x.Id == id)).ToList() ?? [],
+            Tasks = (teacher?.Tasks ?? []).Select(x =>
+            {
+                var task = new OnboardingTask(Guid.NewGuid(), x.Title, x.Stage, x.OffsetDays, x.Owner) { Action = x.Action, AssetType = x.AssetType };
+                if (x.Action == OnboardingActions.IssueAsset) return task with { TechnicianId = technician.Id };
+                // The two earliest plain tasks are done, so the progress bars have something in them.
+                if (x.Action == OnboardingActions.None && x.Stage == OnboardingStages.BeforeArrival && ticked < 2)
+                {
+                    ticked++;
+                    return task with { CompletedAt = now.AddMinutes(-30 + ticked * 10), CompletedBy = actor };
+                }
+                return task;
+            }).ToList()
+        };
+        _data.Onboardings.Add(onboarding);
+        var onboardingTicket = new TicketRecord(onboardingNumber, OnboardingTitle(onboarding, starter), OnboardingDescription(onboarding, starter), starter.Id, [], technician.Id,
+            "Normal", OpenStatus() ?? "Open", OnboardingCategory, now.AddDays(-1), null, null, OnboardingDue(onboarding), true, true, null, starter.Location)
+        {
+            Type = TicketTypes.Request,
+            History =
+            [
+                new("Ticket created", "The ticket was created.", now.AddDays(-1)) { By = actor },
+                new("Onboarding started", $"{starter.Name} starts on {startDate:dddd d MMMM yyyy}. " +
+                    (teacher is null ? "No checklist template was used." : $"Checklist from the {teacher.Name} template: {Plural(onboarding.Tasks.Count, "task")}."), now.AddDays(-1)) { By = actor }
+            ]
+        };
+        _data.Tickets.Add(WithSlaClock(onboardingTicket, now));
+        Remember("Ticket", onboardingNumber.ToString());
     }
 }

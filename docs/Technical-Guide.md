@@ -374,6 +374,14 @@ The documents are kept with the attachments, so they are in every backup. Deleti
 
 **Onboarding is internal.** It never appears in the staff portal, to the new starter or anyone else.
 
+**On the Overview**, anyone with Onboarding or Tickets access sees:
+- a **New starters** card, with how many start in the next 14 days and how many onboarding tasks are overdue. It opens the Onboarding list, or the ticket list's Onboarding queue for someone without the Onboarding module;
+- a **New starters** panel, listing the unfinished onboardings for anyone starting in the next 14 days or already started, soonest first, with progress and overdue tasks.
+
+**The onboarding report** (**Reports → Onboarding**) is covered in [section 8](#8-reports). New installs give it to Senior Technician and the Onboarding officer. An install that already had the officer role doesn't have it added: tick **Onboarding report** (and Reports: Access) on the role if the officer should have it.
+
+**Demo data.** New installs include a demo onboarding for *Alex Morgan (demo)*, starting two weeks after install, from the Teacher template with the first two tasks done. **Go live** removes it with the other demo records. A real onboarding whose line manager was the demo requester keeps going without a line manager.
+
 **Permissions:**
 - The **Onboarding** module in the role editor covers the list, starting onboardings, editing details and tasks, the officer's tasks, cancelling (Edit) and deleting (Delete).
 - A technician without it can still open an onboarding from the ticket list, tick its IT tasks and add notes, using their Tickets permissions.
@@ -479,7 +487,7 @@ Search (name, SKU, category, location, supplier), filters (category, location, s
 
 ## 8. Reports
 
-Three report pages, switchable via the tab strip at the top of each:
+Each report is its own permission in the role editor. The tab strip at the top shows only the reports this role can open.
 
 ### Asset reports (`/Reports`)
 
@@ -496,6 +504,20 @@ Filterable by period (30 days, 3 months, 6, 12, all time) and type (both, incide
 ### Parts reports (`/Reports/Parts`)
 
 Every part at or below its reorder threshold, with quantity against threshold, plus a count of what is completely out of stock.
+
+### Onboarding report (`/Reports/Onboarding`)
+
+For whoever runs onboarding and the IT lead. The period is an academic year, or all time, and picks onboardings by **start date**. A September starter therefore counts in the year they joined, even if their before-arrival tasks were done in August. The *In progress now* figures ignore the period.
+
+- **In progress now** — every unfinished onboarding, with its start date, progress, IT tasks left and overdue tasks.
+- **Tasks that run late** — the same task across different starters, matched by name and owner, most often late first. It shows how many times each was late, how many are still overdue, and the median days late. A task late every time probably needs an earlier due date in its template.
+- **Who the tasks fell to** — the onboarding officer, the IT team as a whole, and each technician named on an IT task. It shows how many tasks each had, how many are done, on time, late and overdue now.
+- **By kind of starter** — per template: started, finished, cancelled, the median finish (days from the start date to the last task being ticked, before or after), and the share of tasks done on time.
+- **New starters** — everyone starting in the period, month by month and one by one.
+
+**Late** means a task was ticked after its due date, or is past its due date and still not done. Tasks not due yet don't count either way, and neither do tasks left undone on a cancelled onboarding.
+
+With **Export and print reports**, there are CSVs of the starters and of every task, with due date, date done, who ticked it and days late.
 
 ---
 

@@ -55,7 +55,8 @@ public sealed partial class HelpdeskStore
     {
         if (_data.OnboardingVersion >= 2 || _data.Roles.Count == 0) return;
         if (!_data.Roles.Any(x => string.Equals(x.Name, OnboardingOfficerRole, StringComparison.OrdinalIgnoreCase)))
-            _data.Roles.Add(Role(OnboardingOfficerRole, new() { [Modules.Onboarding] = Full }));
+            _data.Roles.Add(Role(OnboardingOfficerRole, new() { [Modules.Onboarding] = Full, [Modules.Reports] = ModulePermission.Access },
+                Modules.Flags.ReportOnboarding));
         _data.OnboardingVersion = 2;
     }
 

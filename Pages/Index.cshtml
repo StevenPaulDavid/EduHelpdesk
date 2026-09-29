@@ -44,7 +44,7 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-@if (Model.CanSeeTickets || Model.CanSeeProjects)
+@if (Model.CanSeeTickets || Model.CanSeeProjects || Model.CanSeeOnboarding)
 {
     <div class="metrics dash-metrics">
         @if (Model.CanSeeTickets)
@@ -57,6 +57,11 @@
         @if (Model.CanSeeProjects)
         {
             <a class="metric metric-link" asp-page="/Projects" asp-route-view="mine"><span>My projects</span><strong>@Model.MyProjects.Count</strong><small>@(Model.ProjectsAwaitingAssignment > 0 ? $"{Model.ProjectsAwaitingAssignment} awaiting assignment" : "None awaiting assignment")</small></a>
+        }
+        @if (Model.CanSeeOnboarding)
+        {
+            var startersUrl = Model.HasOnboardingList ? Url.Page("/Onboarding/Index", new { view = "upcoming" }) : Url.Page("/Jobs", new { view = "onboarding" });
+            <a class="metric metric-link @(Model.OnboardingOverdueTasks > 0 ? "metric-alert" : "")" href="@startersUrl"><span>New starters</span><strong>@Model.StartersSoon</strong><small>@(Model.OnboardingOverdueTasks > 0 ? $"{Model.OnboardingOverdueTasks} onboarding task{(Model.OnboardingOverdueTasks == 1 ? "" : "s")} overdue" : $"Starting in the next {IndexModel.StartersWindowDays} days")</small></a>
         }
     </div>
 }
@@ -111,6 +116,32 @@
             <ul class="dash-list">@foreach (var ticket in Model.RepliesWaiting.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
             @if (Model.RepliesWaiting.Count > IndexModel.PanelSize) { <p class="muted dash-more">And @(Model.RepliesWaiting.Count - IndexModel.PanelSize) more - look for the Reply badge on the <a asp-page="/Jobs">ticket list</a>.</p> }
         }
+    </section>
+}
+
+@if (Model.CanSeeOnboarding && Model.NewStarters.Count > 0)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">ONBOARDING</p><h2>New starters</h2></div>@if (Model.HasOnboardingList) { <a class="button button-secondary" asp-page="/Onboarding/Index">All onboardings</a> }</div>
+        <p class="muted dash-note">Onboardings still to finish for anyone starting in the next @IndexModel.StartersWindowDays days, or who has already started.</p>
+        <ul class="dash-list">
+            @foreach (var (record, name) in Model.NewStarters.Take(IndexModel.PanelSize))
+            {
+                var overdue = record.OverdueCount(Model.Today);
+                var itLeft = record.ItTasks.Count(x => !x.IsDone);
+                <li class="dash-row @(overdue > 0 ? "is-overdue" : "")">
+                    <div class="dash-main">
+                        @if (Model.CanOpenOnboarding) { <a asp-page="/Onboarding/Details" asp-route-number="@record.TicketNumber"><strong>@name</strong>@(string.IsNullOrWhiteSpace(record.JobTitle) ? "" : $" · {record.JobTitle}")</a> } else { <span><strong>@name</strong>@(string.IsNullOrWhiteSpace(record.JobTitle) ? "" : $" · {record.JobTitle}")</span> }
+                        <span class="muted">@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today) · @record.Done of @record.Tasks.Count done · IT tasks left: @itLeft</span>
+                    </div>
+                    <div class="dash-side">
+                        <span class="badge">@record.StartDate.ToString("ddd d MMM")</span>
+                        @if (overdue > 0) { <span class="badge badge-warning">@overdue overdue</span> }
+                    </div>
+                </li>
+            }
+        </ul>
+        @if (Model.NewStarters.Count > IndexModel.PanelSize) { <p class="muted dash-more">And @(Model.NewStarters.Count - IndexModel.PanelSize) more@(Model.HasOnboardingList ? "" : " in the ticket list's Onboarding queue").</p> }
     </section>
 }
 

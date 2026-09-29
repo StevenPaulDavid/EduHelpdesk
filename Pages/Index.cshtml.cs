@@ -55,6 +55,16 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public bool CanOpenTicket => store.UserCan(User, Modules.Tickets, ModulePermission.View);
     public bool CanSeeProjects => store.UserCan(User, Modules.Projects, ModulePermission.Access);
     public bool CanOpenProject => store.UserCan(User, Modules.Projects, ModulePermission.View);
+    // Onboarding: the officer sees it through the Onboarding module; technicians, whose IT tasks are in it, through Tickets.
+    public bool CanSeeOnboarding => store.UserCan(User, Modules.Onboarding, ModulePermission.Access) || CanSeeTickets;
+    public bool CanOpenOnboarding => store.UserCan(User, Modules.Onboarding, ModulePermission.View) || CanOpenTicket;
+    public bool HasOnboardingList => store.UserCan(User, Modules.Onboarding, ModulePermission.Access);
+    public const int StartersWindowDays = 14;
+    // Unfinished onboardings whose start date is within the next two weeks or already past, soonest first - the ones
+    // to be working on now - with the starter's name.
+    public IReadOnlyList<(OnboardingRecord Record, string Name)> NewStarters { get; private set; } = [];
+    public int StartersSoon => NewStarters.Count(x => x.Record.StartDate >= Today);
+    public int OnboardingOverdueTasks => NewStarters.Sum(x => x.Record.OverdueCount(Today));
     public bool CanSeeAssetReport => store.UserHasFlag(User, Modules.Flags.ReportAssets);
     public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
     public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
@@ -72,6 +82,13 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
         UserNames = store.Users.ToDictionary(x => x.Id, x => x.Name);
         TechnicianNames = store.Technicians.ToDictionary(x => x.Id, x => x.Name);
+
+        if (CanSeeOnboarding)
+            NewStarters = store.Onboardings
+                .Where(x => !x.IsCancelled && !x.AllDone && x.StartDate <= Today.AddDays(StartersWindowDays))
+                .OrderBy(x => x.StartDate).ThenBy(x => x.TicketNumber)
+                .Select(x => (x, UserNames.GetValueOrDefault(x.StarterId) ?? "Unknown"))
+                .ToList();
 
         if (CanSeeTickets)
         {

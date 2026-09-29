@@ -260,4 +260,69 @@ public class OnboardingTests
         Assert.Equal(teacher.Tasks.Count, templates.Single(x => x.Name == "Teacher").Tasks.Count);
         Assert.Equal(teacher.Tasks.Count - 1, templates.Single(x => x.Name == "Support staff").Tasks.Count);
     }
+
+    [Fact]
+    public void A_new_install_has_a_demo_onboarding_that_going_live_removes()
+    {
+        using var test = new TestStore();
+        var demo = Assert.Single(test.Store.Onboardings);
+        var starter = test.Store.Users.Single(x => x.Id == demo.StarterId);
+        Assert.EndsWith("(demo)", starter.Name);
+        Assert.Contains(demo.Tasks, x => x.IsDone);
+        Assert.False(demo.AllDone);
+        // Nothing starts overdue, and nothing ticked was late.
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        Assert.Equal(0, demo.OverdueCount(today));
+        Assert.All(demo.Tasks.Where(x => x.IsDone), x => Assert.True(DateOnly.FromDateTime(x.CompletedAt!.Value.ToLocalTime()) <= demo.DueOn(x)));
+        Assert.Contains(demo.Tasks, x => x.Action == OnboardingActions.IssueAsset && x.TechnicianId is not null);
+        Assert.Contains(test.Store.DemoDataSummary(), x => x.Name.Contains(starter.Name));
+
+        // A real onboarding with the demo requester as its line manager keeps going, without them.
+        var (number, _) = Start(test);
+        var real = test.Store.FindOnboarding(number)!;
+        var details = new HelpdeskStore.OnboardingDetails("Jane Smith", null, real.JobTitle, null, null, real.StartDate, demo.LineManagerId);
+        Assert.True(test.Store.UpdateOnboardingDetails(number, details).Ok);
+
+        Assert.True(test.Store.RemoveDemoData().Ok);
+        var left = Assert.Single(test.Reopen().Onboardings);
+        Assert.Equal(number, left.TicketNumber);
+        Assert.Null(left.LineManagerId);
+        Assert.DoesNotContain(test.Store.Tickets, x => x.Number == demo.TicketNumber);
+        Assert.DoesNotContain(test.Store.Users, x => x.Id == starter.Id);
+    }
+
+    [Fact]
+    public void The_officer_and_senior_technician_roles_start_with_the_onboarding_report()
+    {
+        using var test = new TestStore();
+        var officer = test.Store.Roles.Single(x => x.Name == HelpdeskStore.OnboardingOfficerRole);
+        Assert.Contains(Modules.Flags.ReportOnboarding, officer.Flags);
+        Assert.True(officer.Grants[Modules.Reports].HasFlag(ModulePermission.Access));
+        Assert.Contains(Modules.Flags.ReportOnboarding, test.Store.Roles.Single(x => x.Name == "Senior Technician").Flags);
+        Assert.DoesNotContain(Modules.Flags.ReportOnboarding, test.Store.Roles.Single(x => x.Name == "Technician").Flags);
+    }
+
+    [Fact]
+    public void The_report_counts_a_task_late_when_ticked_after_its_due_date_or_still_outstanding_past_it()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var dueTwoDaysAgo = new OnboardingTask(Guid.NewGuid(), "Laptop", OnboardingStages.BeforeArrival, -2, OnboardingOwners.IT);
+        var dueTomorrow = dueTwoDaysAgo with { Id = Guid.NewGuid(), OffsetDays = 1 };
+        var record = new OnboardingRecord(1, Guid.NewGuid(), today, DateTime.UtcNow);
+        EduHelpdesk.Pages.Reports.OnboardingReportsModel.TaskRow Row(OnboardingTask task, OnboardingRecord? on = null) => new(on ?? record, task, "Jane", "IT (anyone)");
+        DateTime Local(DateOnly day) => day.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Local).ToUniversalTime();
+
+        // Outstanding and past due: late by the days since. Not due yet: no verdict either way.
+        Assert.Equal(2, Row(dueTwoDaysAgo).DaysLate(today));
+        Assert.True(Row(dueTwoDaysAgo).Judged(today));
+        Assert.Null(Row(dueTomorrow).DaysLate(today));
+        Assert.False(Row(dueTomorrow).Judged(today));
+        // Ticked on its due date is on time; ticked a day after is a day late.
+        Assert.Null(Row(dueTwoDaysAgo with { CompletedAt = Local(today.AddDays(-2)) }).DaysLate(today));
+        Assert.Equal(1, Row(dueTwoDaysAgo with { CompletedAt = Local(today.AddDays(-1)) }).DaysLate(today));
+        // Left undone on a cancelled onboarding: not held against anyone.
+        var cancelled = record with { CancelledAt = DateTime.UtcNow };
+        Assert.Null(Row(dueTwoDaysAgo, cancelled).DaysLate(today));
+        Assert.False(Row(dueTwoDaysAgo, cancelled).Judged(today));
+    }
 }

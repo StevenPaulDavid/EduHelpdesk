@@ -63,7 +63,7 @@ public sealed partial class HelpdeskStore
                 },
                 Modules.Flags.WorkingAs, Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance, Modules.Flags.ReportProjects,
-                Modules.Flags.ReportExport));
+                Modules.Flags.ReportOnboarding, Modules.Flags.ReportExport));
 
             // Runs the inventory outright, reads the supplier directory, and cannot reach staff accounts, roles,
             // settings or the audit log.

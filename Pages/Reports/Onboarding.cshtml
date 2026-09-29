@@ -1,0 +1,120 @@
+@page
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Reports.OnboardingReportsModel
+@{
+    ViewData["Title"] = "Onboarding report";
+    var today = Model.Today;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Onboarding report</h1><p class="hero-copy">New staff: how many started, whether their checklists were finished and how long that took, and which tasks keep running late.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanOpenOnboarding) { <a class="button button-secondary" asp-page="/Onboarding/Index">← Onboarding</a> }
+    </div>
+</div>
+<partial name="_ReportTabs" model="@("/Reports/Onboarding")" />
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Period<select name="year">
+            @foreach (var year in Model.AvailableYears) { <option value="@year" selected="@(year == Model.StartYear)">Academic year @Model.YearLabel(year)</option> }
+            <option value="@EduHelpdesk.Pages.Reports.OnboardingReportsModel.AllTime" selected="@(Model.StartYear is null)">All time</option>
+        </select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Onboarding">Reset</a></div>
+    </form>
+    <p class="muted">Onboardings still in progress are as things stand today. Everything else covers people whose start date falls in the period. A task is late when it was ticked after its due date, or is past it and still not done; tasks not due yet aren't counted either way.</p>
+</section>
+
+<div class="metrics">
+    <div class="metric"><span>In progress now</span><strong>@Model.Active.Count</strong><small>@Model.StartingSoon starting in the next @EduHelpdesk.Pages.Reports.OnboardingReportsModel.SoonDays days</small></div>
+    <div class="metric"><span>Tasks overdue now</span><strong>@Model.OverdueNow</strong><small>@Model.ItOverdueNow of them IT's</small></div>
+    <div class="metric"><span>Started</span><strong>@Model.Started.Count</strong><small>@Model.Finished finished · @Model.Cancelled cancelled · @Model.PeriodLabel</small></div>
+    <div class="metric"><span>Tasks done on time</span><strong>@EduHelpdesk.Pages.Reports.OnboardingReportsModel.Percent(Model.OnTimeTasks, Model.JudgedTasks)</strong><small>@Model.OnTimeTasks of @Model.JudgedTasks@(Model.MedianDaysToFinish is null ? "" : $" · median finish {EduHelpdesk.Pages.Reports.OnboardingReportsModel.FinishText(Model.MedianDaysToFinish).ToLowerInvariant()}")</small></div>
+</div>
+
+<section class="panel" id="active">
+    <div class="panel-heading"><div><p class="eyebrow">NOW</p><h2>Onboardings in progress</h2></div><span class="badge @(Model.OverdueNow > 0 ? "badge-warning" : "")">@Model.Active.Count</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Starter</th><th>Template</th><th>Starts</th><th>Done</th><th>IT tasks left</th><th>Overdue</th></tr></thead><tbody>
+    @foreach (var row in Model.Active)
+    {
+        var record = row.Record;
+        var overdue = record.OverdueCount(today);
+        <tr>
+            <td>@if (Model.CanOpenOnboarding) { <a asp-page="/Onboarding/Details" asp-route-number="@record.TicketNumber"><strong>@row.Starter</strong></a> } else { <strong>@row.Starter</strong> }@if (!string.IsNullOrWhiteSpace(record.JobTitle)) { <br /><small class="muted">@record.JobTitle</small> }</td>
+            <td>@(string.IsNullOrWhiteSpace(record.TemplateName) ? "—" : record.TemplateName)</td>
+            <td>@record.StartDate.ToString("dd MMM yyyy")<br /><small class="muted">@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, today)</small></td>
+            <td>@record.Done of @record.Tasks.Count</td>
+            <td>@(record.ItTasks.Count(x => !x.IsDone) is var left and > 0 ? left.ToString() : "—")</td>
+            <td>@if (overdue > 0) { <span class="badge badge-warning">@overdue</span> } else { <text>—</text> }</td>
+        </tr>
+    }
+    @if (Model.Active.Count == 0) { <tr><td colspan="6" class="empty">No onboardings in progress.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="panel" id="late">
+    <div class="panel-heading"><div><p class="eyebrow">@Model.PeriodLabel.ToUpperInvariant()</p><h2>Tasks that run late</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Onboarding" asp-page-handler="Export" asp-route-table="tasks" asp-route-year="@Model.YearKey">⬇ Every task CSV</a> }</div></div>
+    <p class="muted">The same task across different starters, matched by its name - the ones most often late first. A task late every time may need an earlier due date in its template.</p>
+    <div class="table-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th>Late</th><th>Of</th><th>Still overdue</th><th>Median days late</th></tr></thead><tbody>
+    @foreach (var row in Model.LateTasks)
+    {
+        <tr><td><strong>@row.Title</strong></td><td>@row.Owner</td><td><span class="badge badge-warning">@row.Late</span></td><td>@row.Judged</td><td>@(row.StillOverdue > 0 ? row.StillOverdue.ToString() : "—")</td><td>@EduHelpdesk.Pages.Reports.ProjectReportsModel.Days(row.MedianDaysLate)</td></tr>
+    }
+    @if (Model.LateTasks.Count == 0) { <tr><td colspan="6" class="empty">No task ran late for people starting in this period.</td></tr> }
+    </tbody></table></div>
+</section>
+
+<div class="dash-grid">
+    <section class="panel" id="who">
+        <div class="panel-heading"><div><p class="eyebrow">@Model.PeriodLabel.ToUpperInvariant()</p><h2>Who the tasks fell to</h2></div></div>
+        <p class="muted">IT tasks given to a named technician are theirs; the rest are the IT team's.</p>
+        <div class="table-wrap"><table><thead><tr><th>For</th><th>Tasks</th><th>Done</th><th>On time</th><th>Late</th><th>Overdue now</th></tr></thead><tbody>
+        @foreach (var row in Model.ByDoer)
+        {
+            <tr><td>@if (row.IsTeam) { <em>@row.Name</em> } else { <strong>@row.Name</strong> }</td><td>@row.Tasks</td><td>@row.Done</td><td>@row.OnTime</td><td>@(row.Late > 0 ? row.Late.ToString() : "—")</td><td>@if (row.StillOverdue > 0) { <span class="badge badge-warning">@row.StillOverdue</span> } else { <text>—</text> }</td></tr>
+        }
+        @if (Model.ByDoer.Count == 0) { <tr><td colspan="6" class="empty">No tasks in this period.</td></tr> }
+        </tbody></table></div>
+    </section>
+    <section class="panel" id="templates">
+        <div class="panel-heading"><div><p class="eyebrow">@Model.PeriodLabel.ToUpperInvariant()</p><h2>By kind of starter</h2></div></div>
+        <p class="muted">By the template each onboarding was started from.</p>
+        <div class="table-wrap"><table><thead><tr><th>Template</th><th>Started</th><th>Finished</th><th>Cancelled</th><th>Median finish</th><th>On time</th></tr></thead><tbody>
+        @foreach (var row in Model.ByTemplate)
+        {
+            <tr><td><strong>@row.Name</strong></td><td>@row.Starters</td><td>@row.Finished</td><td>@(row.Cancelled > 0 ? row.Cancelled.ToString() : "—")</td><td>@EduHelpdesk.Pages.Reports.OnboardingReportsModel.FinishText(row.MedianDaysToFinish)</td><td>@EduHelpdesk.Pages.Reports.OnboardingReportsModel.Percent(row.OnTime, row.Judged)</td></tr>
+        }
+        @if (Model.ByTemplate.Count == 0) { <tr><td colspan="6" class="empty">Nobody started in this period.</td></tr> }
+        </tbody></table></div>
+    </section>
+</div>
+
+<section class="panel" id="starters">
+    <div class="panel-heading"><div><p class="eyebrow">@Model.PeriodLabel.ToUpperInvariant()</p><h2>New starters</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Onboarding" asp-page-handler="Export" asp-route-table="onboardings" asp-route-year="@Model.YearKey">⬇ CSV</a> }<span class="badge">@Model.InPeriod.Count</span></div></div>
+    @if (Model.ByMonth.Count > 1)
+    {
+        <div class="table-wrap"><table><thead><tr><th>Starting in</th><th>Started</th><th>Finished</th><th>Cancelled</th><th>Tasks late</th></tr></thead><tbody>
+        @foreach (var row in Model.ByMonth)
+        {
+            <tr><td>@row.Month.ToString("MMMM yyyy")</td><td>@row.Starters</td><td>@row.Finished</td><td>@(row.Cancelled > 0 ? row.Cancelled.ToString() : "—")</td><td>@(row.Late > 0 ? $"{row.Late} of {row.Judged}" : "—")</td></tr>
+        }
+        </tbody></table></div>
+    }
+    <div class="table-wrap @(Model.ByMonth.Count > 1 ? "report-split" : "")"><table><thead><tr><th>Starter</th><th>Department</th><th>Template</th><th>Start date</th><th>Status</th><th>Done</th><th>Late</th><th>Finished</th></tr></thead><tbody>
+    @foreach (var row in Model.InPeriod)
+    {
+        var record = row.Record;
+        var late = row.Tasks.Count(x => x.DaysLate(today) is not null);
+        <tr>
+            <td>@if (Model.CanOpenOnboarding) { <a asp-page="/Onboarding/Details" asp-route-number="@record.TicketNumber"><strong>@row.Starter</strong></a> } else { <strong>@row.Starter</strong> }@if (!string.IsNullOrWhiteSpace(record.JobTitle)) { <br /><small class="muted">@record.JobTitle</small> }</td>
+            <td>@(string.IsNullOrWhiteSpace(row.Department) ? "—" : row.Department)</td>
+            <td>@(string.IsNullOrWhiteSpace(record.TemplateName) ? "—" : record.TemplateName)</td>
+            <td>@record.StartDate.ToString("dd MMM yyyy")</td>
+            <td>@row.Status(today)</td>
+            <td>@record.Done of @record.Tasks.Count</td>
+            <td>@if (late > 0) { <span class="badge badge-warning">@late</span> } else { <text>—</text> }</td>
+            <td>@(row.FinishedOn is { } finished ? $"{finished:dd MMM yyyy} · {EduHelpdesk.Pages.Reports.OnboardingReportsModel.FinishText(row.DaysToFinish).ToLowerInvariant()}" : "—")</td>
+        </tr>
+    }
+    @if (Model.InPeriod.Count == 0) { <tr><td colspan="8" class="empty">Nobody starts in this period.</td></tr> }
+    </tbody></table></div>
+</section>

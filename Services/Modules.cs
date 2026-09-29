@@ -69,6 +69,7 @@ public static class Modules
         public const string ReportLoans = "Reports.Loans";
         public const string ReportFinance = "Reports.Finance";
         public const string ReportProjects = "Reports.Projects";
+        public const string ReportOnboarding = "Reports.Onboarding";
         public const string ReportExport = "Reports.Export";
 
         public sealed record Definition(string Key, string Label, string Description, string Group);
@@ -84,6 +85,7 @@ public static class Modules
             new(ReportLoans, "Loan reports", "Who is borrowing devices and how often.", "Reports"),
             new(ReportFinance, "Finance and audit report", "Spend, orders and disposals. Shows purchase prices.", "Reports"),
             new(ReportProjects, "Project reports", "Purchasing projects: where they are, technician workload, turnaround, and spend by outcome. Shows quote values.", "Reports"),
+            new(ReportOnboarding, "Onboarding report", "New staff onboardings: how many, how long they take to finish, and which tasks run late.", "Reports"),
             new(ReportExport, "Export and print reports", "Download report CSVs and open the print views.", "Reports")
         ];
 

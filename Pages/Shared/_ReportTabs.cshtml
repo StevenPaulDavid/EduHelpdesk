@@ -13,6 +13,7 @@
         ("/Reports/Loans", "Loan reports", Modules.Flags.ReportLoans),
         ("/Reports/Finance", "Finance", Modules.Flags.ReportFinance),
         ("/Reports/Projects", "Projects", Modules.Flags.ReportProjects),
+        ("/Reports/Onboarding", "Onboarding", Modules.Flags.ReportOnboarding),
     };
     var visible = tabs.Where(x => Helpdesk.UserHasFlag(User, x.Flag)).ToList();
 }
