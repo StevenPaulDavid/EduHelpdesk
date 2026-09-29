@@ -8,7 +8,7 @@ namespace EduHelpdesk.Pages;
 // The directory: requesters, technician accounts and roles. It used to draw all three lists in full, one under the
 // other, which stops working once a school imports its staff - hundreds of rows before the technicians even start. Now
 // each is a tab, only the open one is drawn, and the two that grow (users and technicians) are searched and paged.
-public class PeopleModel(HelpdeskStore store) : PageModel
+public class PeopleModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {
     public const string UsersTab = "users";
     public const string TechniciansTab = "technicians";
@@ -60,8 +60,34 @@ public class PeopleModel(HelpdeskStore store) : PageModel
     public int TotalPages { get; private set; } = 1;
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Group) || !string.IsNullOrWhiteSpace(Status);
 
+    // Active accounts on the open tab that nobody has given a password yet - usually imported ones - offered temporary
+    // passwords all at once. Needs Edit, as giving one account a temporary password does.
+    public int WithoutPassword { get; private set; }
+    public bool CanEditUsers => store.UserCan(User, Modules.Requesters, ModulePermission.Edit);
+    private bool IsAdministrator => string.Equals(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase);
+    // Only an Administrator gives out an Administrator's password, as on the account page.
+    private IReadOnlyList<TechnicianRecord> TechniciansWithoutPassword() =>
+        store.TechniciansWithoutPassword().Where(x => IsAdministrator || x.Role != StaffRoles.Administrator).ToList();
+
+    public IActionResult OnPostTemporaryPasswords(string tab)
+    {
+        var issuedBy = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        if (tab == TechniciansTab)
+        {
+            if (!CanEditTechnicians) return Forbid();
+            var accounts = TechniciansWithoutPassword();
+            if (accounts.Count == 0) { Message = "Every active technician already has a password."; return RedirectToPage(new { tab }); }
+            return RedirectToPage("/People/QuickStart", new { batch = passwords.IssueToTechnicians(store, accounts, issuedBy) });
+        }
+        if (!CanEditUsers) return Forbid();
+        var people = store.RequestersWithoutPassword();
+        if (people.Count == 0) { Message = "Every active user already has a portal password."; return RedirectToPage(new { tab = UsersTab }); }
+        return RedirectToPage("/People/QuickStart", new { batch = passwords.IssueToRequesters(store, people, issuedBy) });
+    }
+
     // Adding/editing/deleting users, technicians and roles is handled by the dedicated pages under /People (linked
-    // from the view below), each with its own authorization - so this page only reads.
+    // from the view below), each with its own authorization - so apart from the temporary passwords above, this page
+    // only reads.
     public void OnGet()
     {
         var tabs = new List<TabLink>();
@@ -77,6 +103,7 @@ public class PeopleModel(HelpdeskStore store) : PageModel
         {
             var all = store.Users;
             Total = all.Count;
+            if (CanEditUsers) WithoutPassword = store.RequestersWithoutPassword().Count;
             LeaversHolding = store.LeaversStillHolding();
             UserRows = Paged(all
                 .Where(x => Matches(Search, x.Name, x.Email, x.Department, x.Location))
@@ -89,6 +116,7 @@ public class PeopleModel(HelpdeskStore store) : PageModel
         {
             var all = store.Technicians;
             Total = all.Count;
+            if (CanEditTechnicians) WithoutPassword = TechniciansWithoutPassword().Count;
             TechnicianRows = Paged(all
                 .Where(x => Matches(Search, x.Name, x.Email, x.Team, x.Role))
                 .Where(x => string.IsNullOrWhiteSpace(Group) || string.Equals(x.Team, Group, StringComparison.OrdinalIgnoreCase))

@@ -6,11 +6,18 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace EduHelpdesk.Pages.Settings;
 
 // Settings → Imports: requesters, staff accounts and option lists from CSV. Needs Settings: Edit (Program.cs).
-public class ImportsModel(HelpdeskStore store) : PageModel
+public class ImportsModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {
     [BindProperty] public IFormFile? UserCsv { get; set; }
     [BindProperty] public IFormFile? TechnicianCsv { get; set; }
+    // Give everyone imported a temporary password, and print a quick start guide for each (Pages/People/QuickStart).
+    [BindProperty] public bool TemporaryPasswords { get; set; }
     [TempData] public string? Message { get; set; }
+
+    // Issuing passwords is the same as setting them on each account, so it needs what the account pages need.
+    public bool CanIssueUserPasswords => store.UserCanAny(User, Modules.Requesters, ModulePermission.New | ModulePermission.Edit);
+    public bool CanIssueTechnicianPasswords => store.UserCanAny(User, Modules.StaffAccounts, ModulePermission.New | ModulePermission.Edit);
+    private string IssuedBy => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
 
     public void OnGet() { }
 
@@ -47,6 +54,13 @@ public class ImportsModel(HelpdeskStore store) : PageModel
         var (imported, duplicates) = store.ImportUsers(records);
         var skipped = invalidRows + duplicates;
         Message = skipped > 0 ? $"{imported} users imported, {skipped} row(s) skipped (missing name/email or email already in use)." : $"{imported} users imported.";
+        if (TemporaryPasswords && CanIssueUserPasswords && imported > 0)
+        {
+            // Only the rows that went in: a skipped duplicate is someone else's existing account.
+            var added = records.Select(x => x.Id).ToHashSet();
+            var batch = passwords.IssueToRequesters(store, store.Users.Where(x => added.Contains(x.Id)), IssuedBy);
+            return RedirectToPage("/People/QuickStart", new { batch });
+        }
         return RedirectToPage();
     }
 
@@ -71,6 +85,17 @@ public class ImportsModel(HelpdeskStore store) : PageModel
         var (imported, duplicates) = store.ImportTechnicians(records);
         var skipped = invalidRows + duplicates;
         Message = skipped > 0 ? $"{imported} technicians imported, {skipped} row(s) skipped (missing name/email or email already in use)." : $"{imported} technicians imported.";
+        if (TemporaryPasswords && CanIssueTechnicianPasswords && imported > 0)
+        {
+            var added = records.Select(x => x.Id).ToHashSet();
+            // Only an Administrator gives out an Administrator's password, as on the account page.
+            var isAdministrator = string.Equals(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase);
+            var accounts = store.Technicians.Where(x => added.Contains(x.Id) && (isAdministrator || x.Role != StaffRoles.Administrator)).ToList();
+            if (accounts.Count < imported) Message += $" {imported - accounts.Count} Administrator account(s) weren't given a password: only an Administrator can do that.";
+            if (accounts.Count == 0) return RedirectToPage();
+            var batch = passwords.IssueToTechnicians(store, accounts, IssuedBy);
+            return RedirectToPage("/People/QuickStart", new { batch });
+        }
         return RedirectToPage();
     }
 

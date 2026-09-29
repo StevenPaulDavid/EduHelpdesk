@@ -31,6 +31,13 @@
             <div><p class="eyebrow">@(onUsers ? "REQUESTERS" : "STAFF ACCOUNTS")</p><h2>@(onUsers ? "Users" : "Technicians")</h2></div>
             <div class="heading-actions">
                 <span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.Total}" : Model.Total.ToString())</span>
+                @if (Model.WithoutPassword > 0)
+                {
+                    <form method="post" asp-page-handler="TemporaryPasswords" data-confirm="Give @Model.WithoutPassword active @(onUsers ? "user" : "technician")@(Model.WithoutPassword == 1 ? "" : "s") with no password a temporary one each? You'll go straight to their quick start guides to print - the passwords are only shown for an hour.">
+                        <input type="hidden" name="tab" value="@Model.Tab" />
+                        <button class="button button-secondary" title="Active @noun who can't sign in yet because nobody has given them a password - usually imported ones">Temporary passwords for @Model.WithoutPassword without one</button>
+                    </form>
+                }
                 @if (onUsers && Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">＋ Add user</a> }
                 @if (onTechnicians && Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a> }
             </div>

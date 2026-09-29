@@ -60,7 +60,7 @@ Everything the school name, colours, logo and backups questions set can be chang
 
 - **Branding & logo**: check the name, colours and logo.
 - **Sign-in security**: turn on **two-step sign-in** for your own account (from your account menu), then require it for every staff account. The DfE's cyber security standard expects this.
-- **People**: add your technicians (Staff accounts) and give them roles, and import staff who will use the portal (Requesters, from a CSV). Each account you add gets a temporary password and a one-page **quick start guide** to print and hand over.
+- **People**: add your technicians (Staff accounts) and give them roles, and import staff who will use the portal (Requesters, from a CSV). Each account you add gets a temporary password and a one-page **quick start guide** to print and hand over; an import prints a guide for everyone in it.
 - **Sign-in security → Helpdesk address**: check it's the address staff will type. It's printed on every quick start guide.
 - **Backups & data**: after the first night, check the backup ran.
 - The **Technical Guide** (`docs\Technical-Guide.md` in the zip) explains every setting, and the **Staff Guide** (`docs\Staff-Guide.md`) is written for the staff who use the portal.

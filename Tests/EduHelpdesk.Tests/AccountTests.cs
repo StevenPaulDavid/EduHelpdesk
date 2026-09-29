@@ -30,6 +30,40 @@ public class AccountTests
         Assert.Null(passwords.Recall(Guid.NewGuid(), hash));
     }
 
+    [Fact]
+    public void Staff_without_a_password_get_temporary_ones_in_one_batch_only_their_issuer_can_open()
+    {
+        using var test = new TestStore();
+        var ann = test.AddRequester("Ann Lowe");
+        var ben = test.AddRequester("Ben Carr");
+        test.AddRequester("Cy Left", active: false);
+        test.Store.UpdateUser(test.AddRequester("Dee Set") with { PasswordHash = PasswordHasher.Hash("Kept-Own-Password-19") });
+        // A technician's own portal record is reached through their helpdesk sign-in, so it's left alone.
+        test.Store.AddTechnician(new TechnicianRecord(Guid.NewGuid(), "Tess Tech", "tess.tech@test.example", test.Store.TechnicianTeams[0], "Technician"));
+        test.AddRequester("Tess Tech");
+
+        // The fresh store's demo requester has no password either, so it's in the list too.
+        var waiting = test.Store.RequestersWithoutPassword();
+        Assert.Contains(waiting, x => x.Id == ann.Id);
+        Assert.Contains(waiting, x => x.Id == ben.Id);
+        Assert.DoesNotContain(waiting, x => x.Name is "Cy Left" or "Dee Set" or "Tess Tech");
+
+        var passwords = new TemporaryPasswords();
+        var batchId = passwords.IssueToRequesters(test.Store, waiting, "issuer");
+        Assert.Null(passwords.RecallBatch(batchId, "someone else"));
+        var batch = passwords.RecallBatch(batchId, "issuer")!;
+        Assert.False(batch.Technicians);
+        Assert.Equal(waiting.Count, batch.AccountIds.Count);
+
+        foreach (var id in new[] { ann.Id, ben.Id })
+        {
+            var person = test.Reopen().Users.Single(x => x.Id == id);
+            Assert.True(person.RequirePasswordChange);
+            Assert.True(PasswordHasher.Verify(person.PasswordHash, passwords.Recall(id, person.PasswordHash)!));
+        }
+        Assert.Empty(test.Store.RequestersWithoutPassword());
+    }
+
     [Theory]
     [InlineData("https://helpdesk.school.org.uk", "https://helpdesk.school.org.uk/")]
     [InlineData(" http://HELPDESK-PC:5277/ ", "http://helpdesk-pc:5277/")]

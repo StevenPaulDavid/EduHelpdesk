@@ -4,13 +4,14 @@
 @{
     Layout = null;
     var brand = Model.Branding;
+    var withoutPassword = Model.Sheets.Count(x => x.Password is null);
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Quick start guide · @Model.Name</title>
+<title>@(Model.Sheets.Count == 1 ? $"Quick start guide · {Model.Sheets[0].Name}" : $"Quick start guides ({Model.Sheets.Count})")</title>
 <style>
     @@page { size: A4; margin: 14mm 16mm; }
     :root { --brand: @brand.PrimaryColor; --soft: @brand.AccentColor; }
@@ -44,6 +45,8 @@
         body { background: #fff; }
         .toolbar { display: none !important; }
         .sheet { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+        /* A batch prints one guide to a page, so each can be handed to its person. */
+        .sheet + .sheet { break-before: page; }
         .details { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
 </style>
@@ -51,52 +54,59 @@
 </head>
 <body>
     <div class="toolbar">
-        @if (Model.JustAdded) { <p class="notice"><strong>@Model.Name's account is ready.</strong> Print this guide and give it to them.</p> }
-        @if (Model.Password is null)
+        @if (Model.JustAdded) { <p class="notice"><strong>@Model.Sheets[0].Name's account is ready.</strong> Print this guide and give it to them.</p> }
+        @if (Model.IsBatch)
         {
-            <p class="notice">The password isn't on this copy: it was set more than an hour ago, or the helpdesk has restarted since, and only a scrambled copy is kept. Write it on the line, or use <strong>Give them a temporary password</strong> on their account page to print a new one.</p>
+            <p class="notice"><strong>@Model.Sheets.Count quick start guide@(Model.Sheets.Count == 1 ? "" : "s"), one to a page, each with a temporary password.</strong> Print them now and hand them out: the passwords are only shown here for an hour, and only to you.</p>
+        }
+        @if (withoutPassword > 0)
+        {
+            <p class="notice">@(Model.Sheets.Count == 1 ? "The password isn't on this copy" : $"{withoutPassword} of these have no password on them"): it was set more than an hour ago, or the helpdesk has restarted since, and only a scrambled copy is kept. Write it on the line, or use <strong>Give them a temporary password</strong> on their account page to print a new one.</p>
         }
         @if (Model.AddressGuessed)
         {
             <p class="notice">The address, @Model.Address, was worked out from the one you're using now. @if (Model.CanSetAddress) { <a asp-page="/Settings/SignIn" asp-fragment="address">Set the address staff should use</a> } else { <text>Someone with Settings access can set the address staff should use in Settings → Sign-in security.</text> }</p>
         }
+        @if (Model.Sheets.Count == 0) { <p class="notice">Nobody in this batch still has an account to print a guide for.</p> }
         <div class="actions">
-            <button type="button" class="primary" data-action="print">Print</button>
+            <button type="button" class="primary" data-action="print">Print@(Model.Sheets.Count > 1 ? $" all {Model.Sheets.Count}" : "")</button>
             <a href="@Model.BackUrl">Done</a>
         </div>
     </div>
 
+    @foreach (var sheet in Model.Sheets)
+    {
     <main class="sheet">
         <header>
             @if (Model.LogoVersion is { } logoVersion) { <img src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> }
             <span class="school">@brand.BrandName</span>
-            <span class="kind">@(Model.ForTechnician ? "IT helpdesk" : "Staff portal")</span>
+            <span class="kind">@(sheet.ForTechnician ? "IT helpdesk" : "Staff portal")</span>
         </header>
 
-        <h1>@(Model.ForTechnician ? "Welcome to the IT helpdesk" : "Reporting IT problems")</h1>
-        <p class="for">A quick start guide for <strong>@Model.Name</strong>@if (Model.Technician is { } tech) { <text> · @tech.Role@(string.IsNullOrWhiteSpace(tech.Team) ? "" : $", {tech.Team}")</text> }</p>
+        <h1>@(sheet.ForTechnician ? "Welcome to the IT helpdesk" : "Reporting IT problems")</h1>
+        <p class="for">A quick start guide for <strong>@sheet.Name</strong>@if (sheet.Technician is { } tech) { <text> · @tech.Role@(string.IsNullOrWhiteSpace(tech.Team) ? "" : $", {tech.Team}")</text> } else if (!string.IsNullOrWhiteSpace(sheet.Person!.Department)) { <text> · @sheet.Person.Department</text> }</p>
 
         <section class="details" aria-label="Your sign-in details">
             <dl>
                 <dt>Go to</dt><dd>@Model.SignInAddress</dd>
-                <dt>Email</dt><dd>@Model.Email</dd>
-                <dt>@(Model.MustChange ? "Temporary password" : "Password")</dt>
-                <dd>@if (Model.Password is { } password) { @password } else { <span class="blank"></span><span class="hint">Given to you separately.</span> }</dd>
+                <dt>Email</dt><dd>@sheet.Email</dd>
+                <dt>@(sheet.MustChange ? "Temporary password" : "Password")</dt>
+                <dd>@if (sheet.Password is { } password) { @password } else { <span class="blank"></span><span class="hint">Given to you separately.</span> }</dd>
             </dl>
         </section>
 
         <h2>Signing in for the first time</h2>
         <ol>
-            <li>Open a web browser on a computer in school and go to <strong>@Model.SignInAddress</strong>.@(Model.ForTechnician ? "" : " Adding it to your favourites saves typing it next time.")</li>
-            <li>Type your email and the password above, then choose <strong>Sign in</strong>.@if (!Model.ForTechnician) { <text> Tick <em>Keep me signed in</em> only on a computer nobody else uses.</text> }</li>
-            @if (Model.MustChange) { <li>You'll be asked to <strong>choose your own password</strong> straight away. Use at least @PasswordRules.MinimumLength characters. Three random words together is easy to remember and hard to guess.</li> }
-            @if (Model.ForTechnician && Model.TwoFactorRequired)
+            <li>Open a web browser on a computer in school and go to <strong>@Model.SignInAddress</strong>.@(sheet.ForTechnician ? "" : " Adding it to your favourites saves typing it next time.")</li>
+            <li>Type your email and the password above, then choose <strong>Sign in</strong>.@if (!sheet.ForTechnician) { <text> Tick <em>Keep me signed in</em> only on a computer nobody else uses.</text> }</li>
+            @if (sheet.MustChange) { <li>You'll be asked to <strong>choose your own password</strong> straight away. Use at least @PasswordRules.MinimumLength characters. Three random words together is easy to remember and hard to guess.</li> }
+            @if (sheet.ForTechnician && Model.TwoFactorRequired)
             {
                 <li>Then set up <strong>two-step sign-in</strong>. Install an authenticator app on your phone, such as Microsoft Authenticator or Google Authenticator, and scan the code the helpdesk shows. Keep the recovery codes it gives you somewhere safe: they get you in if you lose your phone.</li>
             }
         </ol>
 
-        @if (Model.ForTechnician)
+        @if (sheet.Technician is { } technician)
         {
             <h2>Finding your way around</h2>
             <ul>
@@ -105,7 +115,7 @@
                 <li><strong>Inventory</strong>: the asset register, where you can search by asset tag or serial number to see a device's history, plus loans, kits and parts.</li>
                 <li><strong>Your name</strong> (top right): change your password, @(Model.TwoFactorRequired ? "manage" : "turn on") two-step sign-in, open the staff portal, and sign out.</li>
             </ul>
-            <p>What you can see and change depends on your role, <strong>@Model.Technician!.Role</strong>. If something you need is missing, ask whoever looks after the helpdesk.</p>
+            <p>What you can see and change depends on your role, <strong>@technician.Role</strong>. If something you need is missing, ask whoever looks after the helpdesk.</p>
         }
         else
         {
@@ -113,18 +123,19 @@
             <ul>
                 <li><strong>＋ Report a problem</strong>: say what's wrong and where it is. A photo of an error message helps. You'll get a ticket number to quote.</li>
                 <li><strong>My tickets</strong>: follow each problem you've reported. A <em>new</em> badge means IT has replied. Open the ticket to read the reply and answer it.</li>
-                @if (Model.Person!.MayRaiseProjects) { <li><strong>＋ Request a project</strong>: ask IT to find quotes for something that needs buying. IT will put together a proposal.</li> }
-                @if (Model.Person.IsProjectLead) { <li><strong>Awaiting assignment</strong>: as project lead, you confirm each new project's priority and pass it to a technician.</li> }
+                @if (sheet.Person!.MayRaiseProjects) { <li><strong>＋ Request a project</strong>: ask IT to find quotes for something that needs buying. IT will put together a proposal.</li> }
+                @if (sheet.Person.IsProjectLead) { <li><strong>Awaiting assignment</strong>: as project lead, you confirm each new project's priority and pass it to a technician.</li> }
                 <li><strong>Change password</strong> is at the top of the page once you're signed in. If you forget your password, ask IT to set you a new one.</li>
             </ul>
         }
 
         <div class="tips">
             <strong>Keep your account safe.</strong> Never share your password. IT will never ask you for it. Sign out when you leave a shared computer.
-            @if (Model.Password is not null) { <text> This sheet shows a password, so keep it private and shred it once you've signed in@(Model.MustChange ? " and chosen your own" : "").</text> }
+            @if (sheet.Password is not null) { <text> This sheet shows a password, so keep it private and shred it once you've signed in@(sheet.MustChange ? " and chosen your own" : "").</text> }
         </div>
 
-        <footer><span>@brand.BrandName · @(Model.ForTechnician ? "IT helpdesk" : "staff portal") quick start</span><span>Printed @DateTime.Now.ToString("d MMMM yyyy")</span></footer>
+        <footer><span>@brand.BrandName · @(sheet.ForTechnician ? "IT helpdesk" : "staff portal") quick start</span><span>Printed @DateTime.Now.ToString("d MMMM yyyy")</span></footer>
     </main>
+    }
 </body>
 </html>

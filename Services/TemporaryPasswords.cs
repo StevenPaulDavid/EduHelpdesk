@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using EduHelpdesk.Models;
 
 namespace EduHelpdesk.Services;
 
@@ -29,15 +30,56 @@ public sealed class TemporaryPasswords
         }
     }
 
-    public void Remember(Guid accountId, string password, string hash)
+    public void Remember(Guid accountId, string password, string hash) => _recent[accountId] = (password, hash, DateTimeOffset.UtcNow);
+
+    // Called before each lookup, so passwords never sit in memory much past their hour.
+    private void Prune()
     {
-        _recent[accountId] = (password, hash, DateTimeOffset.UtcNow);
         foreach (var old in _recent.Where(x => DateTimeOffset.UtcNow - x.Value.At > KeptFor).Select(x => x.Key).ToList()) _recent.TryRemove(old, out _);
+        foreach (var old in _batches.Where(x => DateTimeOffset.UtcNow - x.Value.At > KeptFor).Select(x => x.Key).ToList()) _batches.TryRemove(old, out _);
     }
 
     // The password set in the last hour, while it is still the account's password.
-    public string? Recall(Guid accountId, string? currentHash) =>
-        _recent.TryGetValue(accountId, out var kept) && DateTimeOffset.UtcNow - kept.At <= KeptFor && kept.Hash == currentHash ? kept.Password : null;
+    public string? Recall(Guid accountId, string? currentHash)
+    {
+        Prune();
+        return _recent.TryGetValue(accountId, out var kept) && kept.Hash == currentHash ? kept.Password : null;
+    }
+
+    // Many accounts at once - an import, or everyone still without a password - printed together as one batch of
+    // guides. Only the person who issued a batch can open it, and only for the same hour.
+    public sealed record Batch(bool Technicians, IReadOnlyList<Guid> AccountIds, string IssuedBy, DateTimeOffset At);
+
+    private readonly ConcurrentDictionary<Guid, Batch> _batches = new();
+
+    public Guid IssueToRequesters(HelpdeskStore store, IEnumerable<UserRecord> people, string issuedBy) =>
+        Issue(store, people.Select(x => (x.Id, x.Name, x.Email)).ToList(), false, issuedBy);
+
+    public Guid IssueToTechnicians(HelpdeskStore store, IEnumerable<TechnicianRecord> people, string issuedBy) =>
+        Issue(store, people.Select(x => (x.Id, x.Name, x.Email)).ToList(), true, issuedBy);
+
+    public Batch? RecallBatch(Guid batchId, string viewer)
+    {
+        Prune();
+        return _batches.TryGetValue(batchId, out var batch) && batch.IssuedBy == viewer ? batch : null;
+    }
+
+    private Guid Issue(HelpdeskStore store, IReadOnlyList<(Guid Id, string Name, string Email)> people, bool technicians, string issuedBy)
+    {
+        // Hashing is slow on purpose (PasswordHasher), a tenth of a second or so each, so a few hundred imported staff are
+        // hashed side by side rather than one after another.
+        var made = new (Guid Id, string Password, string Hash)[people.Count];
+        Parallel.For(0, people.Count, i =>
+        {
+            var password = Generate(people[i].Name, people[i].Email);
+            made[i] = (people[i].Id, password, PasswordHasher.Hash(password));
+        });
+        store.SetTemporaryPasswords(made.ToDictionary(x => x.Id, x => x.Hash), technicians);
+        foreach (var (id, password, hash) in made) Remember(id, password, hash);
+        var batchId = Guid.NewGuid();
+        _batches[batchId] = new Batch(technicians, made.Select(x => x.Id).ToList(), issuedBy, DateTimeOffset.UtcNow);
+        return batchId;
+    }
 
     private static string Capitalise(string word) => char.ToUpperInvariant(word[0]) + word[1..];
 

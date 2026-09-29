@@ -447,7 +447,11 @@ They cannot see internal notes, anyone else's tickets, or any of the technician-
   - In the portal, **New reply** marks a ticket with a message from IT, or a status change, that the requester hasn't opened yet. The home page counts them.
   - Internal notes never count.
 
-**To give a member of staff access**: People → Add user and fill in their details. Leave the password empty and they get a temporary one, which they change the first time they sign in, or type one they'll keep. Print the quick start guide that opens and give it to them. For a forgotten password, use **Give them a temporary password** on their page. They can change their password later from the portal home page. Staff imported from a CSV have no password until one is given this way.
+**To give a member of staff access**: People → Add user and fill in their details. Leave the password empty and they get a temporary one, which they change the first time they sign in, or type one they'll keep. Print the quick start guide that opens and give it to them. For a forgotten password, use **Give them a temporary password** on their page. They can change their password later from the portal home page.
+
+**Many staff at once.** When you import users or technicians in **Settings → Imports**, leave **Give each a temporary password and print their quick start guides** ticked. Everyone imported gets a temporary password, and you go straight to their guides, one to a page, sorted by department. Print them straight away: they're only shown for an hour, and only to the person who imported them. Administrator accounts in a technicians CSV only get a password when an Administrator imports them.
+
+Staff imported with the box unticked, or before this existed, have no password. The Users and Technicians tabs on the People page then show **Temporary passwords for N without one**, which does the same for every active account still without a password. The portal records the helpdesk makes for technicians are left out, because they're reached through the technician's own sign-in.
 
 Titles are limited to 200 characters and descriptions and messages to 5,000, and a post to any portal page is capped at 1 MB.
 
