@@ -23,10 +23,12 @@ internal static class AuditTracker
 
         foreach (var x in d.Users)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
-            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)));
+            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)),
+                // Shows when a temporary password was issued, and when it was swapped for their own.
+                ("Temporary password", Yn(x.RequirePasswordChange)));
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
-            Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"));
+            Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"), ("Temporary password", Yn(x.RequirePasswordChange)));
         foreach (var x in d.Roles)
             // Projected from the module list rather than a hand-written set of labels: the previous version duplicated
             // the nine permission names here, so adding one silently dropped it out of the audit diff.

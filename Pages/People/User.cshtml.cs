@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.People;
 
-public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
+public class UserModel(HelpdeskStore store, SignInThrottle throttle, TemporaryPasswords passwords) : PageModel
 {
     public IReadOnlyList<string> Departments => store.Departments;
     public IReadOnlyList<string> Locations => store.Locations;
@@ -39,24 +39,35 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
             ModelState.AddModelError("", emailError);
             return Page();
         }
-        var newPassword = !string.IsNullOrWhiteSpace(password);
-        if (newPassword && PasswordRules.Problem(password, name, email) is { } problem)
+        var typed = !string.IsNullOrWhiteSpace(password);
+        if (typed && PasswordRules.Problem(password, name, email) is { } problem)
         {
             ModelState.AddModelError("", problem);
             return Page();
         }
 
-        var item = new UserRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (department ?? "").Trim(), (location ?? "").Trim(),
-            newPassword ? PasswordHasher.Hash(password!) : existing?.PasswordHash,
-            active)
+        // As for technicians: nothing typed on a new account means a temporary password, changed at first sign-in; a
+        // typed one is theirs to keep (TemporaryPasswords).
+        var temporary = !id.HasValue && !typed ? TemporaryPasswords.Generate(name, email) : null;
+        var newPassword = typed ? password! : temporary;
+        var hash = newPassword is null ? existing?.PasswordHash : PasswordHasher.Hash(newPassword);
+        var item = new UserRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (department ?? "").Trim(), (location ?? "").Trim(), hash, active)
         {
             CanRaiseProjects = canRaiseProjects, IsProjectLead = isProjectLead,
-            // A password a technician typed is known to them, so the requester chooses their own on first use.
-            RequirePasswordChange = newPassword || (existing?.RequirePasswordChange ?? false)
+            RequirePasswordChange = temporary is not null || (newPassword is null && (existing?.RequirePasswordChange ?? false))
         };
         if (id.HasValue) store.UpdateUser(item); else store.AddUser(item);
-        if (newPassword) throttle.Clear("portal", item.Email);
-        TempData["Message"] = id.HasValue ? "User updated." : "User added.";
+        if (newPassword is not null)
+        {
+            passwords.Remember(item.Id, newPassword, hash!);
+            throttle.Clear("portal", item.Email);
+        }
+        if (!id.HasValue)
+        {
+            QuickStartModel.MarkJustAdded(TempData, item.Id);
+            return RedirectToPage("/People/QuickStart", new { user = item.Id });
+        }
+        TempData["Message"] = "User updated.";
         // Marking someone as having left is the moment to deal with what they still have (the leaver check on /User).
         if (existing is { IsActive: true } && !active && store.GetHoldings(item.Id) is { EquipmentCount: > 0 } held)
         {

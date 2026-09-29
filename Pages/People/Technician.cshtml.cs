@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.People;
 
-public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
+public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, TemporaryPasswords passwords) : PageModel
 {
     public IReadOnlyList<string> Teams => store.TechnicianTeams;
     // Administrator is only offered to Administrators - or kept on the list for an account that already holds it, so
@@ -81,26 +81,56 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle) : Pag
             ModelState.AddModelError("", "At least one active Administrator must remain.");
             return Page();
         }
-        if (!string.IsNullOrWhiteSpace(password) && PasswordRules.Problem(password, name, email) is { } problem)
+        var typed = !string.IsNullOrWhiteSpace(password);
+        if (typed && PasswordRules.Problem(password, name, email) is { } problem)
         {
             ModelState.AddModelError("", problem);
             return Page();
         }
 
+        // A new account with nothing typed gets a temporary password, changed at their first sign-in. A password typed
+        // here is one the person is meant to keep, so it isn't. Leaving the box empty on an existing account keeps both
+        // the password and whether it still has to be changed.
+        var temporary = !id.HasValue && !typed ? TemporaryPasswords.Generate(name, email) : null;
+        var newPassword = typed ? password! : temporary;
+        var hash = newPassword is null ? existing?.PasswordHash : PasswordHasher.Hash(newPassword);
         var item = new TechnicianRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (team ?? string.Empty).Trim(), normalizedRole,
-            !string.IsNullOrWhiteSpace(password) ? PasswordHasher.Hash(password) : existing?.PasswordHash,
-            // Someone else setting a password means it has been shared, so it must be changed; your own choice needn't be.
-            (!IsSelf && !string.IsNullOrWhiteSpace(password)) || (existing?.RequirePasswordChange ?? false),
-            active);
+            hash, temporary is not null || (newPassword is null && (existing?.RequirePasswordChange ?? false)), active);
         if (id.HasValue) store.UpdateTechnician(item); else store.AddTechnician(item);
-        if (!string.IsNullOrWhiteSpace(password))
+        if (newPassword is not null)
         {
-            // A new password lifts any sign-in lockout and ends the account's sessions - except this one, when it's your own.
+            // Kept for an hour so the quick start guide can print it. A new password also lifts any sign-in lockout and
+            // ends the account's sessions - except this one, when it's your own.
+            if (!IsSelf) passwords.Remember(item.Id, newPassword, hash!);
             throttle.Clear("helpdesk", item.Email);
             if (IsSelf) await TechnicianSession.SignInAsync(HttpContext, item);
         }
-        TempData["Message"] = id.HasValue ? "Technician updated." : "Technician added.";
+        if (!id.HasValue)
+        {
+            QuickStartModel.MarkJustAdded(TempData, item.Id);
+            return RedirectToPage("/People/QuickStart", new { technician = item.Id });
+        }
+        TempData["Message"] = "Technician updated.";
         return RedirectToPage("/People", new { tab = "technicians" });
+    }
+
+    // A forgotten password: a new temporary one, to be changed at their next sign-in, and the guide to hand it over on.
+    public IActionResult OnPostTemporaryPassword(Guid id)
+    {
+        if (!store.UserCan(User, Modules.StaffAccounts, ModulePermission.Edit)) return Forbid();
+        var target = store.Technicians.FirstOrDefault(x => x.Id == id);
+        if (target is null) return NotFound();
+        if (target.Id == SignedInId || (target.Role == StaffRoles.Administrator && !IsAdministrator))
+        {
+            TempData["Message"] = target.Id == SignedInId ? "Change your own password from Change password in your account menu." : "Only an Administrator can change an Administrator's account.";
+            return RedirectToPage(new { id });
+        }
+        var temporary = TemporaryPasswords.Generate(target.Name, target.Email);
+        var hash = PasswordHasher.Hash(temporary);
+        store.UpdateTechnician(target with { PasswordHash = hash, RequirePasswordChange = true });
+        passwords.Remember(target.Id, temporary, hash);
+        throttle.Clear("helpdesk", target.Email);
+        return RedirectToPage("/People/QuickStart", new { technician = target.Id });
     }
 
     public bool TwoFactorRequired => store.RequireTwoFactor;

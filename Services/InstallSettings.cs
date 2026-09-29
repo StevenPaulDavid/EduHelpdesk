@@ -5,14 +5,15 @@ using EduHelpdesk.Models;
 namespace EduHelpdesk.Services;
 
 // The answers a school gave the installer (installer/Install.ps1) that live in the database rather than in
-// appsettings: school name and colours, logo, backup folder and hour. The installer can't write the database itself,
+// appsettings: school name and colours, logo, backup folder and hour, and the address it's reached at (printed on quick
+// start guides). The installer can't write the database itself,
 // so it leaves them in install-settings.json in the data folder, and the first start applies them through the store -
 // validated and audited like any change made in Settings - then renames the file so it never applies twice.
 public static class InstallSettings
 {
     public const string FileName = "install-settings.json";
 
-    private sealed record Answers(string? SchoolName, string? PrimaryColor, string? AccentColor, string? LogoPath, string? BackupFolder, int? BackupHour);
+    private sealed record Answers(string? SchoolName, string? PrimaryColor, string? AccentColor, string? LogoPath, string? BackupFolder, int? BackupHour, string? SiteAddress);
 
     public static void Apply(HelpdeskStore store, string dataFolder, ILogger logger)
     {
@@ -28,20 +29,31 @@ public static class InstallSettings
         }
         if (answers is null) { MarkApplied(path); return; }
 
-        var branding = store.Branding;
-        var colour = new Regex("^#[0-9A-Fa-f]{6}$");
-        var updated = new BrandingSettings
+        if (answers.SchoolName is not null || answers.PrimaryColor is not null || answers.AccentColor is not null)
         {
-            BrandName = string.IsNullOrWhiteSpace(answers.SchoolName) ? branding.BrandName : answers.SchoolName.Trim()[..Math.Min(80, answers.SchoolName.Trim().Length)],
-            DashboardEyebrow = branding.DashboardEyebrow,
-            DashboardTitle = branding.DashboardTitle,
-            DashboardDescription = branding.DashboardDescription,
-            PrimaryColor = answers.PrimaryColor is { } primary && colour.IsMatch(primary) ? primary.ToUpperInvariant() : branding.PrimaryColor,
-            AccentColor = answers.AccentColor is { } accent && colour.IsMatch(accent) ? accent.ToUpperInvariant() : branding.AccentColor,
-            BackgroundColor = branding.BackgroundColor,
-            DefaultAppearance = branding.DefaultAppearance
-        };
-        store.UpdateBranding(updated);
+            var branding = store.Branding;
+            var colour = new Regex("^#[0-9A-Fa-f]{6}$");
+            var updated = new BrandingSettings
+            {
+                BrandName = string.IsNullOrWhiteSpace(answers.SchoolName) ? branding.BrandName : answers.SchoolName.Trim()[..Math.Min(80, answers.SchoolName.Trim().Length)],
+                DashboardEyebrow = branding.DashboardEyebrow,
+                DashboardTitle = branding.DashboardTitle,
+                DashboardDescription = branding.DashboardDescription,
+                PrimaryColor = answers.PrimaryColor is { } primary && colour.IsMatch(primary) ? primary.ToUpperInvariant() : branding.PrimaryColor,
+                AccentColor = answers.AccentColor is { } accent && colour.IsMatch(accent) ? accent.ToUpperInvariant() : branding.AccentColor,
+                BackgroundColor = branding.BackgroundColor,
+                DefaultAppearance = branding.DefaultAppearance
+            };
+            store.UpdateBranding(updated);
+        }
+
+        // The address the installer showed at the end, for quick start guides. An upgrade passes it too, for installs from
+        // before the setting existed, so one already set in Settings is left alone.
+        if (!string.IsNullOrWhiteSpace(answers.SiteAddress) && store.SiteAddress.Length == 0)
+        {
+            var (ok, message) = store.SetSiteAddress(answers.SiteAddress);
+            if (!ok) logger.LogWarning("The helpdesk address from the installer ({Address}) wasn't used: {Message}", answers.SiteAddress, message);
+        }
 
         if (!string.IsNullOrWhiteSpace(answers.LogoPath))
         {

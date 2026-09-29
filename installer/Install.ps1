@@ -266,6 +266,9 @@ if (($service -or $NoService) -and (Test-Path $record)) {
     $settings = [pscustomobject]@{ DataFolder = $dataFolder; UseHttps = [bool]$installed.UseHttps; Port = [int]$installed.Port; CertificateName = $installed.CertificateName
         OpenFirewall = $openFirewall; FirewallPublic = $firewallPublic }
     WriteInstallRecord $programFolder $settings $newVersion
+    # The address for quick start guides, for installs from before it was stored. The app only uses it if none is set.
+    $firstRunFile = Join-Path $dataFolder "install-settings.json"
+    if (-not (Test-Path $firstRunFile)) { [ordered]@{ SiteAddress = (PublicUrl $settings) } | ConvertTo-Json | Set-Content -Path $firstRunFile -Encoding UTF8 }
     Say "Program files replaced (the previous version is kept in $previous)."
 
     if ($NoService) { Heading "Upgraded the files only (-NoService)."; return }
@@ -410,7 +413,7 @@ if (-not $existingData -and $ImportFrom) {
 }
 
 # Answers that belong in the database; the app applies them on its first start (Services/InstallSettings.cs).
-$firstRun = [ordered]@{ BackupFolder = $backupFolder; BackupHour = $backupHour }
+$firstRun = [ordered]@{ BackupFolder = $backupFolder; BackupHour = $backupHour; SiteAddress = (PublicUrl $settings) }
 if (-not $keepsItsOwnSettings) { $firstRun.SchoolName = $schoolName; $firstRun.PrimaryColor = $primary; $firstRun.AccentColor = $accent; $firstRun.LogoPath = $logo }
 $firstRun | ConvertTo-Json | Set-Content -Path (Join-Path $dataFolder "install-settings.json") -Encoding UTF8
 

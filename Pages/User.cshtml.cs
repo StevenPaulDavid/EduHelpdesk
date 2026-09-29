@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
+public class UserModel(HelpdeskStore store, SignInThrottle throttle, TemporaryPasswords passwords) : PageModel
 {
     public UserRecord? Person { get; private set; }
     public IReadOnlyList<string> Departments => store.Departments;
@@ -80,15 +80,16 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
             Message = problem;
             return RedirectToPage(new { id });
         }
+        var hash = newPassword ? PasswordHasher.Hash(password!) : existing.PasswordHash;
         var user = existing with
         {
             Name = name.Trim(),
             Email = email.Trim(),
             Department = (department ?? string.Empty).Trim(),
             Location = (location ?? string.Empty).Trim(),
-            PasswordHash = newPassword ? PasswordHasher.Hash(password!) : existing.PasswordHash,
-            // A password a technician typed is known to them, so the requester chooses their own on first use.
-            RequirePasswordChange = newPassword || existing.RequirePasswordChange,
+            PasswordHash = hash,
+            // A typed password is theirs to keep (TemporaryPasswords); an untouched one keeps whether it must still change.
+            RequirePasswordChange = !newPassword && existing.RequirePasswordChange,
             IsActive = active,
             CanRaiseProjects = canRaiseProjects,
             IsProjectLead = isProjectLead
@@ -97,7 +98,25 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle) : PageModel
         // Marking someone as having left is the moment to deal with what they still have.
         if (existing.IsActive && !active && store.GetHoldings(id) is { EquipmentCount: > 0 } held)
             Message += $" They still hold {held.EquipmentSummary()} - see the leaver check below.";
-        if (newPassword) throttle.Clear("portal", user.Email);
+        if (newPassword)
+        {
+            passwords.Remember(id, password!, hash!);
+            throttle.Clear("portal", user.Email);
+        }
         return RedirectToPage(new { id });
+    }
+
+    // A forgotten portal password: a new temporary one, changed at their next sign-in, and the guide to hand it over on.
+    public IActionResult OnPostTemporaryPassword(Guid id)
+    {
+        if (!CanEdit) return Forbid();
+        if (store.Users.FirstOrDefault(x => x.Id == id) is not { } existing) return NotFound();
+        if (existing.AnonymisedAt is not null) return RedirectToPage(new { id });
+        var temporary = TemporaryPasswords.Generate(existing.Name, existing.Email);
+        var hash = PasswordHasher.Hash(temporary);
+        store.UpdateUser(existing with { PasswordHash = hash, RequirePasswordChange = true });
+        passwords.Remember(id, temporary, hash);
+        throttle.Clear("portal", existing.Email);
+        return RedirectToPage("/People/QuickStart", new { user = id });
     }
 }

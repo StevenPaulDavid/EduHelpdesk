@@ -28,4 +28,13 @@ public class SignInModel(HelpdeskStore store) : PageModel
         Message = store.SetRequireTwoFactor(required);
         return RedirectToPage();
     }
+
+    public string SiteAddress => store.SiteAddress;
+    public string GuessedAddress => People.QuickStartModel.GuessAddress(Request);
+
+    public IActionResult OnPostAddress(string? address)
+    {
+        Message = store.SetSiteAddress(address).Message;
+        return RedirectToPage(null, null, "address");
+    }
 }

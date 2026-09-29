@@ -29,11 +29,21 @@
     <p class="muted">Someone who has lost their phone and their recovery codes: open their staff account and reset it, then they set it up again.</p>
 </section>
 
+<section class="panel" id="address">
+    <h2>Helpdesk address</h2>
+    <p>The address staff type to reach the helpdesk, printed on the quick start guide given to each new account. Leave it empty to use the address the guide is printed from - at the moment that would be <strong>@Model.GuessedAddress</strong>.</p>
+    <form method="post" asp-page-handler="Address" class="settings-form field-narrow">
+        <label>Address<input name="address" type="url" value="@Model.SiteAddress" placeholder="https://helpdesk.school.org.uk/" maxlength="200" /></label>
+        <button class="button button-primary">Save address</button>
+    </form>
+</section>
+
 <section class="panel">
     <h2>Passwords and lockouts</h2>
     <dl class="detail-list">
         <dt>Encryption</dt><dd>@(Model.IsHttps ? "Passwords reach the helpdesk encrypted (HTTPS)." : "This page came over plain HTTP, so passwords cross the network unencrypted. Give the site a certificate and turn on EduHelpdesk:RequireHttps - see the Technical Guide.")</dd>
         <dt>Passwords</dt><dd>At least @PasswordRules.MinimumLength characters, and not one of the passwords guessed first or the person's own name.</dd>
+        <dt>New accounts</dt><dd>Given a temporary password, which they must change the first time they sign in - unless whoever adds the account types a password, which the person keeps.</dd>
         <dt>Lockout</dt><dd>@SignInThrottle.AccountLimit wrong passwords (or two-step codes) for one account within @((int)SignInThrottle.Window.TotalMinutes) minutes lock it for @((int)SignInThrottle.Window.TotalMinutes) minutes; @SignInThrottle.AddressLimit from one computer block that computer.</dd>
         <dt>Last 7 days</dt><dd>@(Model.RecentLockouts == 0 ? "No lockouts." : $"{Model.RecentLockouts} lockout{(Model.RecentLockouts == 1 ? "" : "s")}.") @if (Model.CanSeeAudit) { <a asp-page="/Settings/Audit" asp-route-section="Sign-in">See the sign-in audit</a> }</dd>
         <dt>Signing out</dt><dd>Ends the session on the server, so a copied sign-in cookie stops working too.</dd>

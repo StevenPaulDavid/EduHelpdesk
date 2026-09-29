@@ -77,6 +77,19 @@
     }
 </section>
 
+@if (Model.CanEdit && Model.Person.AnonymisedAt is null)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">STAFF PORTAL</p><h2>Signing in</h2></div></div>
+        <p class="muted">@(Model.Person.PasswordHash is null ? "They have no portal password yet." : Model.Person.RequirePasswordChange ? "They have a temporary password, and will choose their own when they next sign in." : "They sign in with a password they have chosen or been given.") The quick start guide tells them where to go and how to report a problem; printed within an hour of setting a password, it includes it.</p>
+        <div class="button-row">
+            <a class="button button-secondary" asp-page="/People/QuickStart" asp-route-user="@Model.Person.Id">Print quick start guide</a>
+            <form method="post" asp-page-handler="TemporaryPassword" asp-route-id="@Model.Person.Id" data-confirm="@(Model.Person.PasswordHash is null ? $"Give {Model.Person.Name} a temporary password? They'll choose their own when they first sign in." : $"Give {Model.Person.Name} a new temporary password? Their current password stops working, and they'll choose their own when they next sign in.")">
+                <button class="button button-secondary">Give them a temporary password</button>
+            </form>
+        </div>
+    </section>
+}
 @if (Model.CanEdit)
 {
     <section class="panel">
@@ -97,7 +110,7 @@
                 <label>Department<select name="department"><option value="">Unassigned</option>@foreach (var department in Model.Departments) { <option value="@department" selected="@(string.Equals(department, Model.Person.Department, StringComparison.OrdinalIgnoreCase))">@department</option> }</select></label>
                 <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, Model.Person.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
                 <label>Active account?<select name="active"><option value="true" selected="@Model.Person.IsActive">Active - can sign in to the staff portal</option><option value="false" selected="@(!Model.Person.IsActive)">Inactive - blocked from the staff portal</option></select></label>
-                <label>Reset password<input name="password" type="password" placeholder="Leave blank to keep the current password" autocomplete="new-password" maxlength="@EduHelpdesk.Services.PasswordRules.MaximumLength" /><small class="muted">Used to sign in to the staff portal at /Portal. At least @EduHelpdesk.Services.PasswordRules.MinimumLength characters; they'll be asked to choose their own the first time they use it.</small></label>
+                <label>Set a password<input name="password" type="password" placeholder="Leave blank to keep the current password" autocomplete="new-password" maxlength="@EduHelpdesk.Services.PasswordRules.MaximumLength" /><small class="muted">For the staff portal. At least @EduHelpdesk.Services.PasswordRules.MinimumLength characters, which they keep until they choose to change it - for one they must change, use Give them a temporary password above.</small></label>
                 <label class="toggle-label"><input type="checkbox" name="canRaiseProjects" value="true" checked="@Model.Person.CanRaiseProjects" /> Can raise projects <small class="muted">For line managers and SLT: lets them ask IT to source and quote for purchases from the staff portal.</small></label>
                 <label class="toggle-label"><input type="checkbox" name="isProjectLead" value="true" checked="@Model.Person.IsProjectLead" /> Project lead <small class="muted">Confirms each project's priority and assigns the technician, from the staff portal. Can also raise projects.</small></label>
             </div>

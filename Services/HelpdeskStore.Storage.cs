@@ -296,6 +296,7 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PermissionModelVersion';") as string, out var permissionVersion)) data.PermissionModelVersion = permissionVersion;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
         data.RequireTwoFactor = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequireTwoFactor';") as string == "1";
+        data.SiteAddress = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SiteAddress';") as string ?? "";
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
@@ -739,6 +740,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "PermissionModelVersion", data.PermissionModelVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "RequireTwoFactor", data.RequireTwoFactor ? "1" : "0");
+        SetMetadata(connection, transaction, "SiteAddress", data.SiteAddress);
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));

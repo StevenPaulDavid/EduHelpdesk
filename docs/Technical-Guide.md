@@ -160,10 +160,18 @@ Roles are fully custom — create as many as you like from **People → Roles**.
 
 ### Creating accounts
 
-- **Technicians**: People → Add technician. Requires "manage staff accounts". A new account has no password until someone sets one here; the same form resets passwords.
-- **Requesters (staff)**: People → Add user. Requires "manage requesters". They cannot sign in to the portal until a password is set.
+- **Technicians**: People → Add technician. Requires "manage staff accounts".
+- **Requesters (staff)**: People → Add user. Requires "manage requesters".
 
-There is no self-service "forgotten password" reset, because there is no email. A forgotten password is reset by a technician. Anyone signed in can change their own: technicians from **Change password** in the account menu, portal users from the **Change password** link on the portal home page.
+**Passwords for new accounts.** Leave the password box empty and the helpdesk makes up a **temporary password**: three words and a number, such as `Otter-Lantern-Maple-38`. The person must choose their own the first time they sign in. If you type a password instead, it is theirs to keep and they aren't asked to change it.
+
+**Quick start guide.** Saving a new account opens a one-page guide to print and hand over. It has the address, their email, the password and the first things to know. Technicians get a guide to the helpdesk; requesters get one to the staff portal. Reprint it any time with **Print quick start guide** on the account's page. The password is only printed for an hour after it was set, while it is still their password: only a scrambled copy is kept, so after that the sheet has a line to write it on.
+
+The address on the guide comes from **Settings → Sign-in security → Helpdesk address**. The installer fills this in. If it's empty, the guide uses the address it was printed from, with `localhost` swapped for the computer's name.
+
+**Forgotten passwords.** There is no self-service "forgotten password" reset, because there is no email. A technician resets it instead:
+- **Give them a temporary password** on the account's page makes a new one, which must be changed at next sign-in, and opens the guide to print it on.
+- Typing a new one under **Set a password** gives them a password they keep. Anyone signed in can change their own: technicians from **Change password** in the account menu, portal users from the **Change password** link on the portal home page.
 
 ---
 
@@ -439,7 +447,7 @@ They cannot see internal notes, anyone else's tickets, or any of the technician-
   - In the portal, **New reply** marks a ticket with a message from IT, or a status change, that the requester hasn't opened yet. The home page counts them.
   - Internal notes never count.
 
-**To give a member of staff access**: People → Add user, fill in their details and set a password. Until a password is set they cannot sign in. Passwords are reset the same way. They are asked to choose their own password the first time they sign in, and can change it later from the portal home page.
+**To give a member of staff access**: People → Add user and fill in their details. Leave the password empty and they get a temporary one, which they change the first time they sign in, or type one they'll keep. Print the quick start guide that opens and give it to them. For a forgotten password, use **Give them a temporary password** on their page. They can change their password later from the portal home page. Staff imported from a CSV have no password until one is given this way.
 
 Titles are limited to 200 characters and descriptions and messages to 5,000, and a post to any portal page is capped at 1 MB.
 

@@ -90,6 +90,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/People/DeleteUser", Policy(Modules.Requesters, ModulePermission.Delete));
     options.Conventions.AuthorizePage("/People/Technician", Policy(Modules.StaffAccounts, NewOrEdit));
     options.Conventions.AuthorizePage("/People/DeleteTechnician", Policy(Modules.StaffAccounts, ModulePermission.Delete));
+    // A requester's guide or a technician's: the page checks New or Edit on whichever module the account belongs to.
+    options.Conventions.AuthorizePage("/People/QuickStart", PermissionRequirement.PeoplePolicy);
     options.Conventions.AuthorizePage("/People/Role", Policy(Modules.Roles, NewOrEdit));
     options.Conventions.AuthorizePage("/People/DeleteRole", Policy(Modules.Roles, ModulePermission.Delete));
 
@@ -188,6 +190,7 @@ builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<TwoFactorPending>();
 builder.Services.AddSingleton<HelpdeskStore>();
 builder.Services.AddSingleton<SignInThrottle>();
+builder.Services.AddSingleton<TemporaryPasswords>();
 builder.Services.AddScoped<PortalSessionFilter>();
 builder.Services.AddHostedService<BackupScheduler>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();

@@ -1022,6 +1022,9 @@ h3 .csv-link { margin-left: 8px; }
 }
 
 .form-actions { justify-content: flex-start; }
+/* Buttons side by side under a paragraph, some of them one-button forms (the Signing in panels on account pages). */
+.button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.button-row form { margin: 0; }
 .restock-preview { margin: -4px 0 14px; font-size: 13px; }
 .stock-correct { margin: 0 0 18px; }
 .stock-correct>summary {

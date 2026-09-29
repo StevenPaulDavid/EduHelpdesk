@@ -53,6 +53,9 @@ public sealed partial class HelpdeskStore
         public int TicketDueSoonHours { get; set; } = 24;
         // Settings → Sign-in security: every staff account must use two-step sign-in (HelpdeskStore.TwoFactor).
         public bool RequireTwoFactor { get; set; }
+        // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in
+        // security or by the installer; the guide then works one out from the address in use (HelpdeskStore.Accounts).
+        public string SiteAddress { get; set; } = "";
         // Statuses that stop the SLA clock, and how long after closing a requester's reply still reopens a ticket.
         public List<string> SlaPauseStatuses { get; set; } = [];
         public int ReopenWindowDays { get; set; } = DefaultReopenWindowDays;
