@@ -116,6 +116,8 @@ There are two completely separate kinds of login:
 
 A member of staff who is also a technician needs both records if they want to use both sides.
 
+**People** and **Onboarding** sit together under **HR** in the top menu, for anyone whose role reaches both. Someone who can reach only one of them sees it as a plain link instead, like the Onboarding officer's Onboarding link.
+
 ### Sessions
 
 **Helpdesk:** sessions last **8 hours of inactivity**, with a hard cap of **14 days** regardless of use. The cookie is `EduHelpdeskAuth`, HTTP-only, SameSite=Lax, and Secure when `RequireHttps` is on. Every request re-checks the account: deactivating a technician, resetting their password or changing their role takes effect on their next click.
@@ -299,7 +301,7 @@ On the ticket page, the due date carries an **Overdue**, **Due in…** or **SLA 
 
 ### Onboarding new staff
 
-The **Onboarding** menu covers everything to get ready for a new member of staff: before they arrive, on their first day and in their first week.
+**Onboarding** (under **HR** in the top menu, beside People) covers everything to get ready for a new member of staff: before they arrive, on their first day and in their first week.
 
 **Starting one.** **＋ New onboarding** asks for:
 - their name, job title, department, location and line manager
@@ -379,7 +381,7 @@ Switching tabs keeps the filters.
 - **My tickets**, on the list and the Overview, includes any onboarding where one of your unfinished IT tasks is given to you, as well as the ones you lead.
 - Onboarding tickets can't be merged.
 
-**The Onboarding officer role** holds only the Onboarding module, for whoever runs onboarding without being a technician. They see Overview and Onboarding, and can do everything on an onboarding, IT tasks included. The role was added once to every install. Nobody holds it until you give it to someone, and if you delete it, it stays deleted. New installs also give Senior Technician full Onboarding permissions.
+**The Onboarding officer role** holds only the Onboarding module, for whoever runs onboarding without being a technician. Their top menu is just Overview and Onboarding, with no HR menu. They can do everything on an onboarding, IT tasks included. The role was added once to every install. Nobody holds it until you give it to someone, and if you delete it, it stays deleted. New installs also give Senior Technician full Onboarding permissions.
 
 **Onboarding is internal.** It never appears in the staff portal, to the new starter or anyone else.
 

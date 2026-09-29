@@ -6,12 +6,17 @@
     bool NavOn(params string[] prefixes) => prefixes.Any(p =>
         navPath.Equals(p, StringComparison.OrdinalIgnoreCase) || navPath.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase));
     var onInventory = NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
+    var onPeople = NavOn("/People");
+    var onOnboarding = NavOn("/Onboarding");
 
     // A link nobody can follow is worse than no link: people click it, get refused, and raise a ticket about it. So the
     // menu is built from what this role can actually reach. The pages enforce the same permissions themselves - this
     // only decides what is worth showing.
     bool Can(string module, ModulePermission action = ModulePermission.Access) => Helpdesk.UserCan(User, module, action);
     var canInventory = Can(Modules.Assets) || Can(Modules.Kits) || Can(Modules.Loans) || Can(Modules.Parts) || Can(Modules.Suppliers);
+    // People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough.
+    var canPeople = Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles);
+    var canOnboarding = Can(Modules.Onboarding);
     // /Reports is the asset report, not an index, so pointing the menu at it would refuse anyone given only one of the
     // other reports. The link goes to the first report this role can actually open.
     var reportPages = new (string Page, string Flag)[]
@@ -65,10 +70,21 @@
         <nav>
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
             @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
-            @if (Can(Modules.Onboarding)) { <a asp-page="/Onboarding/Index" class="@(NavOn("/Onboarding") ? "active" : null)">Onboarding</a> }
             @if (Can(Modules.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
-            @* People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough. *@
-            @if (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) { <a asp-page="/People" class="@(NavOn("/People") ? "active" : null)">People</a> }
+            @* HR groups People and Onboarding, but only for someone who can reach both. Someone with just one of them - the
+               onboarding officer, say - gets a plain link rather than a menu with a single item in it. *@
+            @if (canPeople && canOnboarding)
+            {
+                <details class="nav-menu">
+                    <summary class="@(onPeople || onOnboarding ? "active" : null)">HR<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel">
+                        <a asp-page="/People">People</a>
+                        <a asp-page="/Onboarding/Index">Onboarding</a>
+                    </div>
+                </details>
+            }
+            else if (canPeople) { <a asp-page="/People" class="@(onPeople ? "active" : null)">People</a> }
+            else if (canOnboarding) { <a asp-page="/Onboarding/Index" class="@(onOnboarding ? "active" : null)">Onboarding</a> }
             @if (canInventory)
             {
                 <details class="nav-menu">
