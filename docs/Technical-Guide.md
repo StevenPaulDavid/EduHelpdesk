@@ -357,12 +357,21 @@ The documents are kept with the attachments, so they are in every backup. Deleti
 - When every task is ticked, the ticket closes itself. Unticking a task opens it again.
 - If the person won't be starting, **Cancel** closes it without deleting anything, and it can be resumed.
 
-**The Onboarding menu** lists every onboarding in tabs, with a search by name, email, job title, department or checklist:
+**The Onboarding menu** lists every onboarding in tabs:
 - In progress
 - Not started yet
 - Overdue tasks
 - IT tasks left
 - Finished
+- All
+
+Below the tabs is the same filter panel as the other lists:
+- **Search** by name, email, job title, department, checklist or ticket number.
+- **Checklist**, **Department**, **Technician** and **Starting** (in the next 7, 14 or 30 days, or already started). The Technician filter matches whoever leads the onboarding or has an IT task on it.
+- **Sort by** start date (soonest or latest first), most overdue tasks, or newest.
+- **Per page**, with a pager.
+
+Switching tabs keeps the filters.
 
 **In the ticket list:**
 - Onboarding tickets carry an *Onboarding* tag and "IT tasks 2 of 4 done", and open the onboarding page.

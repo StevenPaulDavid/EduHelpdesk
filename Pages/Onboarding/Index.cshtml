@@ -9,19 +9,29 @@
 
 <section class="panel">
     <nav class="queue-tabs" aria-label="Onboarding lists">
-        @foreach (var view in EduHelpdesk.Pages.Onboarding.IndexModel.Views)
+        @foreach (var view in IndexModel.Views)
         {
-            <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)" aria-current="@(Model.View == view ? "page" : null)">@EduHelpdesk.Pages.Onboarding.IndexModel.ViewLabel(view) <span class="badge @(view == "overdue" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
+            <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)" aria-current="@(Model.View == view ? "page" : null)">@IndexModel.ViewLabel(view) <span class="badge @(view == "overdue" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
         }
     </nav>
-    <form method="get" class="filter-bar onboarding-search">
-        <input type="hidden" name="view" value="@(Model.View == "active" ? "" : Model.View)" />
-        <label class="filter-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, email, job title, department or checklist" /></label>
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Search</button>@if (!string.IsNullOrWhiteSpace(Model.Search)) { <a class="button button-secondary" href="@Url.Page("/Onboarding/Index", new { view = Model.View == "active" ? null : Model.View })">Clear</a> }</div>
-    </form>
 
+    <form method="get" class="audit-filters ticket-filters">
+        <input type="hidden" name="view" value="@(Model.View == "active" ? "" : Model.View)" />
+        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, email, job title, department, checklist, ticket number" /></label>
+        <label>Checklist<select name="template"><option value="">Any checklist</option><option value="@IndexModel.None" selected="@(Model.Template == IndexModel.None)">No checklist</option>@foreach (var item in Model.Templates) { <option value="@item" selected="@string.Equals(item, Model.Template, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Department<select name="dept"><option value="">Any department</option><option value="@IndexModel.None" selected="@(Model.Department == IndexModel.None)">No department</option>@foreach (var item in Model.Departments) { <option value="@item" selected="@string.Equals(item, Model.Department, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+        <label>Technician<select name="tech" title="Leads the onboarding, or has an IT task on it"><option value="">Anyone</option><option value="@IndexModel.None" selected="@(Model.Technician == IndexModel.None)">No lead technician</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
+        <label>Starting<select name="starting"><option value="">Any time</option>@foreach (var starting in IndexModel.Startings) { <option value="@starting" selected="@(Model.Starting == starting)">@IndexModel.StartingLabel(starting)</option> }</select></label>
+        <label>Sort by<select name="sort">@foreach (var sort in IndexModel.Sorts) { <option value="@sort" selected="@(Model.Sort == sort)">@IndexModel.SortLabel(sort)</option> }</select></label>
+        <label>Per page<select name="size">@foreach (var size in IndexModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="@Model.ClearUrl()">Clear</a></div>
+    </form>
+</section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">NEW STARTERS</p><h2>@IndexModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
     <div class="table-wrap">
-        <table class="stack-table onboarding-list">
+        <table class="ticket-table stack-table">
             <thead><tr><th data-stack="head">New starter</th><th>Start date</th><th>Progress</th><th>IT tasks left</th><th>Status</th><th>Ticket</th></tr></thead>
             <tbody>
                 @foreach (var row in Model.Rows)
@@ -29,9 +39,9 @@
                     var record = row.Record;
                     var overdue = record.OverdueCount(Model.Today);
                     var itLeft = record.ItTasks.Count(x => !x.IsDone);
-                    <tr class="clickable-row" data-href="@Url.Page("/Onboarding/Details", new { number = record.TicketNumber })">
+                    <tr class="clickable-row @(overdue > 0 ? "row-overdue" : "")" data-href="@Url.Page("/Onboarding/Details", new { number = record.TicketNumber })">
                         <td><a asp-page="/Onboarding/Details" asp-route-number="@record.TicketNumber"><strong>@(row.Starter?.Name ?? "Unknown")</strong></a><br /><span class="muted">@string.Join(" · ", new[] { record.JobTitle, row.Starter?.Department }.Where(x => !string.IsNullOrWhiteSpace(x)))</span></td>
-                        <td>@record.StartDate.ToString("ddd d MMM yyyy")<br /><span class="muted">@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today)</span></td>
+                        <td>@record.StartDate.ToString("ddd d MMM yyyy")<br /><span class="muted">@IndexModel.Starts(record.StartDate, Model.Today)</span></td>
                         <td>@record.Done of @record.Tasks.Count done @if (overdue > 0) { <span class="badge badge-warning">@overdue overdue</span> }</td>
                         <td>@(record.IsCancelled ? "-" : itLeft.ToString())</td>
                         <td>@if (record.IsCancelled) { <span class="badge">Cancelled</span> } else if (record.AllDone) { <span class="badge chosen-badge">Complete</span> } else { <span>In progress</span> }</td>
@@ -40,9 +50,18 @@
                 }
                 @if (Model.Rows.Count == 0)
                 {
-                    <tr><td colspan="6" class="empty">@(!string.IsNullOrWhiteSpace(Model.Search) ? "No onboardings match that search." : Model.View == "active" ? "No onboardings in progress." + (Model.CanStart ? " Start one for your next new starter." : "") : "Nothing here.")</td></tr>
+                    <tr><td colspan="6" class="empty">@(Model.IsFiltered ? "No onboardings match these filters." : Model.TotalOnboardings == 0 ? "No onboardings yet." + (Model.CanStart ? " Start one for your next new starter." : "") : "Nothing in this list.")</td></tr>
                 }
             </tbody>
         </table>
     </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="audit-pager">
+            @if (Model.PageNumber > 1) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber - 1)">← Previous</a> } else { <span></span> }
+            <span class="muted">Showing @((Model.PageNumber - 1) * Model.Size + 1)–@Math.Min(Model.PageNumber * Model.Size, Model.MatchCount) of @Model.MatchCount · page @Model.PageNumber of @Model.TotalPages</span>
+            @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" href="@Model.PageUrl(Model.PageNumber + 1)">Next →</a> } else { <span></span> }
+        </div>
+    }
 </section>
