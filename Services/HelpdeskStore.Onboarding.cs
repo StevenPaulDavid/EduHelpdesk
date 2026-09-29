@@ -115,7 +115,8 @@ public sealed partial class HelpdeskStore
             var source = copyFrom is { } id ? _data.OnboardingTemplates.FirstOrDefault(x => x.Id == id) : null;
             var template = new OnboardingTemplate(Guid.NewGuid(), name!.Trim())
             {
-                Tasks = source?.Tasks.Select(x => x with { Id = Guid.NewGuid() }).ToList() ?? []
+                Tasks = source?.Tasks.Select(x => x with { Id = Guid.NewGuid() }).ToList() ?? [],
+                DocumentIds = source?.DocumentIds.ToList() ?? []
             };
             _data.OnboardingTemplates.Add(template);
             Save();
@@ -247,6 +248,7 @@ public sealed partial class HelpdeskStore
                 JobTitle = (details.JobTitle ?? "").Trim(),
                 TemplateName = template?.Name ?? "",
                 LineManagerId = details.LineManagerId,
+                PackDocumentIds = template?.DocumentIds.Where(id => _data.OnboardingDocuments.Any(x => x.Id == id)).ToList() ?? [],
                 Tasks = template?.Tasks.Select(x => new OnboardingTask(Guid.NewGuid(), x.Title, x.Stage, x.OffsetDays, x.Owner) { Action = x.Action, AssetType = x.AssetType }).ToList() ?? []
             };
             _data.Onboardings.Add(record);
@@ -569,6 +571,7 @@ public sealed partial class HelpdeskStore
             migration.CommandText = sql;
             try { migration.ExecuteNonQuery(); } catch (SqliteException ex) when (ex.SqliteErrorCode == 1) { }
         }
+        EnsureWelcomePackSchema(connection);
     }
 
     private static string ReadAction(SqliteDataReader reader, int ordinal) =>
@@ -637,6 +640,8 @@ public sealed partial class HelpdeskStore
                         AssetId = NullableGuid(reader, 12)
                     });
         }
+        // After the templates and records it hangs off.
+        ReadWelcomePack(connection, data);
     }
 
     private static void WriteOnboarding(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
@@ -665,5 +670,6 @@ public sealed partial class HelpdeskStore
                     ("$actor", task.CompletedBy?.Name), ("$actorid", task.CompletedBy?.Id?.ToString()),
                     ("$action", task.Action), ("$assetType", task.AssetType), ("$asset", task.AssetId?.ToString()));
         }
+        WriteWelcomePack(connection, transaction, data);
     }
 }

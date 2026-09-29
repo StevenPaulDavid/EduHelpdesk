@@ -330,6 +330,27 @@ Tasks can be added or removed for one person without changing the template. Movi
 
 The example Teacher template has both: *Build and set up laptop* issues a Laptop, and *Create their staff portal account* makes the account. Existing installs had them added to their Teacher template once.
 
+**Welcome pack.** **Download welcome pack** on an onboarding makes one PDF to print or send. The first part covers:
+- a welcome, and how to sign in to the staff portal
+- how to get IT help
+- the equipment issued to them, with asset tags and serial numbers
+- your school IT information
+- what else is in the pack
+- a "received by" signature block, when they've been issued something
+
+Then come the PDFs chosen for them, page by page, with page numbers running through the whole pack.
+
+About the password:
+- The temporary password is only included within an hour of their portal account being made, and only for someone who can work the onboarding.
+- Otherwise it says the password is given separately, or that the account will be ready by their first day.
+
+Set it up in **Settings → Onboarding checklists → Welcome pack**:
+- Write the **school IT information**: Wi-Fi, printing, who to ask. A blank line starts a new paragraph.
+- Upload **documents**, such as the acceptable use policy or staff handbook. They must be PDFs of up to 25 MB, each checked on upload: password-protected or damaged PDFs are refused.
+- Tick which documents each template's pack includes. A new onboarding copies its template's choice, and **Documents in their pack** on the onboarding changes it for that person.
+
+The documents are kept with the attachments, so they are in every backup. Deleting one takes it out of every template and pack.
+
 **Working one.** The onboarding page shows the checklist, the new starter's details, and the ticket's notes and history. Ticking a task records who did it and when, in the ticket's history.
 - IT tasks can be given to a named technician.
 - The ticket's due date is the earliest task still to do, so overdue onboardings show in the ticket queues like any other ticket.

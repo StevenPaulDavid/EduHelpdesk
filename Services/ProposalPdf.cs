@@ -170,7 +170,7 @@ public static class ProposalPdf
 
     // ---- The written part (MigraDoc) -------------------------------------------------------------------------------
 
-    private static PdfDocument Render(Document document)
+    internal static PdfDocument Render(Document document)
     {
         var renderer = new PdfDocumentRenderer { Document = document };
         renderer.RenderDocument();
@@ -665,12 +665,12 @@ public static class ProposalPdf
         return Write(gfx, text, Font(10), brush, y, width - 12, Margin + 12);
     }
 
-    private static XColor ToX(Color color) => XColor.FromArgb((int)color.R, (int)color.G, (int)color.B);
+    internal static XColor ToX(Color color) => XColor.FromArgb((int)color.R, (int)color.G, (int)color.B);
 
-    private static XFont Font(double size, bool bold = false) => new(FontName, size, bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
+    internal static XFont Font(double size, bool bold = false) => new(FontName, size, bold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
 
     // Word-wrapped text from y down; returns the y below it. Lines break at spaces, and at "\n".
-    private static double Write(XGraphics gfx, string text, XFont font, XBrush brush, double y, double width, double x = Margin)
+    internal static double Write(XGraphics gfx, string text, XFont font, XBrush brush, double y, double width, double x = Margin)
     {
         var height = font.GetHeight();
         foreach (var paragraph in text.Replace("\r", "").Split('\n'))
@@ -713,14 +713,14 @@ public static class ProposalPdf
     private static string Capitalise(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
     private static string Sentence(string text) => text.Trim() is var trimmed && trimmed.Length > 0 && !".!?".Contains(trimmed[^1]) ? trimmed + "." : text.Trim();
 
-    private static bool CanLoadPicture(string path)
+    internal static bool CanLoadPicture(string path)
     {
         try { using var image = XImage.FromFile(path); return image.PixelWidth > 0; }
         catch (Exception) { return false; }
     }
 
     // The school's colour from Settings → Branding, falling back to the default teal if it isn't a #RRGGBB value.
-    private static Color ParseColor(string? value)
+    internal static Color ParseColor(string? value)
     {
         var hex = (value ?? "").Trim().TrimStart('#');
         return hex.Length == 6 && int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb)
@@ -729,10 +729,10 @@ public static class ProposalPdf
     }
 
     // The colour mixed 88% with white, for shading the chosen quote and the project's band.
-    private static Color Tint(Color color) =>
+    internal static Color Tint(Color color) =>
         new((byte)(color.R + (255 - color.R) * 0.88), (byte)(color.G + (255 - color.G) * 0.88), (byte)(color.B + (255 - color.B) * 0.88));
 
-    private static Table Table(Section section, params double[] widthsCm)
+    internal static Table Table(Section section, params double[] widthsCm)
     {
         var table = section.AddTable();
         table.Format.Font.Size = 8.5;
@@ -745,7 +745,7 @@ public static class ProposalPdf
         return table;
     }
 
-    private static void Header(Table table, params string[] labels)
+    internal static void Header(Table table, params string[] labels)
     {
         var row = table.AddRow();
         row.HeadingFormat = true;
@@ -766,7 +766,7 @@ public static class ProposalPdf
         }
     }
 
-    private static void Cells(Row row, params string[] values)
+    internal static void Cells(Row row, params string[] values)
     {
         for (var i = 0; i < values.Length; i++) row.Cells[i].AddParagraph(values[i]);
     }
@@ -781,7 +781,7 @@ public static class ProposalPdf
         }
     }
 
-    private static void Fact(Table table, string label, string value)
+    internal static void Fact(Table table, string label, string value)
     {
         var row = table.AddRow();
         row.Format.Font.Size = 10;
@@ -791,10 +791,10 @@ public static class ProposalPdf
         row.Cells[1].AddParagraph(value);
     }
 
-    private static void Spacer(Section section, double points) => section.AddParagraph().Format.SpaceBefore = Unit.FromPoint(points);
+    internal static void Spacer(Section section, double points) => section.AddParagraph().Format.SpaceBefore = Unit.FromPoint(points);
 
     // Keeps the requester's own line breaks.
-    private static void MultiLine(Section section, string text)
+    internal static void MultiLine(Section section, string text)
     {
         var paragraph = section.AddParagraph();
         var first = true;

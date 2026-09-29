@@ -15,6 +15,39 @@
     </form>
 </section>
 
+<section class="panel" id="welcome-pack">
+    <div class="panel-heading"><div><p class="eyebrow">WELCOME PACK</p><h2>What goes in every welcome pack</h2></div></div>
+    <p class="muted">Each onboarding can print a welcome pack: their sign-in details, the equipment issued to them, a signature block, the text below, and then the PDFs each template chooses.</p>
+    <form method="post" asp-page-handler="ItInfo" class="settings-form">
+        <label>School IT information <small class="muted">Wi-Fi, printing, who to ask for help, where to find policies. A blank line starts a new paragraph.</small><textarea name="text" rows="6" maxlength="@HelpdeskStore.MaxOnboardingItInfoLength">@Model.ItInfo</textarea></label>
+        <div><button class="button button-primary" type="submit">Save IT information</button></div>
+    </form>
+
+    <h3 class="onboarding-stage-heading">Documents at the back of the pack</h3>
+    @if (Model.Documents.Count == 0) { <p class="muted">None yet. Upload PDFs such as the acceptable use policy or the staff IT handbook, then tick which templates include them.</p> }
+    @foreach (var document in Model.Documents)
+    {
+        <div class="welcome-document">
+            <form method="post" asp-page-handler="RenameDocument" class="inline-fields">
+                <input type="hidden" name="documentId" value="@document.Id" />
+                <label>Name<input name="name" value="@document.Name" maxlength="100" required /></label>
+                <button class="button button-secondary" type="submit">Rename</button>
+            </form>
+            <span class="muted"><a asp-page="/Settings/Onboarding" asp-page-handler="Document" asp-route-documentId="@document.Id">@document.FileName</a> · @document.Pages page@(document.Pages == 1 ? "" : "s") · @HelpdeskStore.FormatSize(document.Size) · used by @Model.Templates.Count(x => x.DocumentIds.Contains(document.Id)) template@(Model.Templates.Count(x => x.DocumentIds.Contains(document.Id)) == 1 ? "" : "s")</span>
+            <form method="post" asp-page-handler="DeleteDocument" data-confirm="Delete @document.Name? It comes out of every template and every welcome pack.">
+                <input type="hidden" name="documentId" value="@document.Id" />
+                <button class="icon-button delete-icon" type="submit" title="Delete document" aria-label="Delete @document.Name">♜</button>
+            </form>
+        </div>
+    }
+    <form method="post" asp-page-handler="AddDocument" enctype="multipart/form-data" class="band-row band-new onboarding-template-new">
+        <label>PDF<input name="file" type="file" accept=".pdf,application/pdf" required /></label>
+        <label>Name <small class="muted">Optional - the file's name if blank</small><input name="name" maxlength="100" placeholder="e.g. Acceptable use policy" /></label>
+        <span class="band-actions"><button class="button button-primary" type="submit">Upload</button></span>
+    </form>
+    <p class="muted">PDFs only, up to @(HelpdeskStore.MaxWelcomePackDocumentBytes / (1024 * 1024)) MB each. Password-protected PDFs can't be added to a pack.</p>
+</section>
+
 @if (Model.Templates.Count == 0) { <section class="panel"><p class="empty">No templates yet. An onboarding can still be started with an empty checklist.</p></section> }
 
 @foreach (var template in Model.Templates)
@@ -66,6 +99,20 @@
             <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField("", Model.AssetTypes))" />
             <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>
         </form>
+        @if (Model.Documents.Count > 0)
+        {
+            <form method="post" asp-page-handler="TemplateDocuments" class="template-documents">
+                <input type="hidden" name="id" value="@template.Id" />
+                <fieldset class="requirement-choices">
+                    <legend>Welcome pack documents for @template.Name</legend>
+                    @foreach (var document in Model.Documents)
+                    {
+                        <label class="toggle-label"><input type="checkbox" name="documentIds" value="@document.Id" checked="@template.DocumentIds.Contains(document.Id)" /> @document.Name</label>
+                    }
+                </fieldset>
+                <button class="button button-secondary" type="submit">Save welcome pack documents</button>
+            </form>
+        }
         <p class="muted">Days from start: -5 is five days before their first day, 0 is their first day, 3 is three days after. It sets each task's due date.</p>
         <p class="muted">Does: a task can do the job for you when it's ticked. <em>Makes their staff portal account</em> gives them a temporary password and opens their quick start guide to print. <em>Issues a Laptop</em> (or any asset type) picks a free device from the asset register and assigns it to them.</p>
     </section>

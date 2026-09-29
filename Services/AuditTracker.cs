@@ -49,9 +49,11 @@ internal static class AuditTracker
                 ("Suppliers", Joined(x.SupplierIds.Select(id => supplierNamesById.GetValueOrDefault(id, "")).Where(n => n.Length > 0))),
                 ("Compatible asset types", Joined(x.AssetTypes)));
 
+        var packDocumentNames = d.OnboardingDocuments.ToDictionary(x => x.Id, x => x.Name);
         foreach (var x in d.OnboardingTemplates)
             // In the order the checklist shows them, so a diff reads as the list does.
             Add(s, "Onboarding", "Onboarding template", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name),
+                ("Welcome pack", string.Join(", ", x.DocumentIds.Select(id => packDocumentNames.GetValueOrDefault(id, "")).Where(n => n.Length > 0))),
                 ("Tasks", string.Join("; ", x.Tasks.OrderBy(t => OnboardingStages.Order(t.Stage)).ThenBy(t => t.OffsetDays)
                     .Select(t => $"{t.Title} ({t.Stage}, {t.Owner}, day {t.OffsetDays:+0;-0;0}{(t.Action == OnboardingActions.None ? "" : "; " + OnboardingActions.Describe(t.Action, t.AssetType).ToLowerInvariant())})"))));
         foreach (var x in d.LoanKits)

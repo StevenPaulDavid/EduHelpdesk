@@ -2072,6 +2072,11 @@ main:focus { outline: none; }
 .onboarding-add-task > summary, .onboarding-side details > summary { cursor: pointer; font-weight: 700; font-size: 14px; margin: 10px 0 6px; }
 .onboarding-facts { grid-template-columns: minmax(100px, max-content) 1fr; }
 .onboarding-lead, .onboarding-delete { margin-top: 12px; }
+/* Settings → Onboarding checklists: each welcome pack document, and each template's choice of them. */
+.welcome-document { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.welcome-document form { margin: 0; }
+.welcome-document .inline-fields label { max-width: 320px; }
+.template-documents { margin: 14px 0 6px; display: grid; gap: 8px; justify-items: start; }
 .onboarding-rename { margin-bottom: 4px; }
 .onboarding-rename label { max-width: 420px; }
 .band-row.onboarding-task-row { grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, .8fr)) minmax(0, .9fr) minmax(0, 1.2fr) auto; }

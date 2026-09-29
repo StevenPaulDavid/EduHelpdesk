@@ -63,6 +63,15 @@ public static class OnboardingActions
 public record OnboardingTemplate(Guid Id, string Name)
 {
     public List<OnboardingTemplateTask> Tasks { get; init; } = [];
+    // The welcome pack PDFs this kind of starter gets (OnboardingDocument ids), in the order they appear in Settings.
+    public List<Guid> DocumentIds { get; init; } = [];
+}
+
+// A PDF uploaded in Settings → Onboarding checklists to go at the back of welcome packs - an acceptable use policy, a
+// staff handbook. The file is kept with the other attachments (and so in every backup), named by Id.
+public record OnboardingDocument(Guid Id, string Name, string FileName, long Size, int Pages, DateTime UploadedAt)
+{
+    public Actor? By { get; init; }
 }
 
 // OffsetDays is days from the start date: -5 is five days before they start, 0 their first day.
@@ -81,6 +90,9 @@ public record OnboardingRecord(int TicketNumber, Guid StarterId, DateOnly StartD
     public string TemplateName { get; init; } = "";
     public Guid? LineManagerId { get; init; }
     public List<OnboardingTask> Tasks { get; init; } = [];
+    // The PDFs at the back of this person's welcome pack: the template's, copied when the onboarding started, and
+    // changeable for them alone.
+    public List<Guid> PackDocumentIds { get; init; } = [];
     // Set when the onboarding was stopped - the person didn't start, say. Its ticket is closed and the checklist stays
     // as it was left.
     public DateTime? CancelledAt { get; init; }

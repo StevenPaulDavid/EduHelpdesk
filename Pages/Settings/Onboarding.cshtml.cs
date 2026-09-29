@@ -11,6 +11,49 @@ public class OnboardingModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<OnboardingTemplate> Templates => store.OnboardingTemplates;
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
+    public IReadOnlyList<OnboardingDocument> Documents => store.OnboardingDocuments;
+    public string ItInfo => store.OnboardingItInfo;
+
+    // ---- The welcome pack ----
+
+    public IActionResult OnPostItInfo(string? text)
+    {
+        Message = store.SetOnboardingItInfo(text).Message;
+        return RedirectToPage(null, null, "welcome-pack");
+    }
+
+    public IActionResult OnPostAddDocument(string? name, IFormFile? file)
+    {
+        if (file is null || file.Length == 0) Message = "Choose a PDF to upload.";
+        else
+        {
+            using var stream = file.OpenReadStream();
+            Message = store.AddOnboardingDocument(name, file.FileName, stream, file.Length).Message;
+        }
+        return RedirectToPage(null, null, "welcome-pack");
+    }
+
+    public IActionResult OnPostRenameDocument(Guid documentId, string? name)
+    {
+        Message = store.RenameOnboardingDocument(documentId, name).Message;
+        return RedirectToPage(null, null, "welcome-pack");
+    }
+
+    public IActionResult OnPostDeleteDocument(Guid documentId)
+    {
+        Message = store.DeleteOnboardingDocument(documentId).Message;
+        return RedirectToPage(null, null, "welcome-pack");
+    }
+
+    public IActionResult OnPostTemplateDocuments(Guid id, List<Guid>? documentIds) => Done(id, store.SetOnboardingTemplateDocuments(id, documentIds));
+
+    // A PDF to check before it goes out. Served as a download: nothing uploaded is opened in the page.
+    public IActionResult OnGetDocument(Guid documentId)
+    {
+        if (store.FindOnboardingDocument(documentId) is not { } found) return NotFound();
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(found.Path, "application/pdf", found.Document.FileName);
+    }
     [TempData] public string? Message { get; set; }
 
     public void OnGet() { }

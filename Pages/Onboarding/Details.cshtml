@@ -195,6 +195,28 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
             }
         </section>
 
+        <section class="panel" id="welcome-pack">
+            <div class="panel-heading"><div><p class="eyebrow">FOR THEIR FIRST DAY</p><h2>Welcome pack</h2></div></div>
+            @{ var packDocuments = Model.PackDocuments.Where(x => record.PackDocumentIds.Contains(x.Id)).ToList(); }
+            <p class="muted">One PDF: how to sign in, @(Model.EquipmentCount == 0 ? "the equipment issued (none yet)" : $"the {Model.EquipmentCount} item{(Model.EquipmentCount == 1 ? "" : "s")} issued, with a signature block,") the school's IT information@(packDocuments.Count == 0 ? "" : $", then {string.Join(", ", packDocuments.Select(x => x.Name))}").</p>
+            <p class="muted">@(Model.PackHasPassword ? "It includes their temporary password, while it's still to hand - for an hour after it was made." : starter?.PasswordHash is null ? "Their portal account isn't made yet, so the pack says it will be ready by their first day." : "Their password isn't in it: it was made over an hour ago, or they've changed it.")</p>
+            <a class="button button-primary" asp-page="/Onboarding/Details" asp-page-handler="WelcomePack" asp-route-number="@ticket.Number">Download welcome pack (PDF)</a>
+            @if (Model.CanEdit && Model.PackDocuments.Count > 0)
+            {
+                <details class="onboarding-edit">
+                    <summary>Documents in @(starter?.Name ?? "their") pack</summary>
+                    <form method="post" asp-page-handler="PackDocuments" class="settings-form">
+                        <input type="hidden" name="number" value="@ticket.Number" />
+                        @foreach (var document in Model.PackDocuments)
+                        {
+                            <label class="toggle-label"><input type="checkbox" name="documentIds" value="@document.Id" checked="@record.PackDocumentIds.Contains(document.Id)" /> @document.Name</label>
+                        }
+                        <button class="button button-secondary" type="submit">Save</button>
+                    </form>
+                </details>
+            }
+        </section>
+
         @if (Model.CanEdit || Model.CanDelete)
         {
             <section class="panel">

@@ -65,6 +65,34 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
         return Back(number, store.SetOnboardingTaskDone(number, taskId, done).Message, $"task-{taskId}");
     }
 
+    // ---- The welcome pack ----
+
+    public IReadOnlyList<OnboardingDocument> PackDocuments { get; private set; } = [];
+    public int EquipmentCount { get; private set; }
+    // The temporary password goes in the pack only while it is still to hand (an hour, and unchanged) and only for
+    // someone who could have made it - the same rule as the quick start guide.
+    public bool PackHasPassword { get; private set; }
+
+    public IActionResult OnGetWelcomePack(int number)
+    {
+        if (!CanView) return Forbid();
+        if (!Load(number)) return NotFound();
+        var password = CanWorkIt && Starter is { } starter ? passwords.Recall(starter.Id, starter.PasswordHash) : null;
+        var address = store.SiteAddress is { Length: > 0 } set ? set : EduHelpdesk.Pages.People.QuickStartModel.GuessAddress(Request);
+        if (store.WelcomePackFor(number, password, address) is not { } input) return NotFound();
+        try
+        {
+            return File(WelcomePackPdf.Build(input), "application/pdf", WelcomePackPdf.FileName(input));
+        }
+        catch (ProposalException ex)
+        {
+            return Back(number, ex.Message, "welcome-pack");
+        }
+    }
+
+    public IActionResult OnPostPackDocuments(int number, List<Guid>? documentIds) =>
+        CanEdit ? Back(number, store.SetOnboardingPackDocuments(number, documentIds).Message, "welcome-pack") : Forbid();
+
     public IActionResult OnPostIssue(int number, Guid taskId, Guid? assetId)
     {
         if (!Load(number)) return NotFound();
@@ -150,6 +178,9 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
             .ToDictionary(type => type, type => store.AssetsFreeToIssue(type), StringComparer.OrdinalIgnoreCase);
         var issued = deviceTasks.Where(x => x.AssetId is not null).Select(x => x.AssetId!.Value).ToHashSet();
         IssuedAssets = issued.Count == 0 ? new Dictionary<Guid, AssetRecord>() : store.Assets.Where(x => issued.Contains(x.Id)).ToDictionary(x => x.Id);
+        PackDocuments = store.OnboardingDocuments;
+        EquipmentCount = store.Assets.Count(x => x.AssignedUserId == record.StarterId && !HelpdeskStore.IsDisposed(x));
+        PackHasPassword = CanWorkIt && Starter is { } starter && passwords.Recall(starter.Id, starter.PasswordHash) is not null;
         return true;
     }
 
