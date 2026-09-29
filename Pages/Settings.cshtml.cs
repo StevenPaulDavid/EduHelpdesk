@@ -92,7 +92,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ]),
             new("Projects",
             [
-                Page("Spending bands", "/Settings/SpendingBands", "Your finance policy's thresholds, shown on every project.", "spending bands quotes finance policy threshold"),
+                Page("Spending bands", "/Settings/SpendingBands", "Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT.", "spending bands quotes finance policy threshold vat ex inc excluding including amounts project page"),
                 List("Purchasing requirements", "/Settings/PurchasingRequirements", store.PurchasingRequirements, "Tick boxes offered when a project is requested.", "purchasing requirement project request"),
             ]),
             new("System",

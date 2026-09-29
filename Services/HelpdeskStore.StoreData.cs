@@ -56,6 +56,8 @@ public sealed partial class HelpdeskStore
         // Settings → Sign-in security: technicians may reset a forgotten password with their recovery key
         // (HelpdeskStore.RecoveryKeys). On unless a school turns it off.
         public bool AllowRecoveryKeys { get; set; } = true;
+        // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.
+        public bool ProjectPageIncludesVat { get; set; }
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in
         // security or by the installer; the guide then works one out from the address in use (HelpdeskStore.Accounts).
         public string SiteAddress { get; set; } = "";

@@ -26,6 +26,12 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     // Banded on the highest quote for each item, so the band shows before anything is chosen (HelpdeskStore.BandBasis).
     public HelpdeskStore.BandBasis BandBasis { get; private set; } = new([], 0m);
     public SpendingBand? CurrentBand { get; private set; }
+    // The page's amounts are ex VAT unless Settings → Spending bands says otherwise. The proposal PDF shows both anyway.
+    public bool IncVat => store.ProjectPageIncludesVat;
+    public string VatLabel => IncVat ? "inc. VAT" : "ex. VAT";
+    public decimal Term(QuoteTotals totals) => IncVat ? totals.TermIncVat : totals.TermExVat;
+    public decimal FirstYear(QuoteTotals totals) => IncVat ? totals.FirstYearIncVat : totals.FirstYearExVat;
+    public decimal LineTerm(PaymentLine line) => IncVat ? line.TermExVat + line.TermVat : line.TermExVat;
     public IReadOnlyDictionary<Guid, string> SupplierNames { get; private set; } = new Dictionary<Guid, string>();
     // The helpdesk tickets this project is linked to. Links are listed for anyone who can see the project; a ticket
     // only opens for someone who can view tickets.

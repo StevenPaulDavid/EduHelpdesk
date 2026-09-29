@@ -298,6 +298,7 @@ public sealed partial class HelpdeskStore
         data.RequireTwoFactor = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequireTwoFactor';") as string == "1";
         data.SiteAddress = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SiteAddress';") as string ?? "";
         data.AllowRecoveryKeys = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AllowRecoveryKeys';") as string != "0";
+        data.ProjectPageIncludesVat = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ProjectPageIncludesVat';") as string == "1";
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
@@ -744,6 +745,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "RequireTwoFactor", data.RequireTwoFactor ? "1" : "0");
         SetMetadata(connection, transaction, "SiteAddress", data.SiteAddress);
         SetMetadata(connection, transaction, "AllowRecoveryKeys", data.AllowRecoveryKeys ? "1" : "0");
+        SetMetadata(connection, transaction, "ProjectPageIncludesVat", data.ProjectPageIncludesVat ? "1" : "0");
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));

@@ -25,6 +25,9 @@ public class SpendingBandsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostBasis(bool includeVat) => Done(store.SetSpendingBandsIncludeVat(includeVat));
 
+    public bool PageIncludesVat => store.ProjectPageIncludesVat;
+    public IActionResult OnPostPageVat(bool includeVat) => Done(store.SetProjectPageIncludesVat(includeVat));
+
     private IActionResult Done((bool Ok, string Message) result)
     {
         Message = result.Message;

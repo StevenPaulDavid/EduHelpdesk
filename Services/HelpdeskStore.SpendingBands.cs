@@ -14,6 +14,22 @@ public sealed partial class HelpdeskStore
 
     public IReadOnlyList<SpendingBand> SpendingBands { get { lock (_sync) return _data.SpendingBands.OrderBy(x => x.From).ToList(); } }
     public bool SpendingBandsIncludeVat { get { lock (_sync) return _data.SpendingBandsIncludeVat; } }
+    // Whether a project's page shows its amounts excluding VAT (the default: most schools budget ex VAT) or including it.
+    // Only the page: the proposal PDF and the reports always give both.
+    public bool ProjectPageIncludesVat { get { lock (_sync) return _data.ProjectPageIncludesVat; } }
+
+    public (bool Ok, string Message) SetProjectPageIncludesVat(bool includeVat)
+    {
+        lock (_sync)
+        {
+            if (_data.ProjectPageIncludesVat == includeVat) return (true, "Nothing had changed.");
+            _data.ProjectPageIncludesVat = includeVat;
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Settings", null, null, "Project page amounts", "Changed",
+                includeVat ? "Project pages now show amounts including VAT." : "Project pages now show amounts excluding VAT."));
+            Save();
+            return (true, includeVat ? "Project pages now show amounts including VAT." : "Project pages now show amounts excluding VAT.");
+        }
+    }
 
     // The highest priced quote for one item, and what it comes to on the basis Settings says (whole contract, excluding
     // or including VAT).

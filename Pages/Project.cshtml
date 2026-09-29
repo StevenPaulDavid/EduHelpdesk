@@ -136,7 +136,7 @@
                 <div><p class="section-heading">Items &amp; quotes</p>
                     @if (project.Items.Count > 0)
                     {
-                        <p class="project-total">Chosen quotes: <strong>@HelpdeskStore.FormatMoney(chosenTotals.TermIncVat)</strong> inc. VAT over the term · @HelpdeskStore.FormatMoney(chosenTotals.FirstYearIncVat) in the first year <span class="muted">(@HelpdeskStore.FormatMoney(chosenTotals.TermExVat) ex. VAT) · @itemsChosen of @project.Items.Count @(project.Items.Count == 1 ? "item has" : "items have") a chosen quote</span></p>
+                        <p class="project-total">Chosen quotes: <strong>@HelpdeskStore.FormatMoney(Model.Term(chosenTotals))</strong> @Model.VatLabel over the term · @HelpdeskStore.FormatMoney(Model.FirstYear(chosenTotals)) in the first year <span class="muted">@if (Model.IncVat) { <text>(@HelpdeskStore.FormatMoney(chosenTotals.TermExVat) ex. VAT) </text> }· @itemsChosen of @project.Items.Count @(project.Items.Count == 1 ? "item has" : "items have") a chosen quote</span></p>
                     }
                     <p class="muted">@project.Items.Count @(project.Items.Count == 1 ? "item" : "items") · @received of @quoteRows.Count @(quoteRows.Count == 1 ? "supplier" : "suppliers") have quoted @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }@if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }</p>
                     @if (project.Items.Count > 1)
@@ -208,7 +208,7 @@
                         <span class="item-summary">
                             @if (item.SubItems.Count > 0) { <span>@item.SubItems.Count @(item.SubItems.Count == 1 ? "sub-item" : "sub-items")</span> }
                             <span>@(item.Suppliers.Count == 0 ? "no suppliers yet" : $"{quoted} of {item.Suppliers.Count} quoted")</span>
-                            @if (itemChosen is not null) { <span class="item-summary-chosen">chosen: @HelpdeskStore.FormatMoney(QuoteTotals.Of(itemChosen.PaymentLines).TermIncVat)</span> }
+                            @if (itemChosen is not null) { <span class="item-summary-chosen">chosen: @HelpdeskStore.FormatMoney(Model.Term(QuoteTotals.Of(itemChosen.PaymentLines))) @Model.VatLabel</span> }
                             @if (item.Suppliers.Any(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays)) { <span class="badge badge-warning">to chase</span> }
                             @if (item.Suppliers.Any(x => x.IsExpired(Model.Today))) { <span class="badge badge-warning">expired</span> }
                         </span>
@@ -271,7 +271,7 @@
                     </div>
 
                     <div class="item-suppliers">
-                        <p class="eyebrow">SUPPLIERS @if (item.Chosen is { } chosenRow) { <span class="item-chosen">· chosen: @(Model.SupplierNames.GetValueOrDefault(chosenRow.SupplierId) ?? "Unknown") at @HelpdeskStore.FormatMoney(QuoteTotals.Of(chosenRow.PaymentLines).TermIncVat) inc. VAT</span> }</p>
+                        <p class="eyebrow">SUPPLIERS @if (item.Chosen is { } chosenRow) { <span class="item-chosen">· chosen: @(Model.SupplierNames.GetValueOrDefault(chosenRow.SupplierId) ?? "Unknown") at @HelpdeskStore.FormatMoney(Model.Term(QuoteTotals.Of(chosenRow.PaymentLines))) @Model.VatLabel</span> }</p>
                         @if (item.Suppliers.Count == 0) { <p class="muted">No suppliers asked yet.</p> }
                         @foreach (var row in item.Suppliers)
                         {
@@ -325,7 +325,7 @@
                                     else
                                     {
                                         <span>Quote@(row.Reference.Length > 0 ? $" {row.Reference}" : "") · @row.Documents.Count @(row.Documents.Count == 1 ? "file" : "files")</span>
-                                        @if (row.PaymentLines.Count > 0) { <span class="quote-total">@HelpdeskStore.FormatMoney(totals.TermIncVat) inc. VAT over the term</span> } else { <span class="muted">no prices yet</span> }
+                                        @if (row.PaymentLines.Count > 0) { <span class="quote-total">@HelpdeskStore.FormatMoney(Model.Term(totals)) @Model.VatLabel over the term</span> } else { <span class="muted">no prices yet</span> }
                                         @if (row.PreviousVersions.Count > 0) { <span class="muted">· @row.PreviousVersions.Count previous @(row.PreviousVersions.Count == 1 ? "version" : "versions")</span> }
                                     }
                                 </summary>
@@ -376,11 +376,11 @@
                                                     <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often" selected="@(often == line.Frequency)">@often</option> }</select></label>
                                                     <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="@line.TermYears" /></label>
                                                     <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
-                                                    <span class="pay-line-total">@HelpdeskStore.FormatMoney(line.TermExVat + line.TermVat)<small>@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), inc. VAT</small></span>
+                                                    <span class="pay-line-total">@HelpdeskStore.FormatMoney(Model.LineTerm(line))<small>@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), @Model.VatLabel</small></span>
                                                     <span class="pay-line-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" title="Remove line" aria-label="Remove line">♜</button></span>
                                                 </form>
                                             }
-                                            else { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line) - <strong>@HelpdeskStore.FormatMoney(line.TermExVat + line.TermVat)</strong> inc. VAT</p> }
+                                            else { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line) - <strong>@HelpdeskStore.FormatMoney(Model.LineTerm(line))</strong> @Model.VatLabel</p> }
                                         }
                                         @if (row.PaymentLines.Count == 0) { <p class="muted">No prices entered yet.</p> }
                                         @if (canWork)
@@ -398,11 +398,23 @@
                                         }
                                         @if (row.PaymentLines.Count > 0)
                                         {
-                                            <table class="quote-totals">
-                                                <tr><th></th><th>Ex. VAT</th><th>VAT</th><th>Inc. VAT</th></tr>
-                                                <tr><th>First year</th><td>@HelpdeskStore.FormatMoney(totals.FirstYearExVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearIncVat)</td></tr>
-                                                <tr><th>Whole term</th><td>@HelpdeskStore.FormatMoney(totals.TermExVat)</td><td>@HelpdeskStore.FormatMoney(totals.TermVat)</td><td><strong>@HelpdeskStore.FormatMoney(totals.TermIncVat)</strong></td></tr>
-                                            </table>
+                                            @if (Model.IncVat)
+                                            {
+                                                <table class="quote-totals">
+                                                    <tr><th></th><th>Ex. VAT</th><th>VAT</th><th>Inc. VAT</th></tr>
+                                                    <tr><th>First year</th><td>@HelpdeskStore.FormatMoney(totals.FirstYearExVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearIncVat)</td></tr>
+                                                    <tr><th>Whole term</th><td>@HelpdeskStore.FormatMoney(totals.TermExVat)</td><td>@HelpdeskStore.FormatMoney(totals.TermVat)</td><td><strong>@HelpdeskStore.FormatMoney(totals.TermIncVat)</strong></td></tr>
+                                                </table>
+                                            }
+                                            else
+                                            {
+                                                @* Ex VAT only (Settings → Spending bands): the VAT is still worked out, for the proposal PDF. *@
+                                                <table class="quote-totals">
+                                                    <tr><th></th><th>Ex. VAT</th></tr>
+                                                    <tr><th>First year</th><td>@HelpdeskStore.FormatMoney(totals.FirstYearExVat)</td></tr>
+                                                    <tr><th>Whole term</th><td><strong>@HelpdeskStore.FormatMoney(totals.TermExVat)</strong></td></tr>
+                                                </table>
+                                            }
                                         }
                                     </div>
 
@@ -442,7 +454,7 @@
                                             {
                                                 var old = QuoteTotals.Of(version.PaymentLines);
                                                 <details class="quote-version">
-                                                    <summary>Replaced @version.ArchivedAt.ToLocalTime().ToString("d MMM yyyy")@(version.Reference.Length > 0 ? $" · {version.Reference}" : "") · @version.Documents.Count @(version.Documents.Count == 1 ? "file" : "files") · @(version.PaymentLines.Count > 0 ? HelpdeskStore.FormatMoney(old.TermIncVat) + " inc. VAT" : "no prices")</summary>
+                                                    <summary>Replaced @version.ArchivedAt.ToLocalTime().ToString("d MMM yyyy")@(version.Reference.Length > 0 ? $" · {version.Reference}" : "") · @version.Documents.Count @(version.Documents.Count == 1 ? "file" : "files") · @(version.PaymentLines.Count > 0 ? HelpdeskStore.FormatMoney(Model.Term(old)) + " " + Model.VatLabel : "no prices")</summary>
                                                     @foreach (var document in version.Documents)
                                                     {
                                                         <div class="quote-file"><a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@document.FileName</a><span class="muted">@HelpdeskStore.FormatSize(document.Size)</span></div>

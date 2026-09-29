@@ -15,6 +15,16 @@
     </form>
 </section>
 
+<section class="panel" id="page-vat">
+    <div class="panel-heading"><div><p class="eyebrow">PROJECT PAGES</p><h2>Amounts on a project's page</h2></div></div>
+    <p class="muted">Which figures a project's page shows for its quotes, payment lines and chosen totals. Only the project's page changes: the proposal PDF still shows both, with and without VAT, and the projects report is unaffected.</p>
+    <form method="post" asp-page-handler="PageVat" class="settings-form">
+        <label class="toggle-label"><input type="radio" name="includeVat" value="false" checked="@(!Model.PageIncludesVat)" /> Excluding VAT <small class="muted">What most schools budget on.</small></label>
+        <label class="toggle-label"><input type="radio" name="includeVat" value="true" checked="@Model.PageIncludesVat" /> Including VAT <small class="muted">With the VAT and ex-VAT figures alongside.</small></label>
+        <div><button class="button button-primary">Save</button></div>
+    </form>
+</section>
+
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">BANDS</p><h2>Spending bands</h2></div><span class="badge">@Model.Bands.Count</span></div>
     <p class="muted">Amounts are in pounds and both ends count, to the penny - so one band ends at 999.99 and the next starts at 1,000. Leave "Up to" blank for the top band. Bands can't overlap; gaps are allowed.</p>
