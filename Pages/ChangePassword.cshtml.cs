@@ -14,12 +14,15 @@ public class ChangePasswordModel(HelpdeskStore store) : PageModel
     [BindProperty] public string NewPassword { get; set; } = "";
     [BindProperty] public string ConfirmPassword { get; set; } = "";
     public bool Forced { get; private set; }
+    // Whether finishing a forced change will hand over a recovery key (see OnPostAsync), so the page can say so.
+    public bool OffersRecoveryKey { get; private set; }
 
     public IActionResult OnGet()
     {
         var technician = CurrentTechnician();
         if (technician is null) return NotFound();
         Forced = technician.RequirePasswordChange;
+        OffersRecoveryKey = Forced && store.AllowRecoveryKeys && technician.RecoveryKey is null;
         return Page();
     }
 
@@ -28,6 +31,7 @@ public class ChangePasswordModel(HelpdeskStore store) : PageModel
         var technician = CurrentTechnician();
         if (technician is null) return NotFound();
         Forced = technician.RequirePasswordChange;
+        OffersRecoveryKey = Forced && store.AllowRecoveryKeys && technician.RecoveryKey is null;
 
         if (!PasswordHasher.Verify(technician.PasswordHash, CurrentPassword ?? ""))
         {
@@ -54,9 +58,22 @@ public class ChangePasswordModel(HelpdeskStore store) : PageModel
         store.UpdateTechnician(updated);
         // A new password ends every other session (see TechnicianSession); this one carries on with a fresh cookie.
         await TechnicianSession.SignInAsync(HttpContext, updated);
+
+        // Their first password of their own - a new account, or after a temporary one - is the moment to save a recovery
+        // key, while they know the password and before they can forget it. Shown here once, like on /RecoveryKey. Someone
+        // who already has a key keeps it.
+        if (Forced && store.AllowRecoveryKeys && technician.RecoveryKey is null && store.CreateRecoveryKey(technician.Id, firstPassword: true) is { } key)
+        {
+            Forced = false;
+            NewRecoveryKey = key;
+            return Page();
+        }
         TempData["Message"] = "Password changed.";
         return RedirectToPage("/Index");
     }
+
+    // Set when a first password has just been chosen and a recovery key made to go with it.
+    public string? NewRecoveryKey { get; private set; }
 
     private TechnicianRecord? CurrentTechnician()
     {

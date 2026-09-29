@@ -106,7 +106,14 @@
             }
             @if (sheet.ForTechnician && Model.RecoveryKeysAllowed)
             {
-                <li>Make a <strong>recovery key</strong> from <em>Recovery key</em> under your name (top right), and save the recovery file somewhere private. If you ever forget your password, <em>Forgotten your password?</em> on the sign-in page uses it to set a new one.</li>
+                if (sheet.MustChange && sheet.Technician!.RecoveryKey is null)
+                {
+                    <li>You'll then be given a <strong>recovery key</strong>. Download the recovery file and keep it somewhere private: if you ever forget your password, <em>Forgotten your password?</em> on the sign-in page uses it to set a new one.</li>
+                }
+                else
+                {
+                    <li>Make a <strong>recovery key</strong> from <em>Recovery key</em> under your name (top right), and save the recovery file somewhere private. If you ever forget your password, <em>Forgotten your password?</em> on the sign-in page uses it to set a new one.</li>
+                }
             }
         </ol>
 

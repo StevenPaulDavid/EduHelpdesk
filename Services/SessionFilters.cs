@@ -55,8 +55,10 @@ public sealed class PasswordChangeFilter(HelpdeskStore store, PortalIdentity por
         await next();
     }
 
+    // /RecoveryKey because a first password change hands over a recovery key, whose download posts there - before
+    // two-step sign-in has been set up.
     private static readonly HashSet<string> TwoFactorAllowed = new(StringComparer.OrdinalIgnoreCase)
-        { "/TwoFactor", "/ChangePassword", "/Logout", "/Login", "/LoginCode", "/Error", "/AccessDenied", "/Appearance" };
+        { "/TwoFactor", "/ChangePassword", "/RecoveryKey", "/Logout", "/Login", "/LoginCode", "/Error", "/AccessDenied", "/Appearance" };
 
     private bool TechnicianWithoutTwoFactor(ClaimsPrincipal user) =>
         user.Identity?.IsAuthenticated == true

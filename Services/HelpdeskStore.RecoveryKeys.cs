@@ -24,7 +24,8 @@ public sealed partial class HelpdeskStore
     }
 
     // A new key for the technician, replacing any they had. Returned once, to be shown and saved; only its hash is kept.
-    public string? CreateRecoveryKey(Guid technicianId)
+    // `firstPassword` is the one made for them as they choose their first password (Pages/ChangePassword).
+    public string? CreateRecoveryKey(Guid technicianId, bool firstPassword = false)
     {
         lock (_sync)
         {
@@ -34,7 +35,8 @@ public sealed partial class HelpdeskStore
             var technician = _data.Technicians[index];
             _data.Technicians[index] = technician with { RecoveryKey = new RecoveryKeySetup(RecoveryKeys.Hash(key), DateTime.UtcNow) };
             _pendingAudit.Add(RecoveryKeyEntry(technician, technician.RecoveryKey is null ? "Recovery key made" : "Recovery key replaced",
-                technician.RecoveryKey is null ? "Made by the account holder." : "Made by the account holder. The previous key no longer works."));
+                (firstPassword ? "Made for the account holder as they chose their own password." : "Made by the account holder.")
+                + (technician.RecoveryKey is null ? "" : " The previous key no longer works.")));
             Save();
             return key;
         }

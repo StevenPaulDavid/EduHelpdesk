@@ -7,16 +7,7 @@
 
 @if (Model.NewKey is { } key)
 {
-    <section class="panel recovery-panel">
-        <h2>Your recovery key</h2>
-        <p><code class="setup-key recovery-key">@key</code></p>
-        <p>Save it now - <strong>this is the only time it is shown</strong>. Download the recovery file and keep it somewhere only you can get to, such as a password manager or a private folder, or print this page and lock it away. Not on a shared drive, and not in an email.</p>
-        <div class="button-row heading-actions">
-            <form method="post" asp-page-handler="Download"><input type="hidden" name="key" value="@key" /><button class="button button-primary">Download recovery file</button></form>
-            <button class="button button-secondary" type="button" data-action="print">Print it</button>
-            <a class="button button-secondary" href="/">I've saved it</a>
-        </div>
-    </section>
+    <partial name="_RecoveryKeyPanel" model="key" />
 }
 else
 {

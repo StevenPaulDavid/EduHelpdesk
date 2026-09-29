@@ -172,7 +172,8 @@ The address on the guide comes from **Settings → Sign-in security → Helpdesk
 **Forgotten passwords.** There is no emailed reset link, because the helpdesk doesn't send email.
 
 A **technician** can reset their own with a **recovery key**:
-- They make it from **Recovery key** in their account menu, confirming their current password.
+- They're given one when they first choose their own password: on a new account, after a temporary password, and for the built-in administrator on first sign-in. That's unless they already have one. The page shows it once, with the recovery file to download, before they carry on.
+- They can make a new one at any time from **Recovery key** in their account menu, confirming their current password.
 - The key is 24 characters, shown once, and saved as a small **recovery file** to download or print.
 - On the sign-in page, **Forgotten your password?** takes their email and the key, typed or as the uploaded file, and sets a new password they keep.
 - The key then stops working, every sign-in of the account ends, and they sign in with the new password. Two-step sign-in still applies.
