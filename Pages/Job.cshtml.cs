@@ -64,6 +64,8 @@ public class JobModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGet(int number)
     {
+        // An onboarding is worked from its own page: the checklist, with the ticket's notes and history below it.
+        if (store.IsOnboardingTicket(number)) return RedirectToPage("/Onboarding/Details", new { number });
         Ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (Ticket is null) return NotFound();
         Requester = store.Users.FirstOrDefault(x => x.Id == Ticket.RequesterId);

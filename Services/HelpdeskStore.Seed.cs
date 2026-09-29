@@ -257,6 +257,7 @@ public sealed partial class HelpdeskStore
         _data.PermissionModelVersion = PermissionModelVersion;
         EnsureFactoryOptions();
         EnsureProjectDefaults();
+        EnsureOnboardingDefaults();
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
             "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);

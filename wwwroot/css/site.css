@@ -2041,3 +2041,41 @@ main:focus { outline: none; }
 /* Settings → About: information, not a link. */
 .settings-card-info { cursor: default; }
 .settings-card-info:hover { transform: none; box-shadow: none; }
+
+/* Onboarding (Pages/Onboarding) and its checklist templates (Settings → Onboarding checklists). The checklist leads,
+   with the new starter's details beside it; below 900px the details drop underneath. */
+.onboarding-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 18px; align-items: start; margin-bottom: 18px; }
+.onboarding-layout > .panel, .onboarding-side > .panel { margin: 0; }
+.onboarding-side { display: grid; gap: 18px; }
+.onboarding-progress { width: 100%; height: 8px; accent-color: var(--teal); margin: 0 0 4px; }
+.onboarding-stage-heading { font-size: 14px; margin: 18px 0 4px; }
+.onboarding-tasks { list-style: none; margin: 0; padding: 0; }
+.onboarding-task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.onboarding-tick { margin: 0; }
+.onboarding-tick input { width: 20px; height: 20px; margin: 2px 0 0; cursor: pointer; }
+.onboarding-tick input:disabled { cursor: not-allowed; }
+.onboarding-task-text { display: grid; gap: 3px; min-width: 0; }
+.onboarding-task-text > .muted { font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.onboarding-task.is-done .onboarding-task-text strong { text-decoration: line-through; color: var(--muted); font-weight: 600; }
+.owner-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; }
+.owner-chip.owner-it { background: var(--accent); }
+.onboarding-task-actions { display: flex; gap: 6px; align-items: center; }
+.onboarding-task-actions form { margin: 0; }
+.onboarding-task-actions select { width: auto; max-width: 170px; font-size: 13px; padding: 4px 6px; }
+.onboarding-add-task { margin-top: 14px; }
+.onboarding-add-task > summary, .onboarding-side details > summary { cursor: pointer; font-weight: 700; font-size: 14px; margin: 10px 0 6px; }
+.onboarding-facts { grid-template-columns: minmax(100px, max-content) 1fr; }
+.onboarding-lead, .onboarding-delete { margin-top: 12px; }
+.onboarding-rename { margin-bottom: 4px; }
+.onboarding-rename label { max-width: 420px; }
+.band-row.onboarding-task-row { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, .8fr)) auto; }
+.band-row.onboarding-template-new { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto; }
+@media(max-width:900px) {
+    .onboarding-layout { grid-template-columns: 1fr; }
+}
+@media(max-width:700px) {
+    .band-row.onboarding-task-row, .band-row.onboarding-template-new { grid-template-columns: 1fr 1fr; }
+    .onboarding-task-row .onboarding-task-title { grid-column: 1/-1; }
+    .onboarding-task { grid-template-columns: auto minmax(0, 1fr); }
+    .onboarding-task-actions { grid-column: 2; }
+}

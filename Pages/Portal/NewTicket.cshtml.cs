@@ -75,7 +75,7 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
     private TicketRecord? FindPrevious(Guid requesterId)
     {
         Previous = Again is { } number
-            ? store.Tickets.FirstOrDefault(x => x.Number == number && x.RequesterId == requesterId && TicketInsights.IsClosed(x))
+            ? store.PortalTicket(requesterId, number) is { } ticket && TicketInsights.IsClosed(ticket) ? ticket : null
             : null;
         if (Previous is null) Again = null;
         return Previous;

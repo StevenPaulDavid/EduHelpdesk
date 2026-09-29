@@ -15,7 +15,7 @@ public class MyTicketsModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
         CurrentUser = store.Users.FirstOrDefault(x => x.Id == id);
-        Tickets = store.Tickets.Where(x => x.RequesterId == id).OrderByDescending(x => x.Number).ToList();
+        Tickets = store.PortalTickets(id.Value).OrderByDescending(x => x.Number).ToList();
         return Page();
     }
 }

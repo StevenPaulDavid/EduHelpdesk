@@ -9,6 +9,7 @@ public static class Modules
 {
     public const string Tickets = "Tickets";
     public const string Projects = "Projects";
+    public const string Onboarding = "Onboarding";
     public const string Assets = "Assets";
     public const string Kits = "Kits";
     public const string Loans = "Loans";
@@ -33,6 +34,7 @@ public static class Modules
     [
         new(Tickets, "Tickets", "The ticket queues and ticket detail. Delete also covers merging.", Full),
         new(Projects, "Projects", "Purchasing projects raised from the staff portal. Edit covers tidying them up, notes and status; assigning is separate below.", Full),
+        new(Onboarding, "Onboarding", "New staff checklists. Technicians can open an onboarding from the ticket list and tick its IT tasks with Tickets permissions alone; this covers the rest.", Full),
         new(Assets, "Assets", "The asset register. New covers the CSV import; Delete covers disposal.", Full),
         new(Kits, "Loan kits", "The kits themselves and what is in them.", Full),
         new(Loans, "Loans", "New issues a device, Edit books it back in.", Full),

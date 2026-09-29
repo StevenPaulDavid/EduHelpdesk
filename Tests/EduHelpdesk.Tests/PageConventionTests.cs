@@ -44,4 +44,18 @@ public class PageConventionTests
     [Fact]
     public void No_page_uses_a_javascript_url() =>
         Assert.Empty(Matches(@"href\s*=\s*[""']\s*javascript:"));
+
+    // A permission rule naming a page that doesn't exist guards nothing, and nothing complains: "/Onboarding" for
+    // Pages/Onboarding/Index.cshtml left the onboarding list open to everyone signed in until this caught it.
+    [Fact]
+    public void Every_page_a_permission_rule_names_exists()
+    {
+        var root = ProjectRoot();
+        var program = File.ReadAllText(Path.Combine(root, "Program.cs"));
+        var missing = Regex.Matches(program, @"(?:AuthorizePage|AllowAnonymousToPage)\(""(/[^""]*)""")
+            .Select(x => x.Groups[1].Value).Distinct()
+            .Where(page => !File.Exists(Path.Combine(root, "Pages", page.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".cshtml")))
+            .ToList();
+        Assert.True(missing.Count == 0, "These pages don't exist, so their rules protect nothing:\n" + string.Join("\n", missing));
+    }
 }

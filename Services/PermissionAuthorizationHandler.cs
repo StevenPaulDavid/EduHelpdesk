@@ -36,6 +36,9 @@ public sealed class PermissionRequirement : IAuthorizationRequirement
     // the name is stable whichever way the mask was built.
     public static string PolicyName(string module, ModulePermission action) => $"{module}:{action}".Replace(" ", "");
     public const string PeoplePolicy = "People:Any";
+    // An onboarding opens for the onboarding officer (Onboarding) and for technicians coming from the ticket list
+    // (Tickets); the page then checks what each action needs.
+    public const string OnboardingPolicy = "Onboarding:OrTickets";
 }
 
 // Looks up the signed-in account's current role permissions from the store on every check, rather than baking them

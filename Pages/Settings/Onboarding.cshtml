@@ -1,0 +1,69 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.OnboardingModel
+@{ ViewData["Title"] = "Onboarding checklists"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Onboarding checklists</h1><p class="hero-copy">One template for each kind of new starter. Starting an onboarding copies a template's tasks, which can then be changed for that person.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">NEW TEMPLATE</p><h2>Add a template</h2></div></div>
+    <p class="muted">For example Teacher, Support staff, or Supply and cover. Start from a copy of another to save typing.</p>
+    <form method="post" asp-page-handler="Add" class="band-row band-new onboarding-template-new">
+        <label>Name<input name="name" maxlength="100" placeholder="e.g. Support staff" required /></label>
+        <label>Start from<select name="copyFrom"><option value="">An empty checklist</option>@foreach (var template in Model.Templates) { <option value="@template.Id">A copy of @template.Name</option> }</select></label>
+        <span class="band-actions"><button class="button button-primary" type="submit">Add template</button></span>
+    </form>
+</section>
+
+@if (Model.Templates.Count == 0) { <section class="panel"><p class="empty">No templates yet. An onboarding can still be started with an empty checklist.</p></section> }
+
+@foreach (var template in Model.Templates)
+{
+    <section class="panel onboarding-template" id="template-@template.Id">
+        <div class="panel-heading">
+            <div><p class="eyebrow">TEMPLATE</p><h2>@template.Name</h2></div>
+            <div class="heading-actions">
+                <span class="badge">@template.Tasks.Count task@(template.Tasks.Count == 1 ? "" : "s")</span>
+                <form method="post" asp-page-handler="Delete" data-confirm="Delete the @template.Name template? Onboardings already started from it keep their checklists.">
+                    <input type="hidden" name="id" value="@template.Id" />
+                    <button class="button button-danger" type="submit">Delete template</button>
+                </form>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Rename" class="inline-fields onboarding-rename">
+            <input type="hidden" name="id" value="@template.Id" />
+            <label>Name<input name="name" value="@template.Name" maxlength="100" required /></label>
+            <button class="button button-secondary" type="submit">Rename</button>
+        </form>
+
+        @foreach (var stage in OnboardingStages.All)
+        {
+            var tasks = template.Tasks.Where(x => x.Stage == stage).OrderBy(x => x.OffsetDays).ToList();
+            <h3 class="onboarding-stage-heading">@stage <span class="muted">@(tasks.Count == 0 ? "- no tasks" : "")</span></h3>
+            @foreach (var task in tasks)
+            {
+                <form method="post" asp-page-handler="UpdateTask" class="band-row onboarding-task-row">
+                    <input type="hidden" name="id" value="@template.Id" /><input type="hidden" name="taskId" value="@task.Id" />
+                    <label class="onboarding-task-title">Task<input name="title" value="@task.Title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" required /></label>
+                    <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option" selected="@(option == task.Stage)">@option</option> }</select></label>
+                    <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="@task.OffsetDays" required title="@EduHelpdesk.Pages.Settings.OnboardingModel.DescribeOffset(task.OffsetDays)" /></label>
+                    <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner" selected="@(owner == task.Owner)">@owner</option> }</select></label>
+                    <span class="band-actions">
+                        <button class="button button-secondary" type="submit">Save</button>
+                        <button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Settings/Onboarding", "DeleteTask")" formnovalidate title="Remove task" aria-label="Remove @task.Title">♜</button>
+                    </span>
+                </form>
+            }
+        }
+
+        <form method="post" asp-page-handler="AddTask" class="band-row band-new onboarding-task-row">
+            <input type="hidden" name="id" value="@template.Id" />
+            <label class="onboarding-task-title">New task<input name="title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" placeholder="e.g. Add to the staff WhatsApp group" required /></label>
+            <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option">@option</option> }</select></label>
+            <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required /></label>
+            <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner">@owner</option> }</select></label>
+            <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>
+        </form>
+        <p class="muted">Days from start: -5 is five days before their first day, 0 is their first day, 3 is three days after. It sets each task's due date.</p>
+    </section>
+}

@@ -59,6 +59,13 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Projects", Policy(Modules.Projects, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Project", Policy(Modules.Projects, ModulePermission.View));
 
+    // Onboarding new staff. The list and starting one are the onboarding officer's; a single onboarding also opens for
+    // technicians from the ticket list, and its page checks each action (ticking IT tasks, editing, deleting).
+    // The list is Pages/Onboarding/Index: a rule for "/Onboarding" would name a page that doesn't exist and guard nothing.
+    options.Conventions.AuthorizePage("/Onboarding/Index", Policy(Modules.Onboarding, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Onboarding/New", Policy(Modules.Onboarding, ModulePermission.New));
+    options.Conventions.AuthorizePage("/Onboarding/Details", PermissionRequirement.OnboardingPolicy);
+
     // Assets. The list needs Access, the detail page View, and each page under /Assets/ asks for what it does rather
     // than sharing one folder rule - which is the whole point of separating New from Edit.
     options.Conventions.AuthorizePage("/Assets", Policy(Modules.Assets, ModulePermission.Access));
@@ -236,6 +243,8 @@ builder.Services.AddAuthorization(options =>
         options.AddPolicy(flag.Key, policy => policy.Requirements.Add(PermissionRequirement.ForFlag(flag.Key)));
     options.AddPolicy(PermissionRequirement.PeoplePolicy, policy => policy.Requirements.Add(
         PermissionRequirement.ForAny(Modules.Requesters, Modules.StaffAccounts, Modules.Roles)));
+    options.AddPolicy(PermissionRequirement.OnboardingPolicy, policy => policy.Requirements.Add(
+        PermissionRequirement.ForAny(Modules.Onboarding, Modules.Tickets)));
 });
 
 var app = builder.Build();

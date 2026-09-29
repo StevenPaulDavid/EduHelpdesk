@@ -33,7 +33,7 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrott
         SessionKind = session?.Kind;
         CurrentUser = session is not null ? store.Users.FirstOrDefault(x => x.Id == session.UserId) : null;
         HasProjects = CurrentUser is not null && store.Projects.Any(x => x.RequesterId == CurrentUser.Id);
-        if (CurrentUser is not null) TicketsWithNews = store.Tickets.Count(x => x.RequesterId == CurrentUser.Id && HelpdeskStore.HasUpdateForRequester(x));
+        if (CurrentUser is not null) TicketsWithNews = store.PortalTickets(CurrentUser.Id).Count(HelpdeskStore.HasUpdateForRequester);
         if (CurrentUser is { IsProjectLead: true }) AwaitingAssignment = store.Projects.Count(x => x.IsActive && x.TechnicianId is null);
         SignedInTechnician = Technician();
     }

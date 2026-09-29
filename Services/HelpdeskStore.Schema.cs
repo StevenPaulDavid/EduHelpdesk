@@ -231,6 +231,7 @@ public sealed partial class HelpdeskStore
         EnsureSessionSchema(connection);
         EnsureTwoFactorSchema(connection);
         EnsureRecoveryKeySchema(connection);
+        EnsureOnboardingSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)

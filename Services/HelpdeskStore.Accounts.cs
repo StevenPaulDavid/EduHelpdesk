@@ -35,7 +35,9 @@ public sealed partial class HelpdeskStore
         lock (_sync)
         {
             var technicianEmails = _data.Technicians.Select(x => x.Email).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            return _data.Users.Where(x => x.IsActive && x.AnonymisedAt is null && x.PasswordHash is null && !technicianEmails.Contains(x.Email))
+            // New starters still being onboarded get their account from the onboarding's own task, when it's time.
+            var starting = _data.Onboardings.Where(x => !x.IsCancelled && !x.AllDone).Select(x => x.StarterId).ToHashSet();
+            return _data.Users.Where(x => x.IsActive && x.AnonymisedAt is null && x.PasswordHash is null && !technicianEmails.Contains(x.Email) && !starting.Contains(x.Id))
                 .OrderBy(x => x.Department, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
         }
     }

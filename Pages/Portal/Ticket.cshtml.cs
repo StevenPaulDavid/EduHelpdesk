@@ -25,7 +25,8 @@ public class TicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
     {
         var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
-        Ticket = store.Tickets.FirstOrDefault(x => x.Number == number && x.RequesterId == id);
+        // Their own tickets only, and never an onboarding - those are internal (HelpdeskStore.PortalTicket).
+        Ticket = store.PortalTicket(id.Value, number);
         if (Ticket is null) return NotFound();
         // Clears the "New reply" flag on My tickets. Opened by the requester themselves, not a technician checking up.
         store.MarkSeenByRequester(number);
@@ -36,7 +37,7 @@ public class TicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
     {
         var id = portal.Resolve(Request, store);
         if (id is null) return RedirectToPage("/Portal/Index");
-        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number && x.RequesterId == id);
+        var ticket = store.PortalTicket(id.Value, number);
         if (ticket is null) return NotFound();
         if (!store.RequesterCanReply(ticket))
         {
@@ -74,7 +75,7 @@ public class TicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
     {
         var requester = portal.Resolve(Request, store);
         if (requester is null) return RedirectToPage("/Portal/Index");
-        if (store.Tickets.FirstOrDefault(x => x.Number == number && x.RequesterId == requester) is null) return NotFound();
+        if (store.PortalTicket(requester.Value, number) is null) return NotFound();
         if (store.FindAttachment(number, id) is not { } found || !found.Attachment.VisibleToRequester) return NotFound();
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";

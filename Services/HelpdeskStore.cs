@@ -155,6 +155,7 @@ public sealed partial class HelpdeskStore
         foreach (var asset in _data.Assets.Where(x => x.AssignedUserId.HasValue && !x.Assignments.Any(a => a.EndedAt is null)))
             asset.Assignments.Add(new AssetAssignment(asset.AssignedUserId, _data.Users.FirstOrDefault(u => u.Id == asset.AssignedUserId)?.Name ?? "Unknown user", null, null, asset.LoanDueDate));
         EnsureProjectDefaults();
+        EnsureOnboardingDefaults();
         if (_data.ReopenWindowDays is < 0 or > MaxReopenWindowDays) _data.ReopenWindowDays = DefaultReopenWindowDays;
         _data.SlaPauseStatuses = _data.SlaPauseStatuses.Where(x => _data.Statuses.Contains(x, StringComparer.OrdinalIgnoreCase) && !IsBuiltInStatus(x))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();

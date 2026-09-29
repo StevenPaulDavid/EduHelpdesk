@@ -89,6 +89,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                 List("Departments", "/Settings/Departments", store.Departments, "Requesters' departments.", "department"),
                 List("Locations", "/Settings/Locations", store.Locations, "Rooms and areas, for tickets, assets and people.", "location room building site"),
                 Page("Imports", "/Settings/Imports", "Requesters, staff accounts and option lists from CSV files.", "import csv upload users technicians lists bulk"),
+                Page("Onboarding checklists", "/Settings/Onboarding", "The tasks for each kind of new starter, and when they're due.", "onboarding new starter staff checklist template tasks"),
             ]),
             new("Projects",
             [

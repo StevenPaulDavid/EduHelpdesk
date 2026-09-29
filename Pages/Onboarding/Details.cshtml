@@ -1,0 +1,204 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Onboarding.DetailsModel
+@{
+    var record = Model.Record;
+    var ticket = Model.Ticket;
+    var starter = Model.Starter;
+    ViewData["Title"] = $"Onboarding: {starter?.Name ?? "new starter"}";
+    var itLeft = record.ItTasks.Count(x => !x.IsDone);
+    var overdue = record.OverdueCount(Model.Today);
+    var about = string.Join(" · ", new[] { record.JobTitle, starter?.Department }.Where(x => !string.IsNullOrWhiteSpace(x)));
+}
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">ONBOARDING · TICKET #@ticket.Number</p>
+        <h1>@(starter?.Name ?? "New starter")</h1>
+        <p class="hero-copy">@(about.Length > 0 ? about + " · " : "")starts @record.StartDate.ToString("dddd d MMMM yyyy") (@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today).ToLowerInvariant())</p>
+    </div>
+    <a class="button button-secondary" asp-page="/Onboarding">← Onboarding</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (record.CancelledAt is { } cancelled) { <div class="notice notice-warning">Cancelled on @cancelled.ToLocalTime().ToString("d MMMM yyyy"). The checklist is as it was left.@if (Model.CanEdit) { <text> Resume it from the side panel to carry on.</text> }</div> }
+else if (record.AllDone) { <div class="notice">Every task is done, so the ticket is closed. Unticking a task opens it again.</div> }
+
+<div class="onboarding-layout">
+    <section class="panel onboarding-checklist" id="checklist">
+        <div class="panel-heading">
+            <div><p class="eyebrow">CHECKLIST@(record.TemplateName.Length > 0 ? $" · FROM {record.TemplateName.ToUpperInvariant()}" : "")</p><h2>@record.Done of @record.Tasks.Count done</h2></div>
+            <div class="heading-actions">
+                <span class="badge">IT: @itLeft left</span>
+                @if (overdue > 0) { <span class="badge badge-warning">@overdue overdue</span> }
+            </div>
+        </div>
+        @if (record.Tasks.Count > 0)
+        {
+            <progress class="onboarding-progress" max="@record.Tasks.Count" value="@record.Done">@record.Done of @record.Tasks.Count</progress>
+        }
+        @foreach (var stage in OnboardingStages.All)
+        {
+            var tasks = record.Ordered.Where(x => x.Stage == stage).ToList();
+            if (tasks.Count == 0) { continue; }
+            <h3 class="onboarding-stage-heading">@stage</h3>
+            <ul class="onboarding-tasks">
+                @foreach (var task in tasks)
+                {
+                    var late = record.IsOverdue(task, Model.Today);
+                    <li class="onboarding-task @(task.IsDone ? "is-done" : "") @(late ? "is-overdue" : "")" id="task-@task.Id">
+                        <form method="post" asp-page-handler="Tick" class="onboarding-tick">
+                            <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
+                            <input type="checkbox" name="done" value="true" checked="@task.IsDone" disabled="@(!Model.CanTick(task))" data-autosubmit aria-label="@(task.IsDone ? "Mark as not done" : "Mark as done"): @task.Title" />
+                        </form>
+                        <div class="onboarding-task-text">
+                            <strong>@task.Title</strong>
+                            <span class="muted">
+                                <span class="owner-chip @(task.Owner == OnboardingOwners.IT ? "owner-it" : "")">@Model.OwnerText(task)</span>
+                                @if (task.CompletedAt is { } done) { <text>Done @done.ToLocalTime().ToString("ddd d MMM") by @Actor.Label(task.CompletedBy)</text> }
+                                else if (late) { <span class="badge badge-warning">@Model.DueText(task)</span> <text>(due @record.DueOn(task).ToString("ddd d MMM"))</text> }
+                                else { <text>@Model.DueText(task)</text> }
+                            </span>
+                        </div>
+                        @if (Model.CanEdit && !record.IsCancelled)
+                        {
+                            <div class="onboarding-task-actions">
+                                @if (task.Owner == OnboardingOwners.IT)
+                                {
+                                    <form method="post" asp-page-handler="AssignTask">
+                                        <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
+                                        <select name="technicianId" data-autosubmit aria-label="Technician for @task.Title"><option value="">IT team</option>@foreach (var tech in Model.ActiveTechnicians) { <option value="@tech.Id" selected="@(tech.Id == task.TechnicianId)">@tech.Name</option> }</select>
+                                    </form>
+                                }
+                                <form method="post" asp-page-handler="RemoveTask" data-confirm="Remove &quot;@task.Title&quot; from this checklist?">
+                                    <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
+                                    <button class="icon-button delete-icon" type="submit" title="Remove task" aria-label="Remove @task.Title">♜</button>
+                                </form>
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (record.Tasks.Count == 0) { <p class="empty">No tasks yet.@(Model.CanEdit ? " Add the first one below." : "")</p> }
+        @if (Model.CanEdit && !record.IsCancelled)
+        {
+            <details class="onboarding-add-task">
+                <summary>＋ Add a task for @(starter?.Name ?? "this person")</summary>
+                <form method="post" asp-page-handler="AddTask" class="band-row band-new onboarding-task-row">
+                    <input type="hidden" name="number" value="@ticket.Number" />
+                    <label class="onboarding-task-title">Task<input name="title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" required /></label>
+                    <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option">@option</option> }</select></label>
+                    <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required /></label>
+                    <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner">@owner</option> }</select></label>
+                    <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>
+                </form>
+            </details>
+        }
+    </section>
+
+    <aside class="onboarding-side">
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">NEW STARTER</p><h2>Details</h2></div></div>
+            <dl class="detail-list onboarding-facts">
+                <dt>Email</dt><dd>@(string.IsNullOrWhiteSpace(starter?.Email) ? "Not yet" : starter!.Email)</dd>
+                <dt>Job title</dt><dd>@(string.IsNullOrWhiteSpace(record.JobTitle) ? "Not set" : record.JobTitle)</dd>
+                <dt>Department</dt><dd>@(string.IsNullOrWhiteSpace(starter?.Department) ? "Not set" : starter!.Department)</dd>
+                <dt>Location</dt><dd>@(string.IsNullOrWhiteSpace(starter?.Location) ? "Not set" : starter!.Location)</dd>
+                <dt>Start date</dt><dd>@record.StartDate.ToString("ddd d MMM yyyy")</dd>
+                <dt>Line manager</dt><dd>@(Model.LineManager?.Name ?? "Not set")</dd>
+                <dt>IT lead</dt><dd>@(ticket.TechnicianId is { } lead ? Model.TechnicianNames.GetValueOrDefault(lead, "A former technician") : "Unassigned")</dd>
+                <dt>Ticket</dt><dd>#@ticket.Number · @ticket.Status</dd>
+            </dl>
+            @if (Model.CanEdit)
+            {
+                <details class="onboarding-edit">
+                    <summary>Edit details</summary>
+                    <form method="post" asp-page-handler="Details" class="settings-form">
+                        <input type="hidden" name="number" value="@ticket.Number" />
+                        <label>Name<input name="name" value="@starter?.Name" maxlength="@HelpdeskStore.MaxOnboardingNameLength" required /></label>
+                        <label>School email<input name="email" type="email" value="@starter?.Email" maxlength="254" /></label>
+                        <label>Job title<input name="jobTitle" value="@record.JobTitle" maxlength="100" /></label>
+                        <label>Start date<input name="startDate" type="date" value="@record.StartDate.ToString("yyyy-MM-dd")" required /><small class="muted">Task due dates move with it.</small></label>
+                        <label>Department<select name="department"><option value="">Not set</option>@foreach (var item in Model.Departments) { <option value="@item" selected="@string.Equals(item, starter?.Department, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                        <label>Location<select name="location"><option value="">Not set</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, starter?.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                        <label>Line manager<select name="lineManagerId" data-picker><option value="">Not set</option>@foreach (var person in Model.People) { <option value="@person.Id" data-search="@person.Email @person.Department" selected="@(person.Id == record.LineManagerId)">@person.Name</option> }</select></label>
+                        <button class="button button-primary" type="submit">Save details</button>
+                    </form>
+                </details>
+                <form method="post" asp-page-handler="Technician" class="settings-form onboarding-lead">
+                    <input type="hidden" name="number" value="@ticket.Number" />
+                    <label>Technician leading the IT side<select name="technicianId" data-autosubmit><option value="">Unassigned</option>@foreach (var tech in Model.ActiveTechnicians) { <option value="@tech.Id" selected="@(tech.Id == ticket.TechnicianId)">@tech.Name</option> }</select></label>
+                </form>
+            }
+        </section>
+
+        @if (Model.CanEdit || Model.CanDelete)
+        {
+            <section class="panel">
+                <div class="panel-heading"><div><p class="eyebrow">IF PLANS CHANGE</p><h2>Cancel or delete</h2></div></div>
+                @if (Model.CanEdit)
+                {
+                    @if (record.IsCancelled)
+                    {
+                        <form method="post" asp-page-handler="Resume"><input type="hidden" name="number" value="@ticket.Number" /><button class="button button-secondary" type="submit">Resume this onboarding</button></form>
+                    }
+                    else
+                    {
+                        <details>
+                            <summary>They won't be starting</summary>
+                            <form method="post" asp-page-handler="Cancel" class="settings-form" data-confirm="Cancel this onboarding? Its ticket closes; nothing is deleted, and it can be resumed.">
+                                <input type="hidden" name="number" value="@ticket.Number" />
+                                <label>Reason <small class="muted">Optional, kept in the history</small><input name="reason" maxlength="500" /></label>
+                                <button class="button button-secondary" type="submit">Cancel onboarding</button>
+                            </form>
+                        </details>
+                    }
+                }
+                @if (Model.CanDelete)
+                {
+                    <form method="post" asp-page-handler="Delete" class="onboarding-delete" data-confirm="Delete this onboarding and its ticket, with its notes and history? @(starter?.Name ?? "The new starter") stays in People.">
+                        <input type="hidden" name="number" value="@ticket.Number" />
+                        <button class="button button-danger" type="submit">Delete onboarding</button>
+                    </form>
+                }
+            </section>
+        }
+    </aside>
+</div>
+
+<section class="panel" id="notes">
+    <div class="ticket-tabs">
+        <div class="ticket-tab-buttons" role="tablist">
+            <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="notes-tab">Notes <span class="badge">@ticket.Comments.Count</span></button>
+            <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab">History <span class="badge">@ticket.History.Count</span></button>
+        </div>
+        <div id="notes-tab" class="ticket-tab-panel active" role="tabpanel">
+            @if (ticket.Comments.Count > 0)
+            {
+                <div class="comment-list">
+                    @foreach (var comment in ticket.Comments.OrderByDescending(x => x.CreatedAt))
+                    {
+                        <article class="comment comment-internal"><p>@comment.Text</p><small><strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                    }
+                </div>
+            }
+            else { <p class="muted">No notes yet.</p> }
+            @if (Model.CanWorkIt)
+            {
+                <form method="post" asp-page-handler="Note" class="comment-form">
+                    <input type="hidden" name="number" value="@ticket.Number" />
+                    <label for="onboarding-note">Add a note</label>
+                    <textarea id="onboarding-note" name="text" rows="3" maxlength="@HelpdeskStore.MaxTicketTextLength" placeholder="Something the team should know - it's only seen in the helpdesk."></textarea>
+                    <button class="button button-primary" type="submit">Add note</button>
+                </form>
+            }
+        </div>
+        <div id="history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+            <div class="history-list">
+                @foreach (var activity in ticket.History.OrderByDescending(x => x.CreatedAt))
+                {
+                    <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                }
+            </div>
+        </div>
+    </div>
+</section>

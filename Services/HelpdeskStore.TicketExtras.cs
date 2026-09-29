@@ -235,6 +235,7 @@ public sealed partial class HelpdeskStore
         _data.TicketAttachments.RemoveAll(x => x.TicketNumber == number);
         _data.TicketLinks.RemoveAll(x => x.TicketNumber == number || x.LinkedNumber == number);
         RemoveProjectTicketLinks(number);
+        RemoveOnboarding(number);
     }
 
     // When a ticket is merged into another, its attachments move across and its links point at the ticket it was merged into.

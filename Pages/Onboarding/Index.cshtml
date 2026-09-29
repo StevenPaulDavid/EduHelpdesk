@@ -1,0 +1,33 @@
+@page
+@model EduHelpdesk.Pages.Onboarding.IndexModel
+@{ ViewData["Title"] = "Onboarding"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / ONBOARDING</p><h1>Onboarding</h1><p class="hero-copy">New staff, and everything to get ready for them. Each onboarding is a ticket, so IT's tasks show in the ticket list too.</p></div>
+    @if (Model.CanStart) { <a class="button button-primary" asp-page="/Onboarding/New">＋ New onboarding</a> }
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="stack-table onboarding-list">
+            <thead><tr><th data-stack="head">New starter</th><th>Start date</th><th>Progress</th><th>IT tasks left</th><th>Status</th><th>Ticket</th></tr></thead>
+            <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    var record = row.Record;
+                    var overdue = record.OverdueCount(Model.Today);
+                    var itLeft = record.ItTasks.Count(x => !x.IsDone);
+                    <tr data-href="@Url.Page("/Onboarding/Details", new { number = record.TicketNumber })">
+                        <td><a asp-page="/Onboarding/Details" asp-route-number="@record.TicketNumber"><strong>@(row.Starter?.Name ?? "Unknown")</strong></a><br /><span class="muted">@string.Join(" · ", new[] { record.JobTitle, row.Starter?.Department }.Where(x => !string.IsNullOrWhiteSpace(x)))</span></td>
+                        <td>@record.StartDate.ToString("ddd d MMM yyyy")<br /><span class="muted">@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today)</span></td>
+                        <td>@record.Done of @record.Tasks.Count done @if (overdue > 0) { <span class="badge badge-warning">@overdue overdue</span> }</td>
+                        <td>@(record.IsCancelled ? "-" : itLeft.ToString())</td>
+                        <td>@if (record.IsCancelled) { <span class="badge">Cancelled</span> } else if (record.AllDone) { <span class="badge chosen-badge">Complete</span> } else { <span>In progress</span> }</td>
+                        <td>#@record.TicketNumber</td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0) { <tr><td colspan="6" class="empty">No onboardings yet.@(Model.CanStart ? " Start one for your next new starter." : "")</td></tr> }
+            </tbody>
+        </table>
+    </div>
+</section>

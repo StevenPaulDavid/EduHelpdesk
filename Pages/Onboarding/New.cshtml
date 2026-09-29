@@ -1,0 +1,23 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Onboarding.NewModel
+@{ ViewData["Title"] = "New onboarding"; }
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / ONBOARDING</p><h1>New onboarding</h1><p class="hero-copy">Who is starting, when, and which checklist to follow. The new starter is added to People, with no way to sign in until their portal account is made.</p></div><a class="button button-secondary" asp-page="/Onboarding">← Onboarding</a></div>
+
+<section class="panel">
+    <form method="post" class="settings-form onboarding-form">
+        <div asp-validation-summary="All" class="validation-summary-errors"></div>
+        <div class="form-grid">
+            <label>Name<input asp-for="Name" maxlength="@HelpdeskStore.MaxOnboardingNameLength" required autofocus /></label>
+            <label>School email <small class="muted">Optional - often one of the tasks</small><input asp-for="Email" type="email" maxlength="254" /></label>
+            <label>Job title<input asp-for="JobTitle" maxlength="100" placeholder="e.g. Teacher of Science" /></label>
+            <label>Start date<input asp-for="StartDate" type="date" required /></label>
+            <label>Department<select asp-for="Department"><option value="">Not set</option>@foreach (var item in Model.Departments) { <option value="@item">@item</option> }</select></label>
+            <label>Location <small class="muted">Their main room or office</small><select asp-for="Location"><option value="">Not set</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+            <label>Line manager<select asp-for="LineManagerId" data-picker><option value="">Not set</option>@foreach (var person in Model.People) { <option value="@person.Id" data-search="@person.Email @person.Department">@person.Name</option> }</select></label>
+            <label>Technician leading the IT side <small class="muted">Optional</small><select asp-for="TechnicianId"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name</option> }</select></label>
+        </div>
+        <label>Checklist<select asp-for="TemplateId"><option value="">An empty checklist</option>@foreach (var template in Model.Templates) { <option value="@template.Id">@template.Name (@template.Tasks.Count task@(template.Tasks.Count == 1 ? "" : "s"))</option> }</select><small class="muted">Templates are set up in Settings → Onboarding checklists. Tasks can be added or removed for this person afterwards.</small></label>
+        <button class="button button-primary" type="submit">Start onboarding</button>
+    </form>
+</section>

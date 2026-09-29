@@ -297,6 +297,40 @@ On the ticket page, the due date carries an **Overdue**, **Due in…** or **SLA 
 
 **Settings → Ticket queues & closing** lets you force a closing message before a ticket can be marked closed, per priority and per category. Everything else closes in one click.
 
+### Onboarding new staff
+
+The **Onboarding** menu covers everything to get ready for a new member of staff: before they arrive, on their first day and in their first week.
+
+**Starting one.** **＋ New onboarding** asks for:
+- their name, job title, department, location and line manager
+- their start date
+- which checklist to follow
+
+Their school email is optional, since creating it is often one of the tasks. Starting an onboarding:
+- adds them to People, with no password, so they can't sign in to anything yet
+- opens one ticket, category *Onboarding*, that carries the checklist
+
+**Checklists** come from templates in **Settings → Onboarding checklists**, one per kind of new starter, such as Teacher or Support staff. New installs have an example Teacher template. Each task has:
+- a stage: before arrival, first day or first week
+- a number of days from the start date, which sets its due date
+- an owner: IT, or the onboarding officer
+
+Tasks can be added or removed for one person without changing the template. Moving the start date moves every due date with it.
+
+**Working one.** The onboarding page shows the checklist, the new starter's details, and the ticket's notes and history. Ticking a task records who did it and when, in the ticket's history.
+- IT tasks can be given to a named technician.
+- The ticket's due date is the earliest task still to do, so overdue onboardings show in the ticket queues like any other ticket.
+- When every task is ticked, the ticket closes itself. Unticking a task opens it again.
+- If the person won't be starting, **Cancel** closes it without deleting anything, and it can be resumed.
+
+**In the ticket list**, onboarding tickets open the onboarding page. They can't be merged.
+
+**Onboarding is internal.** It never appears in the staff portal, to the new starter or anyone else.
+
+**Permissions:**
+- The **Onboarding** module in the role editor covers the list, starting onboardings, editing details and tasks, the officer's tasks, cancelling (Edit) and deleting (Delete).
+- A technician without it can still open an onboarding from the ticket list, tick its IT tasks and add notes, using their Tickets permissions.
+
 ---
 
 ## 6. Assets

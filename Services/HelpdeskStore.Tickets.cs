@@ -127,6 +127,8 @@ public sealed partial class HelpdeskStore
         var sourceIndex = _data.Tickets.FindIndex(x => x.Number == sourceNumber);
         var targetIndex = _data.Tickets.FindIndex(x => x.Number == targetNumber);
         if (sourceIndex < 0 || targetIndex < 0) return "Ticket was not found.";
+        // An onboarding's checklist belongs to its own ticket; merged, one of them would be orphaned.
+        if (IsOnboardingTicketCore(sourceNumber) || IsOnboardingTicketCore(targetNumber)) return "Onboarding tickets can't be merged.";
 
         var source = _data.Tickets[sourceIndex];
         var target = _data.Tickets[targetIndex];

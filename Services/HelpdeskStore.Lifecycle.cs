@@ -357,6 +357,7 @@ public partial class HelpdeskStore
         _data.TicketAttachments.RemoveAll(x => x.TicketNumber == number);
         _data.TicketLinks.RemoveAll(x => x.TicketNumber == number || x.LinkedNumber == number);
         RemoveProjectTicketLinks(number);
+        RemoveOnboarding(number);
         _data.Tickets.RemoveAll(x => x.Number == number);
         return files;
     }
