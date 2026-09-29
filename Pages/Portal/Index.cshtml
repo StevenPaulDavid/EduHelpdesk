@@ -38,12 +38,17 @@
         @if (Model.CurrentUser.MayRaiseProjects || Model.HasProjects)
         {
             <h2 class="portal-subheading">Projects</h2>
-            <p class="muted">@(Model.CurrentUser.IsProjectLead ? "Assign new projects to a technician, or raise one yourself." : "Need something bought? Ask the IT team to gather quotes and put together a proposal.")</p>
+            @* The lead's count sits under the heading, only when there is something to do; the button opens every project. *@
+            @if (Model.CurrentUser.IsProjectLead && Model.AwaitingAssignment > 0)
+            {
+                <p class="portal-awaiting"><a asp-page="/Portal/Projects" asp-route-view="awaiting"><span class="badge badge-warning">@Model.AwaitingAssignment</span> awaiting assignment</a></p>
+            }
+            <p class="muted">@(Model.CurrentUser.IsProjectLead ? "Assign new projects to a technician, follow the ones under way, or raise one yourself." : "Need something bought? Ask the IT team to gather quotes and put together a proposal.")</p>
             <div class="portal-actions">
                 @if (Model.CurrentUser.MayRaiseProjects) { <a class="button button-primary portal-button" asp-page="/Portal/NewProject">＋ Request a project</a> }
                 @if (Model.CurrentUser.IsProjectLead)
                 {
-                    <a class="button button-secondary portal-button" asp-page="/Portal/Projects">Awaiting assignment <span class="badge @(Model.AwaitingAssignment > 0 ? "badge-warning" : "")">@Model.AwaitingAssignment</span></a>
+                    <a class="button button-secondary portal-button" asp-page="/Portal/Projects">View projects</a>
                 }
                 else { <a class="button button-secondary portal-button" asp-page="/Portal/Projects">My projects</a> }
             </div>

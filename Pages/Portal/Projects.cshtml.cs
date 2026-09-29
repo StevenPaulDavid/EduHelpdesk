@@ -36,8 +36,9 @@ public class ProjectsModel(HelpdeskStore store, PortalIdentity portal) : PageMod
         var all = store.Projects;
         if (IsLead)
         {
-            if (!LeadViews.Contains(View)) View = "awaiting";
             ViewCounts = LeadViews.ToDictionary(x => x, x => all.Count(p => InView(p, x, id.Value)));
+            // "View projects" lands on what needs the lead first, or on everything open when nothing is waiting.
+            if (!LeadViews.Contains(View)) View = ViewCounts["awaiting"] > 0 ? "awaiting" : "open";
             // Oldest first on the queues the lead works through; newest first for the ones already dealt with.
             Projects = View == "closed"
                 ? all.Where(p => InView(p, View, id.Value)).ToList()
