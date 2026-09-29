@@ -1131,8 +1131,9 @@ h3 .csv-link { margin-left: 8px; }
     gap: 10px;
     cursor: pointer;
 }
-.priority-choice input { margin-top: 3px; }
-.priority-choice span { display: grid; gap: 2px; }
+/* The form's inputs are full width by default, which stretched each radio across the row and pushed its words right. */
+.priority-choice input { width: auto; flex: none; margin: 3px 0 0; }
+.priority-choice span { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .priority-choice small { color: var(--muted); font-weight: 400; }
 .portal-subheading { margin: 28px 0 4px; }
 /* The project lead's "3 awaiting assignment" line under the Projects heading. */
