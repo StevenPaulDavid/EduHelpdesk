@@ -3,7 +3,9 @@ using EduHelpdesk.Models;
 namespace EduHelpdesk.Services;
 
 // The school's spending bands (Settings → Spending bands): reference information about how many quotes a purchase of a
-// given size needs. Projects are measured against them by the whole-contract total of their chosen quotes.
+// given size needs. Projects are measured against them by the highest quote for each item (BandBasis), so the band is
+// known as soon as prices come in - before any quote is chosen - and choosing a cheaper quote can't talk a purchase
+// down into a band that asks for fewer quotes.
 public sealed partial class HelpdeskStore
 {
     public const int MaxSpendingBands = 20;
@@ -13,13 +15,41 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<SpendingBand> SpendingBands { get { lock (_sync) return _data.SpendingBands.OrderBy(x => x.From).ToList(); } }
     public bool SpendingBandsIncludeVat { get { lock (_sync) return _data.SpendingBandsIncludeVat; } }
 
-    // The amount a project is banded on: every payment over the full term, across all items, from each item's chosen
-    // quote - excluding or including VAT as Settings says. Items with no chosen quote add nothing yet.
-    public decimal BandTotal(ProjectRecord project)
+    // The highest priced quote for one item, and what it comes to on the basis Settings says (whole contract, excluding
+    // or including VAT).
+    public sealed record BandItem(ProjectItem Item, ItemSupplier? Highest, decimal Amount);
+
+    // What a project is banded on. Items lists every item; Total adds up the highest quote for each. An item with no
+    // priced quote yet adds nothing, so the total can still rise until every item has one.
+    public sealed record BandBasis(IReadOnlyList<BandItem> Items, decimal Total)
     {
-        var totals = project.ChosenTotals;
-        return SpendingBandsIncludeVat ? totals.TermIncVat : totals.TermExVat;
+        public int ItemsPriced => Items.Count(x => x.Highest is not null);
+        public bool AnyPriced => ItemsPriced > 0;
+        public bool AllPriced => Items.Count > 0 && ItemsPriced == Items.Count;
     }
+
+    public BandBasis BandBasisFor(ProjectRecord project) => BandBasisFor(project, SpendingBandsIncludeVat);
+
+    // A quote counts once it has prices and hasn't been declined - received or not yet marked so, in date or expired: a
+    // figure a supplier has given is a figure the purchase might cost.
+    public static BandBasis BandBasisFor(ProjectRecord project, bool includeVat)
+    {
+        decimal Amount(ItemSupplier quote)
+        {
+            var totals = QuoteTotals.Of(quote.PaymentLines);
+            return includeVat ? totals.TermIncVat : totals.TermExVat;
+        }
+        var items = project.Items.Select(item =>
+        {
+            var highest = item.Suppliers.Where(x => x.IsPriced).MaxBy(Amount);
+            return new BandItem(item, highest, highest is null ? 0m : Amount(highest));
+        }).ToList();
+        return new BandBasis(items, items.Sum(x => x.Amount));
+    }
+
+    // The band for a project, or null when no item has a priced quote yet (£0.00 isn't "the bottom band") or no band
+    // covers the amount.
+    public SpendingBand? BandFor(BandBasis basis) => basis.AnyPriced ? BandFor(basis.Total) : null;
 
     public SpendingBand? BandFor(decimal amount) => SpendingBands.FirstOrDefault(x => x.Contains(amount));
 

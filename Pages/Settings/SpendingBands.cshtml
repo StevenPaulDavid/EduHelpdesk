@@ -7,7 +7,7 @@
 
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">MEASURED ON</p><h2>Which total a project is banded on</h2></div></div>
-    <p class="muted">A project is placed in a band by the whole-contract total of its chosen quotes: every payment over the full term, across all its items. Most finance policies and procurement thresholds are set excluding VAT.</p>
+    <p class="muted">A project is placed in a band by the highest quote for each of its items, added up over the whole contract: every payment over the full term. So the band shows as soon as prices come in, before any quote is chosen, and choosing a cheaper quote doesn't move the project into a band that needs fewer quotes. Declined quotes don't count. Most finance policies and procurement thresholds are set excluding VAT.</p>
     <form method="post" asp-page-handler="Basis" class="settings-form">
         <label class="toggle-label"><input type="radio" name="includeVat" value="false" checked="@(!Model.IncludeVat)" /> Excluding VAT</label>
         <label class="toggle-label"><input type="radio" name="includeVat" value="true" checked="@Model.IncludeVat" /> Including VAT</label>

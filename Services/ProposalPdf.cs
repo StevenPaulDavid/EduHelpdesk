@@ -409,11 +409,20 @@ public static class ProposalPdf
                 if (current) { row.Shading.Color = Tint(brand); row.Format.Font.Bold = true; }
                 Cells(row, band.Name + (current ? " (this project)" : ""), HelpdeskStore.DescribeRange(band), band.QuotesNeeded.ToString(CultureInfo.InvariantCulture), band.Requirements);
             }
+            if (input.BandBasis.AnyPriced)
+            {
+                var highest = section.AddParagraph();
+                highest.Style = "Muted";
+                highest.Format.SpaceBefore = Unit.FromPoint(6);
+                highest.AddText("Highest quote for each item: " + string.Join(", ", input.BandBasis.Items.Select(x => x.Highest is { } quote
+                    ? $"{x.Item.Name} {Money(x.Amount)} ({SupplierName(input, quote.SupplierId)})"
+                    : $"{x.Item.Name} none priced yet")) + ".");
+            }
             var received = section.AddParagraph();
             received.Style = "Muted";
             received.Format.SpaceBefore = Unit.FromPoint(6);
             received.AddText(project.Items.Count == 0 ? "Quotes received: no items yet."
-                : "Quotes received: " + string.Join(", ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.HasQuote)}"))
+                : "Quotes received: " + string.Join(", ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.CountsAsQuote)}"))
                   + (input.Band is { } projectBand ? $" - the {projectBand.Name} band asks for {projectBand.QuotesNeeded}." : "."));
         }
     }
@@ -421,20 +430,28 @@ public static class ProposalPdf
     private static void BandParagraph(Section section, ProposalInput input, Color brand)
     {
         var basis = input.BandsIncludeVat ? "including VAT" : "excluding VAT";
+        var bandBasis = input.BandBasis;
         var text = section.AddParagraph();
         text.Format.SpaceBefore = Unit.FromPoint(6);
-        if (input.Project.Items.All(x => x.Chosen is null))
-            text.AddText("No quotes have been chosen yet, so the project can't be placed in a spending band.");
+        // Banded on the highest quote for each item, not the chosen ones (HelpdeskStore.BandBasis).
+        var measured = $"Taking the highest quote for each item, the whole contract comes to {Money(bandBasis.Total)} {basis}";
+        if (!bandBasis.AnyPriced)
+            text.AddText("No item has a priced quote yet, so the project can't be placed in a spending band.");
         else if (input.Band is { } band)
         {
-            text.AddText($"The whole-contract total of the chosen quotes, {Money(input.BandTotal)} {basis}, falls in the ");
+            text.AddText($"{measured}, which falls in the ");
             text.AddFormattedText(band.Name, TextFormat.Bold).Color = brand;
             text.AddText($" band ({HelpdeskStore.DescribeRange(band)}): {Plural(band.QuotesNeeded, "quote")} needed." + (string.IsNullOrWhiteSpace(band.Requirements) ? "" : $" {Sentence(band.Requirements)}"));
         }
         else if (input.Bands.Count == 0)
-            text.AddText($"The whole-contract total of the chosen quotes is {Money(input.BandTotal)} {basis}. No spending bands are set up.");
+            text.AddText($"{measured}. No spending bands are set up.");
         else
-            text.AddText($"The whole-contract total of the chosen quotes, {Money(input.BandTotal)} {basis}, doesn't fall in any spending band.");
+            text.AddText($"{measured}, which doesn't fall in any spending band.");
+        if (bandBasis.AnyPriced && !bandBasis.AllPriced)
+        {
+            var waiting = bandBasis.Items.Count - bandBasis.ItemsPriced;
+            text.AddText($" {Plural(waiting, "item")} {(waiting == 1 ? "has" : "have")} no priced quote yet, so this may still rise.");
+        }
     }
 
     private static void Items(Section section, ProposalInput input, Color brand)

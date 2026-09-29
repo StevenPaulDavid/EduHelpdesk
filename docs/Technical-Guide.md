@@ -427,8 +427,16 @@ Every part at or below its reorder threshold, with quantity against threshold, p
 | Tickets | **Ticket queues & closing** (the "due soon" window, default 24 hours; how long replies reopen closed tickets, default 14 days; which priorities/categories need a closing message; the Word print template), Statuses, Categories, Priorities, SLAs, School day and periods, Ticket templates, Ticket custom attributes |
 | Assets & inventory | **Asset, part & loan rules** (asset review window, default 60 days; academic year start; default reorder threshold, default 5; repeat-borrowing flag), Asset types (and lifespans), Makes, Models, Asset statuses, Custom asset attributes, Part categories, Part locations, Loan reasons |
 | People & places | Teams, Departments, Locations, **Imports** (users, technicians and option lists by CSV) |
-| Projects | Spending bands, Purchasing requirements |
+| Projects | **Spending bands** (each band's range, quotes needed and requirements; whether projects are banded including or excluding VAT), Purchasing requirements |
 | System | **Branding & logo** (school name, overview wording, colours, logo, default appearance), Backups & data, **Sign-in security** (HTTPS status, lockouts, requiring two-step sign-in and who has it), **Error log**, Audit log, **Go live & reset** (remove the demo data; factory reset) |
+
+**How a project is banded.** Each project is placed in a band by the **highest quote for each item**, added up over the whole contract. The band therefore shows as soon as the first prices go in, before any quote is chosen, which tells you how many quotes to gather.
+- Choosing a cheaper quote doesn't move a project down into a band that needs fewer quotes.
+- A quote counts once it has prices, unless it's marked declined.
+- Items with no priced quote add nothing yet, and the project page says the total may still rise.
+- The project's ⓘ Spending bands panel and the proposal PDF list the highest quote for each item.
+
+The bands are for reference only: nothing is blocked.
 
 **Who can change what.** Opening the Settings index needs Settings: Access. Every page behind it needs Settings: Edit, except the audit log, which has its own permission. A role with Access alone sees the cards but no links, and the index itself has no forms to post.
 

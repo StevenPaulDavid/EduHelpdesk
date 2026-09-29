@@ -23,7 +23,8 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     // The spending bands, for the reference panel behind the ⓘ, and where this project sits in them today.
     public IReadOnlyList<SpendingBand> Bands { get; private set; } = [];
     public bool BandsIncludeVat { get; private set; }
-    public decimal BandTotal { get; private set; }
+    // Banded on the highest quote for each item, so the band shows before anything is chosen (HelpdeskStore.BandBasis).
+    public HelpdeskStore.BandBasis BandBasis { get; private set; } = new([], 0m);
     public SpendingBand? CurrentBand { get; private set; }
     public IReadOnlyDictionary<Guid, string> SupplierNames { get; private set; } = new Dictionary<Guid, string>();
     // The helpdesk tickets this project is linked to. Links are listed for anyone who can see the project; a ticket
@@ -47,8 +48,8 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         SupplierNames = Suppliers.ToDictionary(x => x.Id, x => x.Name);
         Bands = store.SpendingBands;
         BandsIncludeVat = store.SpendingBandsIncludeVat;
-        BandTotal = store.BandTotal(Project);
-        CurrentBand = store.BandFor(BandTotal);
+        BandBasis = store.BandBasisFor(Project);
+        CurrentBand = store.BandFor(BandBasis);
         LinkedTickets = store.Tickets.Where(x => Project.TicketNumbers.Contains(x.Number)).OrderBy(x => x.Number).ToList();
         return Page();
     }

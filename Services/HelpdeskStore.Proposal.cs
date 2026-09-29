@@ -15,7 +15,7 @@ public sealed partial class HelpdeskStore
             var suppliers = project.Items.SelectMany(x => x.Suppliers).Select(x => x.SupplierId).Distinct().ToDictionary(x => x, SupplierName);
             var files = project.Items.SelectMany(x => x.Suppliers).SelectMany(x => x.Documents)
                 .Select(x => (x.Id, Path: AttachmentFile(x.Id))).Where(x => File.Exists(x.Path)).ToDictionary(x => x.Id, x => x.Path);
-            var total = BandTotal(project);
+            var basis = BandBasisFor(project);
             return new ProposalInput(
                 project,
                 _data.Branding.BrandName,
@@ -27,9 +27,8 @@ public sealed partial class HelpdeskStore
                 files,
                 SpendingBands,
                 SpendingBandsIncludeVat,
-                total,
-                // Nothing chosen is "no band yet", not the bottom band that £0.00 happens to fall in.
-                project.Items.Any(x => x.Chosen is not null) ? BandFor(total) : null,
+                basis,
+                BandFor(basis),
                 DateTime.Now);
         }
     }
@@ -53,6 +52,6 @@ public sealed record ProposalInput(
     IReadOnlyDictionary<Guid, string> FilePaths,
     IReadOnlyList<SpendingBand> Bands,
     bool BandsIncludeVat,
-    decimal BandTotal,
+    HelpdeskStore.BandBasis BandBasis,
     SpendingBand? Band,
     DateTime PreparedAt);

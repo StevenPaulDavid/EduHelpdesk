@@ -330,6 +330,11 @@ public record ItemSupplier(Guid SupplierId)
     public DateTime? StatusSince => StatusHistory.Count == 0 ? null : StatusHistory[^1].At;
     public bool IsAwaited => Status is QuoteStatuses.Requested or QuoteStatuses.UpdateRequested;
     public bool HasQuote => Status is QuoteStatuses.Received or QuoteStatuses.UpdateReceived or QuoteStatuses.UpdateRequested;
+    // Has prices and wasn't declined - what the spending band is worked out from (HelpdeskStore.BandBasis), whether or
+    // not the status has been moved on to Received yet.
+    public bool IsPriced => PaymentLines.Count > 0 && Status != QuoteStatuses.Declined;
+    // Counts towards the quotes a spending band asks for: received, or priced.
+    public bool CountsAsQuote => HasQuote || IsPriced;
     public bool IsExpired(DateOnly today) => HasQuote && ValidUntil is { } until && until < today;
     // Whole days since the quote was asked for, while it is still outstanding.
     public int? DaysAwaited(DateTime now) => IsAwaited && StatusSince is { } since ? Math.Max(0, (int)(now - since).TotalDays) : null;
@@ -373,7 +378,8 @@ public readonly record struct QuoteTotals(decimal FirstYearExVat, decimal FirstY
         new(a.FirstYearExVat + b.FirstYearExVat, a.FirstYearVat + b.FirstYearVat, a.TermExVat + b.TermExVat, a.TermVat + b.TermVat);
 }
 // One band of the school's finance policy: spending in this range needs this many quotes and meets these requirements
-// (Settings → Spending bands). Shown on a project for reference, against the whole-contract total of its chosen quotes.
+// (Settings → Spending bands). Shown on a project for reference, against the whole-contract total of the highest quote
+// for each item (HelpdeskStore.BandBasis).
 // UpTo null means no upper limit; both ends are inclusive, to the penny.
 public record SpendingBand(Guid Id, string Name, decimal From, decimal? UpTo, int QuotesNeeded, string Requirements)
 {

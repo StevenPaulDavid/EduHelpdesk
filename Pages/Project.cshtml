@@ -144,20 +144,26 @@
                         <p class="item-toggles"><button type="button" class="link-button" data-expand="details.project-item">Expand all</button> · <button type="button" class="link-button" data-collapse="details.project-item">Collapse all</button></p>
                     }
                 </div>
-                @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. *@
+                @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. The band
+                   comes from the highest quote for each item, so it shows as soon as prices come in, before any is chosen. *@
+                @{ var bandBasis = Model.BandBasis; var unpriced = bandBasis.Items.Count - bandBasis.ItemsPriced; }
                 <details class="band-info">
-                    <summary title="Spending bands" aria-label="Spending bands"><span class="info-icon" aria-hidden="true">i</span> @(itemsChosen > 0 && Model.CurrentBand is { } band ? band.Name : "Spending bands")</summary>
+                    <summary title="Spending bands" aria-label="Spending bands"><span class="info-icon" aria-hidden="true">i</span> @(Model.CurrentBand is { } band ? band.Name : "Spending bands")</summary>
                     <div class="band-panel">
                         <p class="band-lead">
                             @if (Model.Bands.Count == 0) { <text>No spending bands are set up yet.</text> }
-                            else if (itemsChosen == 0) { <text>No item has a chosen quote yet, so this project isn't in a band yet.</text> }
+                            else if (!bandBasis.AnyPriced) { <text>No item has a priced quote yet, so this project isn't in a band yet. It will be as soon as one has.</text> }
                             else
                             {
-                                <text>This project's chosen quotes come to <strong>@HelpdeskStore.FormatMoney(Model.BandTotal)</strong> over the whole contract, @(Model.BandsIncludeVat ? "including" : "excluding") VAT</text>
+                                <text>Taking the highest quote for each item, this project comes to <strong>@HelpdeskStore.FormatMoney(bandBasis.Total)</strong> over the whole contract, @(Model.BandsIncludeVat ? "including" : "excluding") VAT</text>
                                 @(Model.CurrentBand is { } current ? $" - that is {current.Name}." : " - no band covers that amount.")
-                                @if (itemsChosen < project.Items.Count) { <span class="muted"> @(project.Items.Count - itemsChosen) @(project.Items.Count - itemsChosen == 1 ? "item has" : "items have") no chosen quote yet, so the total may still rise.</span> }
+                                @if (unpriced > 0) { <span class="muted"> @unpriced @(unpriced == 1 ? "item has" : "items have") no priced quote yet, so it may still rise.</span> }
                             }
                         </p>
+                        @if (bandBasis.AnyPriced)
+                        {
+                            <p class="muted">Highest quote for each item: @string.Join(" · ", bandBasis.Items.Select(x => x.Highest is { } quote ? $"{x.Item.Name} {HelpdeskStore.FormatMoney(x.Amount)} ({Model.SupplierNames.GetValueOrDefault(quote.SupplierId, "Unknown supplier")})" : $"{x.Item.Name} none priced yet")). Choosing a cheaper quote doesn't change the band.</p>
+                        }
                         @if (Model.Bands.Count > 0)
                         {
                             <table class="band-table">
@@ -165,14 +171,14 @@
                                 <tbody>
                                     @foreach (var row in Model.Bands)
                                     {
-                                        var isCurrent = Model.CurrentBand?.Id == row.Id && itemsChosen > 0;
+                                        var isCurrent = Model.CurrentBand?.Id == row.Id;
                                         <tr class="@(isCurrent ? "is-current" : "")"><td><strong>@row.Name</strong>@if (isCurrent) { <span class="badge chosen-badge">This project</span> }</td><td>@HelpdeskStore.DescribeRange(row)</td><td>@row.QuotesNeeded</td><td>@row.Requirements</td></tr>
                                     }
                                 </tbody>
                             </table>
-                            @if (Model.CurrentBand is { } needed && itemsChosen > 0 && project.Items.Count > 0)
+                            @if (Model.CurrentBand is { } needed && project.Items.Count > 0)
                             {
-                                <p class="muted">Quotes in so far: @string.Join(" · ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.HasQuote)} of {needed.QuotesNeeded}"))</p>
+                                <p class="muted">Quotes in so far: @string.Join(" · ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.CountsAsQuote)} of {needed.QuotesNeeded}"))</p>
                             }
                         }
                         <p class="muted">For reference - set in Settings → Spending bands.</p>
