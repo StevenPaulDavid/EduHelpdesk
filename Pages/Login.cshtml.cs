@@ -9,6 +9,7 @@ public class LoginModel(HelpdeskStore store, SignInThrottle throttle, TwoFactorP
     [BindProperty] public string Email { get; set; } = "";
     [BindProperty] public string Password { get; set; } = "";
     public string? ReturnUrl { get; set; }
+    public bool RecoveryKeysAllowed => store.AllowRecoveryKeys;
     // Carries the outcome of a factory reset, which signs the user out and lands them here.
     [TempData] public string? Message { get; set; }
 

@@ -134,6 +134,19 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
     }
 
     public bool TwoFactorRequired => store.RequireTwoFactor;
+    public bool RecoveryKeysAllowed => store.AllowRecoveryKeys;
+
+    // For a key that has been lost, or seen by someone else. Only the holder can make a new one (Pages/RecoveryKey).
+    public IActionResult OnPostRemoveRecoveryKey(Guid id)
+    {
+        if (!store.UserCan(User, Modules.StaffAccounts, ModulePermission.Edit)) return Forbid();
+        var target = store.Technicians.FirstOrDefault(x => x.Id == id);
+        if (target is null) return NotFound();
+        if (target.Id == SignedInId) TempData["Message"] = "Your own recovery key is managed from Recovery key in your account menu.";
+        else if (target.Role == StaffRoles.Administrator && !IsAdministrator) TempData["Message"] = "Only an Administrator can change an Administrator's account.";
+        else TempData["Message"] = store.RemoveRecoveryKey(id).Message;
+        return RedirectToPage(new { id });
+    }
 
     // For someone who has lost their phone and their recovery codes. The same rules as the rest of the account: only an
     // Administrator touches an Administrator's, and your own is reset from your own Two-step sign-in page instead.

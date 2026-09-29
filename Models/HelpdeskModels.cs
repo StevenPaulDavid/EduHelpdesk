@@ -24,7 +24,14 @@ public record TechnicianRecord(Guid Id, string Name, string Email, string Team, 
     // Two-step sign-in with an authenticator app (Services/Totp.cs, HelpdeskStore.TwoFactor.cs). Null until the technician
     // sets it up. Owned by the store: edit forms build a new record without it, and UpdateTechnician carries it over.
     public TwoFactorSetup? TwoFactor { get; init; }
+    // A recovery key for resetting a forgotten password without an administrator (Services/RecoveryKeys.cs,
+    // HelpdeskStore.RecoveryKeys.cs). Null until the technician makes one, and again once it has been used. Owned by the
+    // store, like TwoFactor.
+    public RecoveryKeySetup? RecoveryKey { get; init; }
 }
+
+// Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.
+public sealed record RecoveryKeySetup(string Hash, DateTime CreatedAt);
 
 // The shared secret, when it was turned on, the last code step used (so a code can't be replayed), and the hashes of the
 // recovery codes not yet used.

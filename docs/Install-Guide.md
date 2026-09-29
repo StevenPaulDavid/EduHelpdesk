@@ -60,6 +60,7 @@ Everything the school name, colours, logo and backups questions set can be chang
 
 - **Branding & logo**: check the name, colours and logo.
 - **Sign-in security**: turn on **two-step sign-in** for your own account (from your account menu), then require it for every staff account. The DfE's cyber security standard expects this.
+- **Your recovery key**: make one from **Recovery key** in your account menu and keep the file somewhere safe. If you forget your password, it lets you reset it from the sign-in page. For the built-in administrator, it's the way back in without another administrator.
 - **People**: add your technicians (Staff accounts) and give them roles, and import staff who will use the portal (Requesters, from a CSV). Each account you add gets a temporary password and a one-page **quick start guide** to print and hand over; an import prints a guide for everyone in it.
 - **Sign-in security → Helpdesk address**: check it's the address staff will type. It's printed on every quick start guide.
 - **Backups & data**: after the first night, check the backup ran.
@@ -166,7 +167,7 @@ Double-click `Uninstall.cmd` (from any copy of the zip). It removes the service,
 
 **The browser says the certificate isn't trusted, or doesn't match.** The certificate must be issued for exactly the name people type, by an authority school computers trust.
 
-**The default admin password doesn't work.** Someone has already changed it - which is what should happen. Another administrator can set a new password under **People → Staff accounts**.
+**The default admin password doesn't work.** Someone has already changed it - which is what should happen. If they made a recovery key, **Forgotten your password?** on the sign-in page resets it. Otherwise another administrator can set a new password under **People → Staff accounts**.
 
 ## Licence
 

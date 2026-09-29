@@ -33,6 +33,7 @@ public class QuickStartModel(HelpdeskStore store, TemporaryPasswords passwords) 
     public bool AddressGuessed { get; private set; }
     public bool CanSetAddress => store.UserCan(User, Modules.Settings, ModulePermission.Edit);
     public bool TwoFactorRequired => store.RequireTwoFactor;
+    public bool RecoveryKeysAllowed => store.AllowRecoveryKeys;
     public BrandingSettings Branding => store.Branding;
     public string? LogoVersion => store.LogoVersion;
     public string SignInAddress => Address + (ForTechnicians ? "Login" : "Portal");

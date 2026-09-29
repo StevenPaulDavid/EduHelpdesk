@@ -169,9 +169,26 @@ Roles are fully custom — create as many as you like from **People → Roles**.
 
 The address on the guide comes from **Settings → Sign-in security → Helpdesk address**. The installer fills this in. If it's empty, the guide uses the address it was printed from, with `localhost` swapped for the computer's name.
 
-**Forgotten passwords.** There is no self-service "forgotten password" reset, because there is no email. A technician resets it instead:
+**Forgotten passwords.** There is no emailed reset link, because the helpdesk doesn't send email.
+
+A **technician** can reset their own with a **recovery key**:
+- They make it from **Recovery key** in their account menu, confirming their current password.
+- The key is 24 characters, shown once, and saved as a small **recovery file** to download or print.
+- On the sign-in page, **Forgotten your password?** takes their email and the key, typed or as the uploaded file, and sets a new password they keep.
+- The key then stops working, every sign-in of the account ends, and they sign in with the new password. Two-step sign-in still applies.
+- Only a SHA-256 of the key is stored.
+- Wrong keys are throttled like wrong passwords: 5 for one email in 15 minutes lock that email's reset for 15 minutes.
+- Making, replacing, using and removing keys are all in the audit log (area Sign-in).
+
+On a technician's account page, **Recovery key** shows whether they have one. **Remove recovery key** cancels one that has been lost or seen by someone else. Only the holder can make a new one.
+
+**Settings → Sign-in security → Recovery keys** turns the reset off for everyone. Keys already made are kept, but don't work until it's turned back on.
+
+Otherwise, and always for portal users, someone resets it for them:
 - **Give them a temporary password** on the account's page makes a new one, which must be changed at next sign-in, and opens the guide to print it on.
-- Typing a new one under **Set a password** gives them a password they keep. Anyone signed in can change their own: technicians from **Change password** in the account menu, portal users from the **Change password** link on the portal home page.
+- Typing a new one under **Set a password** gives them a password they keep.
+
+Anyone signed in can change their own: technicians from **Change password** in the account menu, portal users from the **Change password** link on the portal home page.
 
 ---
 

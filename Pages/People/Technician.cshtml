@@ -19,6 +19,22 @@
         </div>
     </section>
     <section class="panel">
+        <h2>Recovery key</h2>
+        @if (person.RecoveryKey is { } recoveryKey)
+        {
+            <p>Made on @recoveryKey.CreatedAt.ToLocalTime().ToString("d MMMM yyyy"). @(Model.RecoveryKeysAllowed ? "With it they can reset a forgotten password themselves, once." : "Recovery keys are turned off in Settings → Sign-in security, so it doesn't work at the moment.")</p>
+            <p class="muted">If they've lost it, or someone else may have seen it, remove it. They can make a new one from their account menu.</p>
+            <form method="post" asp-page-handler="RemoveRecoveryKey" data-confirm="Remove @person.Name's recovery key? It will no longer reset their password.">
+                <input type="hidden" name="id" value="@person.Id" />
+                <button class="button button-danger">Remove recovery key</button>
+            </form>
+        }
+        else
+        {
+            <p class="muted">None. @(Model.RecoveryKeysAllowed ? "They can make one from Recovery key in their account menu, to reset a forgotten password without you." : "Recovery keys are turned off in Settings → Sign-in security.")</p>
+        }
+    </section>
+    <section class="panel">
         <h2>Two-step sign-in</h2>
         @if (person.TwoFactor is { } twoFactor)
         {

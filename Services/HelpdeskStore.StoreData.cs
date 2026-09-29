@@ -53,6 +53,9 @@ public sealed partial class HelpdeskStore
         public int TicketDueSoonHours { get; set; } = 24;
         // Settings → Sign-in security: every staff account must use two-step sign-in (HelpdeskStore.TwoFactor).
         public bool RequireTwoFactor { get; set; }
+        // Settings → Sign-in security: technicians may reset a forgotten password with their recovery key
+        // (HelpdeskStore.RecoveryKeys). On unless a school turns it off.
+        public bool AllowRecoveryKeys { get; set; } = true;
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in
         // security or by the installer; the guide then works one out from the address in use (HelpdeskStore.Accounts).
         public string SiteAddress { get; set; } = "";

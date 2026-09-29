@@ -29,6 +29,16 @@
     <p class="muted">Someone who has lost their phone and their recovery codes: open their staff account and reset it, then they set it up again.</p>
 </section>
 
+<section class="panel" id="recovery">
+    <h2>Recovery keys</h2>
+    <p>@Model.Staff.Count(x => x.RecoveryKey is not null) of @Model.Staff.Count active staff account@(Model.Staff.Count == 1 ? " has" : "s have") a recovery key. With one, a technician who forgets their password can set a new one from the sign-in page, once, without waiting for an administrator. Two-step sign-in still applies when they sign in.</p>
+    <form method="post" asp-page-handler="RecoveryKeys" data-confirm="@(Model.RecoveryKeysAllowed ? "Turn recovery keys off? Keys people have made are kept, but stop working until you turn them back on." : "Let technicians reset a forgotten password with a recovery key?")">
+        <input type="hidden" name="allowed" value="@(Model.RecoveryKeysAllowed ? "false" : "true")" />
+        <p>@(Model.RecoveryKeysAllowed ? "They are allowed: each technician can make one from Recovery key in their account menu." : "They are turned off: a forgotten password has to be reset by an administrator.")</p>
+        <button class="button button-secondary">@(Model.RecoveryKeysAllowed ? "Turn recovery keys off" : "Allow recovery keys")</button>
+    </form>
+</section>
+
 <section class="panel" id="address">
     <h2>Helpdesk address</h2>
     <p>The address staff type to reach the helpdesk, printed on the quick start guide given to each new account. Leave it empty to use the address the guide is printed from - at the moment that would be <strong>@Model.GuessedAddress</strong>.</p>

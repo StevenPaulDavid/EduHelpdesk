@@ -29,6 +29,14 @@ public class SignInModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public bool RecoveryKeysAllowed => store.AllowRecoveryKeys;
+
+    public IActionResult OnPostRecoveryKeys(bool allowed)
+    {
+        Message = store.SetAllowRecoveryKeys(allowed);
+        return RedirectToPage(null, null, "recovery");
+    }
+
     public string SiteAddress => store.SiteAddress;
     public string GuessedAddress => People.QuickStartModel.GuessAddress(Request);
 

@@ -36,7 +36,7 @@ public sealed class SignInThrottle(HelpdeskStore store, ILogger<SignInThrottle> 
             if (Remaining(AddressKey(address), now) is { } addressWait)
                 return $"Too many failed sign-ins from this computer. Try again in {Minutes(addressWait)}.";
             if (Remaining(AccountKey(form, email), now) is { } accountWait)
-                return $"Too many failed sign-ins for this account. Try again in {Minutes(accountWait)}, or ask {(form == "portal" ? "the IT team" : "an administrator")} to reset {(form.EndsWith("-code", StringComparison.Ordinal) ? "your two-step sign-in" : "the password")}.";
+                return $"Too many failed {(form == RecoveryKeys.ThrottleForm ? "attempts" : "sign-ins")} for this account. Try again in {Minutes(accountWait)}, or ask {(form == "portal" ? "the IT team" : "an administrator")} to reset {(form.EndsWith("-code", StringComparison.Ordinal) ? "your two-step sign-in" : "the password")}.";
             return null;
         }
     }
@@ -52,7 +52,8 @@ public sealed class SignInThrottle(HelpdeskStore store, ILogger<SignInThrottle> 
             var from = address?.ToString() ?? "an unknown address";
             if (Count(AccountKey(form, email), AccountLimit, now))
                 locked.Add(new AuditEntry(now, "Sign-in", null, null, who.Length > 0 ? who : "(no email)", "Locked out",
-                    $"{AccountLimit} wrong passwords on the {form} sign-in within {Window.TotalMinutes:0} minutes, the last from {from}. Sign-in for this email is refused for {Window.TotalMinutes:0} minutes."));
+                    (form == RecoveryKeys.ThrottleForm ? $"{AccountLimit} wrong recovery keys on the forgotten-password page" : $"{AccountLimit} wrong passwords on the {form} sign-in")
+                    + $" within {Window.TotalMinutes:0} minutes, the last from {from}. {(form == RecoveryKeys.ThrottleForm ? "Resetting" : "Sign-in")} for this email is refused for {Window.TotalMinutes:0} minutes."));
             if (Count(AddressKey(address), AddressLimit, now))
                 locked.Add(new AuditEntry(now, "Sign-in", null, null, from, "Address blocked",
                     $"{AddressLimit} wrong passwords from this address within {Window.TotalMinutes:0} minutes, across any accounts. Every sign-in from it is refused for {Window.TotalMinutes:0} minutes."));

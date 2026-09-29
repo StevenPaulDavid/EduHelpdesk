@@ -1,0 +1,52 @@
+@page
+@model RecoveryKeyModel
+@{ ViewData["Title"] = "Recovery key"; var current = Model.Me.RecoveryKey; }
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / YOUR ACCOUNT</p><h1>Recovery key</h1><p class="hero-copy">If you forget your password, your recovery key lets you set a new one yourself from the sign-in page, without waiting for an administrator. It works once.</p></div></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (!Model.Allowed) { <div class="notice notice-warning">Your school has turned recovery keys off, so a forgotten password is reset by an administrator.@(current is null ? "" : " Your key is kept, and will work again if they're turned back on.")</div> }
+
+@if (Model.NewKey is { } key)
+{
+    <section class="panel recovery-panel">
+        <h2>Your recovery key</h2>
+        <p><code class="setup-key recovery-key">@key</code></p>
+        <p>Save it now - <strong>this is the only time it is shown</strong>. Download the recovery file and keep it somewhere only you can get to, such as a password manager or a private folder, or print this page and lock it away. Not on a shared drive, and not in an email.</p>
+        <div class="button-row heading-actions">
+            <form method="post" asp-page-handler="Download"><input type="hidden" name="key" value="@key" /><button class="button button-primary">Download recovery file</button></form>
+            <button class="button button-secondary" type="button" data-action="print">Print it</button>
+            <a class="button button-secondary" href="/">I've saved it</a>
+        </div>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <h2>@(current is null ? "You don't have a recovery key" : "You have a recovery key")</h2>
+        @if (current is not null)
+        {
+            <p>Made on @current.CreatedAt.ToLocalTime().ToString("d MMMM yyyy"). Only a scrambled copy is kept, so it can't be shown again. If you've lost it, or think someone else has seen it, make a new one: the old one stops working.</p>
+        }
+        else
+        {
+            <p class="muted">Make one now, while you know your password, and save the recovery file somewhere safe.</p>
+        }
+        @if (Model.Allowed)
+        {
+            <form method="post" asp-page-handler="Create" class="settings-form field-narrow" data-confirm="@(current is null ? null : "Make a new recovery key? The one you have now will stop working.")">
+                <div asp-validation-summary="All" class="validation-summary-errors"></div>
+                <label>Your current password<input name="CurrentPassword" type="password" autocomplete="current-password" maxlength="256" required /></label>
+                <button class="button button-primary">@(current is null ? "Make a recovery key" : "Make a new recovery key")</button>
+            </form>
+        }
+    </section>
+    @if (current is not null)
+    {
+        <section class="panel">
+            <h2>Remove it</h2>
+            <p class="muted">Without a key, a forgotten password can only be reset by an administrator.</p>
+            <form method="post" asp-page-handler="Remove" data-confirm="Remove your recovery key? It will no longer reset your password.">
+                <button class="button button-danger">Remove my recovery key</button>
+            </form>
+        </section>
+    }
+}

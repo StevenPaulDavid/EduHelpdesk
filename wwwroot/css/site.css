@@ -2025,6 +2025,7 @@ main:focus { outline: none; }
 .qr-block p { max-width: 320px; margin: 0; }
 .setup-key { display: inline-block; margin-top: 6px; font-size: 15px; letter-spacing: .08em; word-break: break-all; }
 .recovery-panel { border-color: var(--caution); }
+.recovery-key { font-size: 20px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
 .recovery-codes { list-style: none; padding: 0; margin: 14px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
 .recovery-codes code { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; letter-spacing: .06em; text-align: center; background: var(--surface-2); }
 @media print {

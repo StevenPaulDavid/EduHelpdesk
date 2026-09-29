@@ -10,6 +10,7 @@
         <label>Email<input name="Email" type="email" value="@Model.Email" maxlength="254" autocomplete="username" required autofocus /></label>
         <label>Password<input name="Password" type="password" maxlength="256" autocomplete="current-password" required /></label>
         <button class="button button-primary">Sign in</button>
-        <p class="muted">Forgotten your password? Ask an administrator to set you a new one.</p>
+        @if (Model.RecoveryKeysAllowed) { <p class="muted"><a asp-page="/ForgotPassword">Forgotten your password?</a> Use your recovery key, or ask an administrator to set you a new one.</p> }
+        else { <p class="muted">Forgotten your password? Ask an administrator to set you a new one.</p> }
     </form>
 </section>

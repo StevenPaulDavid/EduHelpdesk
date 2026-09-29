@@ -91,7 +91,7 @@ public sealed partial class HelpdeskStore
         lock (_sync)
         {
             var previous = _data.Technicians.FirstOrDefault(x => x.Id == item.Id);
-            return Update(previous is null ? item : item with { TwoFactor = previous.TwoFactor }, _data.Technicians, x => x.Id == item.Id);
+            return Update(previous is null ? item : item with { TwoFactor = previous.TwoFactor, RecoveryKey = previous.RecoveryKey }, _data.Technicians, x => x.Id == item.Id);
         }
     }
 

@@ -26,6 +26,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Login");
     // The second step of signing in, for accounts with two-step sign-in. Opens only with a right password behind it.
     options.Conventions.AllowAnonymousToPage("/LoginCode");
+    // Setting a new password with a recovery key, for someone who can't sign in. Throttled like /Login.
+    options.Conventions.AllowAnonymousToPage("/ForgotPassword");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
     // A portal visitor or a signed-out one can hit an error too, and shouldn't be sent to the technician sign-in for it.
     options.Conventions.AllowAnonymousToPage("/Error");

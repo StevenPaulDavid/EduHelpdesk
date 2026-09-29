@@ -104,6 +104,10 @@
             {
                 <li>Then set up <strong>two-step sign-in</strong>. Install an authenticator app on your phone, such as Microsoft Authenticator or Google Authenticator, and scan the code the helpdesk shows. Keep the recovery codes it gives you somewhere safe: they get you in if you lose your phone.</li>
             }
+            @if (sheet.ForTechnician && Model.RecoveryKeysAllowed)
+            {
+                <li>Make a <strong>recovery key</strong> from <em>Recovery key</em> under your name (top right), and save the recovery file somewhere private. If you ever forget your password, <em>Forgotten your password?</em> on the sign-in page uses it to set a new one.</li>
+            }
         </ol>
 
         @if (sheet.Technician is { } technician)
