@@ -7,6 +7,7 @@
 <section class="panel">
     <div class="panel-heading"><h2>Requesters and staff accounts</h2></div>
     <p class="muted">Assets are imported on their own page, with column matching and a preview: <a asp-page="/Assets/Import">Import assets from a CSV file</a>.</p>
+    <p class="muted">Moving from Spiceworks Cloud Help Desk? Its data export brings tickets, comments, history and the people on them across in one go: <a asp-page="/Settings/SpiceworksImport">Import from Spiceworks</a>.</p>
     <p class="muted">Users CSV columns, in order, with a header row: <code>Name, Email, Department, Location</code></p>
     <form method="post" enctype="multipart/form-data" asp-page-handler="ImportUsers" class="import-row"><label>Users CSV<input asp-for="UserCsv" type="file" accept=".csv" /></label>@if (Model.CanIssueUserPasswords) { <label class="toggle-label"><input type="checkbox" name="TemporaryPasswords" value="true" checked /> Give each a temporary password and print their quick start guides</label> }<button class="button button-primary">Import users</button><a class="button button-secondary" asp-page="/Settings/Imports" asp-page-handler="UserImportTemplate">Download template</a></form>
     <p class="muted">Technicians CSV columns, in order, with a header row: <code>Name, Email, Team, Role</code>. Role is optional and defaults to Technician; it must match the name of an existing role (see the Roles tab on the People page).</p>

@@ -636,7 +636,20 @@ Latitude 5440,Dell
 
 Blank rows and values that already exist are skipped. Rows with a missing name or an invalid email are skipped and counted in the result message.
 
-Assets have their own richer importer with column mapping — see section 6. **There is no CSV import for tickets or parts**, by design.
+Assets have their own richer importer with column mapping — see section 6. **There is no CSV import for tickets or parts**, by design. Tickets can come from Spiceworks, below.
+
+### Importing from Spiceworks
+
+**Settings → Imports → Import from Spiceworks** takes the workbook that Spiceworks Cloud Help Desk's data export produces: one `.xlsx` with sheets called Tickets, Ticket Comments, Ticket Changes, Users, End Users, Ticket Categories and so on. Upload it as it is. Columns are found by their headings, not their position. The file is read into memory and never saved, because it holds real tickets. It is forgotten after 45 minutes, or at once with **Clear upload**.
+
+So far the page is a preview, and nothing changes:
+- How many tickets, comments, history lines, merges and time entries there are, and how many tickets are still open.
+- **People:** Spiceworks technicians are matched to accounts by email, then by name. Tickets whose assignee has no match will be left unassigned. Requesters are matched to People by email, and those not found will be added, with no password. Tickets with no requester that can be brought across (mostly ones a technician logged) go under one placeholder requester, *Logged in Spiceworks*.
+- **Values:** each Spiceworks status, priority and category, with what it becomes. The page suggests the same or a close existing value: priorities 1/2/3 are High/Medium/Low in Spiceworks, and Waiting suggests On Hold. You can choose another value, or *Add as new*. Choices are kept with the upload.
+- **Custom fields** (asset tag, serial number and so on) become ticket custom attributes.
+- **What can't come across:** comments with no text (in Spiceworks these are usually attachments, which the export doesn't include), values of custom fields since deleted in Spiceworks, and anything pointing at a ticket or person missing from the file.
+
+Importing will follow: new EduHelpdesk numbers with the Spiceworks number kept, a backup first, repeatable imports that update rather than duplicate, and undo of the last import.
 
 ---
 

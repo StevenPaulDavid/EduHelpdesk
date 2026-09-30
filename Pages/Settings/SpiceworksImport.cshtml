@@ -1,0 +1,113 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.SpiceworksImportModel
+@{
+    ViewData["Title"] = "Import from Spiceworks";
+    string P(int count, string one, string many) => EduHelpdesk.Pages.Settings.SpiceworksImportModel.Plural(count, one, many);
+}
+<div class="page-heading">
+    <div><p class="eyebrow">SETTINGS / IMPORTS</p><h1>Import from Spiceworks</h1><p class="hero-copy">Tickets, comments and history from Spiceworks Cloud Help Desk's data export. Nothing changes until you import - this shows what would.</p></div>
+    <a class="button button-secondary" asp-page="/Settings/Imports">← Imports</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+@if (Model.Plan is not { } plan || Model.Session is not { } session)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">STEP 1</p><h2>Upload the export</h2></div></div>
+        <p>Use the workbook Spiceworks gives you when you export your help desk data (an <strong>.xlsx</strong> file with sheets called Tickets, Ticket Comments, Ticket Changes and so on). Upload it as it is.</p>
+        <p class="muted">The file is read into memory and never saved: it holds real tickets about real people. It's forgotten after 45 minutes, or straight away with <em>Clear upload</em>.</p>
+        <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="import-row">
+            <label>Spiceworks export<input type="file" name="file" accept=".xlsx" required /></label>
+            <button class="button button-primary" type="submit">Upload and preview</button>
+        </form>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-heading">
+            <div><p class="eyebrow">PREVIEW · @session.FileName.ToUpperInvariant()</p><h2>@P(plan.Tickets, "ticket", "tickets")@(plan.Organization is { Length: > 0 } org ? $" from {org}" : "")</h2></div>
+            <form method="post" asp-page-handler="Forget"><input type="hidden" name="t" value="@Model.Token" /><button class="button button-secondary" type="submit">Clear upload</button></form>
+        </div>
+        <p class="muted">Logged @plan.From?.ToLocalTime().ToString("d MMM yyyy") to @plan.To?.ToLocalTime().ToString("d MMM yyyy"). @P(plan.OpenTickets, "is", "are") still open or waiting. Each gets a new EduHelpdesk number, with its Spiceworks number kept on it.</p>
+        <div class="metrics">
+            <div class="metric"><span>Tickets</span><strong>@plan.Tickets.ToString("N0")</strong><small>@plan.OpenTickets.ToString("N0") open · @P(plan.DueDates, "due date", "due dates") kept</small></div>
+            <div class="metric"><span>Comments</span><strong>@plan.Comments.ToString("N0")</strong><small>@P(plan.InternalNotes, "internal note", "internal notes") · @P(plan.RequesterReplies, "requester reply", "requester replies")</small></div>
+            <div class="metric"><span>History lines</span><strong>@plan.HistoryLines.ToString("N0")</strong><small>@P(plan.Merges, "merge", "merges") linked · @P(plan.TimeEntries, "time entry", "time entries")</small></div>
+            <div class="metric"><span>Requesters</span><strong>@plan.Requesters.Count.ToString("N0")</strong><small>@plan.MatchedRequesters.ToString("N0") already in People · @plan.NewRequesters.ToString("N0") to add</small></div>
+        </div>
+        @if (plan.EmptyComments > 0) { <p class="muted">@P(plan.EmptyComments, "comment has", "comments have") no text - in Spiceworks these are usually attachments, which the export doesn't include - so @(plan.EmptyComments == 1 ? "it is" : "they are") left out.</p> }
+        @if (plan.PlaceholderTickets > 0) { <p class="muted">@P(plan.PlaceholderTickets, "ticket has", "tickets have") no requester that can be brought across - mostly ones a technician logged - so @(plan.PlaceholderTickets == 1 ? "it goes" : "they go") under one placeholder requester, <strong>Logged in Spiceworks</strong>.</p> }
+    </section>
+
+    @if (plan.Problems.Count > 0)
+    {
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">WORTH KNOWING</p><h2>@P(plan.Problems.Count, "thing", "things") in the file that can't come across as they are</h2></div></div>
+            <ul>@foreach (var problem in plan.Problems) { <li>@problem</li> }</ul>
+        </section>
+    }
+
+    <section class="panel" id="values">
+        <div class="panel-heading"><div><p class="eyebrow">STEP 2</p><h2>What each Spiceworks value becomes</h2></div>@if (plan.NewValues > 0) { <span class="badge">@P(plan.NewValues, "new value", "new values") to add</span> }</div>
+        <p class="muted">Suggestions are filled in where EduHelpdesk has the same or a close value. <em>Add as new</em> adds the Spiceworks value to your list as it is.</p>
+        <form method="post" asp-page-handler="Choices">
+            <input type="hidden" name="t" value="@Model.Token" />
+            @foreach (var kind in HelpdeskStore.SpiceworksValueKinds)
+            {
+                <h3 class="section-heading">@(kind == "Category" ? "Categories" : kind == "Priority" ? "Priorities" : "Statuses")</h3>
+                <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">In Spiceworks</th><th class="num">Tickets</th><th>Becomes</th></tr></thead><tbody>
+                @foreach (var value in plan.Values.Where(x => x.Kind == kind))
+                {
+                    <tr>
+                        <td>@value.Label</td>
+                        <td class="num">@value.Tickets.ToString("N0")</td>
+                        <td><select name="choice[@value.Key]" aria-label="What @value.Label becomes">
+                            @if (value.CanBeNew) { <option value="@HelpdeskStore.SpiceworksNewValue" selected="@(value.Chosen == HelpdeskStore.SpiceworksNewValue)">Add as new: @value.Value</option> }
+                            @foreach (var option in value.Options) { <option value="@option" selected="@(string.Equals(option, value.Chosen, StringComparison.OrdinalIgnoreCase))">@option</option> }
+                        </select></td>
+                    </tr>
+                }
+                </tbody></table></div>
+            }
+            <button class="button button-primary" type="submit">Save choices</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">PEOPLE</p><h2>Who the tickets belong to</h2></div></div>
+        <h3 class="section-heading">Technicians</h3>
+        <p class="muted">Matched to EduHelpdesk accounts by email, then name. A ticket whose Spiceworks assignee has no match is left unassigned, with who had it in its history. @P(plan.UnassignedTickets, "ticket", "tickets") will be unassigned.</p>
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">In Spiceworks</th><th>Email</th><th class="num">Assigned tickets</th><th>In EduHelpdesk</th></tr></thead><tbody>
+        @foreach (var tech in plan.Technicians)
+        {
+            <tr><td>@tech.Name</td><td>@tech.Email</td><td class="num">@tech.Tickets.ToString("N0")</td><td>@(tech.MatchedTo ?? "No match - left unassigned")</td></tr>
+        }
+        </tbody></table></div>
+        <h3 class="section-heading">Requesters</h3>
+        <p class="muted">Matched to People by email. @P(plan.NewRequesters, "person is", "people are") not in People yet and will be added, with no password.</p>
+        <details>
+            <summary>@P(plan.Requesters.Count, "requester", "requesters")</summary>
+            <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Name</th><th>Email</th><th class="num">Tickets</th><th>In People</th></tr></thead><tbody>
+            @foreach (var person in plan.Requesters)
+            {
+                <tr><td>@person.Name</td><td>@person.Email</td><td class="num">@person.Tickets.ToString("N0")</td><td>@(person.ExistingName is { } existing ? existing : "Will be added")</td></tr>
+            }
+            </tbody></table></div>
+        </details>
+    </section>
+
+    @if (plan.Attributes.Count > 0)
+    {
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">CUSTOM FIELDS</p><h2>Kept as ticket custom attributes</h2></div></div>
+            <ul>@foreach (var field in plan.Attributes) { <li><strong>@field.Label</strong>: @P(field.Values, "ticket has", "tickets have") a value. @(field.Exists ? "Goes in the existing attribute of that name." : "A new ticket attribute is added.")</li> }</ul>
+        </section>
+    }
+
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">STEP 3</p><h2>Import</h2></div></div>
+        <p class="muted">Importing is the next part to be built. For now this page shows exactly what the file holds and what it would become, so the choices above can be checked first.</p>
+    </section>
+}
