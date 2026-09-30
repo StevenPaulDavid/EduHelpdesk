@@ -149,8 +149,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                 <form method="post" asp-page-handler="AddTask" class="band-row band-new onboarding-task-row">
                     <input type="hidden" name="number" value="@ticket.Number" />
                     <label class="onboarding-task-title">Task<input name="title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" required /></label>
-                    <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option">@option</option> }</select></label>
-                    <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required /></label>
+                    <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required title="Minus for before the start date: -5 is five days before, 0 the first day, 3 three days after." /></label>
                     <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner">@owner</option> }</select></label>
                     <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField("", Model.AssetTypes))" />
                     <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>

@@ -315,8 +315,7 @@ Their school email is optional, since creating it is often one of the tasks. Sta
 - opens one ticket, category *Onboarding*, that carries the checklist
 
 **Checklists** come from templates in **Settings → Onboarding checklists**, one per kind of new starter, such as Teacher or Support staff. New installs have an example Teacher template. Each task has:
-- a stage: before arrival, first day or first week
-- a number of days from the start date, which sets its due date
+- a number of days from the start date, which sets its due date and where it's listed: minus days go under *Before arrival*, 0 under *First day*, and anything after that under *First week*
 - an owner: IT, or the onboarding officer
 
 Tasks can be added or removed for one person without changing the template. Moving the start date moves every due date with it.

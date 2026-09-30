@@ -78,7 +78,6 @@
                 <form method="post" asp-page-handler="UpdateTask" class="band-row onboarding-task-row">
                     <input type="hidden" name="id" value="@template.Id" /><input type="hidden" name="taskId" value="@task.Id" />
                     <label class="onboarding-task-title">Task<input name="title" value="@task.Title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" required /></label>
-                    <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option" selected="@(option == task.Stage)">@option</option> }</select></label>
                     <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="@task.OffsetDays" required title="@EduHelpdesk.Pages.Settings.OnboardingModel.DescribeOffset(task.OffsetDays)" /></label>
                     <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner" selected="@(owner == task.Owner)">@owner</option> }</select></label>
                     <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField(OnboardingActions.Encode(task.Action, task.AssetType), Model.AssetTypes))" />
@@ -93,8 +92,7 @@
         <form method="post" asp-page-handler="AddTask" class="band-row band-new onboarding-task-row">
             <input type="hidden" name="id" value="@template.Id" />
             <label class="onboarding-task-title">New task<input name="title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" placeholder="e.g. Add to the staff WhatsApp group" required /></label>
-            <label>When<select name="stage">@foreach (var option in OnboardingStages.All) { <option value="@option">@option</option> }</select></label>
-            <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required /></label>
+            <label>Days from start<input name="offsetDays" type="number" min="-@HelpdeskStore.MaxOnboardingOffsetDays" max="@HelpdeskStore.MaxOnboardingOffsetDays" value="0" required title="Minus for before the start date: -5 is five days before, 0 the first day, 3 three days after." /></label>
             <label>Who<select name="owner">@foreach (var owner in OnboardingOwners.All) { <option value="@owner">@owner</option> }</select></label>
             <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField("", Model.AssetTypes))" />
             <span class="band-actions"><button class="button button-primary" type="submit">Add task</button></span>

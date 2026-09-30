@@ -71,10 +71,10 @@ public class OnboardingModel(HelpdeskStore store) : PageModel
         Message = store.DeleteOnboardingTemplate(id).Message;
         return RedirectToPage();
     }
-    public IActionResult OnPostAddTask(Guid id, string? title, string? stage, int offsetDays, string? owner, string? action) =>
-        Done(id, store.AddOnboardingTemplateTask(id, title, stage, offsetDays, owner, action));
-    public IActionResult OnPostUpdateTask(Guid id, Guid taskId, string? title, string? stage, int offsetDays, string? owner, string? action) =>
-        Done(id, store.UpdateOnboardingTemplateTask(id, taskId, title, stage, offsetDays, owner, action));
+    public IActionResult OnPostAddTask(Guid id, string? title, int offsetDays, string? owner, string? action) =>
+        Done(id, store.AddOnboardingTemplateTask(id, title, offsetDays, owner, action));
+    public IActionResult OnPostUpdateTask(Guid id, Guid taskId, string? title, int offsetDays, string? owner, string? action) =>
+        Done(id, store.UpdateOnboardingTemplateTask(id, taskId, title, offsetDays, owner, action));
     public IActionResult OnPostDeleteTask(Guid id, Guid taskId) => Done(id, store.DeleteOnboardingTemplateTask(id, taskId));
 
     // Back to the template that was changed, rather than the top of a long page.

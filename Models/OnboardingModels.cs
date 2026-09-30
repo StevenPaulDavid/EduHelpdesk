@@ -4,8 +4,8 @@ namespace EduHelpdesk.Models;
 // work sits in the ticket list and keeps a ticket's notes, history and assignee. The OnboardingRecord beside it, keyed
 // by the ticket number, holds the checklist and the details that aren't a ticket's.
 
-// When in the new starter's first days a task falls. The stage groups the checklist; the task's own offset from the
-// start date sets its due date.
+// When in the new starter's first days a task falls. The stage groups the checklist and comes from the task's offset
+// from the start date, which also sets its due date - nobody chooses it separately.
 public static class OnboardingStages
 {
     public const string BeforeArrival = "Before arrival";
@@ -14,8 +14,7 @@ public static class OnboardingStages
     public static readonly string[] All = [BeforeArrival, FirstDay, FirstWeek];
     public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
     public static int Order(string stage) => Array.IndexOf(All, stage) is var index and >= 0 ? index : All.Length;
-    // What a new task in the stage starts with, in days from the start date.
-    public static int DefaultOffset(string stage) => stage switch { BeforeArrival => -5, FirstWeek => 3, _ => 0 };
+    public static string For(int offsetDays) => offsetDays switch { < 0 => BeforeArrival, 0 => FirstDay, _ => FirstWeek };
 }
 
 // Who does a task. The onboarding officer may not be a technician; IT tasks can also name the technician doing them.

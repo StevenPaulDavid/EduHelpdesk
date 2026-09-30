@@ -113,8 +113,8 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
     public IActionResult OnPostAssignTask(int number, Guid taskId, Guid? technicianId) =>
         CanEdit ? Back(number, store.AssignOnboardingTask(number, taskId, technicianId).Message, $"task-{taskId}") : Forbid();
 
-    public IActionResult OnPostAddTask(int number, string? title, string? stage, int offsetDays, string? owner, string? action) =>
-        CanEdit ? Back(number, store.AddOnboardingTask(number, title, stage, offsetDays, owner, action).Message, "checklist") : Forbid();
+    public IActionResult OnPostAddTask(int number, string? title, int offsetDays, string? owner, string? action) =>
+        CanEdit ? Back(number, store.AddOnboardingTask(number, title, offsetDays, owner, action).Message, "checklist") : Forbid();
 
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
 

@@ -197,14 +197,29 @@ public class OnboardingTests
 
         Assert.True(test.Store.AssignOnboardingTask(number, itTask.Id, technician.Id).Ok);
         Assert.False(test.Store.AssignOnboardingTask(number, officerTask.Id, technician.Id).Ok);
-        Assert.True(test.Store.AddOnboardingTask(number, "Order a lanyard", OnboardingStages.BeforeArrival, -2, OnboardingOwners.Officer).Ok);
-        Assert.False(test.Store.AddOnboardingTask(number, "", OnboardingStages.BeforeArrival, -2, OnboardingOwners.Officer).Ok);
+        Assert.True(test.Store.AddOnboardingTask(number, "Order a lanyard", -2, OnboardingOwners.Officer).Ok);
+        Assert.False(test.Store.AddOnboardingTask(number, "", -2, OnboardingOwners.Officer).Ok);
         Assert.True(test.Store.RemoveOnboardingTask(number, officerTask.Id).Ok);
 
         var saved = test.Reopen().FindOnboarding(number)!;
         Assert.Equal(technician.Id, saved.Tasks.Single(x => x.Id == itTask.Id).TechnicianId);
         Assert.Contains(saved.Tasks, x => x.Title == "Order a lanyard");
         Assert.DoesNotContain(saved.Tasks, x => x.Id == officerTask.Id);
+    }
+
+    [Fact]
+    public void A_tasks_stage_comes_from_its_days_from_the_start_date()
+    {
+        using var test = new TestStore();
+        var (number, _) = Start(test);
+        Assert.True(test.Store.AddOnboardingTask(number, "Order a lanyard", -2, OnboardingOwners.Officer).Ok);
+        Assert.True(test.Store.AddOnboardingTask(number, "Meet the head of department", 0, OnboardingOwners.Officer).Ok);
+        Assert.True(test.Store.AddOnboardingTask(number, "Check in after a fortnight", 14, OnboardingOwners.Officer).Ok);
+
+        var tasks = test.Reopen().FindOnboarding(number)!.Tasks;
+        Assert.Equal(OnboardingStages.BeforeArrival, tasks.Single(x => x.Title == "Order a lanyard").Stage);
+        Assert.Equal(OnboardingStages.FirstDay, tasks.Single(x => x.Title == "Meet the head of department").Stage);
+        Assert.Equal(OnboardingStages.FirstWeek, tasks.Single(x => x.Title == "Check in after a fortnight").Stage);
     }
 
     [Fact]
@@ -254,7 +269,7 @@ public class OnboardingTests
         var (ok, _, id) = test.Store.AddOnboardingTemplate("Support staff", teacher.Id);
         Assert.True(ok);
         Assert.True(test.Store.DeleteOnboardingTemplateTask(id!.Value, test.Store.OnboardingTemplates.Single(x => x.Id == id).Tasks[0].Id).Ok);
-        Assert.False(test.Store.AddOnboardingTemplateTask(id.Value, "Too far ahead", OnboardingStages.FirstWeek, 400, OnboardingOwners.IT).Ok);
+        Assert.False(test.Store.AddOnboardingTemplateTask(id.Value, "Too far ahead", 400, OnboardingOwners.IT).Ok);
 
         var templates = test.Reopen().OnboardingTemplates;
         Assert.Equal(teacher.Tasks.Count, templates.Single(x => x.Name == "Teacher").Tasks.Count);
