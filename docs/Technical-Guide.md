@@ -657,7 +657,17 @@ First the page shows a preview, and nothing changes until you import:
 - **People:** requesters not already in People are added, with no password. The placeholder requester *Logged in Spiceworks* is inactive, so it doesn't appear in pickers and can't sign in.
 - The import is listed on the page with who ran it and what it brought across, and recorded in the audit log.
 
-Every Spiceworks ticket, comment, history line and requester is remembered with what it became (the `SpiceworksLinks` table). A later import of a newer export recognises tickets already brought across, leaves them as they are, and adds only the new ones. Updating tickets that changed in Spiceworks since, and undoing the last import, are still to come. A ticket deleted here after importing isn't brought back by a later import.
+**Importing again** is safe while both systems are in use. Every Spiceworks ticket, comment, history line and requester is remembered with what it became (the `SpiceworksLinks` table). For each ticket, what Spiceworks said at the last import is also remembered (`SpiceworksTicketStates`). Upload a newer export and the preview shows, for tickets brought across before:
+- **The same in both systems:** left alone.
+- **Changed only in Spiceworks:** updated to match. The page lists what changes.
+- **Changed here and in Spiceworks:** each field that differs is listed with both values, and ours is kept unless you choose Spiceworks'.
+- **Either way:** new comments and history lines from Spiceworks are added, and each updated ticket gets an *Updated from Spiceworks* history line saying what changed and what was kept.
+
+Title, description, status, priority, category, technician, requester and due date are compared. Custom fields come across only with a new ticket. A ticket deleted here after importing isn't brought back.
+
+Tickets imported before these states were kept count as worked on here if they have any comment or history line newer than the import. Every change made here leaves one, so their differences are listed rather than overwritten.
+
+**Undo the last import** removes the tickets it brought across and the people it added (unless something else now points at them). Tickets it updated go back to how they were, without the comments and history it added. It's refused once anyone has worked on one of those tickets, so no work done here is lost. It's also refused for an import made before undo existed. In both cases the page says why, and the backup taken before the import is the way back. Statuses, priorities, categories and custom fields an import added stay in their lists. Undoing one import makes the one before it the last, so imports can be undone in turn.
 
 On a copy of a real school's export (1,288 tickets, 848 comments, 3,186 history lines), the whole import, backup included, took about a second.
 

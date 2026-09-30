@@ -48,6 +48,9 @@ public sealed partial class HelpdeskStore
         // second import updates rather than duplicates, and the last one can be undone.
         public List<SpiceworksImportRecord> SpiceworksImports { get; set; } = [];
         public List<SpiceworksLink> SpiceworksLinks { get; set; } = [];
+        // What Spiceworks said about each imported ticket at the last import, and what undoing each import needs.
+        public Dictionary<int, string[]> SpiceworksTicketStates { get; set; } = [];
+        public List<SpiceworksUndoEntry> SpiceworksUndo { get; set; } = [];
     // Which days count for work-day and period SLAs, and the lesson periods in each of them (Settings → School day).
     public List<DayOfWeek> SchoolDays { get; set; } = [.. SlaClock.DefaultSchoolDays];
     public List<SchoolPeriod> Periods { get; set; } = [];

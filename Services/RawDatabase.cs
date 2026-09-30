@@ -83,6 +83,8 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Sessions"] = "Who is signed in, and until when. Signing out or a password change removes the row.",
         ["SpiceworksImports"] = "Each import from Spiceworks: when, by whom, from which file, and what it brought across.",
         ["SpiceworksLinks"] = "What each Spiceworks ticket, comment, history line and requester became here, so a later import updates rather than duplicates. Created is 1 where the import made the record.",
+        ["SpiceworksTicketStates"] = "What Spiceworks said about each imported ticket at the last import (title, description, status, priority, category, technician, requester, due date), to tell what has changed since in each system.",
+        ["SpiceworksUndo"] = "For each import, each ticket it made or changed: its fields before, and how the import left it - so the last import can be undone while nobody has worked on those tickets since.",
         ["SizeHistory"] = "One reading a day of how big the database and attachments are, for the growth figures on this page.",
         ["SlaCategories"] = "Which ticket categories each SLA covers.",
         ["SlaPauseStatuses"] = "Ticket statuses that stop the SLA clock.",

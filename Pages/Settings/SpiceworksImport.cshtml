@@ -106,26 +106,78 @@ else
         </section>
     }
 
+    var sync = Model.Sync!;
+    var already = plan.Tickets - sync.NewTickets;
+    @if (already > 0)
+    {
+        var automatic = sync.Updates.Where(x => !x.EditedHere || x.Changes.Count == 0).ToList();
+        var conflicts = sync.Conflicts;
+        <section class="panel" id="updates">
+            <div class="panel-heading"><div><p class="eyebrow">ALREADY BROUGHT ACROSS</p><h2>@P(already, "ticket was", "tickets were") imported before</h2></div></div>
+            <p class="muted">
+                @P(sync.Unchanged, "is", "are") the same in both systems.
+                @if (automatic.Count > 0) { <text>@P(automatic.Count, "has", "have") changed only in Spiceworks and will be updated to match.</text> }
+                @if (conflicts.Count > 0) { <text>@P(conflicts.Count, "was", "were") changed both here and in Spiceworks - choose below, field by field.</text> }
+                @if (sync.NewComments + sync.NewHistory > 0) { <text>They get @P(sync.NewComments, "new comment", "new comments") and @P(sync.NewHistory, "history line", "history lines") from Spiceworks either way.</text> }
+                @if (sync.DeletedHere > 0) { <text>@P(sync.DeletedHere, "was", "were") deleted here since and won't be brought back.</text> }
+            </p>
+            @if (automatic.Count > 0)
+            {
+                <details>
+                    <summary>@P(automatic.Count, "ticket to update", "tickets to update")</summary>
+                    <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Ticket</th><th>What changes</th><th class="num">New comments</th><th class="num">New history</th></tr></thead><tbody>
+                    @foreach (var update in automatic)
+                    {
+                        <tr><td><a asp-page="/Job" asp-route-number="@update.Number">#@update.Number</a> (Spiceworks #@update.SpiceworksNumber) @update.Title</td>
+                            <td>@(update.Changes.Count == 0 ? "-" : string.Join("; ", update.Changes.Select(x => $"{x.Field}: {x.Here} → {x.InSpiceworks}")))</td>
+                            <td class="num">@update.NewComments</td><td class="num">@update.NewHistory</td></tr>
+                    }
+                    </tbody></table></div>
+                </details>
+            }
+            @if (conflicts.Count > 0)
+            {
+                <h3 class="section-heading">Changed in both</h3>
+                <p class="muted">These were worked on here since the last import, so nothing is changed unless you choose Spiceworks' version.</p>
+                <form method="post" asp-page-handler="Choices">
+                    <input type="hidden" name="t" value="@Model.Token" />
+                    <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Ticket</th><th>Field</th><th>Here</th><th>In Spiceworks</th><th>Keep</th></tr></thead><tbody>
+                    @foreach (var update in conflicts)
+                    {
+                        foreach (var change in update.Changes)
+                        {
+                            <tr><td><a asp-page="/Job" asp-route-number="@update.Number">#@update.Number</a> @update.Title</td><td>@change.Field</td><td>@change.Here</td><td>@change.InSpiceworks</td>
+                                <td><select name="choice[@change.Key]" aria-label="@change.Field on #@update.Number"><option value="here" selected="@(!change.TakeSpiceworks)">Keep ours</option><option value="@HelpdeskStore.SpiceworksTakeTheirs" selected="@change.TakeSpiceworks">Take Spiceworks'</option></select></td></tr>
+                        }
+                    }
+                    </tbody></table></div>
+                    <button class="button button-primary" type="submit">Save choices</button>
+                </form>
+            }
+        </section>
+    }
+
     <section class="panel">
         <div class="panel-heading"><div><p class="eyebrow">STEP 3</p><h2>Import</h2></div></div>
-        @if (Model.AlreadyImported > 0)
+        <p class="muted">A backup is taken first, then everything goes in at once. New tickets get a new EduHelpdesk number and a <em>Spiceworks number</em> field (search the ticket list for it), with their comments, history and custom fields; tickets brought across before are updated as shown above. Each ticket's History says what came from Spiceworks, the audit log records the import, and the last import can be undone until someone works on one of its tickets.</p>
+        @if (sync.NewTickets + sync.Updates.Count > 0)
         {
-            <div class="notice">@P(Model.AlreadyImported, "of these tickets was", "of these tickets were") imported before and @(Model.AlreadyImported == 1 ? "is" : "are") left as @(Model.AlreadyImported == 1 ? "it is" : "they are"); only the rest come across.</div>
-        }
-        <p class="muted">A backup is taken first. Then @P(plan.Tickets - Model.AlreadyImported, "ticket comes", "tickets come") across in one go, each with a new EduHelpdesk number and a <em>Spiceworks number</em> field (search the ticket list for it), with its comments, history and custom fields. Each ticket's History says it was imported from Spiceworks, and the audit log records the import.</p>
-        @if (plan.Tickets - Model.AlreadyImported > 0)
-        {
-            <form method="post" asp-page-handler="Apply" data-confirm="Import @((plan.Tickets - Model.AlreadyImported).ToString("N0")) tickets from Spiceworks now? A backup is taken first.">
+            var what = string.Join(" and ", new[] { sync.NewTickets > 0 ? P(sync.NewTickets, "new ticket", "new tickets") : null, sync.Updates.Count > 0 ? $"update {P(sync.Updates.Count, "ticket", "tickets")}" : null }.Where(x => x is not null));
+            <form method="post" asp-page-handler="Apply" data-confirm="Import @what from Spiceworks now? A backup is taken first.">
                 <input type="hidden" name="t" value="@Model.Token" />
-                <button class="button button-primary" type="submit">Import @((plan.Tickets - Model.AlreadyImported).ToString("N0")) tickets</button>
+                <button class="button button-primary" type="submit">Import @what</button>
             </form>
+        }
+        else
+        {
+            <div class="notice">Nothing in this export is new or changed since the last import.</div>
         }
     </section>
 }
 
 @if (Model.Imports.Count > 0)
 {
-    <section class="panel">
+    <section class="panel" id="imports">
         <div class="panel-heading"><div><p class="eyebrow">IMPORTS SO FAR</p><h2>@P(Model.Imports.Count, "import", "imports") from Spiceworks</h2></div></div>
         <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">When</th><th>By</th><th>File</th><th>Brought across</th></tr></thead><tbody>
         @foreach (var import in Model.Imports)
@@ -133,5 +185,16 @@ else
             <tr><td>@import.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td><td>@Actor.Label(import.By)</td><td>@import.FileName</td><td>@import.Summary</td></tr>
         }
         </tbody></table></div>
+        @if (Model.UndoProblem is null)
+        {
+            <form method="post" asp-page-handler="Undo" data-confirm="Undo the import of @Model.Imports[0].FileName? Tickets it brought across are removed and tickets it updated go back to how they were.">
+                <input type="hidden" name="t" value="@Model.Token" />
+                <button class="button button-secondary" type="submit">Undo the last import</button>
+            </form>
+        }
+        else
+        {
+            <p class="muted">The last import can't be undone: @Model.UndoProblem</p>
+        }
     </section>
 }

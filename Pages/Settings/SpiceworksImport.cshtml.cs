@@ -24,11 +24,14 @@ public class SpiceworksImportModel(HelpdeskStore store, IMemoryCache cache) : Pa
 
     public SpiceworksImportSession? Session { get; private set; }
     public HelpdeskStore.SpiceworksPlan? Plan { get; private set; }
-    public int AlreadyImported { get; private set; }
+    public HelpdeskStore.SpiceworksSync? Sync { get; private set; }
     public IReadOnlyList<HelpdeskStore.SpiceworksImportRecord> Imports => store.SpiceworksImports;
+    // Null when the most recent import can be undone; otherwise why not.
+    public string? UndoProblem { get; private set; }
 
     public void OnGet()
     {
+        UndoProblem = Imports.Count > 0 ? store.SpiceworksUndoProblem() : null;
         Session = Load(Token);
         if (Session is null)
         {
@@ -36,7 +39,13 @@ public class SpiceworksImportModel(HelpdeskStore store, IMemoryCache cache) : Pa
             return;
         }
         Plan = store.PlanSpiceworksImport(Session.Export, Session.Choices);
-        AlreadyImported = store.SpiceworksAlreadyImported(Session.Export);
+        Sync = store.CompareSpiceworks(Session.Export, Session.Choices);
+    }
+
+    public IActionResult OnPostUndo()
+    {
+        Message = store.UndoLastSpiceworksImport().Message;
+        return RedirectToPage(null, null, new { t = Token }, "imports");
     }
 
     public IActionResult OnPostApply(string? t)
@@ -74,8 +83,12 @@ public class SpiceworksImportModel(HelpdeskStore store, IMemoryCache cache) : Pa
     {
         var session = Load(t);
         if (session is null) { Message = "That upload has expired. Upload the file again."; return RedirectToPage(); }
-        var offered = store.PlanSpiceworksImport(session.Export, session.Choices).Values.Select(x => x.Key).ToHashSet();
-        session.Choices = (choice ?? []).Where(x => offered.Contains(x.Key) && !string.IsNullOrEmpty(x.Value)).ToDictionary(x => x.Key, x => x.Value);
+        var offered = store.PlanSpiceworksImport(session.Export, session.Choices).Values.Select(x => x.Key)
+            .Concat(store.CompareSpiceworks(session.Export, session.Choices).Conflicts.SelectMany(x => x.Changes).Select(x => x.Key)).ToHashSet();
+        // Merged into what was chosen before: the values and the conflicts are saved by separate forms.
+        var merged = new Dictionary<string, string>(session.Choices);
+        foreach (var (key, value) in choice ?? []) if (offered.Contains(key) && !string.IsNullOrEmpty(value)) merged[key] = value;
+        session.Choices = merged;
         Message = "Choices saved. The preview below uses them.";
         return RedirectToPage(null, null, new { t }, "values");
     }

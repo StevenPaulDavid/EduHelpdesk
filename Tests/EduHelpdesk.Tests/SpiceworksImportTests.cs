@@ -46,12 +46,13 @@ public class SpiceworksImportTests
 
     private const string Monday = "2025-09-01T09:00:00+00:00";
 
-    private static byte[] Sample() => Workbook(
+    // The workbook, optionally as a later export would have it: a title and a status changed, a comment added.
+    private static byte[] Sample(string printerTitle = "Printer jammed", string boardStatus = "Waiting", bool laterComment = false) => Workbook(
         // Columns deliberately in a different order from the real export: they are found by heading.
         ("Tickets", ["summary", "ticket_number", "ticket_id", "status", "priority", "ticket_category_id", "assignee_id", "end_user_id", "creator_id", "description", "created_at", "last_closed_at", "due_at", "master_ticket_number"],
         [
-            ["Printer jammed", 11, 900011L, "Closed", "2", 51, 1, 101, null, "Tray 2 jams.", Monday, "2025-09-02T09:00:00+00:00", null, null],
-            ["Board frozen", 12, 900012L, "Waiting", "1", 52, 2, 102, null, "Room 4.", Monday, null, "2025-09-05T15:00:00Z", null],
+            [printerTitle, 11, 900011L, "Closed", "2", 51, 1, 101, null, "Tray 2 jams.", Monday, "2025-09-02T09:00:00+00:00", null, null],
+            ["Board frozen", 12, 900012L, boardStatus, "1", 52, 2, 102, null, "Room 4.", Monday, null, "2025-09-05T15:00:00Z", null],
             ["Laptop battery", 13, 900013L, "Open", "3", null, 9, null, 1, "Logged by IT.", Monday, null, null, 11],
             ["Odd one", 14, 900014L, "Open", "2", 99, null, 103, null, "Unknown category and requester.", Monday, null, null, 999]
         ]),
@@ -62,7 +63,8 @@ public class SpiceworksImportTests
             [3L, 900012L, "Still frozen", "false", null, 102, Monday, "false"],
             [4L, 900012L, "", "false", 2, null, Monday, "false"],
             [5L, 900012L, "Deleted in Spiceworks", "false", 2, null, Monday, "true"],
-            [6L, 777L, "For a ticket not in the export", "false", 1, null, Monday, "false"]
+            [6L, 777L, "For a ticket not in the export", "false", 1, null, Monday, "false"],
+            .. (laterComment ? new object?[][] { [7L, 900011L, "Came back again.", "false", 1, null, "2025-09-10T09:00:00+00:00", "false"] } : [])
         ]),
         ("Ticket Changes", ["ticket_change_id", "ticket_id", "action", "body", "creator_id", "created_at"],
         [
@@ -215,9 +217,146 @@ public class SpiceworksImportTests
         // The same file again: recognised, nothing duplicated.
         var again = test.Reopen().ApplySpiceworksImport(Read(Sample()), choices, "export.xlsx");
         Assert.True(again.Ok, again.Message);
-        Assert.Equal((0, 4, 0), (again.Result!.Tickets, again.Result.AlreadyImported, again.Result.PeopleAdded));
+        Assert.Equal((0, 0, 4, 0), (again.Result!.Tickets, again.Result.Updated, again.Result.Unchanged, again.Result.PeopleAdded));
         Assert.Equal(ticketsBefore + 4, test.Store.Tickets.Count);
         Assert.Equal(2, test.Store.SpiceworksImports.Count);
+    }
+
+    private static int NumberOf(HelpdeskStore store, int spiceworks)
+    {
+        var attribute = store.TicketAttributeDefinitions.Single(x => x.Name == HelpdeskStore.SpiceworksNumberAttribute).Id;
+        return store.Tickets.Single(t => store.GetTicketAttributeValues(t.Number).GetValueOrDefault(attribute) == spiceworks.ToString()).Number;
+    }
+
+    private static readonly Dictionary<string, string> NoChoices = [];
+
+    [Fact]
+    public void A_later_export_updates_tickets_changed_only_in_Spiceworks_and_adds_their_new_comments()
+    {
+        using var test = new TestStore();
+        Assert.True(test.Store.ApplySpiceworksImport(Read(Sample()), NoChoices, "first.xlsx").Ok);
+        var later = Read(Sample(printerTitle: "Printer jammed again", boardStatus: "Closed", laterComment: true));
+
+        var sync = test.Store.CompareSpiceworks(later, NoChoices);
+        Assert.Equal(0, sync.NewTickets);
+        Assert.Empty(sync.Conflicts);
+        Assert.Equal(2, sync.Updates.Count);
+
+        var (ok, message, result) = test.Store.ApplySpiceworksImport(later, NoChoices, "second.xlsx");
+        Assert.True(ok, message);
+        Assert.Equal((0, 2), (result!.Tickets, result.Updated));
+        var store = test.Reopen();
+        var printer = store.Tickets.Single(x => x.Number == NumberOf(store, 11));
+        Assert.Equal("Printer jammed again", printer.Title);
+        Assert.Equal("Came back again.", printer.Comments[^1].Text);
+        Assert.Contains(printer.History, x => x.Action == "Updated from Spiceworks" && x.Details.Contains("Title: Printer jammed → Printer jammed again"));
+        var board = store.Tickets.Single(x => x.Number == NumberOf(store, 12));
+        Assert.Equal("Closed", board.Status);
+        Assert.NotNull(board.ClosedAt);
+        Assert.Null(store.CompareDatabaseWithMemory());
+        // Nothing left to do with that export.
+        Assert.Empty(store.CompareSpiceworks(later, NoChoices).Updates);
+    }
+
+    [Fact]
+    public void A_ticket_changed_in_both_places_keeps_ours_unless_Spiceworks_is_chosen_but_still_gets_new_comments()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        Assert.True(store.ApplySpiceworksImport(Read(Sample()), NoChoices, "first.xlsx").Ok);
+        var printerNumber = NumberOf(store, 11);
+        var boardNumber = NumberOf(store, 12);
+        store.UpdateTicket(store.Tickets.Single(x => x.Number == printerNumber) with { Title = "Printer jammed (worked on here)" });
+        store.UpdateTicket(store.Tickets.Single(x => x.Number == boardNumber) with { Priority = "Urgent" });
+        var later = Read(Sample(printerTitle: "Printer jammed again", boardStatus: "Closed", laterComment: true));
+
+        var conflicts = store.CompareSpiceworks(later, NoChoices).Conflicts;
+        Assert.Equal([printerNumber, boardNumber], conflicts.Select(x => x.Number).Order());
+        Assert.All(conflicts.SelectMany(x => x.Changes), x => Assert.False(x.TakeSpiceworks));
+
+        // Spiceworks' status for the board; our title for the printer.
+        var choices = new Dictionary<string, string> { [HelpdeskStore.SpiceworksConflictKey(boardNumber, "Status")] = HelpdeskStore.SpiceworksTakeTheirs };
+        Assert.True(store.ApplySpiceworksImport(later, choices, "second.xlsx").Ok);
+        var printer = store.Tickets.Single(x => x.Number == printerNumber);
+        Assert.Equal("Printer jammed (worked on here)", printer.Title);
+        Assert.Equal("Came back again.", printer.Comments[^1].Text);
+        Assert.Contains(printer.History, x => x.Action == "Updated from Spiceworks" && x.Details.Contains("Kept as it is here"));
+        var board = store.Tickets.Single(x => x.Number == boardNumber);
+        Assert.Equal(("Closed", "Urgent"), (board.Status, board.Priority));
+    }
+
+    [Fact]
+    public void Tickets_imported_before_states_were_kept_count_as_worked_on_here_only_if_something_happened_since()
+    {
+        using var test = new TestStore();
+        Assert.True(test.Store.ApplySpiceworksImport(Read(Sample()), NoChoices, "first.xlsx").Ok);
+        // As an import made before this change left things: links, but no states and no undo.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={test.DatabasePath}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM SpiceworksTicketStates; DELETE FROM SpiceworksUndo;";
+            command.ExecuteNonQuery();
+        }
+        var store = test.Reopen();
+        var printerNumber = NumberOf(store, 11);
+        var boardNumber = NumberOf(store, 12);
+        store.UpdateTicket(store.Tickets.Single(x => x.Number == boardNumber) with { Priority = "Urgent" });
+
+        var sync = store.CompareSpiceworks(Read(Sample(printerTitle: "Printer jammed again", boardStatus: "Closed")), NoChoices);
+        // Untouched here: Spiceworks' change is simply made.
+        var printer = sync.Updates.Single(x => x.Number == printerNumber);
+        Assert.False(printer.EditedHere);
+        Assert.True(printer.Changes.Single(x => x.Field == "Title").TakeSpiceworks);
+        // Worked on here since: its differences wait for a decision, and ours is kept meanwhile.
+        var board = Assert.Single(sync.Conflicts);
+        Assert.Equal(boardNumber, board.Number);
+        Assert.All(board.Changes, x => Assert.False(x.TakeSpiceworks));
+        Assert.Contains("before imports could be undone", store.SpiceworksUndoProblem() ?? "");
+    }
+
+    [Fact]
+    public void Undoing_the_last_import_puts_things_back_until_someone_works_on_its_tickets()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        Assert.True(store.ApplySpiceworksImport(Read(Sample()), NoChoices, "first.xlsx").Ok);
+        var printerNumber = NumberOf(store, 11);
+        Assert.True(store.ApplySpiceworksImport(Read(Sample(printerTitle: "Printer jammed again", laterComment: true)), NoChoices, "second.xlsx").Ok);
+
+        // The second import is undone: the printer ticket is as the first import left it.
+        Assert.Null(store.SpiceworksUndoProblem());
+        Assert.True(store.UndoLastSpiceworksImport().Ok);
+        var printer = store.Tickets.Single(x => x.Number == printerNumber);
+        Assert.Equal("Printer jammed", printer.Title);
+        Assert.DoesNotContain(printer.Comments, x => x.Text == "Came back again.");
+        Assert.DoesNotContain(printer.History, x => x.Action == "Updated from Spiceworks");
+        Assert.Single(store.SpiceworksImports);
+        // It can come in again after being undone.
+        Assert.Single(store.CompareSpiceworks(Read(Sample(printerTitle: "Printer jammed again", laterComment: true)), NoChoices).Updates);
+
+        // Someone works on one of the first import's tickets: that import can't be undone any more.
+        store.AddTicketComment(printerNumber, "Worked on here.");
+        Assert.Contains($"#{printerNumber}", store.SpiceworksUndoProblem());
+        Assert.False(store.UndoLastSpiceworksImport().Ok);
+
+        // Without that, undoing the first import removes its tickets and the people it added - but not Priya, who was already here.
+        store.RemoveTicketComment(printerNumber, HelpdeskStore.CommentKey(store.Tickets.Single(x => x.Number == printerNumber).Comments[^1].CreatedAt));
+        Assert.Contains($"#{printerNumber}", store.SpiceworksUndoProblem());   // the removal is itself a change
+        using var fresh = new TestStore();
+        fresh.AddRequester("Priya Shah");
+        var freshTickets = fresh.Store.Tickets.Count;
+        var freshPeople = fresh.Store.Users.Count;
+        Assert.True(fresh.Store.ApplySpiceworksImport(Read(Sample()), NoChoices, "first.xlsx").Ok);
+        var undone = fresh.Store.UndoLastSpiceworksImport();
+        Assert.True(undone.Ok, undone.Message);
+        Assert.Equal(freshTickets, fresh.Store.Tickets.Count);
+        Assert.Equal(freshPeople, fresh.Store.Users.Count);
+        Assert.Contains(fresh.Store.Users, x => x.Name == "Priya Shah");
+        Assert.Empty(fresh.Store.SpiceworksImports);
+        Assert.Null(fresh.Store.CompareDatabaseWithMemory());
+        Assert.Equal(4, fresh.Reopen().CompareSpiceworks(Read(Sample()), NoChoices).NewTickets);
     }
 
     [Fact]
