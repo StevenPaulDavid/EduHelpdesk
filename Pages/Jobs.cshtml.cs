@@ -182,7 +182,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         return Back();
     }
 
-    private TicketContext Context() => new(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, Now, store.TicketDueSoonHours, CurrentTechnicianId, Onboardings);
+    private TicketContext Context() => new(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, Now, store.TicketDueSoonHours, CurrentTechnicianId, Onboardings,
+        string.IsNullOrWhiteSpace(Search) ? null : store.TicketAttributeAnswers());
 
     // Onboarding tickets' checklists, for the Onboarding queue, "My tickets", and each row's IT progress.
     private IReadOnlyDictionary<int, OnboardingRecord>? _onboardings;

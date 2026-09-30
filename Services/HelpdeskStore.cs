@@ -218,6 +218,11 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<TicketAttributeDefinition> GetTicketAttributes(string category) => TicketAttributeDefinitions.Where(x => x.AppliesTo(category)).ToList();
     public IReadOnlyList<AssetAttributeDefinition> GetAssetAttributes(string assetType) => AssetAttributeDefinitions.Where(x => x.AppliesTo(assetType)).ToList();
     public IReadOnlyDictionary<Guid, string> GetTicketAttributeValues(int number) { lock (_sync) return _data.TicketAttributeValues.Where(x => x.TicketNumber == number).ToDictionary(x => x.AttributeDefinitionId, x => x.Value); }
+    // Every ticket's custom attribute answers, for the ticket list's search.
+    public IReadOnlyDictionary<int, IReadOnlyList<string>> TicketAttributeAnswers()
+    {
+        lock (_sync) return _data.TicketAttributeValues.Where(x => x.Value.Length > 0).GroupBy(x => x.TicketNumber).ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(x => x.Value).ToList());
+    }
     public static bool TechnicianInTeam(TechnicianRecord technician, string? team) => string.IsNullOrWhiteSpace(team) || string.Equals(technician.Team, team.Trim(), StringComparison.OrdinalIgnoreCase);
     public IReadOnlyList<TechnicianRecord> GetTechniciansForTeam(string? team) { lock (_sync) return _data.Technicians.Where(x => TechnicianInTeam(x, team)).ToList(); }
     public void UpdateBranding(BrandingSettings item) { lock (_sync) { _data.Branding = item; Save(); } }

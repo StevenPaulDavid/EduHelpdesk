@@ -44,6 +44,10 @@ public sealed partial class HelpdeskStore
         public int SlowSaveWarningMs { get; set; } = DefaultSlowSaveWarningMs;
         public int LowDiskWarningGb { get; set; } = DefaultLowDiskWarningGb;
         public List<SizeSample> SizeHistory { get; set; } = [];
+        // Imports from Spiceworks, and which record each Spiceworks ticket, comment, change and person became - so a
+        // second import updates rather than duplicates, and the last one can be undone.
+        public List<SpiceworksImportRecord> SpiceworksImports { get; set; } = [];
+        public List<SpiceworksLink> SpiceworksLinks { get; set; } = [];
     // Which days count for work-day and period SLAs, and the lesson periods in each of them (Settings → School day).
     public List<DayOfWeek> SchoolDays { get; set; } = [.. SlaClock.DefaultSchoolDays];
     public List<SchoolPeriod> Periods { get; set; } = [];

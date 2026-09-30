@@ -238,7 +238,7 @@ The "due soon" window is configured in **Settings → Ticket queues & closing** 
 
 ### Finding tickets
 
-- **Search** covers title, description, comments, requester, asset tag and ticket number.
+- **Search** covers title, description, comments, requester, asset tag, ticket number and custom attribute answers (so a Spiceworks number or a serial number typed on a ticket finds it).
 - **Filters**: status, type, priority and category (multi-select checkboxes); technician (including Me and Unassigned), team, requester, department and location (dropdowns). They sit in a **More filters** panel that starts folded, so the list begins near the top of the screen. Every filter in force is shown as a chip under the search box; the × on a chip takes just that one off, and **Clear all** takes them all off.
 - **Sort** by clicking any column header; click again to reverse.
 - **Paging** at 25/50/100/200 per page.
@@ -642,14 +642,24 @@ Assets have their own richer importer with column mapping — see section 6. **T
 
 **Settings → Imports → Import from Spiceworks** takes the workbook that Spiceworks Cloud Help Desk's data export produces: one `.xlsx` with sheets called Tickets, Ticket Comments, Ticket Changes, Users, End Users, Ticket Categories and so on. Upload it as it is. Columns are found by their headings, not their position. The file is read into memory and never saved, because it holds real tickets. It is forgotten after 45 minutes, or at once with **Clear upload**.
 
-So far the page is a preview, and nothing changes:
+First the page shows a preview, and nothing changes until you import:
 - How many tickets, comments, history lines, merges and time entries there are, and how many tickets are still open.
 - **People:** Spiceworks technicians are matched to accounts by email, then by name. Tickets whose assignee has no match will be left unassigned. Requesters are matched to People by email, and those not found will be added, with no password. Tickets with no requester that can be brought across (mostly ones a technician logged) go under one placeholder requester, *Logged in Spiceworks*.
 - **Values:** each Spiceworks status, priority and category, with what it becomes. The page suggests the same or a close existing value: priorities 1/2/3 are High/Medium/Low in Spiceworks, and Waiting suggests On Hold. You can choose another value, or *Add as new*. Choices are kept with the upload.
 - **Custom fields** (asset tag, serial number and so on) become ticket custom attributes.
 - **What can't come across:** comments with no text (in Spiceworks these are usually attachments, which the export doesn't include), values of custom fields since deleted in Spiceworks, and anything pointing at a ticket or person missing from the file.
 
-Importing will follow: new EduHelpdesk numbers with the Spiceworks number kept, a backup first, repeatable imports that update rather than duplicate, and undo of the last import.
+**Importing** takes a backup first (`…-before-spiceworks.zip`) and refuses to go on if that fails. Then everything goes in with one save, so an import happens whole or not at all:
+- Each ticket gets the next EduHelpdesk number. Its Spiceworks number goes in a **Spiceworks number** custom attribute, which the ticket list's search finds. The search covers every custom attribute, so the imported asset tags and serial numbers are searchable too.
+- Status, priority and category are as chosen in the preview. Spiceworks' due date is kept as a typed date, and a closed ticket keeps its closing date.
+- Comments keep their author and time. Private ones become internal notes, and replies from the requester are marked as theirs. The portal treats all of it as already seen, so no "New reply" flags appear.
+- **History:** Spiceworks' change log comes across line by line (*Updated in Spiceworks*, *Merged in Spiceworks*), and time entries become *Time logged in Spiceworks*. Each ticket also gets an *Imported from Spiceworks* line saying where it came from, who logged it if it had no requester, and who had it if they have no account here. Tickets merged in Spiceworks are linked as related to the ticket they went into.
+- **People:** requesters not already in People are added, with no password. The placeholder requester *Logged in Spiceworks* is inactive, so it doesn't appear in pickers and can't sign in.
+- The import is listed on the page with who ran it and what it brought across, and recorded in the audit log.
+
+Every Spiceworks ticket, comment, history line and requester is remembered with what it became (the `SpiceworksLinks` table). A later import of a newer export recognises tickets already brought across, leaves them as they are, and adds only the new ones. Updating tickets that changed in Spiceworks since, and undoing the last import, are still to come. A ticket deleted here after importing isn't brought back by a later import.
+
+On a copy of a real school's export (1,288 tickets, 848 comments, 3,186 history lines), the whole import, backup included, took about a second.
 
 ---
 

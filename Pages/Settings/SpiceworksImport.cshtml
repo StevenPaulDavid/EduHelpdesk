@@ -108,6 +108,30 @@ else
 
     <section class="panel">
         <div class="panel-heading"><div><p class="eyebrow">STEP 3</p><h2>Import</h2></div></div>
-        <p class="muted">Importing is the next part to be built. For now this page shows exactly what the file holds and what it would become, so the choices above can be checked first.</p>
+        @if (Model.AlreadyImported > 0)
+        {
+            <div class="notice">@P(Model.AlreadyImported, "of these tickets was", "of these tickets were") imported before and @(Model.AlreadyImported == 1 ? "is" : "are") left as @(Model.AlreadyImported == 1 ? "it is" : "they are"); only the rest come across.</div>
+        }
+        <p class="muted">A backup is taken first. Then @P(plan.Tickets - Model.AlreadyImported, "ticket comes", "tickets come") across in one go, each with a new EduHelpdesk number and a <em>Spiceworks number</em> field (search the ticket list for it), with its comments, history and custom fields. Each ticket's History says it was imported from Spiceworks, and the audit log records the import.</p>
+        @if (plan.Tickets - Model.AlreadyImported > 0)
+        {
+            <form method="post" asp-page-handler="Apply" data-confirm="Import @((plan.Tickets - Model.AlreadyImported).ToString("N0")) tickets from Spiceworks now? A backup is taken first.">
+                <input type="hidden" name="t" value="@Model.Token" />
+                <button class="button button-primary" type="submit">Import @((plan.Tickets - Model.AlreadyImported).ToString("N0")) tickets</button>
+            </form>
+        }
+    </section>
+}
+
+@if (Model.Imports.Count > 0)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">IMPORTS SO FAR</p><h2>@P(Model.Imports.Count, "import", "imports") from Spiceworks</h2></div></div>
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">When</th><th>By</th><th>File</th><th>Brought across</th></tr></thead><tbody>
+        @foreach (var import in Model.Imports)
+        {
+            <tr><td>@import.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td><td>@Actor.Label(import.By)</td><td>@import.FileName</td><td>@import.Summary</td></tr>
+        }
+        </tbody></table></div>
     </section>
 }

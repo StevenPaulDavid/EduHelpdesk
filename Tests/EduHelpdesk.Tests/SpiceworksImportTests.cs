@@ -154,6 +154,84 @@ public class SpiceworksImportTests
     }
 
     [Fact]
+    public void Importing_brings_tickets_comments_history_and_fields_across_and_a_second_import_duplicates_nothing()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        var priya = test.AddRequester("Priya Shah");
+        var ros = new TechnicianRecord(Guid.NewGuid(), "Ros Bowstead", "ros.bowstead@school.example", "", "Technician", null, false, true);
+        store.AddTechnician(ros);
+        var export = Read(Sample());
+        var choices = new Dictionary<string, string> { [HelpdeskStore.ChoiceKey("Category", "Board Issue")] = store.Categories[0] };
+        var peopleBefore = store.Users.Count;
+        var ticketsBefore = store.Tickets.Count;
+
+        var (ok, message, result) = store.ApplySpiceworksImport(export, choices, "export.xlsx");
+        Assert.True(ok, message);
+        Assert.Equal(4, result!.Tickets);
+        Assert.Contains(store.ListBackups(), x => x.Name.Contains("before-spiceworks"));
+        Assert.Equal(ticketsBefore + 4, store.Tickets.Count);
+        // new.person, plus the placeholder for the tickets with no requester that can be brought across.
+        Assert.Equal(peopleBefore + 2, store.Users.Count);
+        Assert.False(store.Users.Single(x => x.Name == HelpdeskStore.SpiceworksPlaceholderName).IsActive);
+
+        var spiceworksNumber = store.TicketAttributeDefinitions.Single(x => x.Name == HelpdeskStore.SpiceworksNumberAttribute).Id;
+        TicketRecord Imported(int spiceworks) => store.Tickets.Single(t => store.GetTicketAttributeValues(t.Number).GetValueOrDefault(spiceworksNumber) == spiceworks.ToString());
+
+        var printer = Imported(11);
+        Assert.Equal(priya.Id, printer.RequesterId);
+        Assert.Equal(ros.Id, printer.TechnicianId);
+        Assert.Equal(("Closed", "Normal", "Printer"), (printer.Status, printer.Priority, printer.Category));
+        Assert.Equal(new DateTime(2025, 9, 2, 9, 0, 0, DateTimeKind.Utc), printer.ClosedAt);
+        Assert.Equal(["Cleared the tray.", "Fuser worn."], printer.Comments.Select(x => x.Text));
+        Assert.True(printer.Comments[1].IsInternal);
+        Assert.Equal("Ros Bowstead", printer.Comments[0].By?.Name);
+        Assert.Contains(printer.History, x => x.Details == "Assigned to Ros Bowstead" && x.Action == "Updated in Spiceworks");
+        Assert.Contains(printer.History, x => x.Action == "Time logged in Spiceworks");
+        Assert.Contains(printer.History, x => x.Action == "Imported from Spiceworks");
+        Assert.False(HelpdeskStore.HasUpdateForRequester(printer));
+
+        var board = Imported(12);
+        Assert.Equal(("On Hold", "High", store.Categories[0]), (board.Status, board.Priority, board.Category));
+        Assert.Null(board.ClosedAt);
+        Assert.True(board.DueDateOverridden);
+        Assert.Equal("new.person@test.example", store.Users.Single(x => x.Id == board.RequesterId).Email);
+        // The requester's own reply is marked as theirs; the empty comment (an attachment in Spiceworks) isn't there.
+        Assert.True(board.Comments.Single().FromRequester);
+        // Eric has no account here, so the ticket is unassigned and its history says who had it.
+        Assert.Null(board.TechnicianId);
+        Assert.Contains(board.History, x => x.Details.Contains("Was assigned to Eric Richardson"));
+
+        var laptop = Imported(13);
+        Assert.Equal(HelpdeskStore.SpiceworksPlaceholderName, store.Users.Single(x => x.Id == laptop.RequesterId).Name);
+        var assetTag = store.TicketAttributeDefinitions.Single(x => x.Name == "Asset Tag").Id;
+        Assert.Equal("AS1234", store.GetTicketAttributeValues(laptop.Number)[assetTag]);
+        // Merged into #11 in Spiceworks: linked to it here.
+        Assert.Contains(store.GetTicketRelations(laptop.Number), x => x.Number == printer.Number);
+
+        Assert.Contains(store.GetAuditEntries(), x => x.Action == "Imported from Spiceworks");
+        Assert.Null(store.CompareDatabaseWithMemory());
+
+        // The same file again: recognised, nothing duplicated.
+        var again = test.Reopen().ApplySpiceworksImport(Read(Sample()), choices, "export.xlsx");
+        Assert.True(again.Ok, again.Message);
+        Assert.Equal((0, 4, 0), (again.Result!.Tickets, again.Result.AlreadyImported, again.Result.PeopleAdded));
+        Assert.Equal(ticketsBefore + 4, test.Store.Tickets.Count);
+        Assert.Equal(2, test.Store.SpiceworksImports.Count);
+    }
+
+    [Fact]
+    public void The_ticket_list_search_finds_a_ticket_by_its_Spiceworks_number()
+    {
+        using var test = new TestStore();
+        Assert.True(test.Store.ApplySpiceworksImport(Read(Sample()), new Dictionary<string, string>(), "export.xlsx").Ok);
+        var store = test.Store;
+        var context = new TicketContext(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, DateTime.UtcNow, 24, null, null, store.TicketAttributeAnswers());
+        var found = new TicketListQuery { View = "all", Search = "AS1234" }.Run(store.Tickets, context);
+        Assert.Equal("Laptop battery", Assert.Single(found).Title);
+    }
+
+    [Fact]
     public void Choices_made_in_the_preview_are_used_and_ones_that_are_not_real_values_are_ignored()
     {
         using var test = new TestStore();

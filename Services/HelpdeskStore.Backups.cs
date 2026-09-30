@@ -105,12 +105,13 @@ public sealed partial class HelpdeskStore
 
     // Makes a backup now. Manual ones are recorded in the audit log with who asked; the nightly one is not, because a
     // line every night would bury everything else.
-    public (bool Ok, string Message) CreateBackup(bool manual)
+    // The label goes in the file name: "before-spiceworks" for the one an import takes first.
+    public (bool Ok, string Message) CreateBackup(bool manual, string label = "")
     {
         if (!BackupGate.Wait(0)) return (false, "A backup is already being made. Try again in a minute.");
         try
         {
-            var (name, summary, size) = WriteBackup("");
+            var (name, summary, size) = WriteBackup(label);
             Prune();
             lock (_sync)
             {
@@ -147,7 +148,10 @@ public sealed partial class HelpdeskStore
     {
         var folder = BackupFolder;
         Directory.CreateDirectory(folder);
-        var name = $"{BackupPrefix}{DateTime.Now:yyyyMMdd-HHmmss}{(label.Length > 0 ? "-" + label : "")}.zip";
+        var stamp = $"{BackupPrefix}{DateTime.Now:yyyyMMdd-HHmmss}{(label.Length > 0 ? "-" + label : "")}";
+        var name = $"{stamp}.zip";
+        // Two in the same second - a backup straight after another, or two imports - get -2, -3 rather than failing.
+        for (var n = 2; File.Exists(Path.Combine(folder, name)) || File.Exists(Path.Combine(folder, name + ".partial")); n++) name = $"{stamp}-{n}.zip";
         var work = Path.Combine(Path.GetTempPath(), $"eduhelpdesk-backup-{Guid.NewGuid():N}");
         Directory.CreateDirectory(work);
         var partial = Path.Combine(folder, name + ".partial");

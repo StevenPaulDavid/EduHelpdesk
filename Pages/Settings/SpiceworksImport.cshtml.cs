@@ -24,6 +24,8 @@ public class SpiceworksImportModel(HelpdeskStore store, IMemoryCache cache) : Pa
 
     public SpiceworksImportSession? Session { get; private set; }
     public HelpdeskStore.SpiceworksPlan? Plan { get; private set; }
+    public int AlreadyImported { get; private set; }
+    public IReadOnlyList<HelpdeskStore.SpiceworksImportRecord> Imports => store.SpiceworksImports;
 
     public void OnGet()
     {
@@ -34,6 +36,19 @@ public class SpiceworksImportModel(HelpdeskStore store, IMemoryCache cache) : Pa
             return;
         }
         Plan = store.PlanSpiceworksImport(Session.Export, Session.Choices);
+        AlreadyImported = store.SpiceworksAlreadyImported(Session.Export);
+    }
+
+    public IActionResult OnPostApply(string? t)
+    {
+        var session = Load(t);
+        if (session is null) { Message = "That upload has expired. Upload the file again."; return RedirectToPage(); }
+        var (ok, message, _) = store.ApplySpiceworksImport(session.Export, session.Choices, session.FileName);
+        Message = message;
+        if (!ok) return RedirectToPage(new { t });
+        // Done with: the file isn't kept a moment longer than it's needed.
+        cache.Remove(CacheKey(t!));
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostUploadAsync(IFormFile? file)

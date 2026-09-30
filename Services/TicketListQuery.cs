@@ -16,7 +16,9 @@ public sealed record TicketContext(
     int DueSoonHours,
     Guid? CurrentTechnicianId,
     // Onboarding tickets' checklists, by ticket number, for the Onboarding queue and for "My tickets".
-    IReadOnlyDictionary<int, OnboardingRecord>? Onboardings = null)
+    IReadOnlyDictionary<int, OnboardingRecord>? Onboardings = null,
+    // Each ticket's custom attribute answers, by ticket number, so a search finds a serial number or a Spiceworks number.
+    IReadOnlyDictionary<int, IReadOnlyList<string>>? AttributeValues = null)
 {
     public OnboardingRecord? OnboardingFor(TicketRecord ticket) => Onboardings?.GetValueOrDefault(ticket.Number);
 }
@@ -134,7 +136,7 @@ public sealed class TicketListQuery
             if (terms.Count > 0)
                 query = query.Where(t =>
                 {
-                    var text = SearchText(t, users, technicians, assets);
+                    var text = SearchText(t, users, technicians, assets, context);
                     return terms.All(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
                 });
         }
@@ -143,7 +145,7 @@ public sealed class TicketListQuery
 
     private static bool Same(string? value, string filter) => string.Equals(value?.Trim(), filter.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    private static string SearchText(TicketRecord ticket, Dictionary<Guid, UserRecord> users, Dictionary<Guid, TechnicianRecord> technicians, Dictionary<Guid, AssetRecord> assets)
+    private static string SearchText(TicketRecord ticket, Dictionary<Guid, UserRecord> users, Dictionary<Guid, TechnicianRecord> technicians, Dictionary<Guid, AssetRecord> assets, TicketContext context)
     {
         var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "", ticket.Location ?? "" };
         if (users.TryGetValue(ticket.RequesterId, out var user)) { parts.Add(user.Name); parts.Add(user.Department); parts.Add(user.Email); }
@@ -151,6 +153,7 @@ public sealed class TicketListQuery
         foreach (var id in ticket.AssetIds)
             if (assets.TryGetValue(id, out var asset)) { parts.Add(asset.AssetTag); parts.Add(asset.Make); parts.Add(asset.Model); parts.Add(asset.SerialNumber); }
         parts.AddRange(ticket.Comments.Select(c => c.Text));
+        if (context.AttributeValues?.GetValueOrDefault(ticket.Number) is { } answers) parts.AddRange(answers);
         return string.Join('\n', parts);
     }
 
