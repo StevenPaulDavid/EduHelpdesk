@@ -173,7 +173,13 @@ else
                     <div class="comment-list">
                         @foreach (var comment in Model.Ticket.Comments.OrderByDescending(x => x.CreatedAt))
                         {
-                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } @if (comment.FromRequester) { <span class="badge badge-reply">From the portal</span> } <strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                            <article class="comment @(comment.IsInternal ? "comment-internal" : "")"><p>@comment.Text</p><small>@if (comment.IsInternal) { <span class="badge">Internal note</span> } @if (comment.FromRequester) { <span class="badge badge-reply">From the portal</span> } <strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveComment(comment))
+                            {
+                                <form method="post" asp-page-handler="RemoveComment" class="comment-remove" data-confirm="Remove this @(comment.IsInternal ? "internal note" : "comment")? It can't be put back - the history will only record that it was removed.">
+                                    <input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="comment" value="@HelpdeskStore.CommentKey(comment.CreatedAt)" />
+                                    <button class="link-button" type="submit">Remove</button>
+                                </form>
+                            }</article>
                         }
                     </div>
                 }

@@ -302,6 +302,20 @@ public class JobModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { number });
     }
 
+    public bool CanRemoveComment(TicketComment comment) => store.CanRemoveComment(User, Modules.Tickets, comment.By);
+
+    public IActionResult OnPostRemoveComment(int number, long comment)
+    {
+        if (store.FindTicketComment(number, comment) is not { } found)
+        {
+            Message = "That comment has already been removed.";
+            return RedirectToPage(new { number });
+        }
+        if (!CanRemoveComment(found)) return Forbid();
+        Message = store.RemoveTicketComment(number, comment).Message;
+        return RedirectToPage(new { number });
+    }
+
     // Uploads one or more files. Each is checked on its own, so one bad file does not stop the others.
     public IActionResult OnPostUploadAttachments(int number, List<IFormFile>? files, bool shareWithRequester)
     {

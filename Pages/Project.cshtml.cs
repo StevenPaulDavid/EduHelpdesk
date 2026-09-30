@@ -115,6 +115,15 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         return Done(number, store.AddProjectNote(number, text, isInternal));
     }
 
+    public bool CanRemoveNote(ProjectNote note) => store.CanRemoveComment(User, Modules.Projects, note.By);
+
+    public IActionResult OnPostRemoveNote(int number, long note)
+    {
+        if (store.FindProjectNote(number, note) is not { } found) return Done(number, (false, "That note has already been removed."));
+        if (!CanRemoveNote(found)) return Forbid();
+        return Done(number, store.RemoveProjectNote(number, note));
+    }
+
     public IActionResult OnPostDelete(int number)
     {
         if (!CanDelete) return Forbid();

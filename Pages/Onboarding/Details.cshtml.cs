@@ -10,7 +10,7 @@ namespace EduHelpdesk.Pages.Onboarding;
 // policy in Program.cs - and each action here checks what it needs:
 // - IT tasks can be ticked, and notes added, with Tickets: Edit or Onboarding: Edit;
 // - the officer's tasks, the details, the task list, the lead technician and cancelling need Onboarding: Edit;
-// - deleting needs Onboarding: Delete.
+// - deleting needs Onboarding: Delete, and so does removing someone else's note (or Tickets: Delete).
 public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {
     public OnboardingRecord Record { get; private set; } = null!;
@@ -143,6 +143,19 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
         // Always internal: nobody outside the helpdesk sees an onboarding.
         store.AddTicketComment(number, note, isInternal: true);
         return Back(number, "Note added.", "notes");
+    }
+
+    // Your own note goes with the right to add one; anyone else's needs Delete on onboarding or on tickets.
+    public bool CanRemoveNote(TicketComment note) =>
+        CanDelete || store.UserCan(User, Modules.Tickets, ModulePermission.Delete) || (CanWorkIt && HelpdeskStore.IsAuthor(User, note.By));
+
+    public IActionResult OnPostRemoveNote(int number, long note)
+    {
+        if (!store.IsOnboardingTicket(number)) return NotFound();
+        if (store.FindTicketComment(number, note) is not { } found) return Back(number, "That note has already been removed.", "notes");
+        if (!CanRemoveNote(found)) return Forbid();
+        var (ok, message) = store.RemoveTicketComment(number, note);
+        return Back(number, ok ? "Note removed." : message, "notes");
     }
 
     public IActionResult OnPostDelete(int number)

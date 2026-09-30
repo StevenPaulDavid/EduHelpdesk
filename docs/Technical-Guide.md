@@ -266,6 +266,8 @@ Tabs across the middle:
 
 **Internal notes** are ticked on the comment form. They are visible to technicians only — never to the requester in the portal, and left off printed tickets.
 
+**Removing a comment**: each comment has a Remove link, after a confirmation. You can remove your own with Tickets: Edit; anyone else's, including a requester's portal reply, needs Tickets: Delete. The same rule applies to asset comments (Assets), project notes (Projects) and onboarding notes (Onboarding: Delete or Tickets: Delete for someone else's). The text goes for good, because the usual reason is that it should never have been written down (a password, something about a pupil, the wrong ticket). History keeps a line saying who wrote it, when, and who removed it, but not what it said.
+
 **Attachments**: 10 MB per file, 5 per upload. Allowed types are a whitelist — pictures, PDF, Office documents, text and email files. Archives, SVG and HTML are blocked deliberately. Files are served with `nosniff` and a sandbox policy; only pictures display inline.
 
 **Links**: tickets can be marked *related* to each other, or a *follow-up* can be created — which copies the requester, assets, category, priority, technician and team into a new open ticket.
@@ -650,7 +652,7 @@ Upload a `.docx` at **Settings → Ticket queues & closing**. Placeholders are r
 
 **Settings → Audit log** records every change made in the system: tickets, assets, parts, people, suppliers, lists, SLAs, custom attributes and settings. Filter by area, action, date or free text.
 
-It works by snapshotting the data before and after each save and recording the differences, so any new action is audited automatically without having to log itself. Ticket and asset history and comments, and parts stock adjustments, are folded into the same view.
+It works by snapshotting the data before and after each save and recording the differences, so any new action is audited automatically without having to log itself. Ticket and asset history and comments, and parts stock adjustments, are folded into the same view. A removed comment leaves the log along with the record it belonged to, and the "Comment removed" history line stays in its place.
 
 Each line records who made the change: the technician's account, the requester's name for anything done in the staff portal, or System for scheduled work such as backups and retention. Lines from before attribution was added show a dash. Retention can trim the log after a set number of months (section 16).
 

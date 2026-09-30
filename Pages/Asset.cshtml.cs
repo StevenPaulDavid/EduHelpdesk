@@ -203,4 +203,18 @@ public class AssetModel(HelpdeskStore store) : PageModel
         Message = store.AddAssetComment(id, comment) ? "Comment added." : "Asset was not found.";
         return RedirectToPage(new { id });
     }
+
+    public bool CanRemoveComment(AssetComment comment) => store.CanRemoveComment(User, Modules.Assets, comment.By);
+
+    public IActionResult OnPostRemoveComment(Guid id, long comment)
+    {
+        if (store.FindAssetComment(id, comment) is not { } found)
+        {
+            Message = "That comment has already been removed.";
+            return RedirectToPage(new { id });
+        }
+        if (!CanRemoveComment(found)) return Forbid();
+        Message = store.RemoveAssetComment(id, comment).Message;
+        return RedirectToPage(new { id });
+    }
 }

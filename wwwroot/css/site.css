@@ -405,6 +405,8 @@ tr:last-child td { border: 0; }
 .comment p, .history-entry p { margin: 0 0 7px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
 .comment small, .history-entry small { color: var(--muted); font-size: 11px; }
 .history-entry strong { font-size: 13px; }
+.comment-remove { display: inline; }
+.comment-remove .link-button { font-size: 11px; }
 .comment-form { display: grid; gap: 8px; }
 .comment-form label { font-size: 12px; font-weight: 700; }
 .comment-form textarea { margin-bottom: 3px; }

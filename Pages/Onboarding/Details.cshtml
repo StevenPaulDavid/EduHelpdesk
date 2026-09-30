@@ -263,7 +263,13 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                 <div class="comment-list">
                     @foreach (var comment in ticket.Comments.OrderByDescending(x => x.CreatedAt))
                     {
-                        <article class="comment comment-internal"><p>@comment.Text</p><small><strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                        <article class="comment comment-internal"><p>@comment.Text</p><small><strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveNote(comment))
+                        {
+                            <form method="post" asp-page-handler="RemoveNote" class="comment-remove" data-confirm="Remove this note? It can't be put back - the history will only record that it was removed.">
+                                <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="note" value="@HelpdeskStore.CommentKey(comment.CreatedAt)" />
+                                <button class="link-button" type="submit">Remove</button>
+                            </form>
+                        }</article>
                     }
                 </div>
             }

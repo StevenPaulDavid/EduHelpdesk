@@ -513,7 +513,13 @@
                 <div class="comment-list">
                     @foreach (var note in project.Notes.OrderByDescending(x => x.CreatedAt))
                     {
-                        <article class="comment @(note.IsInternal ? "comment-internal" : "")"><p>@note.Text</p><small>@if (note.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(note.By)</strong> · @note.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                        <article class="comment @(note.IsInternal ? "comment-internal" : "")"><p>@note.Text</p><small>@if (note.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(note.By)</strong> · @note.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveNote(note))
+                        {
+                            <form method="post" asp-page-handler="RemoveNote" class="comment-remove" data-confirm="Remove this @(note.IsInternal ? "internal note" : "note")?@(note.IsInternal ? "" : " The requester will no longer see it in the portal.") It can't be put back - the history will only record that it was removed.">
+                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="note" value="@HelpdeskStore.CommentKey(note.CreatedAt)" />
+                                <button class="link-button" type="submit">Remove</button>
+                            </form>
+                        }</article>
                     }
                 </div>
                 @if (Model.CanEdit)
