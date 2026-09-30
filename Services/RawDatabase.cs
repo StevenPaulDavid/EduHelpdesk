@@ -81,6 +81,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Roles"] = "Roles. The Allow... columns are from the old permission model and are no longer used - RolePermissions holds what each role grants.",
         ["SchoolPeriods"] = "The lessons in the school day, for SLAs counted in periods.",
         ["Sessions"] = "Who is signed in, and until when. Signing out or a password change removes the row.",
+        ["SizeHistory"] = "One reading a day of how big the database and attachments are, for the growth figures on this page.",
         ["SlaCategories"] = "Which ticket categories each SLA covers.",
         ["SlaPauseStatuses"] = "Ticket statuses that stop the SLA clock.",
         ["SlaPriorities"] = "Which priorities each SLA covers.",

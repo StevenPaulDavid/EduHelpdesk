@@ -227,6 +227,7 @@ public sealed partial class HelpdeskStore
             var previous = _data;
             _data = new StoreData();
             CarryBackupSettings(previous, _data);
+            CarryHealthSettings(previous, _data);
             SeedStarterData();
             // Without these two the reset leaves no Administrator role and no account that can sign in, which locked
             // the system until the app was restarted. They only ran at startup before.

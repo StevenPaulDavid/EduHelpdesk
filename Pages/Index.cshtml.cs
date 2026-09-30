@@ -68,6 +68,10 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public bool CanSeeAssetReport => store.UserHasFlag(User, Modules.Flags.ReportAssets);
     public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
     public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
+    // Slow saves or a nearly full disk (Settings → Database), for Administrators only.
+    public IReadOnlyList<string> DatabaseWarnings =>
+        EduHelpdesk.Services.RawDatabase.IsAdministrator(User) ? store.HealthWarnings(DateTime.UtcNow) : [];
+
     // Shown only to people who can do something about it (Settings: Edit opens Backups & data).
     public HelpdeskStore.BackupSettings? BackupWarning =>
         store.UserCan(User, Modules.Settings, ModulePermission.Edit) && store.Backups is { } backups && backups.NeedsAttention(DateTime.UtcNow) ? backups : null;

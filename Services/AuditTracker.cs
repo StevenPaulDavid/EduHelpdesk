@@ -141,6 +141,9 @@ internal static class AuditTracker
         Add(s, "Settings", "Backups", "backups", "Automatic backups", Track.Update,
             ("Automatic", Yn(d.BackupsEnabled)), ("Folder", d.BackupFolderSetting.Length == 0 ? "Default (backups in the data folder)" : d.BackupFolderSetting),
             ("Keep for days", d.BackupKeepDays.ToString()), ("Runs at", $"{d.BackupHour:00}:00"));
+        // The daily size readings are not a change anyone made, so only the limits are tracked.
+        Add(s, "Settings", "Database warnings", "database-warnings", "Database health warnings", Track.Update,
+            ("Slow save over ms", d.SlowSaveWarningMs.ToString()), ("Low disk under GB", d.LowDiskWarningGb == 0 ? "Off" : d.LowDiskWarningGb.ToString()));
 
         AddList(s, "Lists", "Asset status", d.AssetStatuses);
         AddList(s, "Lists", "Team", d.TechnicianTeams);

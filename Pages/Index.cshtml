@@ -41,6 +41,10 @@
         <a asp-page="/Settings/Backups">Backups &amp; data</a>
     </div>
 }
+@foreach (var warning in Model.DatabaseWarnings)
+{
+    <div class="notice notice-warning"><strong>Database:</strong> @warning <a asp-page="/Settings/Database" asp-fragment="health">Settings → Database</a></div>
+}
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

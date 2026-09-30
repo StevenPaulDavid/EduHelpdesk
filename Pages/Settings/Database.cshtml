@@ -1,10 +1,54 @@
 @page
+@using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.DatabaseModel
 @{ ViewData["Title"] = "Database"; }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Database</h1><p class="hero-copy">Every table exactly as it is stored, for looking into a problem. Nothing here can change anything, and each table or record you open is recorded in the audit log.</p></div>
     <a class="button button-secondary" asp-page="@(Model.CanSeeSettings ? "/Settings" : "/Index")">← @(Model.CanSeeSettings ? "Settings" : "Overview")</a>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@{ var health = Model.Health; }
+<section class="panel" id="health">
+    <div class="panel-heading"><div><p class="eyebrow">HEALTH</p><h2>@(health.Warnings.Count == 0 ? "Nothing needs attention" : health.Warnings.Count == 1 ? "1 thing needs attention" : $"{health.Warnings.Count} things need attention")</h2></div></div>
+    @foreach (var warning in health.Warnings) { <div class="notice notice-warning">@warning</div> }
+    <div class="metrics db-health">
+        <div class="metric"><span>Database</span><strong>@HelpdeskStore.FormatSize(health.DatabaseBytes)</strong><small>@Model.Growth(health.DatabaseBytes, health.GrowthFrom?.DatabaseBytes)</small></div>
+        <div class="metric"><span>Attachments</span><strong>@HelpdeskStore.FormatSize(health.AttachmentBytes)</strong><small>@health.AttachmentFiles.ToString("N0") file@(health.AttachmentFiles == 1 ? "" : "s") · @Model.Growth(health.AttachmentBytes, health.GrowthFrom?.AttachmentBytes)</small></div>
+        @foreach (var disk in health.Disks)
+        {
+            var low = health.LowDiskWarningGb > 0 && disk.FreeBytes < health.LowDiskWarningGb * 1024L * 1024 * 1024;
+            <div class="metric @(low ? "metric-alert" : "")"><span>Free on @disk.Drive</span><strong>@HelpdeskStore.FormatSize(disk.FreeBytes)</strong><small>of @HelpdeskStore.FormatSize(disk.TotalBytes) (@(disk.TotalBytes == 0 ? 0 : 100 * disk.FreeBytes / disk.TotalBytes)% free) · holds @disk.Holds</small></div>
+        }
+        @if (health.Saves is { } saves)
+        {
+            var slow = saves.Count >= HelpdeskStore.SavesBeforeWarning && saves.TypicalMs > health.SlowSaveWarningMs;
+            var since = saves.Since > DateTime.UtcNow.AddHours(-23) ? $"since {saves.Since.ToLocalTime():HH:mm}" : "in the last day";
+            <div class="metric @(slow ? "metric-alert" : "")"><span>Typical save</span><strong>@EduHelpdesk.Pages.Settings.DatabaseModel.Time(saves.TypicalMs)</strong><small>Slowest @EduHelpdesk.Pages.Settings.DatabaseModel.Time(saves.SlowestMs) · @saves.Count.ToString("N0") save@(saves.Count == 1 ? "" : "s") @since</small></div>
+        }
+        else
+        {
+            <div class="metric"><span>Typical save</span><strong>-</strong><small>Nothing saved since the helpdesk started</small></div>
+        }
+    </div>
+    <p class="muted">Biggest tables: @string.Join(", ", Model.Biggest.Select(x => $"{x.Name} {x.Rows:N0}")). Save times are kept since the helpdesk last started; the first save after a start rewrites everything and is always the slowest.</p>
+    <details class="db-limits">
+        <summary>Warning limits: saves over @EduHelpdesk.Pages.Settings.DatabaseModel.Time(health.SlowSaveWarningMs), @(health.LowDiskWarningGb == 0 ? "no disk warning" : $"under {health.LowDiskWarningGb} GB free")</summary>
+        <p class="muted">When a typical save takes longer than this (over at least @HelpdeskStore.SavesBeforeWarning saves), or a disk has less free space, Administrators see a warning on the Overview.</p>
+        @if (Model.CanEditLimits)
+        {
+            <form method="post" asp-page-handler="Limits" class="audit-filters">
+                <label>Warn when a typical save takes over (ms)<input type="number" name="slowSaveMs" min="50" max="@HelpdeskStore.MaxSlowSaveWarningMs" value="@health.SlowSaveWarningMs" required /></label>
+                <label>Warn when free disk space is under (GB)<input type="number" name="lowDiskGb" min="0" max="@HelpdeskStore.MaxLowDiskWarningGb" value="@health.LowDiskWarningGb" required /><small class="muted">0 turns this warning off.</small></label>
+                <div class="audit-filter-actions"><button class="button button-primary" type="submit">Save limits</button></div>
+            </form>
+        }
+        else
+        {
+            <p class="muted">Changing them needs Settings: Edit.</p>
+        }
+    </details>
+</section>
 
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">LOOK UP A RECORD</p><h2>Everything stored about one thing</h2></div></div>

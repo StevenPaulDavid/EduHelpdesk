@@ -674,6 +674,16 @@ Each line records who made the change: the technician's account, the requester's
 - **Secrets:** password hashes, two-step sign-in secrets, recovery codes and session tokens show only to Administrators. Anyone else sees **•••• set**, including in the CSV, and can't search or filter on those columns, because a search is a way of guessing.
 - **Audit:** each table or record opened is written to the audit log under the **Database** area, as are CSV downloads. Paging through the same table, or opening it again within 15 minutes, counts as one look.
 
+**The health check** at the top of the Database page shows:
+- the size of the database (with its write-ahead log) and of the attachments, and how much each has grown over the last 30 days
+- free space on the drive holding the data, and the backup drive if different
+- how long saves are taking: the typical (median) save and the slowest over the last day, or since the helpdesk started if that was more recent
+- the biggest tables by row count
+
+The growth figures come from one size reading a day, taken by the nightly scheduler and kept for 400 days in the `SizeHistory` table. A factory reset keeps them. Save times are held in memory, so a restart starts them afresh. The first save after a start rewrites everything and is always the slowest.
+
+Administrators get a warning on the **Overview** in two cases: a typical save takes longer than the limit (default 1 second, once there have been at least 10 saves), or a drive has less free space than the limit (default 2 GB; 0 turns this warning off). Both limits are set under **Warning limits** on the Database page, which needs Settings: Edit, and changes are audited. Slow saves usually mean a lot of data kept for a long time; the data retention rules (section 16) are the first thing to try.
+
 ---
 
 ## 14. Factory reset

@@ -23,6 +23,8 @@ public sealed class BackupScheduler(HelpdeskStore store, ILogger<BackupScheduler
                     if (ok) logger.LogInformation("Nightly backup: {Message}", message);
                     else logger.LogError("Nightly backup failed: {Message}", message);
                 }
+                // One size reading a day, for the growth figures on Settings → Database.
+                await Task.Run(() => store.RecordSizeIfDue(DateTime.Now), stoppingToken);
                 // Retention runs after the backup, and only once one has worked (HelpdeskStore.RetentionDue), so nothing
                 // is deleted that no backup holds.
                 if (store.RetentionDue(DateTime.Now))

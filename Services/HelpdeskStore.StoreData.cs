@@ -40,6 +40,10 @@ public sealed partial class HelpdeskStore
         public string LastBackupSummary { get; set; } = "";
         public DateTime? LastBackupAttemptAt { get; set; }
         public string LastBackupError { get; set; } = "";
+        // The database health check (Settings → Database): when to warn, and one size reading a day for its growth figures.
+        public int SlowSaveWarningMs { get; set; } = DefaultSlowSaveWarningMs;
+        public int LowDiskWarningGb { get; set; } = DefaultLowDiskWarningGb;
+        public List<SizeSample> SizeHistory { get; set; } = [];
     // Which days count for work-day and period SLAs, and the lesson periods in each of them (Settings → School day).
     public List<DayOfWeek> SchoolDays { get; set; } = [.. SlaClock.DefaultSchoolDays];
     public List<SchoolPeriod> Periods { get; set; } = [];

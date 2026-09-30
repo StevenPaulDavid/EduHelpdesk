@@ -13,7 +13,32 @@ public class DatabaseModel(RawDatabase raw, HelpdeskStore store) : PageModel
     public bool CanSeeSettings => store.UserCan(User, Modules.Settings, EduHelpdesk.Models.ModulePermission.Access);
     public bool SeesSecrets => RawDatabase.IsAdministrator(User);
 
-    public void OnGet() => Tables = raw.Tables();
+    public HelpdeskStore.HealthReport Health { get; private set; } = null!;
+    // The warning limits are a setting like any other, so changing them needs Settings: Edit as well.
+    public bool CanEditLimits => store.UserCan(User, Modules.Settings, EduHelpdesk.Models.ModulePermission.Edit);
+    [TempData] public string? Message { get; set; }
+
+    public void OnGet()
+    {
+        Tables = raw.Tables();
+        Health = store.DatabaseHealth(DateTime.UtcNow);
+    }
+
+    public IActionResult OnPostLimits(int slowSaveMs, int lowDiskGb)
+    {
+        if (!CanEditLimits) return Forbid();
+        Message = store.SetHealthLimits(slowSaveMs, lowDiskGb).Message;
+        return RedirectToPage(null, null, null, "health");
+    }
+
+    public IReadOnlyList<RawDatabase.TableSummary> Biggest => Tables.OrderByDescending(x => x.Rows).Take(6).ToList();
+
+    // "+1.2 MB since 3 Sep", or "-" before a day's reading has been kept.
+    public string Growth(long now, long? then) => then is not { } before || Health.GrowthFrom is null
+        ? "Growth shows once a day's reading has been kept"
+        : $"{(now >= before ? "+" : "−")}{HelpdeskStore.FormatSize(Math.Abs(now - before))} since {Health.GrowthFrom.Day:d MMM}";
+
+    public static string Time(double ms) => ms < 1000 ? $"{ms:0} ms" : $"{ms / 1000:0.0} s";
 
     // "Look up a record": a ticket or project number, an asset tag, or a person's email - or the id itself.
     public IActionResult OnGetFind(string? kind, string? key)
