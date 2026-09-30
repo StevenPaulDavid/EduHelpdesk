@@ -20,27 +20,34 @@ Everything is linked: a ticket can name the assets it concerns and the parts con
 | | |
 |---|---|
 | Platform | ASP.NET Core Razor Pages, .NET 10 |
-| Database | SQLite, single file at `App_Data/helpdesk.db` |
+| Database | SQLite, `App_Data/helpdesk.db` (with its write-ahead log beside it) |
 | Dependencies | `Microsoft.Data.Sqlite`, `DocumentFormat.OpenXml` (Word print templates) |
 | Authentication | Cookie-based, custom roles and permissions |
 | Hosting | Self-hosted on the school network; no cloud service or external API required |
 
 ### How the data is stored
 
-The whole dataset is held in memory and written to SQLite on every change. This keeps the code simple and reads instant, at the cost of rewriting the tables on each save - and while a save runs, every other change waits for it. Measured on generated data (September 2026):
+The whole dataset is held in memory and saved to SQLite on every change, which keeps reads instant. While a save runs, every other change waits for it.
 
-| Data | Database | Start-up | Pages | Each save | Memory |
-|---|---|---|---|---|---|
-| One year at a large secondary school: 1,500 staff, 3,000 assets, 8,000 tickets, 40,000 audit lines | 16 MB | 3 s | 5–65 ms | about 0.6 s | 390 MB |
-| Five years of the same, nothing deleted: 6,000 assets, 40,000 tickets with 280,000 comments and history lines, 200,000 audit lines | 71 MB | 8 s | 15–230 ms | about 3 s | 900 MB |
+A save writes **only the rows that changed**. For example, adding a comment inserts one row, and editing a ticket updates that ticket's row. The save works out the difference by comparing what it would write with what the last save wrote (`Services/HelpdeskStore.SaveChanges.cs`). It falls back to rewriting every table when it can't be sure of the difference safely. That happens on the first save after starting up, after a failed save, and on the rare change that reorders rows other tables point at, such as renaming a technician team. The database uses SQLite's **write-ahead logging (WAL)**, so writes are quicker and a backup never has to wait for a save.
 
-A save costs time in proportion to everything held, so the five-year row is where it starts to be felt: three seconds after every comment, with the rest of the helpdesk waiting. The data retention rules (section 16) keep a school near the one-year row - deleting closed tickets after two or three years, say. If a school ever needs to keep much more, the fix is to write only the rows a change touched rather than every table.
+Change times, measured by timing each change including its save, on copies of generated data (30 September 2026):
+
+| Data | Database | Start-up | Pages | Each change, before | Each change, now | Memory |
+|---|---|---|---|---|---|---|
+| One year at a large secondary school: 1,500 staff, 3,000 assets, 8,000 tickets, 40,000 audit lines | 16 MB | 3 s | 5–65 ms | about 0.6 s | about 50 ms | 390 MB |
+| Five years of the same, nothing deleted: 6,000 assets, 40,000 tickets with 280,000 comments and history lines, 200,000 audit lines | 71 MB | 8 s | 15–230 ms | 3–5 s | about 0.25 s | 900 MB |
+
+Most of what is left is the save working out what changed, not the writing, so it still grows slowly with the amount of data held. The data retention rules (section 16) keep a school near the one-year row, by deleting closed tickets after two or three years, say. To time a real database, run the opt-in `SaveTimingTests` with `EDUHELPDESK_TIMING_DB` set to its path. It works on a copy and only reads the original.
+
+**Next to `helpdesk.db` there are usually `helpdesk.db-wal` and `helpdesk.db-shm`.** The `-wal` file can hold the most recent changes until SQLite folds them into the main file. So never copy `helpdesk.db` on its own while the helpdesk is running. Use Settings → Backups, or stop the service and copy the whole folder. The built-in backups, moving the data folder, and the installer's import all handle this.
 
 Files that matter, all in the data folder - `App_Data/` unless `EduHelpdesk:DataPath` says otherwise (see section 15):
 
 | Path | What it holds |
 |---|---|
 | `helpdesk.db` | Everything: tickets, assets, parts, people, settings, audit log |
+| `helpdesk.db-wal`, `helpdesk.db-shm` | SQLite's write-ahead log and its index, while the helpdesk runs. They belong with `helpdesk.db`, so don't copy or delete one without the other |
 | `attachments/` | Ticket attachments, stored by GUID with no file extension |
 | `keys/` | The keys that sign-in cookies are encrypted with. Lose them and everyone signs in again; nothing else is lost |
 | `backups/` | The nightly backup zips, unless the backup folder has been pointed elsewhere |

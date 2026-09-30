@@ -5,7 +5,8 @@ using Microsoft.Data.Sqlite;
 
 namespace EduHelpdesk.Services;
 
-// Reading and writing the database: load, save (which rewrites every table in one transaction and records the audit diff), and the audit log.
+// Reading and writing the database: load, save (one transaction that writes what changed - see SaveChanges - and records
+// the audit diff), and the audit log.
 public sealed partial class HelpdeskStore
 {
     private StoreData Load()
@@ -14,6 +15,11 @@ public sealed partial class HelpdeskStore
         using var connection = new SqliteConnection($"Data Source={_path}");
         connection.Open();
         EnsureSchema(connection);
+        EnsureOwnerIndexes(connection);
+        // Write-ahead logging: a save appends its changes to helpdesk.db-wal, which SQLite folds back into the main file
+        // as it goes, so writing is quicker and a backup or a reader never waits for a save. It is a property of the file,
+        // so setting it again at each start costs nothing.
+        ExecuteScalar(connection, "PRAGMA journal_mode = WAL;");
 
         var version = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SchemaVersion';");
         if (version is null)
@@ -65,6 +71,8 @@ public sealed partial class HelpdeskStore
 
     private void Persist(bool auditChanges)
     {
+        // Timed from here, so the audit comparison counts too: the health check shows how long a save really takes.
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var current = AuditTracker.Take(_data);
         var entries = new List<AuditEntry>(_pendingAudit);
         if (auditChanges && _snapshot is not null) entries.AddRange(AuditTracker.Diff(_snapshot, current, DateTime.UtcNow));
@@ -75,13 +83,40 @@ public sealed partial class HelpdeskStore
         for (var i = 0; i < entries.Count; i++)
             if (entries[i].By is null) entries[i] = entries[i] with { By = actor };
 
+        RowCapture wanted;
+        bool full;
+        int rowsWritten;
         try
         {
             using var connection = new SqliteConnection($"Data Source={_path}");
             connection.Open();
             using var transaction = connection.BeginTransaction();
             using var statements = new StatementScope(transaction);
-            WriteData(connection, transaction, _data);
+            // Foreign keys are checked when the transaction commits rather than after each statement, so the changes
+            // can go in table by table without a moment's inconsistency between them counting as an error.
+            using (var defer = connection.CreateCommand())
+            {
+                defer.Transaction = transaction;
+                defer.CommandText = "PRAGMA defer_foreign_keys = ON;";
+                defer.ExecuteNonQuery();
+            }
+            // Only what changed since the last save, when that is known and can be worked out safely (SaveChanges);
+            // otherwise every table is emptied and written again.
+            wanted = CaptureRows(connection, transaction, _data, _written);
+            _shapes ??= ReadShapes(connection, transaction);
+            var plan = _written is null ? null : PlanChanges(_written, wanted, _shapes);
+            full = plan is null;
+            if (plan is null)
+            {
+                ClearTables(connection, transaction);
+                wanted.Replay(connection, transaction);
+                rowsWritten = wanted.RowCount;
+            }
+            else
+            {
+                foreach (var (sql, values) in plan) Execute(connection, transaction, sql, values);
+                rowsWritten = plan.Count;
+            }
             SetMetadata(connection, transaction, "SchemaVersion", "5");
             foreach (var entry in entries)
                 Execute(connection, transaction, "INSERT INTO AuditLog (At, Area, EntityType, EntityKey, Entity, Action, Details, Actor, ActorId) VALUES ($at,$area,$type,$key,$entity,$action,$details,$actor,$actorid);",
@@ -101,6 +136,9 @@ public sealed partial class HelpdeskStore
         _audit.AddRange(entries);
         _pendingAudit.Clear();
         _snapshot = current;
+        // A capture whose rows couldn't be compared this time can't be compared next time either.
+        _written = wanted.Comparable ? wanted : null;
+        RecordSaveTiming(started, full, rowsWritten);
     }
 
     // Called under the lock after a failed save. If even reading fails, the unsaved change stays in memory - there is
@@ -108,6 +146,8 @@ public sealed partial class HelpdeskStore
     private bool RestoreFromDatabase()
     {
         _pendingAudit.Clear();
+        // What the database holds is no longer known row by row, so the next save rewrites everything.
+        _written = null;
         try
         {
             _data = Load();
@@ -122,8 +162,8 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // An event that changes no data - a sign-in lockout - written straight to the audit log. Save would rewrite every
-    // table to record one line, and someone hammering the sign-in page shouldn't be able to make the helpdesk do that.
+    // An event that changes no data - a sign-in lockout - written straight to the audit log. Save would compare all the
+    // data to record one line, and someone hammering the sign-in page shouldn't be able to make the helpdesk do that.
     // Never throws: failing to record a lockout mustn't turn into an error page on the sign-in form.
     public void RecordEvent(AuditEntry entry)
     {
@@ -709,13 +749,7 @@ public sealed partial class HelpdeskStore
         var partsByTicket = data.TicketParts.ToLookup(x => x.TicketNumber);
         var valuesByTicket = data.TicketAttributeValues.ToLookup(x => x.TicketNumber);
         var attachmentsByTicket = data.TicketAttachments.ToLookup(x => x.TicketNumber);
-        using (var command = connection.CreateCommand())
-        {
-            command.Transaction = transaction;
-            // Projects first: they point at Users and Technicians, which are cleared further along this same statement.
-            command.CommandText = "DELETE FROM OnboardingPackDocuments; DELETE FROM OnboardingTemplateDocuments; DELETE FROM OnboardingDocuments; DELETE FROM OnboardingTasks; DELETE FROM Onboardings; DELETE FROM OnboardingTemplateTasks; DELETE FROM OnboardingTemplates; DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
-            command.ExecuteNonQuery();
-        }
+        if (!IsCapturing(transaction)) ClearTables(connection, transaction);
         foreach (var demo in data.DemoRecords.DistinctBy(x => (x.EntityType, x.EntityKey)))
             Execute(connection, transaction, "INSERT INTO DemoRecords (EntityType, EntityKey) VALUES ($type,$key);", ("$type", demo.EntityType), ("$key", demo.EntityKey));
         InsertStrings(connection, transaction, "TechnicianTeams", data.TechnicianTeams);
@@ -766,7 +800,7 @@ public sealed partial class HelpdeskStore
                 Execute(connection, transaction, "INSERT INTO SlaCategories (SlaId, Category) VALUES ($id,$category);", ("$id", sla.Id.ToString()), ("$category", category));
         }
         foreach (var item in data.Users)
-            Execute(connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange, LeftAt, AnonymisedAt) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead,$requireChange,$left,$anonymised);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$email", item.Email), ("$department", item.Department), ("$location", item.Location), ("$hash", item.PasswordHash), ("$active", item.IsActive ? 1 : 0), ("$projects", item.CanRaiseProjects ? 1 : 0), ("$lead", item.IsProjectLead ? 1 : 0), ("$requireChange", item.RequirePasswordChange ? 1 : 0), ("$left", item.LeftAt is { } left ? Iso(left) : null), ("$anonymised", item.AnonymisedAt is { } anonymised ? Iso(anonymised) : null));
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Users (Id, Name, Email, Department, Location, PasswordHash, IsActive, CanRaiseProjects, IsProjectLead, RequirePasswordChange, LeftAt, AnonymisedAt) VALUES ($id,$name,$email,$department,$location,$hash,$active,$projects,$lead,$requireChange,$left,$anonymised);", static s => [("$id", s.Item.Id.ToString()), ("$name", s.Item.Name), ("$email", s.Item.Email), ("$department", s.Item.Department), ("$location", s.Item.Location), ("$hash", s.Item.PasswordHash), ("$active", s.Item.IsActive ? 1 : 0), ("$projects", s.Item.CanRaiseProjects ? 1 : 0), ("$lead", s.Item.IsProjectLead ? 1 : 0), ("$requireChange", s.Item.RequirePasswordChange ? 1 : 0), ("$left", s.Item.LeftAt is { } left ? Iso(left) : null), ("$anonymised", s.Item.AnonymisedAt is { } anonymised ? Iso(anonymised) : null)]);
         foreach (var item in data.Technicians)
             // A blank team must be written as NULL, not '' - the column has a foreign key to TechnicianTeams(Name), which only exempts NULL.
             Execute(connection, transaction, "INSERT INTO Technicians (Id, Name, Email, Team, Role, PasswordHash, RequirePasswordChange, IsActive, TotpSecret, TwoFactorSince, TotpLastStep, RecoveryCodes, RecoveryKeyHash, RecoveryKeySince) VALUES ($id,$name,$email,$team,$role,$hash,$requireChange,$active,$totp,$totpSince,$totpStep,$recovery,$keyHash,$keySince);",
@@ -807,19 +841,19 @@ public sealed partial class HelpdeskStore
             foreach (var assetType in item.AssetTypes.Distinct(StringComparer.OrdinalIgnoreCase))
                 Execute(connection, transaction, "INSERT INTO PartAssetTypes (PartId, AssetType) VALUES ($part,$type);", ("$part", item.Id.ToString()), ("$type", assetType));
             foreach (var activity in item.History)
-                Execute(connection, transaction, "INSERT INTO PartActivities (PartId, Action, Details, CreatedAt, Actor, ActorId) VALUES ($id,$action,$details,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
+                ExecuteFor(activity, item.Id, item, connection, transaction, "INSERT INTO PartActivities (PartId, Action, Details, CreatedAt, Actor, ActorId) VALUES ($id,$action,$details,$created,$actor,$actorid);", static s => [("$id", s.Item.Id.ToString()), ("$action", s.Record.Action), ("$details", s.Record.Details), ("$created", Iso(s.Record.CreatedAt)), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString())]);
         }
         foreach (var item in data.Assets)
         {
-            Execute(connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds);", ("$id", item.Id.ToString()), ("$tag", item.AssetTag), ("$make", item.Make), ("$type", item.Type), ("$model", item.Model), ("$serial", item.SerialNumber), ("$location", item.Location), ("$user", item.AssignedUserId?.ToString()), ("$supplier", item.SupplierId?.ToString()),
-                ("$status", string.IsNullOrWhiteSpace(item.Status) ? "In use" : item.Status), ("$purchased", IsoDay(item.PurchaseDate)), ("$price", item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(item.WarrantyEnd)), ("$replacement", IsoDay(item.ReplacementDate)), ("$loan", IsoDay(item.LoanDueDate)),
-                ("$quote", item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(item.DisposalDate)), ("$method", item.DisposalMethod ?? string.Empty), ("$proceeds", item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
+                ("$status", string.IsNullOrWhiteSpace(s.Item.Status) ? "In use" : s.Item.Status), ("$purchased", IsoDay(s.Item.PurchaseDate)), ("$price", s.Item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", s.Item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(s.Item.WarrantyEnd)), ("$replacement", IsoDay(s.Item.ReplacementDate)), ("$loan", IsoDay(s.Item.LoanDueDate)),
+                ("$quote", s.Item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(s.Item.DisposalDate)), ("$method", s.Item.DisposalMethod ?? string.Empty), ("$proceeds", s.Item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture))]);
             foreach (var assignment in item.Assignments)
-                Execute(connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", ("$id", item.Id.ToString()), ("$user", assignment.UserId?.ToString()), ("$name", assignment.UserName), ("$started", assignment.StartedAt.HasValue ? Iso(assignment.StartedAt.Value) : null), ("$ended", assignment.EndedAt.HasValue ? Iso(assignment.EndedAt.Value) : null), ("$due", IsoDay(assignment.DueBack)), ("$reason", assignment.Reason), ("$kitloan", assignment.KitLoanId?.ToString()));
+                ExecuteFor(assignment, item.Id, item, connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", static s => [("$id", s.Item.Id.ToString()), ("$user", s.Record.UserId?.ToString()), ("$name", s.Record.UserName), ("$started", s.Record.StartedAt.HasValue ? Iso(s.Record.StartedAt.Value) : null), ("$ended", s.Record.EndedAt.HasValue ? Iso(s.Record.EndedAt.Value) : null), ("$due", IsoDay(s.Record.DueBack)), ("$reason", s.Record.Reason), ("$kitloan", s.Record.KitLoanId?.ToString())]);
             foreach (var comment in item.Comments)
-                Execute(connection, transaction, "INSERT INTO AssetComments (AssetId, Text, CreatedAt, Actor, ActorId) VALUES ($id,$text,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()));
+                ExecuteFor(comment, item.Id, item, connection, transaction, "INSERT INTO AssetComments (AssetId, Text, CreatedAt, Actor, ActorId) VALUES ($id,$text,$created,$actor,$actorid);", static s => [("$id", s.Item.Id.ToString()), ("$text", s.Record.Text), ("$created", Iso(s.Record.CreatedAt)), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString())]);
             foreach (var activity in item.History)
-                Execute(connection, transaction, "INSERT INTO AssetActivities (AssetId, Action, Details, CreatedAt, Actor, ActorId) VALUES ($id,$action,$details,$created,$actor,$actorid);", ("$id", item.Id.ToString()), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
+                ExecuteFor(activity, item.Id, item, connection, transaction, "INSERT INTO AssetActivities (AssetId, Action, Details, CreatedAt, Actor, ActorId) VALUES ($id,$action,$details,$created,$actor,$actorid);", static s => [("$id", s.Item.Id.ToString()), ("$action", s.Record.Action), ("$details", s.Record.Details), ("$created", Iso(s.Record.CreatedAt)), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString())]);
         }
         // After Assets: LoanKitAssets references Assets(Id), and KitLoans references LoanKits(Id).
         foreach (var kit in data.LoanKits)
@@ -852,9 +886,10 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            Execute(connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen);",
-                ("$number", item.Number), ("$title", item.Title), ("$description", item.Description), ("$requester", item.RequesterId.ToString()), ("$technician", item.TechnicianId?.ToString()), ("$priority", item.Priority), ("$status", item.Status), ("$category", item.Category), ("$created", Iso(item.CreatedAt)), ("$closed", item.ClosedAt.HasValue ? Iso(item.ClosedAt.Value) : null), ("$sla", item.SlaId?.ToString()), ("$due", item.DueDate.HasValue ? Iso(item.DueDate.Value) : null), ("$overridden", item.DueDateOverridden ? 1 : 0), ("$slaoverridden", item.SlaOverridden ? 1 : 0), ("$team", item.TeamName), ("$type", TicketTypes.Normalize(item.Type)), ("$location", item.Location), ("$seen", item.RequesterSeenAt is { } seen ? Iso(seen) : null));
-            foreach (var assetId in item.AssetIds.Distinct())
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen);",
+                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null)]);
+            // Most tickets have one asset or none, and those need no de-duplicating.
+            foreach (var assetId in item.AssetIds.Count < 2 ? item.AssetIds : item.AssetIds.Distinct())
                 if (assetIds.Contains(assetId))
                     Execute(connection, transaction, "INSERT INTO TicketAssets (TicketNumber, AssetId) VALUES ($number,$asset);", ("$number", item.Number), ("$asset", assetId.ToString()));
             foreach (var part in partsByTicket[item.Number])
@@ -864,13 +899,13 @@ public sealed partial class HelpdeskStore
                 if (ticketDefinitionIds.Contains(value.AttributeDefinitionId))
                     Execute(connection, transaction, "INSERT INTO TicketAttributeValues (TicketNumber, AttributeDefinitionId, Value) VALUES ($number,$definition,$value);", ("$number", value.TicketNumber), ("$definition", value.AttributeDefinitionId.ToString()), ("$value", value.Value));
             foreach (var comment in item.Comments)
-                Execute(connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester) VALUES ($number,$text,$created,$internal,$actor,$actorid,$fromRequester);", ("$number", item.Number), ("$text", comment.Text), ("$created", Iso(comment.CreatedAt)), ("$internal", comment.IsInternal ? 1 : 0), ("$actor", comment.By?.Name), ("$actorid", comment.By?.Id?.ToString()), ("$fromRequester", comment.FromRequester ? 1 : 0));
+                ExecuteFor(comment, item.Number, item, connection, transaction, "INSERT INTO TicketComments (TicketNumber, Text, CreatedAt, IsInternal, Actor, ActorId, FromRequester) VALUES ($number,$text,$created,$internal,$actor,$actorid,$fromRequester);", static s => [("$number", s.Item.Number), ("$text", s.Record.Text), ("$created", Iso(s.Record.CreatedAt)), ("$internal", s.Record.IsInternal ? 1 : 0), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString()), ("$fromRequester", s.Record.FromRequester ? 1 : 0)]);
             foreach (var attachment in attachmentsByTicket[item.Number])
                 Execute(connection, transaction, "INSERT INTO TicketAttachments (Id, TicketNumber, FileName, ContentType, Size, UploadedAt, VisibleToRequester, FromRequester) VALUES ($id,$number,$name,$type,$size,$uploaded,$visible,$fromRequester);", ("$id", attachment.Id.ToString()), ("$number", item.Number), ("$name", attachment.FileName), ("$type", attachment.ContentType), ("$size", attachment.Size), ("$uploaded", Iso(attachment.UploadedAt)), ("$visible", attachment.VisibleToRequester ? 1 : 0), ("$fromRequester", attachment.FromRequester ? 1 : 0));
             foreach (var pause in item.SlaPauses)
-                Execute(connection, transaction, "INSERT INTO TicketSlaPauses (TicketNumber, StartedAt, EndedAt) VALUES ($number,$started,$ended);", ("$number", item.Number), ("$started", Iso(pause.StartedAt)), ("$ended", pause.EndedAt is { } ended ? Iso(ended) : null));
+                ExecuteFor(pause, item.Number, item, connection, transaction, "INSERT INTO TicketSlaPauses (TicketNumber, StartedAt, EndedAt) VALUES ($number,$started,$ended);", static s => [("$number", s.Item.Number), ("$started", Iso(s.Record.StartedAt)), ("$ended", s.Record.EndedAt is { } ended ? Iso(ended) : null)]);
             foreach (var activity in item.History)
-                Execute(connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);", ("$number", item.Number), ("$action", activity.Action), ("$details", activity.Details), ("$created", Iso(activity.CreatedAt)), ("$actor", activity.By?.Name), ("$actorid", activity.By?.Id?.ToString()));
+                ExecuteFor(activity, item.Number, item, connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);", static s => [("$number", s.Item.Number), ("$action", s.Record.Action), ("$details", s.Record.Details), ("$created", Iso(s.Record.CreatedAt)), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString())]);
         }
         foreach (var template in data.TicketTemplates)
         {
@@ -888,6 +923,15 @@ public sealed partial class HelpdeskStore
             ("$name", branding.BrandName), ("$eyebrow", branding.DashboardEyebrow), ("$title", branding.DashboardTitle), ("$description", branding.DashboardDescription), ("$primary", branding.PrimaryColor), ("$accent", branding.AccentColor), ("$background", branding.BackgroundColor), ("$dark", (int)branding.DefaultAppearance));
     }
 
+    // The full rewrite empties every table first. Children before parents: projects point at Users and Technicians.
+    private static void ClearTables(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "DELETE FROM OnboardingPackDocuments; DELETE FROM OnboardingTemplateDocuments; DELETE FROM OnboardingDocuments; DELETE FROM OnboardingTasks; DELETE FROM Onboardings; DELETE FROM OnboardingTemplateTasks; DELETE FROM OnboardingTemplates; DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings;";
+        command.ExecuteNonQuery();
+    }
+
     private static void InsertStrings(SqliteConnection connection, SqliteTransaction transaction, string table, IEnumerable<string> values)
     {
         foreach (var value in values.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -901,6 +945,12 @@ public sealed partial class HelpdeskStore
 
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql, params (string Name, object? Value)[] values)
     {
+        // While a save is working out what changed, WriteData's rows are recorded rather than run (SaveChanges).
+        if (TryGetCapture(transaction, out var capture))
+        {
+            capture.Add(sql, values);
+            return;
+        }
         var cache = Statements.GetValue(transaction, _ => new Dictionary<string, SqliteCommand>(StringComparer.Ordinal));
         if (!cache.TryGetValue(sql, out var command))
         {

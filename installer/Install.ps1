@@ -406,7 +406,9 @@ if (-not $existingData -and $ImportFrom) {
     try { $lock = [IO.File]::Open((Join-Path $ImportFrom "helpdesk.db"), 'Open', 'Read', 'None'); $lock.Dispose() }
     catch { Fail "$ImportFrom\helpdesk.db is in use. Stop the helpdesk running from it, then run the installer again." }
     foreach ($item in Get-ChildItem -LiteralPath $ImportFrom -Force) {
-        if ($item.Name -like "helpdesk.db-*" -or $item.Name -like "*.moved-*") { continue }
+        # helpdesk.db-wal (write-ahead log) can hold the newest changes if that copy wasn't shut down cleanly, so it
+        # travels with the database; the -shm index beside it is rebuilt by SQLite and is left behind.
+        if ($item.Name -eq "helpdesk.db-shm" -or $item.Name -like "*.moved-*") { continue }
         Copy-Item -LiteralPath $item.FullName -Destination $dataFolder -Recurse -Force
     }
     Say "Copied the data from $ImportFrom (the original is untouched)."

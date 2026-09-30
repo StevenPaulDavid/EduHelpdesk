@@ -23,9 +23,9 @@ internal static class AuditTracker
 
         foreach (var x in d.Users)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
-            Add(s, "Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)),
+            AddFor(s, x, static x => Make("Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)),
                 // Shows when a temporary password was issued, and when it was swapped for their own.
-                ("Temporary password", Yn(x.RequirePasswordChange)));
+                ("Temporary password", Yn(x.RequirePasswordChange))));
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
             Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"), ("Temporary password", Yn(x.RequirePasswordChange)));
@@ -69,8 +69,8 @@ internal static class AuditTracker
                 ("Issued by", x.IssuedBy), ("Notes", x.Notes));
 
         foreach (var x in d.Assets)
-            Add(s, "Assets", "Asset", x.Id.ToString(), x.AssetTag, Track.Create | Track.Delete,
-                ("Asset tag", x.AssetTag), ("Make", x.Make), ("Model", x.Model), ("Type", x.Type), ("Serial number", x.SerialNumber), ("Location", x.Location), ("Status", x.Status));
+            AddFor(s, x, static x => Make("Assets", "Asset", x.Id.ToString(), x.AssetTag, Track.Create | Track.Delete,
+                ("Asset tag", x.AssetTag), ("Make", x.Make), ("Model", x.Model), ("Type", x.Type), ("Serial number", x.SerialNumber), ("Location", x.Location), ("Status", x.Status)));
         var assetsById = d.Assets.ToDictionary(x => x.Id);
         var assetAttributesById = d.AssetAttributeDefinitions.ToDictionary(x => x.Id);
         foreach (var x in d.AssetAttributeValues)
@@ -81,7 +81,7 @@ internal static class AuditTracker
         }
 
         foreach (var x in d.Tickets)
-            Add(s, "Tickets", "Ticket", x.Number.ToString(), $"#{x.Number} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category), ("Location", x.Location ?? ""));
+            AddFor(s, x, static x => Make("Tickets", "Ticket", x.Number.ToString(), $"#{x.Number} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category), ("Location", x.Location ?? "")));
         // Like tickets, a project's own history covers everything except its deletion.
         foreach (var x in d.Projects)
             Add(s, "Projects", "Project", x.Number.ToString(), $"{x.Reference} {x.Title}", Track.Delete,
@@ -175,7 +175,7 @@ internal static class AuditTracker
                 if (now.IsListItem) addedItems.Add(now);
                 else entries.Add(Entry(at, now, "Created", Summarise(now.Fields)));
             }
-            else if (now.Track.HasFlag(Track.Update))
+            else if (now.Track.HasFlag(Track.Update) && !ReferenceEquals(was, now))
             {
                 var changes = Describe(was.Fields, now.Fields);
                 if (changes.Length > 0) entries.Add(Entry(at, now, "Updated", changes));
@@ -203,6 +203,26 @@ internal static class AuditTracker
         }
         return entries;
     }
+
+    // Users, assets and tickets are thousands of records, and a save changes one or two. Records never change - an edit
+    // makes a new one - so the entity made from a record is kept with it and used again while that record is still the
+    // one held, and Diff sees the very same entity and moves straight past it.
+    private sealed record CachedEntity(string Key, Entity Entity);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, CachedEntity> Made = new();
+
+    private static void AddFor<T>(Snapshot s, T record, Func<T, Entity> make) where T : class
+    {
+        if (!Made.TryGetValue(record, out var cached))
+        {
+            var entity = make(record);
+            cached = new CachedEntity($"{entity.Type}|{entity.Key}", entity);
+            Made.AddOrUpdate(record, cached);
+        }
+        s.Entities[cached.Key] = cached.Entity;
+    }
+
+    private static Entity Make(string area, string type, string key, string label, Track track, params (string Name, string? Value)[] fields) =>
+        new(area, type, key, label ?? string.Empty, type, key, track, false, fields.Select(f => (f.Name, f.Value ?? string.Empty)).ToList());
 
     private static AuditEntry Entry(DateTime at, Entity e, string action, string details) =>
         new(at, e.Area, e.LinkType, e.LinkKey, e.Label, action, details);

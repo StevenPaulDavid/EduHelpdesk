@@ -44,6 +44,15 @@ public sealed class DataLocation
 
         // First start in the new place with data still in the old one: bring it across. Backups stay where they are -
         // they can be large, and the backup folder is its own setting.
+        // The latest changes may still be in helpdesk.db-wal (write-ahead logging). Folding them into helpdesk.db first
+        // makes it one complete file, and leaves no log behind beside the renamed copy for a new database to pick up.
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(defaultFolder, DatabaseName)};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA journal_mode = DELETE;";
+            command.ExecuteNonQuery();
+        }
         CopyFolder(defaultFolder, folder, skip: ["backups"]);
         var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
         File.Move(Path.Combine(defaultFolder, DatabaseName), Path.Combine(defaultFolder, $"{DatabaseName}.moved-{stamp}"));

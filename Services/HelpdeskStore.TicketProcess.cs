@@ -186,7 +186,8 @@ public sealed partial class HelpdeskStore
         !TicketInsights.IsClosed(ticket) && ticket.Comments.Where(x => !x.IsInternal).MaxBy(x => x.CreatedAt) is { FromRequester: true };
 
     // Recorded each time the requester opens the ticket. Written straight to its one column rather than through Save,
-    // which would rewrite every table for a page view.
+    // which would work out the whole difference and audit it for a page view. (The next Save sees the column differ from
+    // what it last wrote and writes the same value again - harmless.)
     public void MarkSeenByRequester(int number)
     {
         lock (_sync)

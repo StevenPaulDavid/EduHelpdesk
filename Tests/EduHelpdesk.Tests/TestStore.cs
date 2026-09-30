@@ -11,9 +11,19 @@ public sealed class TestStore : IDisposable
     public string Root { get; } = Path.Combine(Path.GetTempPath(), "eduhelpdesk-tests", Guid.NewGuid().ToString("N"));
     public HelpdeskStore Store { get; private set; }
 
-    public TestStore()
+    public TestStore(string? copyOf = null)
     {
         Directory.CreateDirectory(Root);
+        // A copy of an existing database, taken through SQLite's own backup so the original is only ever read.
+        if (copyOf is not null)
+        {
+            Directory.CreateDirectory(Path.Combine(Root, "App_Data"));
+            using var source = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={copyOf};Mode=ReadOnly;Pooling=False");
+            using var target = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={DatabasePath};Pooling=False");
+            source.Open();
+            target.Open();
+            source.BackupDatabase(target);
+        }
         Store = Open();
     }
 

@@ -22,5 +22,9 @@
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The tests check saved data against memory through HelpdeskStore.CompareDatabaseWithMemory. -->
+    <InternalsVisibleTo Include="EduHelpdesk.Tests" />
+  </ItemGroup>
 
 </Project>
