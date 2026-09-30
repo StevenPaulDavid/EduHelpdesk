@@ -14,7 +14,10 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / ASSET</p><h1>Edit asset</h1><p class="hero-copy">Update the asset details and choose which tickets belong to it.</p></div>
-    <a class="button button-secondary" asp-page="/Assets">&lt;- Back to assets</a>
+    <div class="heading-actions">
+        <partial name="_RawDataLink" model='("asset", Model.Asset!.Id.ToString())' />
+        <a class="button button-secondary" asp-page="/Assets">&lt;- Back to assets</a>
+    </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

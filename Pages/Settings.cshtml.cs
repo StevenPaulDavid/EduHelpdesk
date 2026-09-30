@@ -17,6 +17,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
     public bool CanEdit => store.UserCan(User, Modules.Settings, ModulePermission.Edit);
     public bool CanSeeAudit => store.UserCan(User, Modules.AuditLog, ModulePermission.Access);
+    public bool CanSeeRaw => store.UserHasFlag(User, Modules.Flags.RawDatabase);
     public HelpdeskStore.BackupSettings Backups => store.Backups;
     public string? DataSyncedBy => store.Location?.SyncedBy;
     public bool IsHttps => Request.IsHttps;
@@ -110,6 +111,8 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                     "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
                     store.Retention.AnyOn ? "On" : null),
                 new("Audit log", "/Settings/Audit", "Who changed what, and when, across the whole helpdesk.", "audit log history changes who", Open: CanSeeAudit),
+                new("Database", "/Settings/Database", "Every table exactly as it is stored, for looking into a problem. Read-only, and each look is in the audit log.",
+                    "database raw data tables rows sql sqlite debug problem investigate", "Read-only", Open: CanSeeRaw),
                 Page("Error log", "/Settings/Log", RecentErrors == 0 ? "Warnings and errors the helpdesk has recorded. None in the last 7 days." : $"Warnings and errors the helpdesk has recorded. {RecentErrors} error{(RecentErrors == 1 ? "" : "s")} in the last 7 days.",
                     "error log problems crash warning logs reference", RecentErrors > 0 ? $"{RecentErrors} this week" : null, RecentErrors > 0),
                 new("About EduHelpdesk", "/Settings", $"Version {AppVersion}. Made by Steven Davidson; free to use and share under the MIT licence, provided as it is with no warranty.",

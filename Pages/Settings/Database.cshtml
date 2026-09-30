@@ -1,0 +1,35 @@
+@page
+@model EduHelpdesk.Pages.Settings.DatabaseModel
+@{ ViewData["Title"] = "Database"; }
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Database</h1><p class="hero-copy">Every table exactly as it is stored, for looking into a problem. Nothing here can change anything, and each table or record you open is recorded in the audit log.</p></div>
+    <a class="button button-secondary" asp-page="@(Model.CanSeeSettings ? "/Settings" : "/Index")">← @(Model.CanSeeSettings ? "Settings" : "Overview")</a>
+</div>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">LOOK UP A RECORD</p><h2>Everything stored about one thing</h2></div></div>
+    <p class="muted">Its rows from every table that mentions it. Records also have a <strong>Raw data</strong> link on their own page.</p>
+    <form method="get" asp-page-handler="Find" class="audit-filters raw-find">
+        <label>What<select name="kind">@foreach (var kind in EduHelpdesk.Services.RawDatabase.Kinds) { <option value="@kind.Key">@kind.Label</option> }</select></label>
+        <label class="audit-search">Which one<input name="key" required placeholder="Ticket or project number, asset tag, or email address" /></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Look up</button></div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">TABLES</p><h2>@Model.Tables.Count tables</h2></div><span class="badge">Read-only</span></div>
+    @if (!Model.SeesSecrets)
+    {
+        <p class="muted">Passwords, two-step sign-in secrets, recovery codes and session tokens show as <span class="raw-masked">@EduHelpdesk.Services.RawDatabase.Masked</span>. Only an Administrator sees them.</p>
+    }
+    <div class="table-wrap"><table class="stack-table raw-tables"><thead><tr><th data-stack="head">Table</th><th class="num">Rows</th><th>What it holds</th></tr></thead><tbody>
+    @foreach (var table in Model.Tables)
+    {
+        <tr>
+            <td><a asp-page="/Settings/DatabaseTable" asp-route-name="@table.Name"><code>@table.Name</code></a></td>
+            <td class="num">@table.Rows.ToString("N0")</td>
+            <td>@(table.Description.Length > 0 ? table.Description : "")</td>
+        </tr>
+    }
+    </tbody></table></div>
+</section>

@@ -664,6 +664,16 @@ It works by snapshotting the data before and after each save and recording the d
 
 Each line records who made the change: the technician's account, the requester's name for anything done in the staff portal, or System for scheduled work such as backups and retention. Lines from before attribution was added show a dash. Retention can trim the log after a set number of months (section 16).
 
+### The raw database
+
+**Settings → Database** shows every table exactly as it is stored, for looking into a problem when a page shows something unexpected. It needs the **View raw database** permission, a tick under *System* in the role editor. Like the audit log, it doesn't need Settings, and someone without Settings gets a **Database** link in the top menu instead. No seeded role has it; Administrators always do.
+
+- **Tables:** all of them, each with a line on what it holds and its row count. A table opens a page at a time, 50 rows, oldest or newest first. You can search every column, filter one column (equals, contains, is empty), and download the matching rows as CSV. **NULL**, empty text and hidden values each look different. A value that points at another table, such as a ticket number or asset id, links to that row.
+- **One record:** tickets, assets, requesters, staff accounts, projects and onboardings have a **Raw data** button (for people with the permission). It shows the record's rows from every table that mentions it, including its audit log lines. You can also look one up on the Database page by ticket or project number, asset tag or email address.
+- **Read-only:** the pages read through a read-only connection, so nothing on them can change data. Table and column names are only ever taken from the database's own list of them.
+- **Secrets:** password hashes, two-step sign-in secrets, recovery codes and session tokens show only to Administrators. Anyone else sees **•••• set**, including in the CSV, and can't search or filter on those columns, because a search is a way of guessing.
+- **Audit:** each table or record opened is written to the audit log under the **Database** area, as are CSV downloads. Paging through the same table, or opening it again within 15 minutes, counts as one look.
+
 ---
 
 ## 14. Factory reset

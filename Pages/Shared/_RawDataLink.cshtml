@@ -1,0 +1,7 @@
+@model (string Kind, string Key)
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
+@* "Raw data" on a record's own page: every row stored about it (Settings → Database). Only for "View raw database". *@
+@if (Helpdesk.UserHasFlag(User, EduHelpdesk.Services.Modules.Flags.RawDatabase))
+{
+    <a class="button button-secondary no-print" asp-page="/Settings/DatabaseRecord" asp-route-kind="@Model.Kind" asp-route-key="@Model.Key" title="Every row stored about this, exactly as stored">Raw data</a>
+}

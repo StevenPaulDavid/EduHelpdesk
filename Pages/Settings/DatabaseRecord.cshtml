@@ -1,0 +1,29 @@
+@page
+@model EduHelpdesk.Pages.Settings.DatabaseRecordModel
+@{ ViewData["Title"] = $"{Model.Subject} · Database"; }
+<div class="page-heading">
+    <div><p class="eyebrow">SETTINGS / DATABASE</p><h1>@Model.Record.Label @Model.Key</h1><p class="hero-copy">Every row stored about it, table by table, exactly as stored.</p></div>
+    <a class="button button-secondary" asp-page="/Settings/Database">← Database</a>
+</div>
+
+@if (Model.Found.Count == 0)
+{
+    <section class="panel"><p class="empty">Nothing in the database mentions @Model.Record.Label.ToLowerInvariant() @Model.Key. Check the number or id - a person's and an asset's id is the long one in their page's address.</p></section>
+}
+@foreach (var found in Model.Found)
+{
+    <section class="panel">
+        <div class="panel-heading">
+            <div><p class="eyebrow">@found.Why.ToUpperInvariant()</p><h2><a asp-page="/Settings/DatabaseTable" asp-route-name="@found.Table">@found.Table</a></h2></div>
+            <span class="badge">@(found.Total > found.Rows.Count ? $"First {found.Rows.Count:N0} of {found.Total:N0} rows" : $"{found.Total:N0} row{(found.Total == 1 ? "" : "s")}")</span>
+        </div>
+        <div class="table-wrap raw-wrap"><table class="raw-table"><thead><tr>
+            @foreach (var column in found.Columns) { <th title="@column.Type@(column.Key ? " · key" : "")@(column.References is { } r ? $" · points at {r}" : "")">@column.Name@(column.Key ? " 🔑" : "")@(column.Secret ? " 🔒" : "")</th> }
+        </tr></thead><tbody>
+        @foreach (var row in found.Rows)
+        {
+            <tr>@for (var c = 0; c < row.Length; c++) { <td>@EduHelpdesk.Pages.Settings.RawCell.Render(row[c], found.Columns[c])</td> }</tr>
+        }
+        </tbody></table></div>
+    </section>
+}

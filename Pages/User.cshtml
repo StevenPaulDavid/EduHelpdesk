@@ -7,7 +7,10 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / PERSON</p><h1>Edit person</h1><p class="hero-copy">Update the person details and choose which tickets belong to them.</p></div>
-    <a class="button button-secondary" asp-page="/People">&lt;- Back to people</a>
+    <div class="heading-actions">
+        <partial name="_RawDataLink" model='("user", Model.Person!.Id.ToString())' />
+        <a class="button button-secondary" asp-page="/People">&lt;- Back to people</a>
+    </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 @if (Model.Person!.AnonymisedAt is { } anonymisedAt)

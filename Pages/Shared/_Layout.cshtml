@@ -101,9 +101,13 @@
             @* Reports needs the area level AND at least one readable report - the area on its own opens nothing. *@
             @if (firstReport is not null) { <a asp-page="@firstReport" class="@(NavOn("/Reports") ? "active" : null)">Reports</a> }
             @if (Can(Modules.Settings)) { <a asp-page="/Settings" class="@(NavOn("/Settings") ? "active" : null)">Settings</a> }
-            @* Somebody given the audit log but not Settings - a DPO, say - gets a link straight to the log, because the
-               Settings page itself would refuse them. *@
-            else if (Can(Modules.AuditLog)) { <a asp-page="/Settings/Audit" class="@(NavOn("/Settings") ? "active" : null)">Audit log</a> }
+            @* Somebody given the audit log or the raw database but not Settings - a DPO, say - gets a link straight to
+               it, because the Settings page itself would refuse them. *@
+            else
+            {
+                if (Can(Modules.AuditLog)) { <a asp-page="/Settings/Audit" class="@(NavOn("/Settings/Audit") ? "active" : null)">Audit log</a> }
+                if (Helpdesk.UserHasFlag(User, Modules.Flags.RawDatabase)) { <a asp-page="/Settings/Database" class="@(NavOn("/Settings/Database") ? "active" : null)">Database</a> }
+            }
         </nav>
         <details class="nav-menu user-menu">
             <summary><span class="user-name">@User.Identity!.Name</span><span class="chev" aria-hidden="true">▾</span></summary>

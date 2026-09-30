@@ -138,11 +138,15 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Settings", Policy(Modules.Settings, ModulePermission.Access));
     options.Conventions.AddFolderApplicationModelConvention("/Settings", model =>
     {
-        if (model.ViewEnginePath is "/Settings/Audit" or "/Settings/AuditPrint") return;
+        if (model.ViewEnginePath is "/Settings/Audit" or "/Settings/AuditPrint" or "/Settings/Database" or "/Settings/DatabaseTable" or "/Settings/DatabaseRecord") return;
         model.Filters.Add(new AuthorizeFilter(Policy(Modules.Settings, ModulePermission.Edit)));
     });
     options.Conventions.AuthorizePage("/Settings/Audit", Policy(Modules.AuditLog, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Settings/AuditPrint", Policy(Modules.AuditLog, ModulePermission.Access));
+    // The raw database is its own permission too, for the same reason as the audit log.
+    options.Conventions.AuthorizePage("/Settings/Database", Modules.Flags.RawDatabase);
+    options.Conventions.AuthorizePage("/Settings/DatabaseTable", Modules.Flags.RawDatabase);
+    options.Conventions.AuthorizePage("/Settings/DatabaseRecord", Modules.Flags.RawDatabase);
 
     // The portal is open to anyone who can reach the site, so a post there is held to 1 MB rather than the helpdesk's
     // 60 MB - except the two forms that carry files (a new ticket and a reply), which get room for their few attachments
@@ -200,6 +204,7 @@ builder.Services.AddSingleton(fileLog);
 builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<TwoFactorPending>();
 builder.Services.AddSingleton<HelpdeskStore>();
+builder.Services.AddSingleton<RawDatabase>();
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<TemporaryPasswords>();
 builder.Services.AddScoped<PortalSessionFilter>();

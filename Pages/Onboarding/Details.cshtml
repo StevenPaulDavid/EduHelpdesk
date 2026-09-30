@@ -16,7 +16,10 @@
         <h1>@(starter?.Name ?? "New starter")</h1>
         <p class="hero-copy">@(about.Length > 0 ? about + " · " : "")starts @record.StartDate.ToString("dddd d MMMM yyyy") (@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today).ToLowerInvariant())</p>
     </div>
-    <a class="button button-secondary" asp-page="/Onboarding/Index">← Onboarding</a>
+    <div class="heading-actions">
+        <partial name="_RawDataLink" model='("ticket", ticket.Number.ToString())' />
+        <a class="button button-secondary" asp-page="/Onboarding/Index">← Onboarding</a>
+    </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 @if (record.CancelledAt is { } cancelled) { <div class="notice notice-warning">Cancelled on @cancelled.ToLocalTime().ToString("d MMMM yyyy"). The checklist is as it was left.@if (Model.CanEdit) { <text> Resume it from the side panel to carry on.</text> }</div> }

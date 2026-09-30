@@ -1,0 +1,66 @@
+@page
+@model EduHelpdesk.Pages.Settings.DatabaseTableModel
+@{
+    var result = Model.Result;
+    ViewData["Title"] = $"{result.Table} · Database";
+    var first = (Model.PageNumber - 1) * EduHelpdesk.Services.RawDatabase.PageSize + 1;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">SETTINGS / DATABASE</p><h1>@result.Table</h1><p class="hero-copy">@(Model.Description.Length > 0 ? Model.Description : "Rows exactly as stored.")</p></div>
+    <div class="heading-actions">
+        <a class="button button-secondary" asp-page="/Settings/DatabaseTable" asp-page-handler="Export" asp-all-route-data="@Model.Route()">⬇ CSV@(Model.IsFiltered ? " (these rows)" : "")</a>
+        <a class="button button-secondary" asp-page="/Settings/Database">← Database</a>
+    </div>
+</div>
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <input type="hidden" name="name" value="@result.Table" />
+        <label class="audit-search">Search every column<input type="search" name="q" value="@Model.Search" placeholder="Any text, number or id" /></label>
+        <label>Column<select name="col"><option value="">-</option>@foreach (var column in result.Columns.Where(c => Model.SeesSecrets || !c.Secret)) { <option value="@column.Name" selected="@string.Equals(column.Name, Model.Column, StringComparison.OrdinalIgnoreCase)">@column.Name</option> }</select></label>
+        <label>Is<select name="op">@foreach (var op in EduHelpdesk.Services.RawDatabase.Operators) { <option value="@op" selected="@(op == (Model.Operator ?? "equals"))">@op</option> }</select></label>
+        <label>Value<input name="val" value="@Model.Value" /></label>
+        <label class="toggle-label"><input type="checkbox" name="newest" value="true" checked="@Model.Newest" /> Newest first</label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" asp-page="/Settings/DatabaseTable" asp-route-name="@result.Table">Clear</a></div>
+    </form>
+    @if (result.Problem is { } problem) { <div class="notice notice-warning">@problem</div> }
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <div><p class="eyebrow">ROWS@(Model.Newest ? " · NEWEST FIRST" : " · OLDEST FIRST")</p><h2>@(Model.IsFiltered ? $"{result.Total:N0} matching" : $"{result.Total:N0} rows")</h2></div>
+        <span class="badge">Page @Model.PageNumber of @Model.TotalPages</span>
+    </div>
+    <details class="raw-columns">
+        <summary>@result.Columns.Count columns</summary>
+        <div class="table-wrap"><table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>
+        @foreach (var column in result.Columns)
+        {
+            <tr><td><code>@column.Name</code></td><td>@(column.Type.Length > 0 ? column.Type : "-")</td>
+                <td>@(column.Key ? "Key. " : "")@(column.References is { } reference ? $"Points at {reference}. " : "")@(column.Secret ? (Model.SeesSecrets ? "Sign-in secret: only Administrators see it." : "Sign-in secret: hidden.") : "")</td></tr>
+        }
+        </tbody></table></div>
+    </details>
+    <div class="table-wrap raw-wrap"><table class="raw-table"><thead><tr>
+        <th class="raw-rownum">#</th>
+        @foreach (var column in result.Columns) { <th title="@column.Type@(column.Key ? " · key" : "")@(column.References is { } r ? $" · points at {r}" : "")">@column.Name@(column.Key ? " 🔑" : "")@(column.Secret ? " 🔒" : "")</th> }
+    </tr></thead><tbody>
+    @for (var i = 0; i < result.Rows.Count; i++)
+    {
+        var row = result.Rows[i];
+        <tr>
+            <td class="raw-rownum">@(first + i)</td>
+            @for (var c = 0; c < row.Length; c++) { <td>@EduHelpdesk.Pages.Settings.RawCell.Render(row[c], result.Columns[c])</td> }
+        </tr>
+    }
+    @if (result.Rows.Count == 0) { <tr><td colspan="@(result.Columns.Count + 1)" class="empty">@(Model.IsFiltered ? "No rows match these filters." : "This table is empty.")</td></tr> }
+    </tbody></table></div>
+    @if (Model.TotalPages > 1)
+    {
+        <div class="audit-pager">
+            @if (Model.PageNumber > 1) { <a class="button button-secondary" asp-page="/Settings/DatabaseTable" asp-all-route-data="@Model.Route(Model.PageNumber - 1)">← Previous</a> }
+            <span class="muted">Rows @first.ToString("N0")–@Math.Min(first + EduHelpdesk.Services.RawDatabase.PageSize - 1, result.Total).ToString("N0") of @result.Total.ToString("N0")</span>
+            @if (Model.PageNumber < Model.TotalPages) { <a class="button button-secondary" asp-page="/Settings/DatabaseTable" asp-all-route-data="@Model.Route(Model.PageNumber + 1)">Next →</a> }
+        </div>
+    }
+</section>

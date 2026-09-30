@@ -2093,3 +2093,18 @@ main:focus { outline: none; }
     .onboarding-task { grid-template-columns: auto minmax(0, 1fr); }
     .onboarding-task-actions { grid-column: 2; }
 }
+
+/* Settings → Database: rows exactly as stored. Monospaced, so ids and dates line up; NULL, empty text and hidden
+   secrets each look different. */
+/* Its natural width, scrolling sideways inside .table-wrap, rather than squeezed until ids wrap a character at a time. */
+.raw-table { font-size: 12px; width: max-content; min-width: 100%; }
+/* Column names exactly as stored, not upper-cased like other tables' headings. */
+.raw-table th { white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.raw-table td { vertical-align: top; max-width: 420px; }
+.raw-value { display: block; white-space: pre-wrap; word-break: break-word; max-height: 8.5em; overflow: auto; font-family: ui-monospace, Consolas, monospace; }
+.raw-null { color: var(--muted); font-style: italic; font-size: 11px; }
+.raw-empty { color: var(--muted); font-size: 11px; }
+.raw-masked { color: var(--caution); font-size: 11px; white-space: nowrap; }
+.raw-rownum { color: var(--muted); text-align: right; }
+.raw-columns { margin: 0 0 12px; }
+.raw-columns summary { cursor: pointer; font-size: 13px; }

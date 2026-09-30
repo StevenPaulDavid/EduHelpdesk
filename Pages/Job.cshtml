@@ -23,6 +23,7 @@
             if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" data-open-blade="close-dialog-backdrop">Mark as closed</button> }
             else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }
         }
+        <partial name="_RawDataLink" model='("ticket", Model.Ticket.Number.ToString())' />
         <details class="nav-menu action-menu">
             <summary class="button button-secondary">🖨 Print<span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">
