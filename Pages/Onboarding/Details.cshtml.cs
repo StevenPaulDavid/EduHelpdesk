@@ -35,6 +35,12 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
     public bool CanIssue(OnboardingTask task) => CanTick(task) && (CanEdit || store.UserCan(User, Modules.Assets, ModulePermission.Edit));
     private bool CanView => store.UserCan(User, Modules.Onboarding, ModulePermission.View) || store.UserCan(User, Modules.Tickets, ModulePermission.View);
 
+    // The checklist's tabs, one per time frame. It opens on the first one with anything left to do; after ticking or
+    // adding a task, the address fragment points at the task or its tab and wwwroot/js/actions.js opens that instead.
+    public static string StageId(string stage) => "stage-" + stage.ToLowerInvariant().Replace(' ', '-');
+    public string OpenStage => OnboardingStages.All.FirstOrDefault(stage => Record.Tasks.Any(x => x.Stage == stage && !x.IsDone))
+        ?? OnboardingStages.All.FirstOrDefault(stage => Record.Tasks.Any(x => x.Stage == stage)) ?? OnboardingStages.All[0];
+
     // Free devices for each asset type an unfinished device task needs, and the devices finished ones handed over.
     public IReadOnlyDictionary<string, IReadOnlyList<AssetRecord>> FreeAssets { get; private set; } = new Dictionary<string, IReadOnlyList<AssetRecord>>();
     public IReadOnlyDictionary<Guid, AssetRecord> IssuedAssets { get; private set; } = new Dictionary<Guid, AssetRecord>();
@@ -114,12 +120,17 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
         CanEdit ? Back(number, store.AssignOnboardingTask(number, taskId, technicianId).Message, $"task-{taskId}") : Forbid();
 
     public IActionResult OnPostAddTask(int number, string? title, int offsetDays, string? owner, string? action) =>
-        CanEdit ? Back(number, store.AddOnboardingTask(number, title, offsetDays, owner, action).Message, "checklist") : Forbid();
+        CanEdit ? Back(number, store.AddOnboardingTask(number, title, offsetDays, owner, action).Message, StageId(OnboardingStages.For(offsetDays))) : Forbid();
 
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
 
-    public IActionResult OnPostRemoveTask(int number, Guid taskId) =>
-        CanEdit ? Back(number, store.RemoveOnboardingTask(number, taskId).Message, "checklist") : Forbid();
+    public IActionResult OnPostRemoveTask(int number, Guid taskId)
+    {
+        if (!CanEdit) return Forbid();
+        // Back to the tab the task was on, so it is looked up before it goes.
+        var stage = store.FindOnboarding(number)?.Tasks.FirstOrDefault(x => x.Id == taskId)?.Stage;
+        return Back(number, store.RemoveOnboardingTask(number, taskId).Message, stage is null ? "checklist" : StageId(stage));
+    }
 
     public IActionResult OnPostDetails(int number, string? name, string? email, string? jobTitle, string? department, string? location, DateOnly? startDate, Guid? lineManagerId) =>
         CanEdit ? Back(number, store.UpdateOnboardingDetails(number, new HelpdeskStore.OnboardingDetails(name, email, jobTitle, department, location, startDate, lineManagerId)).Message) : Forbid();

@@ -14,9 +14,25 @@
 //   data-show="id …" / data-hide="id …"   shows and hides elements, for the edit-in-place forms
 //   data-describe="id"          on a select: puts the chosen option's data-description into that element
 //   data-expand="selector"      opens every <details> the selector matches; data-collapse closes them
-//   role="tab" + aria-controls  inside a [role=tablist]: shows that tab's panel and hides its siblings'
+//   role="tab" + aria-controls  inside a [role=tablist]: shows that tab's panel and hides its siblings'. An address
+//                               #fragment naming a panel, or anything inside one, opens that tab when the page loads
 (function () {
     const ids = value => (value || "").split(/\s+/).filter(Boolean).map(id => document.getElementById(id)).filter(Boolean);
+
+    const selectTab = el => el.closest("[role=tablist]")?.querySelectorAll("[role=tab]").forEach(tab => {
+        const on = tab === el;
+        tab.classList.toggle("active", on);
+        tab.setAttribute("aria-selected", String(on));
+        const panel = document.getElementById(tab.getAttribute("aria-controls"));
+        if (panel) { panel.hidden = !on; panel.classList.toggle("active", on); }
+    });
+
+    // After a form posts back to "#task-…" or "#stage-…", the thing it points at may sit in a tab that isn't the one
+    // open by default: open that tab, then scroll to it, which the browser couldn't do while it was hidden.
+    const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    const hiddenPanel = target?.closest("[role=tabpanel][hidden]");
+    const tab = hiddenPanel && document.querySelector(`[role=tab][aria-controls="${CSS.escape(hiddenPanel.id)}"]`);
+    if (tab) { selectTab(tab); target.scrollIntoView({ block: "center" }); }
 
     document.addEventListener("submit", e => {
         const form = e.target;
@@ -48,15 +64,7 @@
             }
             if (el.dataset.expand) document.querySelectorAll(el.dataset.expand).forEach(d => d.open = true);
             if (el.dataset.collapse) document.querySelectorAll(el.dataset.collapse).forEach(d => d.open = false);
-            if (el.getAttribute("role") === "tab") {
-                el.closest("[role=tablist]")?.querySelectorAll("[role=tab]").forEach(tab => {
-                    const on = tab === el;
-                    tab.classList.toggle("active", on);
-                    tab.setAttribute("aria-selected", String(on));
-                    const panel = document.getElementById(tab.getAttribute("aria-controls"));
-                    if (panel) { panel.hidden = !on; panel.classList.toggle("active", on); }
-                });
-            }
+            if (el.getAttribute("role") === "tab") selectTab(el);
             return;
         }
         // The backdrop itself, not anything inside the panel.

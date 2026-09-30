@@ -34,12 +34,23 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
         @if (record.Tasks.Count > 0)
         {
             <progress class="onboarding-progress" max="@record.Tasks.Count" value="@record.Done">@record.Done of @record.Tasks.Count</progress>
+            @* One tab per time frame, each with how many of its tasks are done: amber while any is overdue, teal once all are. *@
+            <div class="ticket-tab-buttons onboarding-stage-tabs" role="tablist">
+                @foreach (var stage in OnboardingStages.All)
+                {
+                    var inStage = record.Tasks.Where(x => x.Stage == stage).ToList();
+                    var stageLate = inStage.Count(x => record.IsOverdue(x, Model.Today));
+                    var on = stage == Model.OpenStage;
+                    <button class="ticket-tab-button @(on ? "active" : "")" type="button" role="tab" aria-selected="@(on ? "true" : "false")" aria-controls="@DetailsModel.StageId(stage)">@stage <span class="badge @(stageLate > 0 ? "badge-warning" : inStage.Count > 0 && inStage.All(x => x.IsDone) ? "badge-reply" : "")" title="@(stageLate > 0 ? $"{stageLate} overdue" : null)">@inStage.Count(x => x.IsDone)/@inStage.Count</span></button>
+                }
+            </div>
         }
         @foreach (var stage in OnboardingStages.All)
         {
             var tasks = record.Ordered.Where(x => x.Stage == stage).ToList();
-            if (tasks.Count == 0) { continue; }
-            <h3 class="onboarding-stage-heading">@stage</h3>
+            if (record.Tasks.Count == 0) { continue; }
+            <div id="@DetailsModel.StageId(stage)" class="ticket-tab-panel @(stage == Model.OpenStage ? "active" : "")" role="tabpanel" hidden="@(stage != Model.OpenStage)">
+            @if (tasks.Count == 0) { <p class="empty">No tasks here.@(Model.CanEdit && !record.IsCancelled ? " Add one below - its days from the start date decide which tab it goes in." : "")</p> }
             <ul class="onboarding-tasks">
                 @foreach (var task in tasks)
                 {
@@ -140,6 +151,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                     </li>
                 }
             </ul>
+            </div>
         }
         @if (record.Tasks.Count == 0) { <p class="empty">No tasks yet.@(Model.CanEdit ? " Add the first one below." : "")</p> }
         @if (Model.CanEdit && !record.IsCancelled)

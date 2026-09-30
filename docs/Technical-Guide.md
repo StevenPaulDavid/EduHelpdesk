@@ -320,6 +320,8 @@ Their school email is optional, since creating it is often one of the tasks. Sta
 
 Tasks can be added or removed for one person without changing the template. Moving the start date moves every due date with it.
 
+On a new starter's page the checklist has a tab for each time frame, showing how many of its tasks are done, such as *Before arrival 6/7*. The count is amber while any task in it is overdue, and teal once all are done. The page opens on the first time frame with something left to do. After ticking, issuing or adding a task, it opens on that task's tab.
+
 **Tasks that do the job for you.** A task's **Does** setting can make ticking it do more than tick it:
 - **Makes their staff portal account.**
   - Ticking it gives the new starter a temporary password (to change at first sign-in) and opens their quick start guide to print, password included.

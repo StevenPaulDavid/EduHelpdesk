@@ -2053,6 +2053,7 @@ main:focus { outline: none; }
 .onboarding-side { display: grid; gap: 18px; }
 .onboarding-progress { width: 100%; height: 8px; accent-color: var(--teal); margin: 0 0 4px; }
 .onboarding-stage-heading { font-size: 14px; margin: 18px 0 4px; }
+.onboarding-stage-tabs { margin: 16px 0 6px; }
 .onboarding-tasks { list-style: none; margin: 0; padding: 0; }
 .onboarding-task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .onboarding-tick { margin: 0; }
