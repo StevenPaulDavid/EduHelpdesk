@@ -440,6 +440,7 @@ public sealed partial class HelpdeskStore
                 for (var i = 0; i < _data.ServiceItems.Count; i++)
                     if (string.Equals(_data.ServiceItems[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
                         _data.ServiceItems[i] = _data.ServiceItems[i] with { Category = newValue };
+                if (_data.CategoryStyles.Remove(oldValue, out var tileStyle)) _data.CategoryStyles[newValue] = tileStyle;
                 // Templates too: one ticked for the portal would otherwise lose its category and drop off the buttons.
                 for (var i = 0; i < _data.TicketTemplates.Count; i++)
                     if (string.Equals(_data.TicketTemplates[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
@@ -496,6 +497,7 @@ public sealed partial class HelpdeskStore
                         _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = "" };
             if (kind == "Priority") _data.RequireCloseMessagePriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.RequireCloseMessageCategories.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
+            if (kind == "Category") _data.CategoryStyles.Remove(item);
             Save();
             return $"{kind} deleted.";
         }

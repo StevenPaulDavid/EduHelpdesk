@@ -11,7 +11,7 @@ public sealed partial class HelpdeskStore
 
     // One button in the staff portal: a catalogue item or a template ticked "Show in portal". Key is the item's name
     // or the template's id, whichever Kind says it is.
-    public sealed record PortalChoice(string Kind, string Key, string Label, string HelperLine, string Category)
+    public sealed record PortalChoice(string Kind, string Key, string Label, string HelperLine, string Category, int Order = 0)
     {
         public const string ItemKind = "item";
         public const string TemplateKind = "template";
@@ -50,6 +50,7 @@ public sealed partial class HelpdeskStore
 
     // Every button staff can press, in one category or all of them: shown catalogue items and shown templates mixed
     // together, because to staff they are the same thing. A template whose category was deleted has nowhere to sit.
+    // In the order set in Settings; buttons never ordered by hand tie, and so sort alphabetically.
     public IReadOnlyList<PortalChoice> PortalChoices(string? category = null)
     {
         lock (_sync)
@@ -57,12 +58,101 @@ public sealed partial class HelpdeskStore
             var categories = _data.Categories.ToHashSet(StringComparer.OrdinalIgnoreCase);
             bool InScope(string value) => categories.Contains(value) && (category is null || string.Equals(value, category.Trim(), StringComparison.OrdinalIgnoreCase));
             return _data.ServiceItems.Where(x => x.ShowInPortal && InScope(x.Category))
-                .Select(x => new PortalChoice(PortalChoice.ItemKind, x.Name, x.Name, x.HelperLine, x.Category))
+                .Select(x => new PortalChoice(PortalChoice.ItemKind, x.Name, x.Name, x.HelperLine, x.Category, x.PortalOrder))
                 .Concat(_data.TicketTemplates.Where(x => x.ShowInPortal && InScope(x.Category))
-                    .Select(x => new PortalChoice(PortalChoice.TemplateKind, x.Id.ToString(), x.Name, x.HelperLine, x.Category)))
-                .OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => new PortalChoice(PortalChoice.TemplateKind, x.Id.ToString(), x.Name, x.HelperLine, x.Category, x.PortalOrder)))
+                .OrderBy(x => x.Order)
+                .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
+    }
+
+    // ---- How the portal looks and is ordered ----
+
+    // The look of a category's tile: what was chosen in Settings, or the built-in one for its name.
+    public CategoryStyle StyleFor(string? category)
+    {
+        lock (_sync)
+        {
+            var fallback = PortalLook.DefaultFor(category ?? "");
+            if (category is not null && _data.CategoryStyles.TryGetValue(category.Trim(), out var chosen))
+                return new CategoryStyle(PortalLook.FindIcon(chosen.Icon)?.Key ?? fallback.Icon, PortalLook.FindColor(chosen.Color)?.Key ?? fallback.Color);
+            return new CategoryStyle(fallback.Icon, fallback.Color);
+        }
+    }
+
+    public string SetCategoryStyle(string? category, string? icon, string? color)
+    {
+        lock (_sync)
+        {
+            var name = _data.Categories.FirstOrDefault(x => string.Equals(x, category?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (name is null) return "Select a valid category.";
+            var chosenIcon = PortalLook.FindIcon(icon);
+            if (chosenIcon is null) return "Choose one of the icons.";
+            var chosenColor = PortalLook.FindColor(color);
+            if (chosenColor is null) return "Choose one of the colours.";
+            _data.CategoryStyles[name] = new CategoryStyle(chosenIcon.Key, chosenColor.Key);
+            Save();
+            return $"{name} tile saved.";
+        }
+    }
+
+    // Moves a category one place up (direction -1) or down in the category list, which is the order of the tiles and of
+    // every category dropdown. Null when there is nothing to say - including when it is already at that end.
+    public string? MoveCategory(string? category, int direction)
+    {
+        lock (_sync)
+        {
+            var index = _data.Categories.FindIndex(x => string.Equals(x, category?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return "Category was not found.";
+            var other = index + (direction < 0 ? -1 : 1);
+            if (other < 0 || other >= _data.Categories.Count) return null;
+            (_data.Categories[index], _data.Categories[other]) = (_data.Categories[other], _data.Categories[index]);
+            Save();
+            return null;
+        }
+    }
+
+    // Moves a portal button one place up (-1) or down inside its category. Items and templates share the numbering, so a
+    // template can sit between two items. Every shown button in the category is renumbered, so a category that has only
+    // ever been sorted alphabetically becomes an explicit order the first time one moves.
+    public string? MovePortalChoice(string? category, string? kind, string? key, int direction)
+    {
+        lock (_sync)
+        {
+            var list = PortalChoices(category).ToList();
+            var index = list.FindIndex(x => x.Kind == kind && string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return "That button was not found.";
+            var other = index + (direction < 0 ? -1 : 1);
+            if (other < 0 || other >= list.Count) return null;
+            (list[index], list[other]) = (list[other], list[index]);
+            for (var i = 0; i < list.Count; i++) SetPortalOrder(list[i], i);
+            Save();
+            return null;
+        }
+    }
+
+    private void SetPortalOrder(PortalChoice choice, int order)
+    {
+        if (choice.Kind == PortalChoice.ItemKind)
+        {
+            var i = _data.ServiceItems.FindIndex(x => string.Equals(x.Category, choice.Category, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Name, choice.Key, StringComparison.OrdinalIgnoreCase));
+            if (i >= 0 && _data.ServiceItems[i].PortalOrder != order) _data.ServiceItems[i] = _data.ServiceItems[i] with { PortalOrder = order };
+        }
+        else if (Guid.TryParse(choice.Key, out var id))
+        {
+            var i = _data.TicketTemplates.FindIndex(x => x.Id == id);
+            if (i >= 0 && _data.TicketTemplates[i].PortalOrder != order) _data.TicketTemplates[i] = _data.TicketTemplates[i] with { PortalOrder = order };
+        }
+    }
+
+    // The place at the end of a category's portal buttons, for something new there (or newly shown, or moved in).
+    private int NextPortalOrder(string category, Guid? exceptId)
+    {
+        var orders = _data.ServiceItems.Where(x => x.ShowInPortal && x.Id != exceptId && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)).Select(x => x.PortalOrder)
+            .Concat(_data.TicketTemplates.Where(x => x.ShowInPortal && x.Id != exceptId && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)).Select(x => x.PortalOrder))
+            .ToList();
+        return orders.Count == 0 ? 0 : orders.Max() + 1;
     }
 
     // The categories that have at least one button, in category order, with how many.
@@ -160,6 +250,11 @@ public sealed partial class HelpdeskStore
             priority = _data.Priorities.FirstOrDefault(x => string.Equals(x, defaultPriority.Trim(), StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
             if (priority.Length == 0) return (null, "Select a valid priority.");
         }
-        return (new ServiceItem(id, validCategory, name, priority, helper, showInPortal), null);
+        // Keeps its place while it stays shown in the same category; otherwise it joins the end of the buttons it is entering.
+        var old = _data.ServiceItems.FirstOrDefault(x => x.Id == id);
+        var order = old is not null && old.ShowInPortal && showInPortal && string.Equals(old.Category, validCategory, StringComparison.OrdinalIgnoreCase)
+            ? old.PortalOrder
+            : NextPortalOrder(validCategory, id);
+        return (new ServiceItem(id, validCategory, name, priority, helper, showInPortal, order), null);
     }
 }

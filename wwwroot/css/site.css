@@ -759,6 +759,38 @@ tr.row-urgent td:nth-child(2) strong::after {
 .portal-chosen { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; margin-bottom: 18px; border-left: 6px solid var(--teal); border-radius: 8px; background: var(--accent); }
 .portal-chosen strong { font-size: 18px; }
 .portal-chosen .eyebrow { margin: 0; }
+.portal-chosen { border-left-color: var(--tile-color, var(--teal)); }
+
+/* Category tiles carry an icon in the tile's colour. */
+.portal-icon { width: 100%; height: 100%; display: block; }
+.portal-tile-big { flex-direction: row; justify-content: flex-start; align-items: center; gap: 16px; min-height: 104px; }
+.portal-tile-symbol { flex: none; width: 46px; height: 46px; padding: 9px; border-radius: 12px; color: var(--tile-color, var(--teal)); background: color-mix(in srgb, var(--tile-color, var(--teal)) 14%, transparent); }
+.portal-tile-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.heading-symbol { display: inline-block; width: .9em; height: .9em; margin-right: 12px; vertical-align: -.08em; color: var(--tile-color, var(--teal)); }
+
+/* Settings > Service catalogue: tile looks and the order of buttons. */
+.order-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.order-row > .template-item { flex: 1; min-width: 0; margin-bottom: 0; }
+.order-controls { display: flex; flex-direction: column; gap: 4px; flex: none; width: 34px; padding-top: 2px; }
+.order-controls-empty { height: 1px; }
+.order-button { width: 34px; height: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 15px; line-height: 1; cursor: pointer; }
+.order-button:hover:not(:disabled) { background: var(--accent); }
+.order-button:disabled { opacity: .35; cursor: default; }
+.tile-swatch { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 5px; border-radius: 8px; color: var(--tile-color, var(--teal)); background: color-mix(in srgb, var(--tile-color, var(--teal)) 14%, transparent); }
+.tile-swatch-small { width: 22px; height: 22px; padding: 3px; vertical-align: middle; margin-right: 4px; }
+.catalogue-category { margin-top: 22px; display: flex; align-items: center; gap: 4px; }
+.template-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tile-style-form { display: grid; gap: 14px; }
+.tile-style-form fieldset { border: 0; padding: 0; margin: 0; }
+.tile-style-form legend { font-size: 12px; font-weight: 750; color: var(--muted); margin-bottom: 6px; padding: 0; }
+.choice-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.icon-choice, .color-choice { position: relative; cursor: pointer; }
+.icon-choice input, .color-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.icon-choice > span { display: grid; place-items: center; width: 46px; height: 46px; padding: 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.color-choice > span { display: block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.icon-choice input:checked + span { border-color: var(--teal); background: var(--accent); box-shadow: 0 0 0 2px var(--teal); }
+.color-choice input:checked + span { box-shadow: 0 0 0 3px var(--ink); }
+.icon-choice input:focus-visible + span, .color-choice input:focus-visible + span { outline: 3px solid var(--teal); outline-offset: 2px; }
 
 @media(max-width:800px) {
     .portal-shell { max-width: 100%; }

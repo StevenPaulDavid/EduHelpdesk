@@ -59,6 +59,7 @@ public sealed partial class HelpdeskStore
         if (name.Length == 0) return (null, "Enter a name for the template.");
         if (name.Length > 100) return (null, "The template name is too long (100 characters at most).");
         if (_data.TicketTemplates.Any(x => x.Id != id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) return (null, "A template with that name already exists.");
+        var old = _data.TicketTemplates.FirstOrDefault(x => x.Id == id);
         var validCategory = _data.Categories.FirstOrDefault(x => string.Equals(x, category?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (validCategory is null) return (null, "Select a valid category.");
         var validPriority = _data.Priorities.FirstOrDefault(x => string.Equals(x, priority?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -69,6 +70,11 @@ public sealed partial class HelpdeskStore
         var values = (attributeValues ?? new Dictionary<Guid, string>())
             .Where(x => !string.IsNullOrWhiteSpace(x.Value) && _data.TicketAttributeDefinitions.Any(d => d.Id == x.Key))
             .ToDictionary(x => x.Key, x => x.Value.Trim());
-        return (new TicketTemplate(id, name, TicketTypes.Normalize(type), title, description?.Trim() ?? string.Empty, validCategory, validPriority, slaId) { AttributeValues = values, HelperLine = helper, ShowInPortal = showInPortal }, null);
+        return (new TicketTemplate(id, name, TicketTypes.Normalize(type), title, description?.Trim() ?? string.Empty, validCategory, validPriority, slaId)
+        {
+            AttributeValues = values, HelperLine = helper, ShowInPortal = showInPortal,
+            // Keeps its place while it stays shown in the same category; otherwise it joins the end of the buttons it is entering.
+            PortalOrder = old is not null && old.ShowInPortal && showInPortal && string.Equals(old.Category, validCategory, StringComparison.OrdinalIgnoreCase) ? old.PortalOrder : NextPortalOrder(validCategory, id)
+        }, null);
     }
 }

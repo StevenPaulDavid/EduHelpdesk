@@ -131,6 +131,8 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE ServiceItems ADD COLUMN ShowInPortal INTEGER NOT NULL DEFAULT 1;",
             "ALTER TABLE TicketTemplates ADD COLUMN HelperLine TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE TicketTemplates ADD COLUMN ShowInPortal INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE ServiceItems ADD COLUMN PortalOrder INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE TicketTemplates ADD COLUMN PortalOrder INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Users ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
             "ALTER TABLE Users ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
@@ -190,8 +192,10 @@ public sealed partial class HelpdeskStore
                 PRIMARY KEY (TicketNumber, LinkedNumber),
                 FOREIGN KEY (TicketNumber) REFERENCES Tickets(Number) ON DELETE CASCADE, FOREIGN KEY (LinkedNumber) REFERENCES Tickets(Number) ON DELETE CASCADE);
             CREATE TABLE IF NOT EXISTS TicketTemplates (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, TicketType TEXT NOT NULL, Title TEXT NOT NULL, Description TEXT NOT NULL,
-                Category TEXT NOT NULL, Priority TEXT NOT NULL, SlaId TEXT NULL, HelperLine TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS ServiceItems (Id TEXT PRIMARY KEY, Category TEXT NOT NULL, Name TEXT NOT NULL, DefaultPriority TEXT NOT NULL DEFAULT '', HelperLine TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1);
+                Category TEXT NOT NULL, Priority TEXT NOT NULL, SlaId TEXT NULL, HelperLine TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 0, PortalOrder INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS ServiceItems (Id TEXT PRIMARY KEY, Category TEXT NOT NULL, Name TEXT NOT NULL, DefaultPriority TEXT NOT NULL DEFAULT '', HelperLine TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1, PortalOrder INTEGER NOT NULL DEFAULT 0);
+            -- No foreign key to Categories: a rename or delete moves or removes the row, and a stale one is ignored on load.
+            CREATE TABLE IF NOT EXISTS CategoryStyles (Category TEXT PRIMARY KEY, Icon TEXT NOT NULL, Color TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TicketTemplateAttributes (TemplateId TEXT NOT NULL, AttributeDefinitionId TEXT NOT NULL, Value TEXT NOT NULL,
                 PRIMARY KEY (TemplateId, AttributeDefinitionId), FOREIGN KEY (TemplateId) REFERENCES TicketTemplates(Id) ON DELETE CASCADE);
             """;

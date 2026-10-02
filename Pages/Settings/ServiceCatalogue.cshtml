@@ -1,6 +1,7 @@
 @page
 @using EduHelpdesk.Models
 @using EduHelpdesk.Services
+@using static EduHelpdesk.Pages.Settings.ServiceCatalogueModel
 @model EduHelpdesk.Pages.Settings.ServiceCatalogueModel
 @{
     ViewData["Title"] = "Service catalogue";
@@ -17,34 +18,118 @@
             <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@(item?.ShowInPortal ?? true)" /> Show in the staff portal<small class="muted">Untick to keep it in the catalogue without offering it to staff.</small></label>
         </div>
     }
+
+    // Two small forms, so up and down work without scripts. The one at the end of the list is disabled.
+    async Task MoveButtons(string handler, string label, bool first, bool last, params (string Name, string Value)[] fields)
+    {
+        <div class="order-controls">
+            @foreach (var (direction, arrow, word, disabled) in new[] { (-1, "↑", "up", first), (1, "↓", "down", last) })
+            {
+                <form method="post" asp-page-handler="@handler">
+                    @foreach (var (name, value) in fields) { <input type="hidden" name="@name" value="@value" /> }
+                    <input type="hidden" name="direction" value="@direction" />
+                    <button class="order-button" type="submit" disabled="@disabled" title="Move @word" aria-label="Move @label @word">@arrow</button>
+                </form>
+            }
+        </div>
+    }
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Service catalogue</h1><p class="hero-copy">The buttons staff see when they report something in the portal. They tap a category, then one of the items below, and the item becomes the ticket title. Templates ticked "Show in portal" appear as buttons alongside these (see Ticket templates). If theirs isn't listed they tap "Something else" and type it, so the catalogue never stops anyone reporting a problem.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Service catalogue</h1><p class="hero-copy">The buttons staff see when they report something in the portal. They tap a category tile, then one of the buttons below it, and the button becomes the ticket title. Templates ticked "Show in portal" (see Ticket templates) appear as buttons alongside the catalogue items. If theirs isn't listed they tap "Something else" and type it, so the catalogue never stops anyone reporting a problem.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Category tiles</h2><span class="badge">@Model.Categories.Count</span></div>
+    <p class="muted">The big tiles on the first screen, in this order. Pick an icon and colour for each, and use the arrows to move one up or down. The order also applies to the category lists elsewhere. Categories themselves are added and renamed in Settings → Categories.</p>
+    @for (var i = 0; i < Model.Categories.Count; i++)
+    {
+        var category = Model.Categories[i];
+        var style = Model.StyleFor(category);
+        var icon = PortalLook.FindIcon(style.Icon)!;
+        var color = PortalLook.FindColor(style.Color)!;
+        <div class="order-row" id="tile-@Slug(category)">
+            @{ await MoveButtons("MoveCategory", category, i == 0, i == Model.Categories.Count - 1, ("category", category)); }
+            <details class="template-item">
+                <summary><span class="tile-swatch" style="--tile-color:@color.Hex">@PortalLook.Svg(style.Icon)</span> <strong>@category</strong> <span class="muted">@icon.Label · @color.Label</span></summary>
+                <form method="post" asp-page-handler="Style" class="tile-style-form">
+                    <input type="hidden" name="category" value="@category" />
+                    <fieldset><legend>Icon</legend>
+                        <div class="choice-grid">
+                            @foreach (var choice in PortalLook.Icons)
+                            {
+                                <label class="icon-choice" title="@choice.Label"><input type="radio" name="icon" value="@choice.Key" checked="@(choice.Key == style.Icon)" /><span>@PortalLook.Svg(choice.Key)<span class="visually-hidden">@choice.Label</span></span></label>
+                            }
+                        </div>
+                    </fieldset>
+                    <fieldset><legend>Colour</legend>
+                        <div class="choice-grid">
+                            @foreach (var choice in PortalLook.Colors)
+                            {
+                                <label class="color-choice" title="@choice.Label"><input type="radio" name="color" value="@choice.Key" checked="@(choice.Key == style.Color)" /><span style="background:@choice.Hex"><span class="visually-hidden">@choice.Label</span></span></label>
+                            }
+                        </div>
+                    </fieldset>
+                    <button class="button button-primary" type="submit">Save tile</button>
+                </form>
+            </details>
+        </div>
+    }
+</section>
+
 <section class="panel">
     <div class="panel-heading"><h2>Add an item</h2></div>
     <form method="post" asp-page-handler="Save" class="settings-form">
         @{ await ItemFields(null); }
-        <small class="muted">The starting priority is only what the portal's priority box starts on - staff can still change it. Items are grouped under the categories from Settings → Categories.</small>
+        <small class="muted">The starting priority is only what the portal's priority box starts on - staff can still change it. Items are grouped under the categories from Settings → Categories, and a new one goes to the end of its category's buttons.</small>
         <button class="button button-primary" type="submit">Add item</button>
     </form>
 </section>
+
 <section class="panel">
-    <div class="panel-heading"><h2>Catalogue</h2><span class="badge">@Model.Items.Count</span></div>
-    @foreach (var group in Model.Items.GroupBy(x => x.Category))
+    <div class="panel-heading"><h2>Buttons</h2><span class="badge">@Model.Items.Count items</span></div>
+    <p class="muted">What staff see under each tile, in this order. Use the arrows to move a button; catalogue items and templates share the same order.</p>
+    @foreach (var category in Model.ListedCategories)
     {
-        <p class="eyebrow">@group.Key</p>
-        @foreach (var item in group)
+        var buttons = Model.ButtonsFor(category);
+        var style = Model.StyleFor(category);
+        <p class="eyebrow catalogue-category" id="cat-@Slug(category)" style="--tile-color:@PortalLook.Hex(style.Color)"><span class="tile-swatch tile-swatch-small">@PortalLook.Svg(style.Icon)</span> @category</p>
+        @for (var i = 0; i < buttons.Count; i++)
         {
-            <details class="template-item">
-                <summary><strong>@item.Name</strong> @if (!item.ShowInPortal) { <span class="badge">Hidden from portal</span> } <span class="muted">@(item.DefaultPriority.Length == 0 ? "No starting priority" : "Starts on " + item.DefaultPriority)@(item.HelperLine.Length == 0 ? "" : " · " + item.HelperLine)</span></summary>
-                <form method="post" asp-page-handler="Save" class="settings-form">
-                    <input type="hidden" name="id" value="@item.Id" />
-                    @{ await ItemFields(item); }
-                    <button class="button button-primary" type="submit">Save changes</button>
-                </form>
-                <form method="post" asp-page-handler="Delete" data-confirm="Delete this catalogue item? Tickets already raised from it keep their wording."><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete item</button></form>
-            </details>
+            var choice = buttons[i];
+            <div class="order-row">
+                @{ await MoveButtons("MoveChoice", choice.Label, i == 0, i == buttons.Count - 1, ("category", category), ("kind", choice.Kind), ("key", choice.Key)); }
+                @if (Model.ItemFor(choice) is { } item)
+                {
+                    <details class="template-item">
+                        <summary><strong>@item.Name</strong> <span class="muted">@(item.DefaultPriority.Length == 0 ? "No starting priority" : "Starts on " + item.DefaultPriority)@(item.HelperLine.Length == 0 ? "" : " · " + item.HelperLine)</span></summary>
+                        <form method="post" asp-page-handler="Save" class="settings-form">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            @{ await ItemFields(item); }
+                            <button class="button button-primary" type="submit">Save changes</button>
+                        </form>
+                        <form method="post" asp-page-handler="Delete" data-confirm="Delete this catalogue item? Tickets already raised from it keep their wording."><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete item</button></form>
+                    </details>
+                }
+                else
+                {
+                    <div class="template-item template-row"><strong>@choice.Label</strong> <span class="badge type-request">Template</span> <span class="muted">@(choice.HelperLine.Length == 0 ? "" : choice.HelperLine + " · ")edit it under <a asp-page="/Settings/TicketTemplates">Ticket templates</a></span></div>
+                }
+            </div>
+        }
+        @foreach (var item in Model.HiddenItems(category))
+        {
+            <div class="order-row">
+                <div class="order-controls order-controls-empty"></div>
+                <details class="template-item">
+                    <summary><strong>@item.Name</strong> <span class="badge">Hidden from portal</span> <span class="muted">@(item.DefaultPriority.Length == 0 ? "No starting priority" : "Starts on " + item.DefaultPriority)@(item.HelperLine.Length == 0 ? "" : " · " + item.HelperLine)</span></summary>
+                    <form method="post" asp-page-handler="Save" class="settings-form">
+                        <input type="hidden" name="id" value="@item.Id" />
+                        @{ await ItemFields(item); }
+                        <button class="button button-primary" type="submit">Save changes</button>
+                    </form>
+                    <form method="post" asp-page-handler="Delete" data-confirm="Delete this catalogue item? Tickets already raised from it keep their wording."><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete item</button></form>
+                </details>
+            </div>
         }
     }
-    @if (Model.Items.Count == 0) { <p class="empty">Nothing in the catalogue yet. Until you add items, the portal form just asks staff to describe the problem.</p> }
+    @if (Model.Items.Count == 0) { <p class="empty">Nothing in the catalogue yet. Until you add items or show a template, the portal form just asks staff to describe the problem.</p> }
 </section>

@@ -97,6 +97,8 @@ public sealed partial class HelpdeskStore
         public List<TicketPartAssignment> TicketParts { get; set; } = [];
         public List<TicketTemplate> TicketTemplates { get; set; } = [];
         public List<ServiceItem> ServiceItems { get; set; } = [];
+        // Only categories someone has chosen a look for; the rest use PortalLook.DefaultFor.
+        public Dictionary<string, CategoryStyle> CategoryStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<TicketAttachment> TicketAttachments { get; set; } = [];
         public List<TicketLink> TicketLinks { get; set; } = [];
         public List<AssetAttributeDefinition> AssetAttributeDefinitions { get; set; } = [];

@@ -228,6 +228,170 @@ public class ServiceCatalogueTests
     }
 
     [Fact]
+    public void Every_icon_and_colour_is_distinct_and_every_built_in_look_uses_real_ones()
+    {
+        Assert.Equal(PortalLook.Icons.Count, PortalLook.Icons.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(PortalLook.Colors.Count, PortalLook.Colors.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(PortalLook.Icons, x => Assert.False(string.IsNullOrWhiteSpace(x.Shapes)));
+        Assert.All(PortalLook.Colors, x => Assert.Matches("^#[0-9a-f]{6}$", x.Hex));
+        Assert.NotNull(PortalLook.FindIcon(PortalLook.DefaultIcon));
+        Assert.NotNull(PortalLook.FindColor(PortalLook.DefaultColor));
+        foreach (var category in new[] { "Hardware", "Software", "Account", "Network", "Classroom AV", "Other", "Onboarding", "Something new" })
+        {
+            var (icon, color) = PortalLook.DefaultFor(category);
+            Assert.NotNull(PortalLook.FindIcon(icon));
+            Assert.NotNull(PortalLook.FindColor(color));
+        }
+        // An unknown key never reaches the page as anything but the folder icon and the default colour.
+        Assert.Contains("<svg", PortalLook.Svg("<script>").Value);
+        Assert.DoesNotContain("script", PortalLook.Svg("<script>").Value);
+        Assert.Equal(PortalLook.Hex(PortalLook.DefaultColor), PortalLook.Hex("red; background:url(x)"));
+    }
+
+    [Fact]
+    public void A_category_tile_has_a_built_in_look_until_one_is_chosen_and_the_choice_is_checked_and_kept()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+
+        Assert.Equal(new CategoryStyle("projector", "pink"), store.StyleFor("Classroom AV"));
+        Assert.Equal(new CategoryStyle(PortalLook.DefaultIcon, PortalLook.DefaultColor), store.StyleFor("Nonsense"));
+
+        Assert.Equal("Select a valid category.", store.SetCategoryStyle("Nonsense", "lock", "red"));
+        Assert.Equal("Choose one of the icons.", store.SetCategoryStyle("Hardware", "<b>", "red"));
+        Assert.Equal("Choose one of the colours.", store.SetCategoryStyle("Hardware", "lock", "#ff0000"));
+        Assert.Equal(new CategoryStyle("laptop", "blue"), store.StyleFor("Hardware"));
+
+        Assert.Equal("Hardware tile saved.", store.SetCategoryStyle("hardware", "KEY", "Gold"));
+        Assert.Equal(new CategoryStyle("key", "gold"), store.StyleFor("Hardware"));
+        Assert.Null(store.CompareDatabaseWithMemory());
+        Assert.Equal(new CategoryStyle("key", "gold"), test.Reopen().StyleFor("Hardware"));
+    }
+
+    [Fact]
+    public void A_category_tile_look_follows_a_rename_and_goes_with_a_delete()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        store.SetCategoryStyle("Hardware", "mouse", "red");
+        store.SetCategoryStyle("Other", "gear", "green");
+
+        store.UpdateTicketOption("Category", "Hardware", "Equipment");
+        Assert.Equal(new CategoryStyle("mouse", "red"), store.StyleFor("Equipment"));
+
+        // "Other" has no tickets or items, so it can go - and its look must not come back if a new one reuses the name.
+        Assert.Equal("Category deleted.", store.DeleteTicketOption("Category", "Other"));
+        store.AddTicketOption("Category", "Other");
+        Assert.Equal(PortalLook.DefaultFor("Other").Icon, store.StyleFor("Other").Icon);
+        Assert.Null(store.CompareDatabaseWithMemory());
+        Assert.Equal(new CategoryStyle("mouse", "red"), test.Reopen().StyleFor("Equipment"));
+    }
+
+    [Fact]
+    public void Categories_move_up_and_down_and_keep_their_order_after_a_restart()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        var before = store.Categories.ToList();
+
+        Assert.Null(store.MoveCategory(before[0], -1)); // already first: nothing happens, nothing to say
+        Assert.Equal(before, store.Categories);
+        Assert.Null(store.MoveCategory(before[^1], 1));
+        Assert.Equal("Category was not found.", store.MoveCategory("Nonsense", 1));
+
+        Assert.Null(store.MoveCategory(before[2], -1));
+        var expected = before.ToList();
+        (expected[1], expected[2]) = (expected[2], expected[1]);
+        Assert.Equal(expected, store.Categories);
+        Assert.Null(store.CompareDatabaseWithMemory());
+        Assert.Equal(expected, test.Reopen().Categories);
+        // The tiles follow: the portal lists categories in that order.
+        Assert.Equal(expected.Where(c => test.Store.PortalChoices(c).Count > 0), test.Store.PortalCategories().Select(x => x.Category));
+    }
+
+    [Fact]
+    public void Portal_buttons_can_be_ordered_by_hand_with_items_and_templates_sharing_one_order()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        foreach (var item in store.ServiceItems.ToList()) store.DeleteServiceItem(item.Id);
+        store.AddServiceItem("Hardware", "Alpha", "");
+        store.AddServiceItem("Hardware", "Charlie", "");
+        store.AddTicketTemplate("Bravo template", "Request", "", "", "Hardware", "Normal", null, null, showInPortal: true);
+        string Labels() => string.Join(",", store.PortalChoices("Hardware").Select(x => x.Label));
+
+        // Added one after another, they sit in that order - not alphabetically.
+        Assert.Equal("Alpha,Charlie,Bravo template", Labels());
+
+        var bravo = store.PortalChoices("Hardware").Single(x => x.Kind == HelpdeskStore.PortalChoice.TemplateKind);
+        Assert.Null(store.MovePortalChoice("Hardware", bravo.Kind, bravo.Key, -1));
+        Assert.Equal("Alpha,Bravo template,Charlie", Labels());
+        Assert.Null(store.MovePortalChoice("Hardware", bravo.Kind, bravo.Key, -1));
+        Assert.Equal("Bravo template,Alpha,Charlie", Labels());
+        Assert.Null(store.MovePortalChoice("Hardware", bravo.Kind, bravo.Key, -1)); // at the top already
+        Assert.Equal("Bravo template,Alpha,Charlie", Labels());
+        Assert.Equal("That button was not found.", store.MovePortalChoice("Hardware", "item", "Nonsense", 1));
+        Assert.Equal("That button was not found.", store.MovePortalChoice("Hardware", "template", Guid.NewGuid().ToString(), 1));
+
+        // Editing keeps its place; hiding and showing again sends it to the end; so does moving category and back.
+        var alpha = store.ServiceItems.Single(x => x.Name == "Alpha");
+        store.UpdateServiceItem(alpha.Id, "Hardware", "Alpha (renamed)", "High", "A hint", true);
+        Assert.Equal("Bravo template,Alpha (renamed),Charlie", Labels());
+        store.UpdateServiceItem(alpha.Id, "Hardware", "Alpha (renamed)", "High", "A hint", false);
+        Assert.Equal("Bravo template,Charlie", Labels());
+        store.UpdateServiceItem(alpha.Id, "Hardware", "Alpha (renamed)", "High", "A hint", true);
+        Assert.Equal("Bravo template,Charlie,Alpha (renamed)", Labels());
+
+        Assert.Null(store.CompareDatabaseWithMemory());
+        var reopened = test.Reopen();
+        Assert.Equal("Bravo template,Charlie,Alpha (renamed)", string.Join(",", reopened.PortalChoices("Hardware").Select(x => x.Label)));
+    }
+
+    [Fact]
+    public void A_new_button_joins_the_end_of_its_category_and_buttons_in_other_categories_are_untouched()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        foreach (var item in store.ServiceItems.ToList()) store.DeleteServiceItem(item.Id);
+        store.AddServiceItem("Hardware", "Zulu", "");
+        store.AddServiceItem("Software", "Yankee", "");
+        var yankee = store.PortalChoices("Software").Single();
+        store.AddServiceItem("Software", "Alpha", "");
+        Assert.Equal(["Yankee", "Alpha"], store.PortalChoices("Software").Select(x => x.Label));
+        Assert.Null(store.MovePortalChoice("Software", yankee.Kind, yankee.Key, 1));
+        Assert.Equal(["Alpha", "Yankee"], store.PortalChoices("Software").Select(x => x.Label));
+        Assert.Equal(["Zulu"], store.PortalChoices("Hardware").Select(x => x.Label));
+    }
+
+    [Fact]
+    public void A_database_from_before_ordering_and_tile_looks_opens_alphabetically_with_built_in_looks()
+    {
+        using var test = new TestStore();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={test.DatabasePath};Pooling=False"))
+        {
+            connection.Open();
+            foreach (var sql in new[]
+            {
+                "ALTER TABLE ServiceItems DROP COLUMN PortalOrder;", "ALTER TABLE TicketTemplates DROP COLUMN PortalOrder;", "DROP TABLE CategoryStyles;"
+            })
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.ExecuteNonQuery();
+            }
+        }
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        var reopened = test.Reopen();
+        var hardware = reopened.PortalChoices("Hardware").Select(x => x.Label).ToList();
+        Assert.NotEmpty(hardware);
+        Assert.Equal(hardware.OrderBy(x => x, StringComparer.OrdinalIgnoreCase), hardware);
+        Assert.Equal(new CategoryStyle("laptop", "blue"), reopened.StyleFor("Hardware"));
+        Assert.Null(reopened.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
     public void A_database_from_before_the_catalogue_opens_with_blank_sub_categories_and_an_empty_catalogue()
     {
         using var test = new TestStore();

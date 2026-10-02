@@ -96,6 +96,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Suppliers"] = "The supplier directory.",
         ["TechnicianTeams"] = "The list of technician teams.",
         ["Technicians"] = "Staff accounts that sign in to the helpdesk.",
+        ["CategoryStyles"] = "The icon and colour chosen for a category's tile in the staff portal. A category not listed here uses its built-in look.",
         ["ServiceItems"] = "The service catalogue: common problems staff pick in the portal, each under a ticket category (Settings → Service catalogue).",
         ["TicketActivities"] = "Each ticket's History tab: field changes, links, removals.",
         ["TicketAssets"] = "Which assets each ticket is about.",

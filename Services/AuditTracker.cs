@@ -94,6 +94,9 @@ internal static class AuditTracker
             Add(s, "Service catalogue", "Catalogue item", x.Id.ToString(), $"{x.Category} › {x.Name}", Track.All,
                 ("Category", x.Category), ("Name", x.Name), ("Default priority", x.DefaultPriority.Length == 0 ? "None" : x.DefaultPriority),
                 ("Helper line", x.HelperLine), ("Shown in portal", Yn(x.ShowInPortal)));
+        foreach (var pair in d.CategoryStyles)
+            Add(s, "Service catalogue", "Category tile", pair.Key.ToLowerInvariant(), $"Portal tile: {pair.Key}", Track.All,
+                ("Icon", PortalLook.FindIcon(pair.Value.Icon)?.Label ?? pair.Value.Icon), ("Colour", PortalLook.FindColor(pair.Value.Color)?.Label ?? pair.Value.Color));
         foreach (var x in d.TicketTemplates)
             Add(s, "Ticket templates", "Ticket template", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Type", x.Type), ("Title", x.Title), ("Description", x.Description), ("Category", x.Category), ("Priority", x.Priority),

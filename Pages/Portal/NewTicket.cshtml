@@ -5,6 +5,9 @@
 @{
     ViewData["Title"] = "Report a problem";
     var tiles = Model.Mode is Step.Categories or Step.Choices;
+    // Once a category is chosen, its colour carries through its buttons and the confirm step.
+    var look = Model.Mode is Step.Choices or Step.Confirm ? Model.StyleFor(Model.Category) : null;
+    var lookStyle = look is null ? "" : $"--tile-color:{PortalLook.Hex(look.Color)}";
     var heading = Model.Previous is not null ? "Report it again" : Model.Mode switch
     {
         Step.Categories => "What do you need help with?",
@@ -22,9 +25,9 @@
         <label>Attach files (optional)<input type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" /><small class="muted">Up to @HelpdeskStore.MaxPortalAttachments files, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB - a photo of an error message helps.</small></label>
     }
 }
-<div class="portal-shell @(tiles ? "portal-shell-wide" : "")">
+<div class="portal-shell @(tiles ? "portal-shell-wide" : "")" style="@lookStyle">
     <div class="page-heading">
-        <div><p class="eyebrow">EDUHELPDESK@(Model.Mode == Step.Choices ? " / " + Model.Category?.ToUpperInvariant() : "")</p><h1>@heading</h1></div>
+        <div><p class="eyebrow">EDUHELPDESK@(Model.Mode == Step.Choices ? " / " + Model.Category?.ToUpperInvariant() : "")</p><h1>@if (Model.Mode == Step.Choices && look is not null) { <span class="heading-symbol">@PortalLook.Svg(look.Icon)</span> }@heading</h1></div>
         @switch (Model.Mode)
         {
             case Step.Choices:
@@ -53,14 +56,21 @@
         <div class="portal-tiles">
             @foreach (var (category, count) in Model.PortalCategories)
             {
-                <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-category="@category">
-                    <span class="portal-tile-title">@category</span>
-                    <span class="portal-tile-help">@(count == 1 ? "1 option" : count + " options")</span>
+                var style = Model.StyleFor(category);
+                <a class="portal-tile portal-tile-big" style="--tile-color:@PortalLook.Hex(style.Color)" asp-page="/Portal/NewTicket" asp-route-category="@category">
+                    <span class="portal-tile-symbol">@PortalLook.Svg(style.Icon)</span>
+                    <span class="portal-tile-text">
+                        <span class="portal-tile-title">@category</span>
+                        <span class="portal-tile-help">@(count == 1 ? "1 option" : count + " options")</span>
+                    </span>
                 </a>
             }
-            <a class="portal-tile portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true">
-                <span class="portal-tile-title">Something else</span>
-                <span class="portal-tile-help">It's not in the list - I'll describe it</span>
+            <a class="portal-tile portal-tile-big portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true">
+                <span class="portal-tile-symbol">@PortalLook.Svg("question")</span>
+                <span class="portal-tile-text">
+                    <span class="portal-tile-title">Something else</span>
+                    <span class="portal-tile-help">It's not in the list - I'll describe it</span>
+                </span>
             </a>
         </div>
     }

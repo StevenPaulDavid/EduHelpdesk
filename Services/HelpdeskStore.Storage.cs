@@ -558,19 +558,26 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal FROM TicketTemplates ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal, PortalOrder FROM TicketTemplates ORDER BY rowid;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.TicketTemplates.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), TicketTypes.Normalize(reader.GetString(2)), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), NullableGuid(reader, 7))
             {
                 HelperLine = reader.GetString(8),
-                ShowInPortal = reader.GetInt32(9) != 0
+                ShowInPortal = reader.GetInt32(9) != 0,
+                PortalOrder = reader.GetInt32(10)
             });
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Category, Name, DefaultPriority, HelperLine, ShowInPortal FROM ServiceItems ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Category, Name, DefaultPriority, HelperLine, ShowInPortal, PortalOrder FROM ServiceItems ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.ServiceItems.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5) != 0));
+            while (reader.Read()) data.ServiceItems.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5) != 0, reader.GetInt32(6)));
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Category, Icon, Color FROM CategoryStyles ORDER BY rowid;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) data.CategoryStyles[reader.GetString(0)] = new CategoryStyle(reader.GetString(1), reader.GetString(2));
         }
         using (var command = connection.CreateCommand())
         {
@@ -925,12 +932,16 @@ public sealed partial class HelpdeskStore
                 ExecuteFor(activity, item.Number, item, connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);", static s => [("$number", s.Item.Number), ("$action", s.Record.Action), ("$details", s.Record.Details), ("$created", Iso(s.Record.CreatedAt)), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString())]);
         }
         foreach (var item in data.ServiceItems)
-            Execute(connection, transaction, "INSERT INTO ServiceItems (Id, Category, Name, DefaultPriority, HelperLine, ShowInPortal) VALUES ($id,$category,$name,$priority,$helper,$show);",
-                ("$id", item.Id.ToString()), ("$category", item.Category), ("$name", item.Name), ("$priority", item.DefaultPriority ?? ""), ("$helper", item.HelperLine ?? ""), ("$show", item.ShowInPortal ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO ServiceItems (Id, Category, Name, DefaultPriority, HelperLine, ShowInPortal, PortalOrder) VALUES ($id,$category,$name,$priority,$helper,$show,$order);",
+                ("$id", item.Id.ToString()), ("$category", item.Category), ("$name", item.Name), ("$priority", item.DefaultPriority ?? ""), ("$helper", item.HelperLine ?? ""), ("$show", item.ShowInPortal ? 1 : 0), ("$order", item.PortalOrder));
+        // Only categories that still exist: a style left behind by a deleted category is dropped here, not kept for ever.
+        // Sorted, so the rows come out in the same order whatever order the dictionary happens to hold them in.
+        foreach (var (category, style) in data.CategoryStyles.Where(x => data.Categories.Contains(x.Key, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            Execute(connection, transaction, "INSERT INTO CategoryStyles (Category, Icon, Color) VALUES ($category,$icon,$color);", ("$category", category), ("$icon", style.Icon), ("$color", style.Color));
         foreach (var template in data.TicketTemplates)
         {
-            Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla,$helper,$show);",
-                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()), ("$helper", template.HelperLine ?? ""), ("$show", template.ShowInPortal ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal, PortalOrder) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla,$helper,$show,$order);",
+                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()), ("$helper", template.HelperLine ?? ""), ("$show", template.ShowInPortal ? 1 : 0), ("$order", template.PortalOrder));
             foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && ticketDefinitionIds.Contains(x.Key)))
                 Execute(connection, transaction, "INSERT INTO TicketTemplateAttributes (TemplateId, AttributeDefinitionId, Value) VALUES ($template,$definition,$value);", ("$template", template.Id.ToString()), ("$definition", pair.Key.ToString()), ("$value", pair.Value));
         }
@@ -948,7 +959,7 @@ public sealed partial class HelpdeskStore
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "DELETE FROM OnboardingPackDocuments; DELETE FROM OnboardingTemplateDocuments; DELETE FROM OnboardingDocuments; DELETE FROM OnboardingTasks; DELETE FROM Onboardings; DELETE FROM OnboardingTemplateTasks; DELETE FROM OnboardingTemplates; DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM ServiceItems; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings; DELETE FROM SizeHistory; DELETE FROM SpiceworksImports; DELETE FROM SpiceworksLinks; DELETE FROM SpiceworksTicketStates; DELETE FROM SpiceworksUndo;";
+        command.CommandText = "DELETE FROM OnboardingPackDocuments; DELETE FROM OnboardingTemplateDocuments; DELETE FROM OnboardingDocuments; DELETE FROM OnboardingTasks; DELETE FROM Onboardings; DELETE FROM OnboardingTemplateTasks; DELETE FROM OnboardingTemplates; DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM ServiceItems; DELETE FROM CategoryStyles; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings; DELETE FROM SizeHistory; DELETE FROM SpiceworksImports; DELETE FROM SpiceworksLinks; DELETE FROM SpiceworksTicketStates; DELETE FROM SpiceworksUndo;";
         command.ExecuteNonQuery();
     }
 

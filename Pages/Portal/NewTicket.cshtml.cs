@@ -19,6 +19,8 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<(string Category, int Count)> PortalCategories => store.PortalCategories();
     public IReadOnlyList<HelpdeskStore.PortalChoice> Choices => store.PortalChoices(Category);
+    // The icon and colour chosen for a category's tile in Settings, or its built-in look.
+    public CategoryStyle StyleFor(string? category) => store.StyleFor(category);
 
     public Step Mode { get; private set; }
     // What was tapped, shown at the top of the confirm step.

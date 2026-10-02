@@ -209,11 +209,17 @@ public record TicketTemplate(Guid Id, string Name, string Type, string Title, st
     // written for technicians.
     public bool ShowInPortal { get; init; }
     public string HelperLine { get; init; } = "";
+    // Its place among the portal buttons of its category - see ServiceItem.
+    public int PortalOrder { get; init; }
 }
 // One line of the service catalogue: a common problem or request, filed under a ticket category. Staff pick it in the
 // portal instead of typing a title. DefaultPriority (blank for none) is only what the portal's priority box starts on.
 // HelperLine is the short hint shown under its button; ShowInPortal says whether staff see it at all.
-public record ServiceItem(Guid Id, string Category, string Name, string DefaultPriority = "", string HelperLine = "", bool ShowInPortal = true);
+// PortalOrder is its place among the portal buttons of its category (templates share the same numbering); ties go
+// alphabetically, which is how everything made before ordering existed stays sorted.
+public record ServiceItem(Guid Id, string Category, string Name, string DefaultPriority = "", string HelperLine = "", bool ShowInPortal = true, int PortalOrder = 0);
+// What a category's tile looks like in the staff portal: keys into PortalLook, never markup or CSS.
+public record CategoryStyle(string Icon, string Color);
 public record TicketRecord(
     int Number,
     string Title,
