@@ -257,7 +257,7 @@ public class JobModel(HelpdeskStore store) : PageModel
         return RedirectToPage(new { number });
     }
 
-    public IActionResult OnPostAddComment(int number, string? comment, string? status, bool internalNote)
+    public IActionResult OnPostAddComment(int number, string? comment, string? status, bool internalNote, bool notifyRequester)
     {
         var label = internalNote ? "Internal note" : "Comment";
         if (string.IsNullOrWhiteSpace(comment))
@@ -286,6 +286,11 @@ public class JobModel(HelpdeskStore store) : PageModel
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (ticket is null) return NotFound();
 
+        // Only a comment the requester can read can tell them anything, and only on a ticket they can see in the portal
+        // (an onboarding's is internal). The box is left off the form for a note, but the server decides regardless.
+        var notified = notifyRequester && !internalNote && store.PortalTicket(ticket.RequesterId, number) is not null;
+        if (notified) store.AddNotification(HelpdeskStore.PortalAudience, ticket.RequesterId, HelpdeskStore.NotificationKinds.StaffComment, number);
+
         if (newStatus is null || string.Equals(newStatus, ticket.Status, StringComparison.OrdinalIgnoreCase))
         {
             Message = $"{label} added.";
@@ -298,6 +303,7 @@ public class JobModel(HelpdeskStore store) : PageModel
                 : wasClosed ? $"{label} added and ticket reopened."
                 : $"{label} added and status changed to {newStatus}.";
         }
+        if (notified) Message += " The requester has been notified.";
 
         return RedirectToPage(new { number });
     }

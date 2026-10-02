@@ -34,4 +34,15 @@
     };
     status.addEventListener("change", update);
     internal?.addEventListener("change", update);
+
+    // An internal note is never shown to the requester, so there is nobody to notify: the tick goes and stays off.
+    const notify = document.querySelector("[name=notifyRequester]");
+    const notifyLabel = document.getElementById("notify-requester-label");
+    const syncNotify = () => {
+        if (!notify || !notifyLabel) return;
+        if (internal?.checked) notify.checked = false;
+        notifyLabel.hidden = Boolean(internal?.checked);
+    };
+    internal?.addEventListener("change", syncNotify);
+    syncNotify();
 })();

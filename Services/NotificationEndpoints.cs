@@ -66,12 +66,15 @@ public static class NotificationEndpoints
     private static object Describe(HelpdeskStore.Notification notification, LinkGenerator links, HttpContext context)
     {
         var settings = links.GetPathByPage(context, notification.Audience == HelpdeskStore.PortalAudience ? "/Portal/Notifications" : "/Notifications");
-        var ticket = notification.TicketNumber is { } number ? links.GetPathByPage(context, "/Job", values: new { number }) : null;
+        var ticket = notification.TicketNumber is { } number
+            ? links.GetPathByPage(context, notification.Audience == HelpdeskStore.PortalAudience ? "/Portal/Ticket" : "/Job", values: new { number })
+            : null;
         var (title, body, url) = notification.Kind switch
         {
             HelpdeskStore.NotificationKinds.Test => ("Test notification", "Notifications are working on this computer.", settings),
             HelpdeskStore.NotificationKinds.NewTicket => ("New ticket received", "Click to open it.", ticket ?? settings),
             HelpdeskStore.NotificationKinds.Reply => ($"Reply on ticket #{notification.TicketNumber}", "Click to open it.", ticket ?? settings),
+            HelpdeskStore.NotificationKinds.StaffComment => ($"Update on your ticket #{notification.TicketNumber}", "Click to read it.", ticket ?? settings),
             _ => ("Helpdesk", "There is something new.", settings)
         };
         return new { id = notification.Id, kind = notification.Kind, title, body, url };

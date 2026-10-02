@@ -193,6 +193,7 @@ else
                     <label for="ticket-comment">Add a comment</label>
                     <textarea id="ticket-comment" name="comment" rows="3" placeholder="Add an update, finding, or next action…"></textarea>
                     <label class="toggle-label"><input type="checkbox" name="internalNote" value="true" /> Internal note (technicians only, left off the printed ticket)</label>
+                    <label class="toggle-label" id="notify-requester-label"><input type="checkbox" name="notifyRequester" value="true" /> Notify the requester (a ping and pop-up in their staff portal, if they've switched it on)</label>
                     <label for="comment-status">Status</label>
                     <select id="comment-status" name="status" data-current="@Model.Ticket.Status">
                         @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))

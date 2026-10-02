@@ -20,6 +20,8 @@ public sealed partial class HelpdeskStore
         public const string Test = "test";
         public const string NewTicket = "ticket-new";
         public const string Reply = "ticket-reply";
+        // A technician's comment, with Notify requester ticked: goes to that requester, on the portal side.
+        public const string StaffComment = "staff-comment";
     }
 
     // An Id is the time it was made, in milliseconds, or one more than the last: it only ever goes up, even after the
