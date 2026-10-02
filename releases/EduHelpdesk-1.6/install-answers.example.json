@@ -1,0 +1,17 @@
+{
+    "_comment": "Copy this to install-answers.json, change what you need, delete what you don't (a missing answer takes the default), then run:  Install.cmd -AnswersFile install-answers.json",
+    "ProgramFolder": "C:\\Program Files\\EduHelpdesk",
+    "DataFolder": "C:\\EduHelpdesk\\Data",
+    "UseExistingData": true,
+    "SchoolName": "Example Academy",
+    "PrimaryColor": "#1F4E79",
+    "AccentColor": "#E6EEF6",
+    "LogoPath": "",
+    "BackupFolder": "\\\\fileserver\\backups\\helpdesk",
+    "BackupHour": 2,
+    "UseHttps": false,
+    "CertificateThumbprint": "",
+    "Port": 80,
+    "OpenFirewall": true,
+    "AllowOnPublicNetwork": true
+}
