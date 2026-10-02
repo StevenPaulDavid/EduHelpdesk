@@ -273,6 +273,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
             "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);
+        SeedServiceCatalogue();
         // A typical secondary-school day as a starting point for period SLAs. Every school's differs, so it is meant to
         // be edited, and it is only seeded here (not on every startup) so a school that clears it doesn't get it back.
         if (_data.Periods.Count == 0)
@@ -284,6 +285,35 @@ public sealed partial class HelpdeskStore
             ];
         SeedDemoData();
         SaveBaseline();
+    }
+
+    // A starting catalogue for the portal's "What's wrong?" list, under the categories EnsureFactoryOptions seeds. Like the
+    // asset types it is only seeded here, so a school that prunes it doesn't get the items back on the next startup.
+    private void SeedServiceCatalogue()
+    {
+        (string Category, string Name, string Priority)[] starter =
+        [
+            ("Classroom AV", "Projector or display has no picture", "High"),
+            ("Classroom AV", "No sound from the speakers", ""),
+            ("Classroom AV", "Interactive whiteboard not responding", "High"),
+            ("Classroom AV", "Visualiser or camera not working", ""),
+            ("Hardware", "Computer won't start", "High"),
+            ("Hardware", "Computer is slow or keeps freezing", ""),
+            ("Hardware", "Printer not printing or jammed", ""),
+            ("Hardware", "Keyboard, mouse or screen faulty", ""),
+            ("Software", "A program won't open or keeps crashing", ""),
+            ("Software", "I need software installing", "Low"),
+            ("Account", "I can't log in", "High"),
+            ("Account", "I've forgotten my password", "High"),
+            ("Network", "No internet or Wi-Fi", "High"),
+            ("Network", "A website is blocked", "Low"),
+        ];
+        foreach (var (category, name, priority) in starter)
+        {
+            if (!_data.Categories.Contains(category, StringComparer.OrdinalIgnoreCase)) continue;
+            var validPriority = _data.Priorities.FirstOrDefault(x => string.Equals(x, priority, StringComparison.OrdinalIgnoreCase)) ?? "";
+            _data.ServiceItems.Add(new ServiceItem(Guid.NewGuid(), category, name, validPriority));
+        }
     }
 
     // Marks every seeded record so a school can find the lot by searching "demo" and delete it once they are ready to

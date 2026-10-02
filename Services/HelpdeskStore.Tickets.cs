@@ -191,9 +191,11 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            if (ticket.SlaOverridden) return ticket with { Category = category };
+            // A catalogue item belongs to one category, so moving the ticket to another leaves it without one.
+            var subCategory = string.Equals(ticket.Category, category, StringComparison.OrdinalIgnoreCase) ? ticket.SubCategory : "";
+            if (ticket.SlaOverridden) return ticket with { Category = category, SubCategory = subCategory };
             var sla = SlaFor(ticket.Priority, category);
-            return ticket with { Category = category, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
+            return ticket with { Category = category, SubCategory = subCategory, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
         }
     }
 

@@ -68,6 +68,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                 List("Priorities", "/Settings/Priorities", store.Priorities, "How urgent a ticket is.", "priority urgent high normal low"),
                 List("SLAs", "/Settings/Slas", store.Slas.Select(x => x.Name).ToList(), "How long tickets have, by priority and category.", "sla service level due date target"),
                 Page("School day and periods", "/Settings/SchoolDay", "The school week and lesson times that work-day and period SLAs count against.", "school day week periods lessons timetable working hours"),
+                List("Service catalogue", "/Settings/ServiceCatalogue", store.ServiceItems.Select(x => $"{x.Category} › {x.Name}").ToList(), "The common problems staff pick from when they report one in the portal.", "service catalogue catalog sub category portal common problems"),
                 List("Ticket templates", "/Settings/TicketTemplates", store.TicketTemplates.Select(x => x.Name).ToList(), "Saved starting points for repeat jobs.", "template repeat job"),
                 List("Ticket custom attributes", "/Settings/TicketAttributes", store.TicketAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on tickets, by category.", "custom fields attributes extra"),
             ]),

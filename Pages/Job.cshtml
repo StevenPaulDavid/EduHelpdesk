@@ -94,7 +94,7 @@ else
         <h1 class="print-title">@Model.Ticket.Title</h1>
         <table class="print-facts">
             <tr><th>Priority</th><td>@Model.Ticket.Priority</td><th>Type</th><td>@Model.Ticket.Type</td></tr>
-            <tr><th>Category</th><td>@Model.Ticket.Category</td><th>Team</th><td>@(Model.Ticket.TeamName ?? "No team")</td></tr>
+            <tr><th>Category</th><td>@Model.Ticket.Category@(string.IsNullOrWhiteSpace(Model.Ticket.SubCategory) ? "" : " › " + Model.Ticket.SubCategory)</td><th>Team</th><td>@(Model.Ticket.TeamName ?? "No team")</td></tr>
             <tr><th>Location</th><td>@(Model.Ticket.Location ?? "Not specified")</td><th>SLA</th><td>@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</td></tr>
             <tr><th>Technician</th><td colspan="3">@(Model.Technician?.Name ?? "Unassigned")</td></tr>
             <tr><th>Created</th><td>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td><th>Due</th><td>@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")</td></tr>

@@ -96,6 +96,7 @@ public sealed partial class HelpdeskStore
         public List<PartRecord> Parts { get; set; } = [];
         public List<TicketPartAssignment> TicketParts { get; set; } = [];
         public List<TicketTemplate> TicketTemplates { get; set; } = [];
+        public List<ServiceItem> ServiceItems { get; set; } = [];
         public List<TicketAttachment> TicketAttachments { get; set; } = [];
         public List<TicketLink> TicketLinks { get; set; } = [];
         public List<AssetAttributeDefinition> AssetAttributeDefinitions { get; set; } = [];

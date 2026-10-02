@@ -1,0 +1,48 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.ServiceCatalogueModel
+@{
+    ViewData["Title"] = "Service catalogue";
+
+    // The fields of one item, used for both adding and editing. A null item is a blank one.
+    async Task ItemFields(ServiceItem? item)
+    {
+        var category = item?.Category ?? Model.Categories.FirstOrDefault() ?? "";
+        <div class="template-fields">
+            <label>Category<select name="category">@foreach (var value in Model.Categories) { <option value="@value" selected="@string.Equals(value, category, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
+            <label>Name<input name="name" value="@item?.Name" maxlength="@HelpdeskStore.MaxServiceItemNameLength" required placeholder="e.g. Projector has no signal" /></label>
+            <label>Starting priority<select name="priority"><option value="">None - the portal starts on Normal</option>@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, item?.DefaultPriority, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
+        </div>
+    }
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Service catalogue</h1><p class="hero-copy">The common problems and requests staff can pick from when they report something in the portal. They choose a room, a category, then one of the items below - the item becomes the ticket title. If theirs isn't listed they choose "Something else" and type it, so the catalogue never stops anyone reporting a problem.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel">
+    <div class="panel-heading"><h2>Add an item</h2></div>
+    <form method="post" asp-page-handler="Save" class="settings-form">
+        @{ await ItemFields(null); }
+        <small class="muted">The starting priority is only what the portal's priority box starts on - staff can still change it. Items are grouped under the categories from Settings → Categories.</small>
+        <button class="button button-primary" type="submit">Add item</button>
+    </form>
+</section>
+<section class="panel">
+    <div class="panel-heading"><h2>Catalogue</h2><span class="badge">@Model.Items.Count</span></div>
+    @foreach (var group in Model.Items.GroupBy(x => x.Category))
+    {
+        <p class="eyebrow">@group.Key</p>
+        @foreach (var item in group)
+        {
+            <details class="template-item">
+                <summary><strong>@item.Name</strong> <span class="muted">@(item.DefaultPriority.Length == 0 ? "No starting priority" : "Starts on " + item.DefaultPriority)</span></summary>
+                <form method="post" asp-page-handler="Save" class="settings-form">
+                    <input type="hidden" name="id" value="@item.Id" />
+                    @{ await ItemFields(item); }
+                    <button class="button button-primary" type="submit">Save changes</button>
+                </form>
+                <form method="post" asp-page-handler="Delete" data-confirm="Delete this catalogue item? Tickets already raised from it keep their wording."><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger" type="submit">Delete item</button></form>
+            </details>
+        }
+    }
+    @if (Model.Items.Count == 0) { <p class="empty">Nothing in the catalogue yet. Until you add items, the portal form just asks staff to describe the problem.</p> }
+</section>

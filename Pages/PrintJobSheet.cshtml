@@ -27,7 +27,7 @@
     <div class="sheet-header"><span class="sheet-number">#@ticket.Number</span><span class="sheet-priority">@ticket.Priority</span></div>
     <p class="sheet-title">@ticket.Title</p>
     <p class="sheet-row"><span class="sheet-label">Requester</span>@(Model.Requester?.Name ?? "Unknown")</p>
-    <p class="sheet-row"><span class="sheet-label">Category</span>@ticket.Category</p>
+    <p class="sheet-row"><span class="sheet-label">Category</span>@ticket.Category@(string.IsNullOrWhiteSpace(ticket.SubCategory) ? "" : " › " + ticket.SubCategory)</p>
     @if (!string.IsNullOrWhiteSpace(ticket.Location))
     {
         <p class="sheet-row"><span class="sheet-label">Location</span>@ticket.Location</p>

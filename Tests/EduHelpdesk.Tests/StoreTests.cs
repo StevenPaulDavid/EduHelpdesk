@@ -107,7 +107,7 @@ public class StoreTests
     public void A_deleted_default_option_stays_deleted_after_a_restart()
     {
         using var test = new TestStore();
-        var category = test.Store.Categories.First(c => !test.Store.Tickets.Any(t => t.Category == c) && !test.Store.Slas.Any(s => s.Categories.Contains(c)));
+        var category = test.Store.Categories.First(c => !test.Store.Tickets.Any(t => t.Category == c) && !test.Store.Slas.Any(s => s.Categories.Contains(c)) && !test.Store.ServiceItems.Any(i => i.Category == c));
         test.Store.DeleteTicketOption("Category", category);
         Assert.DoesNotContain(category, test.Store.Categories);
         Assert.DoesNotContain(category, test.Reopen().Categories);

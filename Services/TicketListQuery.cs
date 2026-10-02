@@ -147,7 +147,7 @@ public sealed class TicketListQuery
 
     private static string SearchText(TicketRecord ticket, Dictionary<Guid, UserRecord> users, Dictionary<Guid, TechnicianRecord> technicians, Dictionary<Guid, AssetRecord> assets, TicketContext context)
     {
-        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "", ticket.Location ?? "" };
+        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.SubCategory, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "", ticket.Location ?? "" };
         if (users.TryGetValue(ticket.RequesterId, out var user)) { parts.Add(user.Name); parts.Add(user.Department); parts.Add(user.Email); }
         if (ticket.TechnicianId is { } techId && technicians.TryGetValue(techId, out var technician)) parts.Add(technician.Name);
         foreach (var id in ticket.AssetIds)

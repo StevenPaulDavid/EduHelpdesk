@@ -90,6 +90,9 @@ internal static class AuditTracker
         foreach (var x in d.Slas)
             Add(s, "SLAs", "SLA", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Target time", SlaUnits.Describe(x)), ("Description", x.Description ?? ""), ("Priorities", Joined(x.Priorities)), ("Categories", Joined(x.Categories)));
+        foreach (var x in d.ServiceItems)
+            Add(s, "Service catalogue", "Catalogue item", x.Id.ToString(), $"{x.Category} › {x.Name}", Track.All,
+                ("Category", x.Category), ("Name", x.Name), ("Default priority", x.DefaultPriority.Length == 0 ? "None" : x.DefaultPriority));
         foreach (var x in d.TicketTemplates)
             Add(s, "Ticket templates", "Ticket template", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Type", x.Type), ("Title", x.Title), ("Description", x.Description), ("Category", x.Category), ("Priority", x.Priority),

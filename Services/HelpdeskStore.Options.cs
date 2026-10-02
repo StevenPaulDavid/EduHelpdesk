@@ -429,11 +429,17 @@ public sealed partial class HelpdeskStore
             {
                 var priorityIndex = _data.RequireCloseMessagePriorities.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
                 if (priorityIndex >= 0) _data.RequireCloseMessagePriorities[priorityIndex] = newValue;
+                for (var i = 0; i < _data.ServiceItems.Count; i++)
+                    if (string.Equals(_data.ServiceItems[i].DefaultPriority, oldValue, StringComparison.OrdinalIgnoreCase))
+                        _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = newValue };
             }
             if (kind == "Category")
             {
                 var categoryIndex = _data.RequireCloseMessageCategories.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
                 if (categoryIndex >= 0) _data.RequireCloseMessageCategories[categoryIndex] = newValue;
+                for (var i = 0; i < _data.ServiceItems.Count; i++)
+                    if (string.Equals(_data.ServiceItems[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
+                        _data.ServiceItems[i] = _data.ServiceItems[i] with { Category = newValue };
                 for (var i = 0; i < _data.TicketAttributeDefinitions.Count; i++)
                     _data.TicketAttributeDefinitions[i] = _data.TicketAttributeDefinitions[i] with { Categories = RenameInScope(_data.TicketAttributeDefinitions[i].Categories, oldValue, newValue) };
             }
@@ -475,9 +481,15 @@ public sealed partial class HelpdeskStore
             })) return $"That {kind.ToLowerInvariant()} cannot be deleted because tickets use it.";
             if (kind == "Category" && _data.TicketAttributeDefinitions.Any(x => x.Categories.Contains(item, StringComparer.OrdinalIgnoreCase)))
                 return "That category cannot be deleted because a ticket custom attribute uses it.";
+            if (kind == "Category" && _data.ServiceItems.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)))
+                return "That category cannot be deleted because the service catalogue has items under it.";
             options.RemoveAt(index);
             if (kind == "Status") _data.StatusDescriptions.Remove(item);
             if (kind == "Status") _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
+            if (kind == "Priority")
+                for (var i = 0; i < _data.ServiceItems.Count; i++)
+                    if (string.Equals(_data.ServiceItems[i].DefaultPriority, item, StringComparison.OrdinalIgnoreCase))
+                        _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = "" };
             if (kind == "Priority") _data.RequireCloseMessagePriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.RequireCloseMessageCategories.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             Save();

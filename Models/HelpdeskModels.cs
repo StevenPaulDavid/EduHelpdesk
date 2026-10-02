@@ -206,6 +206,9 @@ public record TicketTemplate(Guid Id, string Name, string Type, string Title, st
     // Default answers for ticket custom attributes, by attribute definition id.
     public Dictionary<Guid, string> AttributeValues { get; init; } = [];
 }
+// One line of the service catalogue: a common problem or request, filed under a ticket category. Staff pick it in the
+// portal instead of typing a title. DefaultPriority (blank for none) is only what the portal's priority box starts on.
+public record ServiceItem(Guid Id, string Category, string Name, string DefaultPriority = "");
 public record TicketRecord(
     int Number,
     string Title,
@@ -228,6 +231,9 @@ public record TicketRecord(
     public List<TicketComment> Comments { get; init; } = [];
     public List<TicketActivity> History { get; init; } = [];
     public string Type { get; init; } = TicketTypes.Incident;
+    // The service catalogue item the requester picked, kept as text so the ticket still says it after the item is
+    // renamed or deleted. Blank when they described it themselves. Only meaningful inside Category.
+    public string SubCategory { get; init; } = "";
     // Times the SLA clock was stopped (a status that pauses it, such as On Hold). The last one is open while the ticket
     // is still paused. Kept as periods rather than a running total, so a due date recalculated later - a priority
     // change, say - can still add them back in whatever units the new SLA counts. See HelpdeskStore.TicketProcess.

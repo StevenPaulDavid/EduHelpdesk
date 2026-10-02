@@ -9,7 +9,7 @@
     <section class="panel portal-panel">
         <div class="detail-block"><p class="eyebrow">STATUS</p><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></div>
         <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@Model.Ticket.Priority</p></div>
-        <div class="detail-block"><p class="eyebrow">CATEGORY</p><p>@Model.Ticket.Category</p></div>
+        <div class="detail-block"><p class="eyebrow">CATEGORY</p><p>@Model.Ticket.Category@(string.IsNullOrWhiteSpace(Model.Ticket.SubCategory) ? "" : " › " + Model.Ticket.SubCategory)</p></div>
         @if (!string.IsNullOrWhiteSpace(Model.Ticket.Location))
         {
             <div class="detail-block"><p class="eyebrow">LOCATION</p><p>@Model.Ticket.Location</p></div>

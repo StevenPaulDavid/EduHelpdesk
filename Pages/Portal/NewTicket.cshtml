@@ -9,15 +9,26 @@
         <div class="notice">This will be linked to ticket #@previous.Number, so the team can see what was done last time. Tell them what's happening now.</div>
     }
     <section class="panel portal-panel">
-        <form method="post" enctype="multipart/form-data" class="settings-form">
+        <form method="post" enctype="multipart/form-data" class="settings-form" id="portal-ticket-form">
             <div asp-validation-summary="All" class="validation-summary-errors"></div>
             @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
-            <label>What's the problem?<input asp-for="Title" maxlength="@HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" required autofocus /></label>
+            <label>Where is it?<select asp-for="Location" required><option value="">Choose a room or area…</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
+            <label>What kind of problem is it?<select asp-for="Category" id="portal-category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+            <label>What's wrong?
+                <select asp-for="SubCategory" id="portal-subcategory">
+                    <option value="@Pages.Portal.NewTicketModel.ChooseOne">Choose what's wrong…</option>
+                    @foreach (var item in Model.ServiceItems) { <option value="@item.Name" data-category="@item.Category" data-priority="@item.DefaultPriority">@item.Name</option> }
+                    <option value="">Something else - I'll describe it</option>
+                </select>
+            </label>
+            <label id="portal-title-field">Describe the problem<input asp-for="Title" maxlength="@HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" /><small class="muted">Not in the list? Just tell us in a few words.</small></label>
+            <label>How urgent is it?<select asp-for="Priority" id="portal-priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
             <label>Tell us more (optional)<textarea asp-for="Description" rows="5" maxlength="@HelpdeskStore.MaxTicketTextLength" placeholder="Anything that might help - what you tried, when it started…"></textarea></label>
-            <label>What kind of problem is it?<select asp-for="Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
-            <label>Where is it?<select asp-for="Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
             <label>Attach files (optional)<input type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" /><small class="muted">Up to @HelpdeskStore.MaxPortalAttachments files, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB - a photo of an error message helps.</small></label>
             <button class="button button-primary portal-button" type="submit">Submit</button>
         </form>
     </section>
 </div>
+@section Scripts {
+<script src="~/js/pages/portal-new-ticket.js" asp-append-version="true"></script>
+}
