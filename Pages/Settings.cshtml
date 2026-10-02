@@ -18,7 +18,7 @@
 }
 @if (!Model.IsHttps)
 {
-    <div class="notice notice-warning"><strong>Not encrypted.</strong> This page came over plain http://, so from any other computer, passwords and tickets cross the network unencrypted. Once the helpdesk has a certificate, set EduHelpdesk:RequireHttps to true in appsettings.json - see the README.</div>
+    <div class="notice notice-warning"><strong>Not encrypted.</strong> This page came over plain http://, so from any other computer, passwords and tickets cross the network unencrypted. To fix it, run <code>Enable-Https.cmd</code> from the folder the helpdesk was installed from: it asks whether to make a self-signed certificate or use one you already have, then switches the helpdesk over.</div>
 }
 
 <div class="settings-find">
@@ -34,7 +34,7 @@
         <div class="settings-cards">
             @foreach (var card in group.Cards)
             {
-                var badgeClass = card.Warn ? "badge badge-warning" : "badge";
+                var badgeClass = card.Warn ? "badge badge-warning" : card.Good ? "badge badge-good" : "badge";
                 if (card.Info)
                 {
                     <div class="settings-card settings-card-info" data-keywords="@card.Keywords">

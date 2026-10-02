@@ -494,6 +494,7 @@ tr:last-child td { border: 0; }
 }
 
 .badge-warning { background: var(--danger-soft); color: var(--red); }
+.badge-good { background: var(--notice-bg); color: var(--notice-ink); }
 
 .part-list { display: grid; gap: 10px; margin-bottom: 18px; }
 .part-row {

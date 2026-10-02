@@ -51,7 +51,7 @@
 <section class="panel">
     <h2>Passwords and lockouts</h2>
     <dl class="detail-list">
-        <dt>Encryption</dt><dd>@(Model.IsHttps ? "Passwords reach the helpdesk encrypted (HTTPS)." : "This page came over plain HTTP, so passwords cross the network unencrypted. Give the site a certificate and turn on EduHelpdesk:RequireHttps - see the Technical Guide.")</dd>
+        <dt>Encryption</dt><dd>@(Model.IsHttps ? "Passwords reach the helpdesk encrypted (HTTPS)." : "This page came over plain HTTP, so passwords cross the network unencrypted. Run Enable-Https.cmd from the folder the helpdesk was installed from: it asks whether to make a self-signed certificate or use one you already have. See the Install Guide.")</dd>
         <dt>Passwords</dt><dd>At least @PasswordRules.MinimumLength characters, and not one of the passwords guessed first or the person's own name.</dd>
         <dt>New accounts</dt><dd>Given a temporary password, which they must change the first time they sign in - unless whoever adds the account types a password, which the person keeps.</dd>
         <dt>Lockout</dt><dd>@SignInThrottle.AccountLimit wrong passwords (or two-step codes) for one account within @((int)SignInThrottle.Window.TotalMinutes) minutes lock it for @((int)SignInThrottle.Window.TotalMinutes) minutes; @SignInThrottle.AddressLimit from one computer block that computer.</dd>

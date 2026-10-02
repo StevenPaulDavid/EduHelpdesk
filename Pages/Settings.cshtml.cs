@@ -11,7 +11,7 @@ namespace EduHelpdesk.Pages;
 public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
 {
     public sealed record Card(string Title, string Page, string Description, string Keywords, string? Badge = null, bool Warn = false,
-        bool Open = true, IDictionary<string, string>? Route = null, bool Info = false);
+        bool Open = true, IDictionary<string, string>? Route = null, bool Info = false, bool Good = false);
     public sealed record Group(string Title, IReadOnlyList<Card> Cards);
 
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
@@ -117,8 +117,8 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                     "backup restore data folder onedrive", backupBadge, backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
                 Page("Sign-in security", "/Settings/SignIn",
                     $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Two-step sign-in {(store.RequireTwoFactor ? "is required" : $"is set up for {TwoFactorCount} of {ActiveStaff} staff")}. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
-                    "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor", !IsHttps ? "Not encrypted" : store.RequireTwoFactor ? "Two-step required" : "HTTPS",
-                    !IsHttps || (!store.RequireTwoFactor && TwoFactorCount < ActiveStaff)),
+                    "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor", IsHttps ? "Encrypted" : "Not encrypted",
+                    warn: !IsHttps) with { Good = IsHttps },
                 Page("Notifications", "/Settings/Notifications", NotificationSummary(),
                     "notifications pings pop-ups toast alerts banner reminder enable disable staff requesters portal sound",
                     !store.NotificationSettings.Enabled ? "Off" : null),
