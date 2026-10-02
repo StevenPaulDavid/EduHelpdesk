@@ -50,10 +50,8 @@ $BootstrapPassword = "ChangeMe123!"
 
 # ---- Helpers -------------------------------------------------------------------------------------------------------
 
-function Heading([string]$text) { Write-Host ""; Write-Host $text -ForegroundColor Cyan }
-function Say([string]$text) { Write-Host "  $text" }
-function Warn([string]$text) { Write-Host "  ! $text" -ForegroundColor Yellow }
-function Fail([string]$text) { Write-Host ""; Write-Host "  $text" -ForegroundColor Red; throw "Install stopped: $text" }
+. (Join-Path $PSScriptRoot "Helpers.ps1")
+. (Join-Path $PSScriptRoot "Certificate.ps1")
 
 $answers = $null
 if ($AnswersFile) {
@@ -95,35 +93,6 @@ function SyncedFolderProblem([string]$path) {
     return $null
 }
 
-function PortInUse([int]$port) {
-    return $null -ne (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
-}
-
-function WaitUntilAnswering([string]$url) {
-    # The certificate may not match "localhost", or may be the school's own; this only checks the site is up.
-    if ($PSVersionTable.PSVersion.Major -lt 6) { [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true } }
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    for ($i = 0; $i -lt 30; $i++) {
-        try {
-            $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
-            if ($response.StatusCode -eq 200) { return $true }
-        } catch { }
-        Start-Sleep -Seconds 2
-    }
-    return $false
-}
-
-function LocalUrl($settings) {
-    $scheme = if ($settings.UseHttps) { "https" } else { "http" }
-    return "${scheme}://localhost:$($settings.Port)/Login"
-}
-
-function PublicUrl($settings) {
-    $scheme = if ($settings.UseHttps) { "https" } else { "http" }
-    $name = if ($settings.UseHttps -and $settings.CertificateName) { $settings.CertificateName } else { $env:COMPUTERNAME.ToLowerInvariant() }
-    $default = ($settings.UseHttps -and $settings.Port -eq 443) -or (-not $settings.UseHttps -and $settings.Port -eq 80)
-    if ($default) { return "${scheme}://$name/" } else { return "${scheme}://${name}:$($settings.Port)/" }
-}
 
 function CopyProgram([string]$target) {
     New-Item -ItemType Directory -Force -Path $target | Out-Null
@@ -132,75 +101,6 @@ function CopyProgram([string]$target) {
     if ($LASTEXITCODE -ge 8) { Fail "Copying the program into $target failed (robocopy code $LASTEXITCODE)." }
 }
 
-function WriteAppSettings([string]$programFolder, $settings) {
-    $endpoint = [ordered]@{ Url = $(if ($settings.UseHttps) { "https://*:$($settings.Port)" } else { "http://*:$($settings.Port)" }) }
-    if ($settings.UseHttps) { $endpoint.Certificate = [ordered]@{ Subject = $settings.CertificateSubject; Store = "My"; Location = "LocalMachine"; AllowInvalid = $false } }
-    $json = [ordered]@{
-        EduHelpdesk = [ordered]@{ DataPath = $settings.DataFolder; RequireHttps = [bool]$settings.UseHttps }
-        Kestrel = [ordered]@{ Endpoints = [ordered]@{ Main = $endpoint } }
-    }
-    $json | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $programFolder "appsettings.Production.json") -Encoding UTF8
-}
-
-function WriteInstallRecord([string]$programFolder, $settings, [version]$version) {
-    [ordered]@{
-        Version = $version.ToString()
-        DataFolder = $settings.DataFolder
-        UseHttps = [bool]$settings.UseHttps
-        Port = [int]$settings.Port
-        CertificateName = $settings.CertificateName
-        OpenFirewall = [bool]$settings.OpenFirewall
-        FirewallPublic = [bool]$settings.FirewallPublic
-        InstalledAt = (Get-Date).ToString("s")
-    } | ConvertTo-Json | Set-Content -Path (Join-Path $programFolder "install.json") -Encoding UTF8
-}
-
-# The kinds of network this computer is on right now: Domain, Private and/or Public.
-function ConnectedNetworkCategories {
-    return @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.NetworkCategory } | Select-Object -Unique)
-}
-
-# Lets other computers reach the helpdesk. The rule names both the port and the program, so Windows also counts the
-# program itself as allowed and never pops up its "allow access" prompt for it. Public networks only when asked: a
-# school server is normally on the domain network, but Windows files an unrecognised network as Public, and there it
-# blocks everything not explicitly allowed - which is how "works on this PC, not from others" happens.
-function OpenFirewall([string]$exe, [int]$port, [bool]$includePublic) {
-    $profiles = @("Domain", "Private")
-    if ($includePublic) { $profiles += "Public" }
-    Get-NetFirewallRule -DisplayName "EduHelpdesk (*)" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    # A cancelled "allow access" prompt leaves a rule blocking the program, and a block beats any allow.
-    $blocked = @(Get-NetFirewallApplicationFilter -ErrorAction SilentlyContinue | Where-Object { $_.Program -ieq $exe } |
-        Get-NetFirewallRule | Where-Object { $_.Direction -eq "Inbound" -and $_.Action -eq "Block" })
-    if ($blocked.Count -gt 0) { $blocked | Remove-NetFirewallRule; Say "Removed $($blocked.Count) firewall rule(s) Windows had made to block EduHelpdesk." }
-    New-NetFirewallRule -DisplayName "EduHelpdesk ($port)" -Description "Lets other computers reach the EduHelpdesk website. Made by the EduHelpdesk installer." `
-        -Direction Inbound -Protocol TCP -LocalPort $port -Program $exe -Action Allow -Profile $profiles | Out-Null
-    Say "Firewall: port $port is open to EduHelpdesk on $($profiles -join ', ') networks."
-}
-
-# The addresses other computers can use when the computer's name doesn't resolve for them.
-function LanAddresses {
-    return @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-        Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" -and $_.AddressState -eq "Preferred" } |
-        Select-Object -ExpandProperty IPAddress)
-}
-
-function SayHowToReachIt($settings) {
-    $scheme = if ($settings.UseHttps) { "https" } else { "http" }
-    $default = ($settings.UseHttps -and $settings.Port -eq 443) -or (-not $settings.UseHttps -and $settings.Port -eq 80)
-    foreach ($address in LanAddresses) { Say "Or by address: ${scheme}://$address$(if (-not $default) { ":$($settings.Port)" })/" }
-}
-
-function GrantCertificateKey($certificate, [string]$account) {
-    try {
-        $key = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($certificate)
-        $file = Get-ChildItem -Path "$env:ProgramData\Microsoft\Crypto" -Recurse -Filter $key.Key.UniqueName -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $file) { throw "key file not found" }
-        & icacls $file.FullName /grant "${account}:R" /Q | Out-Null
-        Say "The service can read the certificate's private key."
-    } catch {
-        Warn "Couldn't give $account access to the certificate's private key automatically. In certlm.msc, right-click the certificate > All Tasks > Manage Private Keys, add $account with Read, then restart the EduHelpdesk service."
-    }
-}
 
 # ---- Before anything else ------------------------------------------------------------------------------------------
 
@@ -264,6 +164,8 @@ if (($service -or $NoService) -and (Test-Path $record)) {
     $openFirewall = if ($null -ne $installed.OpenFirewall) { [bool]$installed.OpenFirewall } else { $hadRule }
     $firewallPublic = if ($null -ne $installed.FirewallPublic) { [bool]$installed.FirewallPublic } else { (ConnectedNetworkCategories) -contains "Public" }
     $settings = [pscustomobject]@{ DataFolder = $dataFolder; UseHttps = [bool]$installed.UseHttps; Port = [int]$installed.Port; CertificateName = $installed.CertificateName
+        CertificateSelfSigned = [bool]$installed.CertificateSelfSigned; CertificateThumbprint = $installed.CertificateThumbprint
+        CertificateFolder = $installed.CertificateFolder; CertificateStoreLocation = $installed.CertificateStoreLocation
         OpenFirewall = $openFirewall; FirewallPublic = $firewallPublic }
     WriteInstallRecord $programFolder $settings $newVersion
     # The address for quick start guides, for installs from before it was stored. The app only uses it if none is set.
@@ -343,32 +245,47 @@ $backupHour = [int](Ask "BackupHour" "Hour the backup runs (0-23)" "2" {
 })
 
 Heading "How people reach it"
-$certificates = @(Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) } | Sort-Object NotAfter -Descending)
+# A trial run (-NoService) keeps to the current user's certificates and changes nothing for the whole computer.
+$certificateStore = if ($NoService) { "CurrentUser" } else { "LocalMachine" }
+$certificates = @(Get-ChildItem "Cert:\$certificateStore\My" | Where-Object { $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) } | Sort-Object NotAfter -Descending)
 $useHttps = $false; $certificate = $null
+$makeCertificate = $false; $certificateNames = @()
+Say "HTTPS encrypts passwords on the network. It needs a certificate for the name staff type in their browser."
 if ($certificates.Count -gt 0) {
-    Say "HTTPS encrypts passwords on the network. It needs a certificate for this server's name in Local Computer > Personal."
-    $useHttps = AskYesNo "UseHttps" "Use HTTPS with one of this computer's certificates?" $true
+    $useHttps = AskYesNo "UseHttps" "Use HTTPS, with a certificate on this computer or one the installer makes?" $true
 } else {
-    Say "This computer has no certificate to use for HTTPS, so the helpdesk will use plain HTTP."
-    Warn "Passwords will cross the network unencrypted until a certificate is added. The install guide explains how."
-    if ($unattended -and $answers.UseHttps) { Fail "UseHttps is true in the answers file, but this computer has no certificate with a private key." }
+    Say "This computer has no certificate to use for HTTPS. The installer can make a self-signed one: it encrypts just as well as a"
+    Say "bought one, but every school computer then has to be told to trust it. The installer writes the file and the steps for that."
+    $useHttps = AskYesNo "UseHttps" "Use HTTPS, with a certificate the installer makes?" $false
+    if (-not $useHttps) { Warn "Passwords will cross the network unencrypted until HTTPS is set up. Enable-Https.cmd, in this folder, does it later." }
 }
 if ($useHttps) {
     if ($unattended) {
-        $certificate = $certificates | Where-Object { $_.Thumbprint -eq ([string]$answers.CertificateThumbprint).Replace(" ", "") } | Select-Object -First 1
-        if (-not $certificate) { Fail "The answers file's CertificateThumbprint doesn't match a certificate with a private key in Local Computer > Personal." }
-    } else {
+        $thumbprint = ([string]$answers.CertificateThumbprint).Replace(" ", "")
+        if ($thumbprint) {
+            $certificate = $certificates | Where-Object { $_.Thumbprint -eq $thumbprint } | Select-Object -First 1
+            if (-not $certificate) { Fail "The answers file's CertificateThumbprint doesn't match a certificate with a private key in Local Computer > Personal." }
+        } elseif ($answers.CreateCertificate) { $makeCertificate = $true }
+        else { Fail "UseHttps is true in the answers file, but there is no CertificateThumbprint and CreateCertificate isn't true." }
+    } elseif ($certificates.Count -gt 0) {
         for ($i = 0; $i -lt $certificates.Count; $i++) {
             $c = $certificates[$i]
-            Say ("{0}. {1}  (expires {2:d MMM yyyy})" -f ($i + 1), $c.GetNameInfo("SimpleName", $false), $c.NotAfter)
+            Say ("{0}. {1}  (expires {2:d MMM yyyy}{3})" -f ($i + 1), $c.GetNameInfo("SimpleName", $false), $c.NotAfter, $(if (IsSelfSigned $c) { ", self-signed" } else { "" }))
         }
+        Say ("{0}. Make a new self-signed certificate for this computer" -f ($certificates.Count + 1))
         $choice = [int](Ask "Certificate" "Which certificate" "1" {
-            param($v) $n = 0; if (-not [int]::TryParse($v, [ref]$n) -or $n -lt 1 -or $n -gt $certificates.Count) { "A number from 1 to $($certificates.Count)." }
+            param($v) $n = 0; if (-not [int]::TryParse($v, [ref]$n) -or $n -lt 1 -or $n -gt ($certificates.Count + 1)) { "A number from 1 to $($certificates.Count + 1)." }
         })
-        $certificate = $certificates[$choice - 1]
+        if ($choice -le $certificates.Count) { $certificate = $certificates[$choice - 1] } else { $makeCertificate = $true }
+    } else { $makeCertificate = $true }
+    if ($makeCertificate) {
+        Say "The certificate only works for the names it is made for, so give the name staff will actually type - the one in the"
+        Say "address bar, such as helpdesk.school.org.uk. This computer's own name and IP addresses are added as well."
+        $certificateNames = SplitNames (Ask "CertificateName" "Name(s) staff will type, separated by commas" ((ServerNames) -join ", ") {
+            param($v) CertificateNamesProblem (SplitNames $v)
+        })
     }
-}
-$defaultPort = if ($useHttps) { 443 } else { 80 }
+}$defaultPort = if ($useHttps) { 443 } else { 80 }
 if (PortInUse $defaultPort) { $defaultPort = if ($useHttps) { 5443 } else { 5277 } }
 $port = [int](Ask "Port" "Port" "$defaultPort" {
     param($v) $n = 0
@@ -385,8 +302,11 @@ if ($openFirewall -and (ConnectedNetworkCategories) -contains "Public") {
 
 $settings = [pscustomobject]@{
     DataFolder = $dataFolder; UseHttps = $useHttps; Port = $port
-    CertificateSubject = $(if ($certificate) { $certificate.GetNameInfo("SimpleName", $false) } else { $null })
-    CertificateName = $(if ($certificate) { $certificate.GetNameInfo("DnsName", $false) } else { $null })
+    CertificateSubject = $(if ($certificate) { $certificate.GetNameInfo("SimpleName", $false) } elseif ($makeCertificate) { $certificateNames[0] } else { $null })
+    CertificateName = $(if ($certificate) { CertificateHostName $certificate } elseif ($makeCertificate) { $certificateNames[0] } else { $null })
+    CertificateSelfSigned = $(if ($certificate) { IsSelfSigned $certificate } else { $makeCertificate })
+    CertificateThumbprint = $(if ($certificate) { $certificate.Thumbprint } else { $null })
+    CertificateStoreLocation = $certificateStore; CertificateFolder = $null
     OpenFirewall = $openFirewall; FirewallPublic = $firewallPublic
 }
 
@@ -395,6 +315,7 @@ Say "Program:      $programFolder"
 Say "Data:         $dataFolder$(if ($existingData) { ' (existing data kept)' } elseif ($ImportFrom) { " (copied from $ImportFrom)" })"
 if (-not $keepsItsOwnSettings) { Say "School:       $schoolName   colours $primary / $accent$(if ($logo) { "   logo $logo" })" }
 Say "Backups:      $backupFolder at ${backupHour}:00"
+if ($useHttps) { Say "Certificate:  $(if ($makeCertificate) { "a new self-signed one for $($certificateNames -join ', '), valid 5 years" } else { "$($certificate.GetNameInfo('SimpleName', $false)), expires $($certificate.NotAfter.ToString('d MMM yyyy'))$(if ($settings.CertificateSelfSigned) { ', self-signed' })" })" }
 Say "Address:      $(PublicUrl $settings)$(if ($openFirewall) { "   (firewall opened$(if ($firewallPublic) { ', Public networks included' }))" })"
 if (-not $unattended -and -not (AskYesNo "Confirm" "Install now?" $true)) { Fail "Nothing was installed." }
 
@@ -418,6 +339,19 @@ if (-not $existingData -and $ImportFrom) {
 $firstRun = [ordered]@{ BackupFolder = $backupFolder; BackupHour = $backupHour; SiteAddress = (PublicUrl $settings) }
 if (-not $keepsItsOwnSettings) { $firstRun.SchoolName = $schoolName; $firstRun.PrimaryColor = $primary; $firstRun.AccentColor = $accent; $firstRun.LogoPath = $logo }
 $firstRun | ConvertTo-Json | Set-Content -Path (Join-Path $dataFolder "install-settings.json") -Encoding UTF8
+
+$certificateFiles = $null
+if ($makeCertificate) {
+    Say "Making a self-signed certificate for $($certificateNames -join ', ')..."
+    $addresses = @(LanAddresses)
+    $certificate = NewSchoolCertificate $certificateNames $addresses $certificateStore
+    $settings.CertificateThumbprint = $certificate.Thumbprint
+    $settings.CertificateFolder = Join-Path $dataFolder "certificate"
+    $certificateFiles = WriteCertificateFiles $certificate $settings.CertificateFolder $certificateNames $addresses (PublicUrl $settings)
+    Say "Certificate files written to $($settings.CertificateFolder)."
+    # The computer the helpdesk runs on trusts it too, so a browser here shows the padlock straight away.
+    if (-not $NoService) { TrustOnThisComputer $certificateFiles.Cer; Say "This computer trusts it." }
+}
 
 CopyProgram $programFolder
 WriteAppSettings $programFolder $settings
@@ -450,6 +384,8 @@ if (-not (WaitUntilAnswering (LocalUrl $settings))) {
 
 Heading "EduHelpdesk $newVersion is running at $(PublicUrl $settings)"
 SayHowToReachIt $settings
+if ($certificateFiles) { SayHowToTrust $certificate $certificateFiles (PublicUrl $settings) }
+elseif ($settings.CertificateSelfSigned) { Warn "The certificate you chose is self-signed, so every school computer must be told to trust it or its browser will warn." }
 if (-not $openFirewall) { Warn "The firewall wasn't opened, so only this computer can reach it. Run the installer again from a newer zip, or open port $port in Windows Firewall." }
 if (-not $keepsItsOwnSettings) {
     Say "Sign in straight away as $BootstrapEmail with the password $BootstrapPassword - you'll be asked"

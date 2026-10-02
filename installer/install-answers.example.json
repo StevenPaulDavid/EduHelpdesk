@@ -11,6 +11,8 @@
     "BackupHour": 2,
     "UseHttps": false,
     "CertificateThumbprint": "",
+    "CreateCertificate": false,
+    "CertificateName": "helpdesk.example.org.uk",
     "Port": 80,
     "OpenFirewall": true,
     "AllowOnPublicNetwork": true
