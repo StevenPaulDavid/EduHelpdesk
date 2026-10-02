@@ -28,6 +28,8 @@ public static class NotificationEndpoints
         IHostApplicationLifetime lifetime, string? audience, long? after, int? wait)
     {
         if (Account(context, store, portal, audience) is not { } account) return Results.Json(new { signedIn = false }, statusCode: StatusCodes.Status401Unauthorized);
+        // Switched off in Settings → Notifications: say so at once, and the browser stops asking.
+        if (!store.NotificationsOpenFor(audience!)) return Results.Json(new { signedIn = true, disabled = true });
         // The request ends when the browser goes away, and when the app is stopping - a service restart for an upgrade
         // shouldn't wait out the longest hold.
         using var ending = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);

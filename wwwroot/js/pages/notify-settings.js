@@ -16,6 +16,7 @@
 
     const connectionText = {
         off: "Off",
+        disabled: "Switched off by your administrator",
         connecting: "Connecting…",
         connected: "On - listening while a helpdesk page is open",
         retrying: "Can't reach the helpdesk just now - trying again",
@@ -26,14 +27,19 @@
         const s = api.state();
         on.checked = s.prefs.on;
         sound.checked = s.prefs.sound;
-        sound.disabled = !s.prefs.on;
-        testForm.querySelector("button").disabled = !s.prefs.on;
-        testHint.hidden = s.prefs.on;
+        // Switched off for this side in Settings → Notifications: nothing here can work, so nothing here is offered.
+        on.disabled = !s.enabled;
+        sound.disabled = !s.enabled || !s.prefs.on;
+        testForm.querySelector("button").disabled = !s.enabled || !s.prefs.on;
+        testHint.hidden = s.prefs.on || !s.enabled;
         connection.textContent = connectionText[s.status] || s.status;
         soundNote.hidden = !(s.prefs.on && s.prefs.sound && s.soundBlocked);
 
         let text, tone = "notice";
-        if (!s.supported || !s.secure) {
+        if (!s.enabled) {
+            tone = "notice notice-warning";
+            text = "Notifications have been switched off by your school's administrator, so there's nothing to switch on here at the moment.";
+        } else if (!s.supported || !s.secure) {
             tone = "notice notice-warning";
             text = !s.secure
                 ? "This page was opened on an address your browser doesn't treat as secure (http:// rather than https://), so it won't allow pop-up desktop notifications. You'll get a ping and a banner at the top of the page instead."
@@ -48,7 +54,7 @@
         }
         mode.className = tone;
         mode.textContent = text;
-        allow.hidden = !(s.supported && s.secure && s.permission === "default");
+        allow.hidden = !(s.enabled && s.supported && s.secure && s.permission === "default");
     };
 
     on.addEventListener("change", () => {

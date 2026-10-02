@@ -1,0 +1,26 @@
+@page
+@model EduHelpdesk.Pages.Settings.NotificationsModel
+@{ ViewData["Title"] = "Notifications"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Notifications</h1><p class="hero-copy">Whether browsers ping and pop up when a ticket arrives, a requester replies, or a technician updates a requester - for everyone, or just one side.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Who gets notifications</h2></div>
+    <p class="muted">Each person still chooses for themselves, from <strong>Notifications</strong> in their account menu (staff) or on the portal home page (requesters). These switches sit above that: when one is off, nothing is sent to that side, their browsers stop asking, and their Notifications page says it has been switched off. It takes effect for pages already open the next time they ask, within about half a minute; switching one back on reaches an open page the next time it is loaded.</p>
+    <form method="post" asp-page-handler="Save" class="settings-form">
+        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Settings.Enabled" /> Notifications are available (the master switch - off means off for everyone)</label>
+        <label class="toggle-label"><input type="checkbox" name="staff" value="true" checked="@Model.Settings.Staff" /> Staff: a ping when a requester submits a ticket or replies</label>
+        <label class="toggle-label"><input type="checkbox" name="requesters" value="true" checked="@Model.Settings.Requesters" /> Requesters: a ping in the staff portal when a technician ticks <em>Notify the requester</em> on a comment</label>
+        <label class="toggle-label"><input type="checkbox" name="prompt" value="true" checked="@Model.Settings.Prompt" /> Remind people to switch them on: a bar under the header after signing in, for anyone who hasn't (they can dismiss it for a week)</label>
+        <div><button class="button button-primary">Save</button></div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>How it behaves</h2></div>
+    <ul class="muted">
+        <li>Pings and pop-ups only work while a helpdesk or portal page is open in the browser. They never carry ticket details, only that something happened and the ticket number.</li>
+        <li>Pop-ups need the helpdesk to be reached over <code>https://</code> (or on the same computer); on plain <code>http://</code> the browser refuses them and people get the ping and a banner in the page instead.</li>
+        <li>The reminder never shows for a side that is switched off here, and never on the Notifications page itself.</li>
+    </ul>
+</section>

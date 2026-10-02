@@ -67,6 +67,12 @@ public sealed partial class HelpdeskStore
         // Settings → Sign-in security: technicians may reset a forgotten password with their recovery key
         // (HelpdeskStore.RecoveryKeys). On unless a school turns it off.
         public bool AllowRecoveryKeys { get; set; } = true;
+        // Settings → Notifications: pings and pop-ups on at all, for staff, for requesters in the portal, and whether people
+        // who haven't switched them on are reminded to (HelpdeskStore.NotificationSettings). All on unless a school turns them off.
+        public bool NotificationsEnabled { get; set; } = true;
+        public bool StaffNotificationsEnabled { get; set; } = true;
+        public bool RequesterNotificationsEnabled { get; set; } = true;
+        public bool NotificationPrompt { get; set; } = true;
         // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.
         public bool ProjectPageIncludesVat { get; set; }
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in

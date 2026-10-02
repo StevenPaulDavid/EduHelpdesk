@@ -48,8 +48,11 @@ public sealed partial class HelpdeskStore
 
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    // Returns 0, having recorded nothing, when that side is switched off in Settings → Notifications - so turning it back
+    // on doesn't announce a backlog.
     public long AddNotification(string audience, Guid? recipientId, string kind, int? ticketNumber = null)
     {
+        if (!NotificationsOpenFor(audience)) return 0;
         lock (_notificationSync)
         {
             var now = DateTime.UtcNow;

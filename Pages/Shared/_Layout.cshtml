@@ -163,6 +163,8 @@
     {
         @* Not deferred, so window.EduNotify exists by the time a page's own script (the Notifications page) runs. *@
         <div id="notify-root" hidden data-audience="@notifyAudience" data-account="@notifyAccount" data-poll="@NotificationEndpoints.PollPath"
+             data-enabled="@(Helpdesk.NotificationsOpenFor(notifyAudience!) ? "true" : "false")" data-prompt="@(Helpdesk.NotificationSettings.Prompt ? "true" : "false")"
+             data-settings="@Url.Page(notifyAudience == HelpdeskStore.PortalAudience ? "/Portal/Notifications" : "/Notifications")"
              data-icon="@(Helpdesk.LogoVersion is { } notifyLogo ? Url.Content("~/branding/logo") + "?v=" + notifyLogo : Url.Content("~/favicon.ico"))"></div>
         <script src="~/js/notifications.js" asp-append-version="true"></script>
     }

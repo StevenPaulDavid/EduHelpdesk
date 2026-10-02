@@ -38,6 +38,55 @@ public class NotificationTests
     }
 
     [Fact]
+    public void Everything_is_on_until_a_school_switches_it_off_and_the_choice_survives_a_restart()
+    {
+        using var test = new TestStore();
+        Assert.Equal(new HelpdeskStore.NotificationSettingsView(true, true, true, true), test.Store.NotificationSettings);
+        Assert.True(test.Store.NotificationsOpenFor(Staff) && test.Store.NotificationsOpenFor(Portal));
+        Assert.Equal("Nothing changed.", test.Store.SetNotificationSettings(true, true, true, true));
+
+        test.Store.SetNotificationSettings(true, true, false, false);
+        var store = test.Reopen();
+        Assert.Equal(new HelpdeskStore.NotificationSettingsView(true, true, false, false), store.NotificationSettings);
+        Assert.True(store.NotificationsOpenFor(Staff));
+        Assert.False(store.NotificationsOpenFor(Portal));
+        Assert.Null(store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public void The_master_switch_closes_both_sides_whatever_theirs_say()
+    {
+        using var test = new TestStore();
+        test.Store.SetNotificationSettings(false, true, true, true);
+        Assert.False(test.Store.NotificationsOpenFor(Staff));
+        Assert.False(test.Store.NotificationsOpenFor(Portal));
+        Assert.False(test.Store.NotificationsOpenFor("something-else"));
+    }
+
+    [Fact]
+    public void Nothing_is_recorded_for_a_side_that_is_switched_off_so_turning_it_on_does_not_replay_a_backlog()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.SetNotificationSettings(true, false, true, true);
+        Assert.Equal(0, test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 5));
+        Assert.Equal(0, test.Store.AddNotification(Staff, account, Test));
+        Assert.NotEqual(0, test.Store.AddNotification(Portal, account, Test));
+
+        test.Store.SetNotificationSettings(true, true, true, true);
+        Assert.Empty(test.Store.NotificationsFor(Staff, account, 0).Items);
+        Assert.Single(test.Store.NotificationsFor(Portal, account, 0).Items);
+    }
+
+    [Fact]
+    public void Changing_the_settings_is_written_to_the_audit_log()
+    {
+        using var test = new TestStore();
+        test.Store.SetNotificationSettings(false, true, true, true);
+        Assert.Contains(test.Store.GetAuditEntries(), x => x.Area == "Settings" && x.Entity == "Notifications");
+    }
+
+    [Fact]
     public void A_new_ticket_and_a_reply_carry_the_ticket_number_and_nothing_else()
     {
         using var test = new TestStore();

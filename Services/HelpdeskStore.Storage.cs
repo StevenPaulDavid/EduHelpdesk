@@ -341,6 +341,10 @@ public sealed partial class HelpdeskStore
         data.SiteAddress = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SiteAddress';") as string ?? "";
         data.AllowRecoveryKeys = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AllowRecoveryKeys';") as string != "0";
         data.ProjectPageIncludesVat = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ProjectPageIncludesVat';") as string == "1";
+        data.NotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'NotificationsEnabled';") as string != "0";
+        data.StaffNotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'StaffNotificationsEnabled';") as string != "0";
+        data.RequesterNotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequesterNotificationsEnabled';") as string != "0";
+        data.NotificationPrompt = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'NotificationPrompt';") as string != "0";
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
@@ -803,6 +807,10 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "SiteAddress", data.SiteAddress);
         SetMetadata(connection, transaction, "AllowRecoveryKeys", data.AllowRecoveryKeys ? "1" : "0");
         SetMetadata(connection, transaction, "ProjectPageIncludesVat", data.ProjectPageIncludesVat ? "1" : "0");
+        SetMetadata(connection, transaction, "NotificationsEnabled", data.NotificationsEnabled ? "1" : "0");
+        SetMetadata(connection, transaction, "StaffNotificationsEnabled", data.StaffNotificationsEnabled ? "1" : "0");
+        SetMetadata(connection, transaction, "RequesterNotificationsEnabled", data.RequesterNotificationsEnabled ? "1" : "0");
+        SetMetadata(connection, transaction, "NotificationPrompt", data.NotificationPrompt ? "1" : "0");
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));

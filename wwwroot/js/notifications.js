@@ -16,6 +16,8 @@
     const root = document.getElementById("notify-root");
     if (!root) return;
     const { audience, account, poll: pollUrl } = root.dataset;
+    // Settings → Notifications can switch pings off for everyone or for one side, and can stop the reminder below.
+    const enabled = root.dataset.enabled !== "false";
     const prefsKey = `edu.notify.prefs.${audience}.${account}`;
     const cursorKey = `edu.notify.cursor.${audience}.${account}`;
     // More than this at once (a browser that was closed over a weekend) is announced as a single count.
@@ -142,15 +144,16 @@
     // Increases each time the loop is (re)started, so an old loop that wakes up after being stopped knows to quit.
     let generation = 0;
 
-    const announce = () => document.dispatchEvent(new CustomEvent("edunotify", { detail: state() }));
+    const announce = () => { document.dispatchEvent(new CustomEvent("edunotify", { detail: state() })); syncNudge(); };
     const setStatus = value => { if (status !== value) { status = value; announce(); } };
-    const state = () => ({ ...capability(), prefs: { ...prefs }, status, soundBlocked });
+    const state = () => ({ ...capability(), enabled, prefs: { ...prefs }, status, soundBlocked });
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
     const run = async () => {
         const mine = ++generation;
         controller?.abort();
+        if (!enabled) { setStatus("disabled"); return; }
         if (!prefs.on) { setStatus("off"); return; }
         setStatus("connecting");
         let delay = 0;
@@ -165,6 +168,8 @@
                 if (!response.ok) throw new Error("HTTP " + response.status);
                 const data = await response.json();
                 if (mine !== generation) return;
+                // Switched off while this page was open. It stays off until the page is next loaded.
+                if (data.disabled) { setStatus("disabled"); return; }
                 delay = 0;
                 setStatus("connected");
                 // Another tab may have handled these already: only what is newer than the shared mark is news.
@@ -210,6 +215,64 @@
     // ...and a page brought back from the browser's back/forward cache starts asking again.
     window.addEventListener("pageshow", event => { if (event.persisted) run(); });
 
+    // ---- The reminder ----
+
+    // A slim bar at the top of the page content for someone who hasn't switched notifications on in this browser - or has, but the
+    // browser hasn't been allowed to show pop-ups. "Not now" hides it for a week. Not shown where it would be redundant
+    // (the Notifications page itself), when this side is switched off, or when Settings has turned the reminder off.
+    const nudgeKey = `edu.notify.nudge.${audience}.${account}`;
+    const WEEK = 7 * 24 * 60 * 60 * 1000;
+    let nudgeBar = null;
+    const nudgeWanted = () => {
+        if (!enabled || root.dataset.prompt !== "true" || document.getElementById("notify-on")) return null;
+        const s = capability();
+        if (!prefs.on) return "on";
+        if (s.supported && s.secure && s.permission !== "granted") return s.permission === "denied" ? "blocked" : "allow";
+        return null;
+    };
+    function syncNudge() {
+        const wanted = nudgeWanted();
+        const dismissed = Number(read(nudgeKey)) > Date.now();
+        if (!wanted || dismissed) { nudgeBar?.remove(); nudgeBar = null; return; }
+        if (nudgeBar?.dataset.kind === wanted) return;
+        nudgeBar?.remove();
+        const bar = document.createElement("div");
+        bar.className = "notify-nudge";
+        bar.dataset.kind = wanted;
+        bar.setAttribute("role", "region");
+        bar.setAttribute("aria-label", "Notifications");
+        const text = document.createElement("span");
+        const who = audience === "portal" ? "when the IT team updates one of your tickets" : "when a ticket arrives or someone replies";
+        text.textContent = wanted === "on" ? `Notifications are off. Switch them on to get a ping and a pop-up on this computer ${who}.`
+            : wanted === "allow" ? "Notifications are on, but this browser hasn't been allowed to show pop-ups yet."
+            : "Notifications are on, but this browser is blocking pop-ups from this site.";
+        const buttons = document.createElement("span");
+        buttons.className = "notify-nudge-actions";
+        const act = wanted === "blocked" ? document.createElement("a") : document.createElement("button");
+        act.className = "button button-primary";
+        act.textContent = wanted === "on" ? "Turn on" : wanted === "allow" ? "Allow pop-ups" : "How to allow them";
+        if (wanted === "blocked") act.href = root.dataset.settings;
+        else {
+            act.type = "button";
+            act.addEventListener("click", () => {
+                if (wanted === "on") setPrefs({ on: true });
+                if (capability().permission === "default") requestPermission().then(announce);
+                announce();
+            });
+        }
+        const later = document.createElement("button");
+        later.type = "button";
+        later.className = "button button-secondary";
+        later.textContent = "Not now";
+        later.addEventListener("click", () => { write(nudgeKey, String(Date.now() + WEEK)); syncNudge(); });
+        buttons.append(act, later);
+        bar.append(text, buttons);
+        // Inside the portal's narrow column when the page has one, so the bar lines up with what is under it.
+        (document.querySelector("main .portal-shell") || document.querySelector("main"))?.prepend(bar);
+        nudgeBar = bar;
+    }
+
     window.EduNotify = { state, setPrefs, requestPermission, ping, banner, audience };
     run();
+    syncNudge();
 })();

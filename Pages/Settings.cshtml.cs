@@ -30,6 +30,17 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     // 1.2.0, from the version New-Release.ps1 builds with.
     public static string AppVersion => typeof(SettingsModel).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "development";
 
+    private string NotificationSummary()
+    {
+        var settings = store.NotificationSettings;
+        var who = !settings.Enabled ? "Switched off for everyone."
+            : settings.Staff && settings.Requesters ? "On for staff and requesters."
+            : settings.Staff ? "On for staff only."
+            : settings.Requesters ? "On for requesters only."
+            : "Switched off for everyone.";
+        return $"Pings and pop-ups for new tickets, replies and updates. {who}{(settings.Prompt ? " People who haven't switched them on are reminded." : "")}";
+    }
+
     private string RetentionSummary()
     {
         var rules = store.Retention;
@@ -108,6 +119,9 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                     $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Two-step sign-in {(store.RequireTwoFactor ? "is required" : $"is set up for {TwoFactorCount} of {ActiveStaff} staff")}. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
                     "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor", !IsHttps ? "Not encrypted" : store.RequireTwoFactor ? "Two-step required" : "HTTPS",
                     !IsHttps || (!store.RequireTwoFactor && TwoFactorCount < ActiveStaff)),
+                Page("Notifications", "/Settings/Notifications", NotificationSummary(),
+                    "notifications pings pop-ups toast alerts banner reminder enable disable staff requesters portal sound",
+                    !store.NotificationSettings.Enabled ? "Off" : null),
                 Page("Data retention", "/Settings/Retention", RetentionSummary(),
                     "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
                     store.Retention.AnyOn ? "On" : null),
