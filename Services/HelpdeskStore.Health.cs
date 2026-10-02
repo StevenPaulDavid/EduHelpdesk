@@ -52,8 +52,9 @@ public sealed partial class HelpdeskStore
     // ---- Measuring ----
 
     // The database file with its write-ahead log - both are the database until SQLite folds the log in.
+    // The log can be folded in and deleted between looking for it and measuring it, so a file that has gone counts as nothing.
     private long DatabaseBytes() =>
-        new[] { _path, _path + "-wal" }.Where(File.Exists).Sum(x => new FileInfo(x).Length);
+        new[] { _path, _path + "-wal" }.Sum(x => { try { return new FileInfo(x) is { Exists: true } file ? file.Length : 0; } catch (IOException) { return 0L; } });
 
     private (long Bytes, int Files) AttachmentSize()
     {

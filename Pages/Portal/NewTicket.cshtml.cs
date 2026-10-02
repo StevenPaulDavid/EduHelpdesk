@@ -139,6 +139,9 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         // Linked both ways, so whoever picks it up sees the history of the first time round.
         if (previous is not null) store.LinkRelatedTickets(number, previous.Number);
         var problems = PortalFiles.Attach(store, number, chosen);
+        // Told after the files are on, so whoever opens it from the ping finds them. Only here: tickets that arrive another
+        // way (a technician logging one, an import, an onboarding's tasks) are not news to the team.
+        store.AddNotification(HelpdeskStore.StaffAudience, null, HelpdeskStore.NotificationKinds.NewTicket, number);
 
         TempData["Message"] = $"Ticket #{number} submitted - a technician will be in touch.{(problems.Length > 0 ? $" {problems}" : "")}";
         return RedirectToPage("/Portal/Ticket", new { number });

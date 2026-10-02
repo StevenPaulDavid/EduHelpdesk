@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using EduHelpdesk.Models;
 
 namespace EduHelpdesk.Services;
 
@@ -31,7 +32,10 @@ public static class NotificationEndpoints
         // shouldn't wait out the longest hold.
         using var ending = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
         var seconds = Math.Clamp(wait ?? 0, 0, (int)LongestWait.TotalSeconds);
-        var batch = await store.WaitForNotificationsAsync(audience!, account, after ?? -1, TimeSpan.FromSeconds(seconds), ending.Token);
+        // A new ticket or a reply is news for whoever can see tickets, and for nobody else; this is checked on every ask,
+        // so a role changed mid-shift takes effect at once. The portal has no broadcasts, only messages for the requester.
+        var broadcast = audience == HelpdeskStore.StaffAudience && store.UserCan(context.User, Modules.Tickets, ModulePermission.Access);
+        var batch = await store.WaitForNotificationsAsync(audience!, account, after ?? -1, TimeSpan.FromSeconds(seconds), ending.Token, broadcast);
         return Results.Json(new
         {
             signedIn = true,
@@ -62,9 +66,12 @@ public static class NotificationEndpoints
     private static object Describe(HelpdeskStore.Notification notification, LinkGenerator links, HttpContext context)
     {
         var settings = links.GetPathByPage(context, notification.Audience == HelpdeskStore.PortalAudience ? "/Portal/Notifications" : "/Notifications");
+        var ticket = notification.TicketNumber is { } number ? links.GetPathByPage(context, "/Job", values: new { number }) : null;
         var (title, body, url) = notification.Kind switch
         {
             HelpdeskStore.NotificationKinds.Test => ("Test notification", "Notifications are working on this computer.", settings),
+            HelpdeskStore.NotificationKinds.NewTicket => ("New ticket received", "Click to open it.", ticket ?? settings),
+            HelpdeskStore.NotificationKinds.Reply => ($"Reply on ticket #{notification.TicketNumber}", "Click to open it.", ticket ?? settings),
             _ => ("Helpdesk", "There is something new.", settings)
         };
         return new { id = notification.Id, kind = notification.Kind, title, body, url };

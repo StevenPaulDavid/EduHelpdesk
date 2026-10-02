@@ -24,6 +24,33 @@ public class NotificationTests
     }
 
     [Fact]
+    public void Someone_who_cannot_see_tickets_is_not_told_about_them_but_still_gets_what_is_addressed_to_them()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 7);
+        var mine = test.Store.AddNotification(Staff, account, Test);
+
+        Assert.Equal([mine], test.Store.NotificationsFor(Staff, account, 0, broadcast: false).Items.Select(x => x.Id));
+        Assert.Equal(2, test.Store.NotificationsFor(Staff, account, 0, broadcast: true).Items.Count);
+        // The cursor still moves on, so being given ticket access later doesn't replay what was missed meanwhile.
+        Assert.Equal(mine, test.Store.NotificationsFor(Staff, account, 0, broadcast: false).Cursor);
+    }
+
+    [Fact]
+    public void A_new_ticket_and_a_reply_carry_the_ticket_number_and_nothing_else()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 12);
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.Reply, 12);
+
+        var items = test.Store.NotificationsFor(Staff, account, 0).Items;
+        Assert.Equal([HelpdeskStore.NotificationKinds.NewTicket, HelpdeskStore.NotificationKinds.Reply], items.Select(x => x.Kind));
+        Assert.All(items, x => Assert.Equal(12, x.TicketNumber));
+    }
+
+    [Fact]
     public void A_ping_for_one_account_reaches_only_that_account_and_only_on_its_own_side()
     {
         using var test = new TestStore();

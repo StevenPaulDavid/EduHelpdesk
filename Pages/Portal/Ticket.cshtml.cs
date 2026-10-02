@@ -63,6 +63,7 @@ public class TicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
         var (ok, reopened) = store.AddRequesterComment(number, Comment);
         if (!ok) return NotFound();
         var problems = PortalFiles.Attach(store, number, chosen);
+        store.AddNotification(HelpdeskStore.StaffAudience, null, HelpdeskStore.NotificationKinds.Reply, number);
         Message = (reopened
             ? "Sent - and because the ticket had been closed, it has been reopened so the team pick it up again."
             : "Sent.") + (problems.Length > 0 ? $" {problems}" : "");

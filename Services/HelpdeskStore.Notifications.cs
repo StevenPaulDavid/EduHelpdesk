@@ -14,10 +14,12 @@ public sealed partial class HelpdeskStore
     public const string StaffAudience = "staff";
     public const string PortalAudience = "portal";
 
-    // What happened. Only a test so far; the ticket events join it as they are wired in.
+    // What happened. A requester's new ticket and their reply on one go to staff; the test is addressed to whoever pressed it.
     public static class NotificationKinds
     {
         public const string Test = "test";
+        public const string NewTicket = "ticket-new";
+        public const string Reply = "ticket-reply";
     }
 
     // An Id is the time it was made, in milliseconds, or one more than the last: it only ever goes up, even after the
@@ -75,16 +77,18 @@ public sealed partial class HelpdeskStore
     // What is waiting for this account after the cursor the browser holds. A cursor below zero means "I have none": the
     // answer is empty and carries the current cursor, so a browser that has just been switched on starts from now rather
     // than being told about everything still on file.
-    public NotificationBatch NotificationsFor(string audience, Guid accountId, long after)
+    // broadcast says whether this account may be told what is sent to every member of staff: only those who can see
+    // tickets should hear that one has arrived. What is addressed to them personally always gets through.
+    public NotificationBatch NotificationsFor(string audience, Guid accountId, long after, bool broadcast = true)
     {
-        lock (_notificationSync) return BatchFor(audience, accountId, after);
+        lock (_notificationSync) return BatchFor(audience, accountId, after, broadcast);
     }
 
-    private NotificationBatch BatchFor(string audience, Guid accountId, long after)
+    private NotificationBatch BatchFor(string audience, Guid accountId, long after, bool broadcast)
     {
         if (after < 0) return new NotificationBatch(_lastNotificationId, []);
         var items = _notifications
-            .Where(x => x.Id > after && x.Audience == audience && (x.RecipientId == accountId || (x.RecipientId is null && audience == StaffAudience)))
+            .Where(x => x.Id > after && x.Audience == audience && (x.RecipientId == accountId || (broadcast && x.RecipientId is null && audience == StaffAudience)))
             .TakeLast(NotificationsPerAnswer)
             .ToList();
         return new NotificationBatch(_lastNotificationId, items);
@@ -93,7 +97,7 @@ public sealed partial class HelpdeskStore
     // As NotificationsFor, but when there is nothing yet, waits up to this long for something to arrive - so a browser
     // hears about a ticket the moment it is submitted without asking every few seconds. It also ends when the request
     // does (the browser moved to another page) and when the app is stopping.
-    public async Task<NotificationBatch> WaitForNotificationsAsync(string audience, Guid accountId, long after, TimeSpan wait, CancellationToken cancel)
+    public async Task<NotificationBatch> WaitForNotificationsAsync(string audience, Guid accountId, long after, TimeSpan wait, CancellationToken cancel, bool broadcast = true)
     {
         var deadline = DateTime.UtcNow + wait;
         while (true)
@@ -102,7 +106,7 @@ public sealed partial class HelpdeskStore
             Task signal;
             lock (_notificationSync)
             {
-                batch = BatchFor(audience, accountId, after);
+                batch = BatchFor(audience, accountId, after, broadcast);
                 signal = _notificationArrived.Task;
             }
             var remaining = deadline - DateTime.UtcNow;
