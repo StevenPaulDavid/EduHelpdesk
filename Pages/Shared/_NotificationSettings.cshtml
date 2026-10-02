@@ -10,6 +10,16 @@
     <noscript><div class="notice notice-warning">Notifications need JavaScript, which is switched off in this browser.</div></noscript>
     <div id="notify-mode" class="notice" role="status">Checking what this browser can do…</div>
 
+    <div id="notify-help" class="notice notice-warning" hidden>
+        <strong>Your browser isn't allowing pop-ups from this site.</strong> It may not have shown its question, or the question was dismissed or refused. Allow it yourself:
+        <ol class="notify-steps">
+            <li>Click the padlock - or a bell icon with a line through it - at the left of the address bar.</li>
+            <li>Open <em>Permissions for this site</em> and set <em>Notifications</em> to <em>Allow</em>. Or go to the browser's Settings &gt; Cookies and site permissions &gt; Notifications and move this site from Block to Allow.</li>
+            <li>Reload this page.</li>
+        </ol>
+        If the address bar says <em>Not secure</em>, or the page showed a certificate warning, the browser won't ask at all until the computer has been told to trust the helpdesk's certificate - see <em>READ-ME-FIRST.txt</em> in the <em>certificate</em> folder inside the helpdesk's data folder.
+    </div>
+
     <div class="settings-form">
         <label class="toggle-label"><input type="checkbox" id="notify-on" /> Notify me on this computer</label>
         <label class="toggle-label"><input type="checkbox" id="notify-sound" /> Play a ping</label>
@@ -23,6 +33,6 @@
         <small id="notify-test-note" class="muted" role="status"></small>
     </form>
 
-    <p class="muted notify-status">Status: <span id="notify-connection">Off</span></p>
+    <p class="muted notify-status">Status: <span id="notify-connection">Off</span> &middot; Browser permission for pop-ups: <span id="notify-permission">checking</span></p>
     <p class="muted">These choices are saved in this browser for your account, so another computer needs switching on separately. Pop-ups aren't shown while the browser is closed.</p>
 </section>

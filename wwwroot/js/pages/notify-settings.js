@@ -10,6 +10,8 @@
     const mode = el("notify-mode");
     const soundNote = el("notify-sound-note");
     const connection = el("notify-connection");
+    const help = el("notify-help");
+    const permissionText = el("notify-permission");
     const testForm = el("notify-test-form");
     const testHint = el("notify-test-hint");
     const testNote = el("notify-test-note");
@@ -49,12 +51,19 @@
         } else if (s.permission === "denied") {
             tone = "notice notice-warning";
             text = "This browser is blocking notifications from this site. Allow them from the site settings next to the address bar (the padlock) and reload; until then you'll get a ping and a banner at the top of the page.";
+        } else if (s.asked) {
+            tone = "notice notice-warning";
+            text = "The browser didn't show its question, or it was dismissed, so pop-ups are still not allowed. Follow the steps below; until then you'll get a ping and a banner at the top of the page.";
         } else {
             text = "Your browser hasn't been asked yet. Press the button below to allow desktop pop-ups; until you do, you'll get a ping and a banner at the top of the page.";
         }
         mode.className = tone;
         mode.textContent = text;
-        allow.hidden = !(s.enabled && s.supported && s.secure && s.permission === "default");
+        allow.hidden = !(s.enabled && s.supported && s.secure && s.permission === "default" && !s.asked);
+        // The browser's own setting for this site, and - once it has declined to ask or been refused - how to change it.
+        permissionText.textContent = !s.supported ? "not available in this browser" : !s.secure ? "not available on this address"
+            : s.permission === "granted" ? "Allowed" : s.permission === "denied" ? "Blocked" : s.asked ? "Not allowed (the browser did not ask, or it was dismissed)" : "Not asked yet";
+        help.hidden = !(s.enabled && s.supported && s.secure && s.permission !== "granted" && (s.permission === "denied" || s.asked));
     };
 
     on.addEventListener("change", () => {

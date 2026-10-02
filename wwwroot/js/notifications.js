@@ -146,7 +146,7 @@
 
     const announce = () => { document.dispatchEvent(new CustomEvent("edunotify", { detail: state() })); syncNudge(); };
     const setStatus = value => { if (status !== value) { status = value; announce(); } };
-    const state = () => ({ ...capability(), enabled, prefs: { ...prefs }, status, soundBlocked });
+    const state = () => ({ ...capability(), enabled, prefs: { ...prefs }, status, soundBlocked, asked: askedResult });
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -196,9 +196,18 @@
         if (prefs.on !== wasOn) run(); else announce();
     };
 
+    // What the browser answered the last time it was asked on this page. A browser that decides not to show its question
+    // (Edge's quiet prompt, a page with a certificate warning, one dismissed too often) answers "default" or "denied" at
+    // once, and without this the page would go on saying it hasn't been asked.
+    // Kept for the browser session, so the page the reminder links to knows too.
+    const askedKey = `edu.notify.asked.${audience}.${account}`;
+    const readAsked = () => { try { return sessionStorage.getItem(askedKey); } catch { return null; } };
+    const writeAsked = value => { try { value === "granted" ? sessionStorage.removeItem(askedKey) : sessionStorage.setItem(askedKey, value); } catch { /* private mode */ } };
+    let askedResult = readAsked();
     const requestPermission = async () => {
         if (!capability().supported || !window.isSecureContext) return capability().permission;
-        try { await Notification.requestPermission(); } catch { /* an older browser's callback form isn't worth supporting */ }
+        try { askedResult = await Notification.requestPermission(); } catch { askedResult = "error"; }
+        writeAsked(askedResult);
         announce();
         return capability().permission;
     };
@@ -227,7 +236,8 @@
         if (!enabled || root.dataset.prompt !== "true" || document.getElementById("notify-on")) return null;
         const s = capability();
         if (!prefs.on) return "on";
-        if (s.supported && s.secure && s.permission !== "granted") return s.permission === "denied" ? "blocked" : "allow";
+        // Asked and still not granted means the browser won't show its question, so another press of the button is no use.
+        if (s.supported && s.secure && s.permission !== "granted") return s.permission === "denied" || (askedResult && askedResult !== "granted") ? "blocked" : "allow";
         return null;
     };
     function syncNudge() {
