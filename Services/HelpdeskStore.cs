@@ -41,6 +41,7 @@ public sealed partial class HelpdeskStore
         _data = Load();
         _audit = LoadAudit();
         LoadSessions();
+        LoadNotifications();
         Prepare();
         if (_data.Users.Count == 0 && _data.Technicians.Count == 0)
         {

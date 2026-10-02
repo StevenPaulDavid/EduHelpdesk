@@ -1,0 +1,10 @@
+@page
+@model EduHelpdesk.Pages.Portal.NotificationsModel
+@{ ViewData["Title"] = "Notifications"; }
+<div class="portal-shell">
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Notifications</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+    <partial name="_NotificationSettings" model="@("portal")" />
+</div>
+@section Scripts {
+<script src="~/js/pages/notify-settings.js" asp-append-version="true"></script>
+}

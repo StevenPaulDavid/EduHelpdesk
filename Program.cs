@@ -226,6 +226,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         // Every request re-checks the account behind the cookie: gone, deactivated, password reset or past the 14-day
         // absolute cap ends the session; a changed role or name is picked up at once. See TechnicianSession.
         options.Events.OnValidatePrincipal = TechnicianSession.ValidateAsync;
+        // A browser asking for notifications must not count as someone using the helpdesk: an unattended tab would
+        // otherwise keep the sign-in alive for ever, past the 8 idle hours the cookie is meant to allow.
+        options.Events.OnCheckSlidingExpiration = context =>
+        {
+            if (context.HttpContext.Request.Path.Equals(NotificationEndpoints.PollPath, StringComparison.OrdinalIgnoreCase)) context.ShouldRenew = false;
+            return Task.CompletedTask;
+        };
     });
 // Each policy is a permission requirement, checked live against the signed-in account's role (see
 // PermissionAuthorizationHandler and HelpdeskStore.RoleGrants) rather than a fixed set of role names - roles and
@@ -297,6 +304,8 @@ app.MapGet("/branding/logo", (HelpdeskStore store, HttpContext context) =>
     context.Response.Headers.CacheControl = context.Request.Query.ContainsKey("v") ? "public, max-age=31536000, immutable" : "no-cache";
     return Results.File(path, "image/png");
 });
+// What a browser asks to hear about new tickets and replies (wwwroot/js/notifications.js).
+app.MapNotificationEndpoints();
 app.MapRazorPages()
    .WithStaticAssets();
 

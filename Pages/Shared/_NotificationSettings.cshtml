@@ -1,0 +1,28 @@
+@* The Notifications controls, shared by the helpdesk page and the staff portal's. The choices are kept in this browser
+   (see wwwroot/js/notifications.js), so each person - and each computer they use - switches it on for themselves. The
+   model is who it is for: "staff" or "portal". *@
+@model string
+@{ var forStaff = Model == "staff"; }
+<section class="panel @(forStaff ? null : "portal-panel")">
+    <p>@(forStaff
+        ? "Get a ping and a pop-up on this computer when something needs your attention. It works while a helpdesk page is open in your browser, even in a tab you're not looking at."
+        : "Get a ping and a pop-up on this computer when the IT team updates something you've reported. It works while a staff portal page is open in your browser, even in a tab you're not looking at.")</p>
+    <noscript><div class="notice notice-warning">Notifications need JavaScript, which is switched off in this browser.</div></noscript>
+    <div id="notify-mode" class="notice" role="status">Checking what this browser can do…</div>
+
+    <div class="settings-form">
+        <label class="toggle-label"><input type="checkbox" id="notify-on" /> Notify me on this computer</label>
+        <label class="toggle-label"><input type="checkbox" id="notify-sound" /> Play a ping</label>
+        <small id="notify-sound-note" class="muted" hidden>Your browser is holding the ping back until you've clicked somewhere on a page. Click anywhere on this one; until then the pop-up uses the computer's own sound.</small>
+        <div><button type="button" class="button button-secondary" id="notify-allow" hidden>Allow desktop pop-ups</button></div>
+    </div>
+
+    <form method="post" asp-page-handler="Test" id="notify-test-form" class="notify-test">
+        <button type="submit" class="button button-secondary">Send me a test notification</button>
+        <small id="notify-test-hint" class="muted">Switch notifications on above to try this.</small>
+        <small id="notify-test-note" class="muted" role="status"></small>
+    </form>
+
+    <p class="muted notify-status">Status: <span id="notify-connection">Off</span></p>
+    <p class="muted">These choices are saved in this browser for your account, so another computer needs switching on separately. Pop-ups aren't shown while the browser is closed.</p>
+</section>

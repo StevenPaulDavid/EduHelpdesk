@@ -57,6 +57,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Onboardings"] = "One row per new starter's onboarding, keyed by its ticket number.",
         ["PartActivities"] = "Each part's stock history: adjustments and why.",
         ["PartAssetTypes"] = "Which asset types each part is for.",
+        ["Notifications"] = "Pings waiting for browsers to show as a toast: what happened and the ticket number, never the ticket's words. Staff ones have no recipient; others name the account. Cleared after 14 days.",
         ["PartCategories"] = "The list of part categories.",
         ["PartLocations"] = "The list of part locations.",
         ["PartSuppliers"] = "Which suppliers each part comes from.",
@@ -257,6 +258,7 @@ public sealed class RawDatabase(HelpdeskStore store)
             ("Projects", "RequesterId = $k", "Projects they asked for"),
             ("Onboardings", "StarterId = $k OR LineManagerId = $k", "Onboardings (as the new starter or line manager)"),
             ("Sessions", "AccountId = $k", "Staff portal sign-ins"),
+            ("Notifications", "RecipientId = $k", "Pings addressed to them"),
             ("DemoRecords", "EntityType = 'User' AND EntityKey = $k", "Marked as demo data"),
             ("AuditLog", "EntityType = 'User' AND EntityKey = $k", "Audit log")
         ]),
@@ -267,6 +269,7 @@ public sealed class RawDatabase(HelpdeskStore store)
             ("Projects", "TechnicianId = $k", "Projects assigned to them"),
             ("OnboardingTasks", "TechnicianId = $k", "Onboarding tasks assigned to them"),
             ("Sessions", "AccountId = $k", "Sign-ins"),
+            ("Notifications", "RecipientId = $k", "Pings addressed to them"),
             ("DemoRecords", "EntityType = 'Technician' AND EntityKey = $k", "Marked as demo data"),
             ("AuditLog", "EntityType = 'Technician' AND EntityKey = $k", "Audit log")
         ]),

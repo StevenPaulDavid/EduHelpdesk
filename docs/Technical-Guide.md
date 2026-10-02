@@ -212,6 +212,20 @@ Staff accounts can use a code from an authenticator app (Microsoft Authenticator
 - **Lost phone:** someone with Staff accounts: Edit opens the person's staff account and presses **Reset two-step sign-in**; they set it up again. Only an Administrator can reset an Administrator's, and nobody resets their own that way.
 - The staff portal has its own passwords and doesn't use two-step sign-in.
 - Every change - turned on, reset, required, recovery code used - is in the audit log under **Sign-in**. The app secrets are stored in the database like the rest of the data (so a restored backup still works on another machine); treat backups accordingly.
+
+---
+
+### Notifications (pings and pop-ups)
+
+A browser can ping and show a pop-up when something happens, without anyone refreshing a page. Each person switches it on for themselves from **Notifications** in the account menu (staff) or the link beside **Change password** on the portal home page (requesters). The choices - on, and whether to play the ping - are kept in that browser for that account (`localStorage`), so a second computer is switched on separately and nothing is stored on the server about who has it on. So far the page's **Send me a test notification** button is the only thing that creates one; the ticket events are wired in next.
+
+- **How it reaches the browser:** while a page is open and notifications are on, `wwwroot/js/notifications.js` asks `/notifications/poll` for anything newer than the last one that browser handled. The server holds the request open for up to 25 seconds and answers the moment something arrives, so a ping follows an event within a second, an idle page makes two small requests a minute, and a background tab isn't slowed down (browsers throttle a hidden page's timers, not its network replies). The "last handled" mark is shared by every tab in the browser, so a second tab doesn't announce the same thing again, and a page opened later hears about what came in while it was closed (more than three at once become one count).
+- **Pop-up or banner:** browsers only allow desktop notifications on `https://` or `localhost`. There the pop-up appears in the corner of the screen (and its click opens the page); on a plain `http://servername` address, or where the person has blocked them, a banner appears at the top of the page instead and the page says which it is. The ping is made in the browser (Web Audio, no sound file); a browser may refuse to play it until the page has been clicked once, and then the pop-up's own sound is left on.
+- **What a notification says:** only what kind of event it was and the ticket number, never the ticket's words - classroom screens get projected. The wording is chosen in `NotificationEndpoints.Describe`, not stored.
+- **Where they are kept:** the `Notifications` table, written directly like `Sessions` rather than by Save, so a ping never rewrites the database and polling never waits on a save. An id is the time in milliseconds (or one more than the last), so it only ever rises, even after the table is emptied or the app restarts. Messages are kept 14 days (at most 5,000); a factory reset empties the table. A failure to write one is logged and never stops the ticket or comment that caused it.
+- **Signed-in time isn't extended by polling:** the poll isn't a Razor Page, so the portal's idle clock isn't moved, and `OnCheckSlidingExpiration` in `Program.cs` stops the helpdesk cookie being renewed by it. A tab left open on an unattended PC still signs out after its 8 idle hours, after which the script's next ask gets a 401 and it stops.
+- **Who can ask:** the endpoint names the sign-in it is being asked for (`audience=staff` or `portal`) and checks that one; anything else, or no sign-in, gets a 401 and the script stops.
+
 ## 5. Tickets
 
 **Tickets** in the top nav (`/Jobs`) is the main working list. The **Overview** (the home page) is the day's starting point: counts of your open tickets, overdue, unassigned and replies waiting (each opens its queue), then short lists of your tickets (most urgent first), overdue and due soon, unassigned, requesters waiting on a reply, your projects, and the asset and parts review lists. "Your" follows Working as, the same as the My tickets queue. Each panel only appears for a role allowed that module.
@@ -867,6 +881,7 @@ For anyone maintaining it:
 | Calculated insights | `Services/AssetInsights.cs`, `PartInsights.cs`, `TicketReports.cs` |
 | Auth and permissions | `Program.cs`, `Services/PermissionAuthorizationHandler.cs`, `PasswordHasher.cs`, `PortalIdentity.cs`, `TechnicianSession.cs` |
 | Sign-in protection | `Services/SignInThrottle.cs`, `PasswordRules.cs`, `SessionFilters.cs`, `SecurityHeaders.cs`, `HelpdeskStore.Sessions.cs`, `HelpdeskStore.TwoFactor.cs`, `Totp.cs`, `TwoFactorPending.cs`, `Pages/TwoFactor.cshtml`, `Pages/LoginCode.cshtml` |
+| Pings and pop-ups | `Services/HelpdeskStore.Notifications.cs`, `NotificationEndpoints.cs`, `wwwroot/js/notifications.js`, `wwwroot/js/pages/notify-settings.js`, `Pages/Notifications.cshtml`, `Pages/Portal/Notifications.cshtml`, `Pages/Shared/_NotificationSettings.cshtml` |
 | Backups and the data folder | `Services/HelpdeskStore.Backups.cs`, `BackupScheduler.cs`, `DataLocation.cs`, `SaveFailureFilter.cs` |
 | Error log and error page | `Services/FileLog.cs`, `UnknownHandlerFilter.cs`, `Pages/Error.cshtml`, `Pages/Settings/Log.cshtml` |
 | Leavers, subject access, retention | `Services/HelpdeskStore.Lifecycle.cs`, `SubjectAccessExport.cs`, `Pages/User.cshtml`, `Pages/Settings/Retention.cshtml` |

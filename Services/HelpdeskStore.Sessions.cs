@@ -24,7 +24,7 @@ public sealed partial class HelpdeskStore
         var id = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         lock (_sessionSync)
         {
-            ExecuteSessions("INSERT INTO Sessions (Id, Kind, AccountId, CreatedAt, ExpiresAt) VALUES ($id, $kind, $account, $created, $expires);",
+            ExecuteDirect("INSERT INTO Sessions (Id, Kind, AccountId, CreatedAt, ExpiresAt) VALUES ($id, $kind, $account, $created, $expires);",
                 ("$id", id), ("$kind", kind), ("$account", accountId.ToString()), ("$created", Iso(DateTime.UtcNow)), ("$expires", Iso(expiresAtUtc)));
             _sessions[id] = new SessionRow(kind, accountId, expiresAtUtc);
         }
@@ -45,7 +45,7 @@ public sealed partial class HelpdeskStore
         lock (_sessionSync)
         {
             if (!_sessions.Remove(id)) return;
-            ExecuteSessions("DELETE FROM Sessions WHERE Id = $id;", ("$id", id));
+            ExecuteDirect("DELETE FROM Sessions WHERE Id = $id;", ("$id", id));
         }
     }
 
@@ -56,7 +56,7 @@ public sealed partial class HelpdeskStore
         {
             var ids = _sessions.Where(x => x.Value.AccountId == accountId).Select(x => x.Key).ToList();
             foreach (var id in ids) _sessions.Remove(id);
-            if (ids.Count > 0) ExecuteSessions("DELETE FROM Sessions WHERE AccountId = $account;", ("$account", accountId.ToString()));
+            if (ids.Count > 0) ExecuteDirect("DELETE FROM Sessions WHERE AccountId = $account;", ("$account", accountId.ToString()));
             return ids.Count;
         }
     }
@@ -66,7 +66,7 @@ public sealed partial class HelpdeskStore
         lock (_sessionSync)
         {
             _sessions.Clear();
-            ExecuteSessions("DELETE FROM Sessions;");
+            ExecuteDirect("DELETE FROM Sessions;");
         }
     }
 
@@ -76,7 +76,7 @@ public sealed partial class HelpdeskStore
         lock (_sessionSync)
         {
             _sessions.Clear();
-            ExecuteSessions("DELETE FROM Sessions WHERE ExpiresAt < $now;", ("$now", Iso(DateTime.UtcNow)));
+            ExecuteDirect("DELETE FROM Sessions WHERE ExpiresAt < $now;", ("$now", Iso(DateTime.UtcNow)));
             using var connection = new SqliteConnection($"Data Source={_path}");
             connection.Open();
             using var command = connection.CreateCommand();
@@ -88,7 +88,8 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    private void ExecuteSessions(string sql, params (string Name, object? Value)[] values)
+    // Also used by the notifications table, which is written the same way (HelpdeskStore.Notifications).
+    private void ExecuteDirect(string sql, params (string Name, object? Value)[] values)
     {
         using var connection = new SqliteConnection($"Data Source={_path}");
         connection.Open();

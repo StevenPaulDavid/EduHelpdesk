@@ -1,5 +1,7 @@
+@using System.Security.Claims
 @using EduHelpdesk.Services
 @inject HelpdeskStore Helpdesk
+@inject PortalIdentity Portal
 @{
     // Which top-level nav item is current, so the Inventory menu still shows where you are.
     var navPath = Context.Request.Path.Value ?? string.Empty;
@@ -27,6 +29,20 @@
         ("/Reports/Onboarding", Modules.Flags.ReportOnboarding),
     };
     var firstReport = Can(Modules.Reports) ? reportPages.FirstOrDefault(x => Helpdesk.UserHasFlag(User, x.Flag)).Page : null;
+
+    // Pings and pop-ups (wwwroot/js/notifications.js) ask for the notifications of whoever the page is signed in as: the
+    // requester on the staff portal's pages, the helpdesk account everywhere else. Nobody signed in, nothing to ask for.
+    string? notifyAudience = null;
+    Guid? notifyAccount = null;
+    if (NavOn("/Portal"))
+    {
+        if (Portal.Resolve(Context.Request, Helpdesk) is { } portalUserId) { notifyAudience = HelpdeskStore.PortalAudience; notifyAccount = portalUserId; }
+    }
+    else if (User.Identity?.IsAuthenticated == true && Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var technicianId))
+    {
+        notifyAudience = HelpdeskStore.StaffAudience;
+        notifyAccount = technicianId;
+    }
 
     // Light, dark or "match device", chosen per browser with the footer switch (Services/Themes.cs, site.css).
     var chosenTheme = Themes.Chosen(Context.Request);
@@ -114,6 +130,7 @@
             <div class="nav-panel nav-panel-right">
                 <a asp-page="/ChangePassword">Change password</a>
                 <a asp-page="/TwoFactor">Two-step sign-in</a>
+                <a asp-page="/Notifications">Notifications</a>
                 @if (Helpdesk.AllowRecoveryKeys) { <a asp-page="/RecoveryKey">Recovery key</a> }
                 @* Signs the technician straight into the portal as themselves (Portal/Index OnPostTechnician). *@
                 <a asp-page="/Portal/Index" asp-page-handler="Technician" target="_blank" rel="noopener">Open staff portal ↗</a>
@@ -142,6 +159,13 @@
             }
         </form>
     </footer>
+    @if (notifyAccount is not null)
+    {
+        @* Not deferred, so window.EduNotify exists by the time a page's own script (the Notifications page) runs. *@
+        <div id="notify-root" hidden data-audience="@notifyAudience" data-account="@notifyAccount" data-poll="@NotificationEndpoints.PollPath"
+             data-icon="@(Helpdesk.LogoVersion is { } notifyLogo ? Url.Content("~/branding/logo") + "?v=" + notifyLogo : Url.Content("~/favicon.ico"))"></div>
+        <script src="~/js/notifications.js" asp-append-version="true"></script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
