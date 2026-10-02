@@ -73,6 +73,12 @@ public sealed partial class HelpdeskStore
         public bool StaffNotificationsEnabled { get; set; } = true;
         public bool RequesterNotificationsEnabled { get; set; } = true;
         public bool NotificationPrompt { get; set; } = true;
+        // Settings → Teams channel: the webhook address (a secret, "" until set), whether posting is on, and which events
+        // post (HelpdeskStore.Teams). Posting is off until a school turns it on; the two events default to on.
+        public string TeamsWebhookUrl { get; set; } = "";
+        public bool TeamsEnabled { get; set; }
+        public bool TeamsNewTicket { get; set; } = true;
+        public bool TeamsOverdue { get; set; } = true;
         // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.
         public bool ProjectPageIncludesVat { get; set; }
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in

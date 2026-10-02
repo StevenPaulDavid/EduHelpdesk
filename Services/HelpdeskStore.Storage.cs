@@ -686,6 +686,7 @@ public sealed partial class HelpdeskStore
         ReadHealth(connection, data);
         ReadSpiceworks(connection, data);
         ReadOnboarding(connection, data);
+        ReadTeams(connection, data);
         return data;
     }
 
@@ -863,6 +864,7 @@ public sealed partial class HelpdeskStore
         WriteSpiceworks(connection, transaction, data);
         WriteTicketProcessSettings(connection, transaction, data);
         WriteLifecycleSettings(connection, transaction, data);
+        WriteTeams(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",

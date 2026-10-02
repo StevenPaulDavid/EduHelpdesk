@@ -41,6 +41,17 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         return $"Pings and pop-ups for new tickets, replies and updates. {who}{(settings.Prompt ? " People who haven't switched them on are reminded." : "")}";
     }
 
+    private string TeamsSummary()
+    {
+        var teams = store.TeamsSettings;
+        if (!teams.HasUrl) return "Post to a Teams channel when a requester submits a ticket or a ticket goes overdue. No webhook is set up yet.";
+        if (!teams.Enabled) return "A webhook is saved but posting is switched off.";
+        var events = new List<string>();
+        if (teams.NewTicket) events.Add("new tickets from the portal");
+        if (teams.Overdue) events.Add("overdue tickets");
+        return events.Count == 0 ? "Posting is on, but no events are ticked." : $"Posts {string.Join(" and ", events)} to Teams.";
+    }
+
     private string RetentionSummary()
     {
         var rules = store.Retention;
@@ -122,6 +133,9 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                 Page("Notifications", "/Settings/Notifications", NotificationSummary(),
                     "notifications pings pop-ups toast alerts banner reminder enable disable staff requesters portal sound",
                     !store.NotificationSettings.Enabled ? "Off" : null),
+                Page("Teams channel", "/Settings/TeamsChannel", TeamsSummary(),
+                    "teams microsoft channel webhook post message new ticket overdue alert workflow",
+                    store.TeamsSettings.Ready ? "On" : null),
                 Page("Data retention", "/Settings/Retention", RetentionSummary(),
                     "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
                     store.Retention.AnyOn ? "On" : null),

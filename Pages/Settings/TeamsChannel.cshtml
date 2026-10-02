@@ -1,0 +1,67 @@
+﻿@page
+@model EduHelpdesk.Pages.Settings.TeamsChannelModel
+@{ ViewData["Title"] = "Teams channel"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Teams channel</h1><p class="hero-copy">Post a short message to a Microsoft Teams channel when a requester submits a ticket in the portal, and when a ticket becomes overdue.</p></div><a class="button button-secondary" asp-page="/Settings">â† Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice@(Model.Problem ? " notice-warning" : "")">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Webhook</h2>@if (Model.Settings.Ready) { <span class="badge">On</span> } else if (Model.Settings.HasUrl) { <span class="badge">Switched off</span> } else { <span class="badge">Not set up</span> }</div>
+    @if (Model.Settings.HasUrl)
+    {
+        <p class="muted">A webhook is saved and posts to <strong>@Model.Settings.Host</strong>. For safety the address itself is never shown again; to change it, paste a new one below.</p>
+    }
+    else
+    {
+        <p class="muted">No webhook is saved yet. Create one in Teams (the steps are further down), then paste its address here.</p>
+    }
+    <form method="post" asp-page-handler="Save" class="settings-form">
+        <label>@(Model.Settings.HasUrl ? "New webhook address (leave blank to keep the current one)" : "Webhook address")<input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://â€¦" /></label>
+        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Settings.Enabled" /> Post to Teams (the master switch - off pauses everything and keeps the address)</label>
+        <label class="toggle-label"><input type="checkbox" name="newTicket" value="true" checked="@Model.Settings.NewTicket" /> A requester submits a new ticket in the staff portal</label>
+        <label class="toggle-label"><input type="checkbox" name="overdue" value="true" checked="@Model.Settings.Overdue" /> A ticket becomes overdue (checked every few minutes)</label>
+        <div><button class="button button-primary">Save</button></div>
+    </form>
+    @if (Model.Settings.HasUrl)
+    {
+        <form method="post" asp-page-handler="Remove" class="settings-form" data-confirm="Remove the webhook? Nothing will post to Teams until you paste a new one.">
+            <div><button class="button button-secondary">Remove the webhook</button></div>
+        </form>
+    }
+</section>
+
+@if (Model.Settings.Ready && string.IsNullOrEmpty(Model.SiteAddress))
+{
+    <div class="notice notice-warning">The helpdesk address isn't set, so overdue messages go without an <strong>Open ticket</strong> button (new-ticket messages use the address the portal was reached on). Set it under <a asp-page="/Settings/SignIn" asp-fragment="address">Sign-in security</a>.</div>
+}
+
+<section class="panel">
+    <div class="panel-heading"><h2>Send a test message</h2></div>
+    <p class="muted">Posts a one-line test to the channel now, so you know the address works before anyone relies on it. It works even while posting is switched off.</p>
+    @if (Model.LastAttempt is { } attempt)
+    {
+        <p class="muted">Last post, @attempt.At.ToLocalTime().ToString("ddd d MMM, HH:mm"): <strong>@(attempt.Ok ? "went through" : "failed")</strong> - @attempt.Message</p>
+    }
+    <form method="post" asp-page-handler="Test"><button class="button button-secondary" disabled="@(!Model.Settings.HasUrl)">Send a test message</button></form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Getting a webhook address from Teams</h2></div>
+    <ol class="muted">
+        <li>In Teams, open the channel, choose <strong>â€¦</strong> beside its name, then <strong>Workflows</strong>.</li>
+        <li>Pick <strong>Post to a channel when a webhook request is received</strong>, name it, and finish. Teams then shows a long address starting <code>https://</code>.</li>
+        <li>Copy that address and paste it above. Anyone who has it can post to the channel, so treat it like a password.</li>
+    </ol>
+    <p class="muted">Microsoft has retired the older <em>Incoming Webhook</em> connector in new channels, so use Workflows.</p>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>What is sent</h2></div>
+    <ul class="muted">
+        <li>Only that something happened, the ticket number, and a button that opens the ticket for anyone signed in to the helpdesk. Never the ticket's title, description, comments, or the requester's name - a Teams channel is held by Microsoft and may be seen by people outside IT.</li>
+        <li>A new ticket posts only when a requester submits it in the portal. Tickets a technician logs, imports from Spiceworks, or an onboarding creates never post.</li>
+        <li>If several tickets turn overdue at once (the morning after a holiday), it posts one message with a link to the overdue list rather than one each. When this is first switched on, tickets already overdue are not announced.</li>
+        <li>Overdue tickets already announced are remembered while the helpdesk runs. After it restarts, tickets that were already overdue are taken as announced, so a restart is quiet, but one that turned overdue while it was stopped is not announced.</li>
+        <li>If Teams can't be reached, the helpdesk tries a few times and then gives up on that message. It never holds up a ticket, and failures show under <strong>Send a test message</strong> and in the <a asp-page="/Settings/Log">error log</a>.</li>
+    </ul>
+</section>
+

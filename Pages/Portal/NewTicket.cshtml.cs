@@ -142,6 +142,8 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         // Told after the files are on, so whoever opens it from the ping finds them. Only here: tickets that arrive another
         // way (a technician logging one, an import, an onboarding's tasks) are not news to the team.
         store.AddNotification(HelpdeskStore.StaffAudience, null, HelpdeskStore.NotificationKinds.NewTicket, number);
+        // The same event, for the Teams channel if the school has one set up (Settings → Teams channel).
+        store.QueueTeamsNewTicket(number, People.QuickStartModel.GuessAddress(Request));
 
         TempData["Message"] = $"Ticket #{number} submitted - a technician will be in touch.{(problems.Length > 0 ? $" {problems}" : "")}";
         return RedirectToPage("/Portal/Ticket", new { number });

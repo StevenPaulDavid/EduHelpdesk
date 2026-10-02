@@ -126,6 +126,12 @@ public sealed class RawDatabase(HelpdeskStore store)
 
     public static bool IsSecret(string table, string column) => SecretColumns.TryGetValue(table, out var columns) && columns.Contains(column);
 
+    // Settings kept in the Metadata table whose value is a secret, such as the Teams webhook address: whoever holds it can
+    // post to the channel. Their rows are masked, and left out of a search or filter, for anyone but an Administrator.
+    private static readonly string[] SecretMetadataKeys = ["TeamsWebhookUrl"];
+    public static bool IsSecretMetadata(string table, string key) =>
+        string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase) && SecretMetadataKeys.Contains(key, StringComparer.OrdinalIgnoreCase);
+
     // What a masked cell holds instead of its value, so the page can tell it from text that happens to read the same.
     public const string Masked = "•••• set";
     public sealed class Hidden
@@ -207,6 +213,9 @@ public sealed class RawDatabase(HelpdeskStore store)
                 parameters.Add(("$value", query.Value ?? ""));
             }
         }
+        // Searching or filtering must not be a way to read a secret setting a letter at a time, so its row drops out.
+        if (clauses.Count > 0 && !showSecrets && string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase) && columns.Any(c => c.Name == "Key"))
+            clauses.Add($"\"Key\" NOT IN ({string.Join(", ", SecretMetadataKeys.Select(k => "'" + k.Replace("'", "''") + "'"))})");
         return (clauses.Count == 0 ? "" : " WHERE " + string.Join(" AND ", clauses), parameters, problem);
     }
 
@@ -417,6 +426,14 @@ public sealed class RawDatabase(HelpdeskStore store)
         {
             var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
             row[i] = columns[i].Secret && !showSecrets && value is not null && Text(value).Length > 0 ? Hidden.Value : value;
+        }
+        // A Metadata row is a secret by its key, not its column: hide the value of those, keep the rest readable.
+        if (!showSecrets && string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase))
+        {
+            var key = columns.ToList().FindIndex(c => c.Name == "Key");
+            var value = columns.ToList().FindIndex(c => c.Name == "Value");
+            if (key >= 0 && value >= 0 && row[key] is { } name && IsSecretMetadata(table, Text(name)) && row[value] is { } held && Text(held).Length > 0)
+                row[value] = Hidden.Value;
         }
         return row;
     }
