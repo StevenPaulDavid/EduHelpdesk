@@ -124,6 +124,13 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';",
             "ALTER TABLE Tickets ADD COLUMN Location TEXT NULL;",
             "ALTER TABLE Tickets ADD COLUMN SubCategory TEXT NOT NULL DEFAULT '';",
+            // ServiceItems and TicketTemplates are created further down, after this loop, so these only upgrade a database
+            // that already has the tables - a new one gets the columns from its CREATE. Existing catalogue items stay
+            // visible in the portal; existing templates stay hidden, as they were written for technicians.
+            "ALTER TABLE ServiceItems ADD COLUMN HelperLine TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE ServiceItems ADD COLUMN ShowInPortal INTEGER NOT NULL DEFAULT 1;",
+            "ALTER TABLE TicketTemplates ADD COLUMN HelperLine TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE TicketTemplates ADD COLUMN ShowInPortal INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Users ADD COLUMN PasswordHash TEXT NULL;",
             "ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;",
             "ALTER TABLE Users ADD COLUMN RequirePasswordChange INTEGER NOT NULL DEFAULT 0;",
@@ -183,8 +190,8 @@ public sealed partial class HelpdeskStore
                 PRIMARY KEY (TicketNumber, LinkedNumber),
                 FOREIGN KEY (TicketNumber) REFERENCES Tickets(Number) ON DELETE CASCADE, FOREIGN KEY (LinkedNumber) REFERENCES Tickets(Number) ON DELETE CASCADE);
             CREATE TABLE IF NOT EXISTS TicketTemplates (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, TicketType TEXT NOT NULL, Title TEXT NOT NULL, Description TEXT NOT NULL,
-                Category TEXT NOT NULL, Priority TEXT NOT NULL, SlaId TEXT NULL);
-            CREATE TABLE IF NOT EXISTS ServiceItems (Id TEXT PRIMARY KEY, Category TEXT NOT NULL, Name TEXT NOT NULL, DefaultPriority TEXT NOT NULL DEFAULT '');
+                Category TEXT NOT NULL, Priority TEXT NOT NULL, SlaId TEXT NULL, HelperLine TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS ServiceItems (Id TEXT PRIMARY KEY, Category TEXT NOT NULL, Name TEXT NOT NULL, DefaultPriority TEXT NOT NULL DEFAULT '', HelperLine TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1);
             CREATE TABLE IF NOT EXISTS TicketTemplateAttributes (TemplateId TEXT NOT NULL, AttributeDefinitionId TEXT NOT NULL, Value TEXT NOT NULL,
                 PRIMARY KEY (TemplateId, AttributeDefinitionId), FOREIGN KEY (TemplateId) REFERENCES TicketTemplates(Id) ON DELETE CASCADE);
             """;

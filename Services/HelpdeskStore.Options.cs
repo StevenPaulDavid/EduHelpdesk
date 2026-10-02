@@ -440,6 +440,10 @@ public sealed partial class HelpdeskStore
                 for (var i = 0; i < _data.ServiceItems.Count; i++)
                     if (string.Equals(_data.ServiceItems[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
                         _data.ServiceItems[i] = _data.ServiceItems[i] with { Category = newValue };
+                // Templates too: one ticked for the portal would otherwise lose its category and drop off the buttons.
+                for (var i = 0; i < _data.TicketTemplates.Count; i++)
+                    if (string.Equals(_data.TicketTemplates[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
+                        _data.TicketTemplates[i] = _data.TicketTemplates[i] with { Category = newValue };
                 for (var i = 0; i < _data.TicketAttributeDefinitions.Count; i++)
                     _data.TicketAttributeDefinitions[i] = _data.TicketAttributeDefinitions[i] with { Categories = RenameInScope(_data.TicketAttributeDefinitions[i].Categories, oldValue, newValue) };
             }

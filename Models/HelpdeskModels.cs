@@ -205,10 +205,15 @@ public record TicketTemplate(Guid Id, string Name, string Type, string Title, st
 {
     // Default answers for ticket custom attributes, by attribute definition id.
     public Dictionary<Guid, string> AttributeValues { get; init; } = [];
+    // A ticked template is also a button in the staff portal, under its category. Off by default: most templates are
+    // written for technicians.
+    public bool ShowInPortal { get; init; }
+    public string HelperLine { get; init; } = "";
 }
 // One line of the service catalogue: a common problem or request, filed under a ticket category. Staff pick it in the
 // portal instead of typing a title. DefaultPriority (blank for none) is only what the portal's priority box starts on.
-public record ServiceItem(Guid Id, string Category, string Name, string DefaultPriority = "");
+// HelperLine is the short hint shown under its button; ShowInPortal says whether staff see it at all.
+public record ServiceItem(Guid Id, string Category, string Name, string DefaultPriority = "", string HelperLine = "", bool ShowInPortal = true);
 public record TicketRecord(
     int Number,
     string Title,

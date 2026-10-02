@@ -14,11 +14,11 @@ public class TicketTemplatesModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketAttributeDefinition> Attributes => store.TicketAttributeDefinitions;
 
     // Adds a template, or saves changes to one when an id is given.
-    public IActionResult OnPostSave(Guid? id, string? name, string? type, string? title, string? description, string? category, string? priority, Guid? slaId, Dictionary<Guid, string>? attributes)
+    public IActionResult OnPostSave(Guid? id, string? name, string? type, string? title, string? description, string? category, string? priority, Guid? slaId, Dictionary<Guid, string>? attributes, string? helperLine, bool showInPortal)
     {
         TempData["Message"] = id is { } existing
-            ? store.UpdateTicketTemplate(existing, name, type, title, description, category, priority, slaId, attributes)
-            : store.AddTicketTemplate(name, type, title, description, category, priority, slaId, attributes);
+            ? store.UpdateTicketTemplate(existing, name, type, title, description, category, priority, slaId, attributes, helperLine, showInPortal)
+            : store.AddTicketTemplate(name, type, title, description, category, priority, slaId, attributes, helperLine, showInPortal);
         return RedirectToPage();
     }
 

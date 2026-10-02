@@ -92,12 +92,13 @@ internal static class AuditTracker
                 ("Name", x.Name), ("Target time", SlaUnits.Describe(x)), ("Description", x.Description ?? ""), ("Priorities", Joined(x.Priorities)), ("Categories", Joined(x.Categories)));
         foreach (var x in d.ServiceItems)
             Add(s, "Service catalogue", "Catalogue item", x.Id.ToString(), $"{x.Category} › {x.Name}", Track.All,
-                ("Category", x.Category), ("Name", x.Name), ("Default priority", x.DefaultPriority.Length == 0 ? "None" : x.DefaultPriority));
+                ("Category", x.Category), ("Name", x.Name), ("Default priority", x.DefaultPriority.Length == 0 ? "None" : x.DefaultPriority),
+                ("Helper line", x.HelperLine), ("Shown in portal", Yn(x.ShowInPortal)));
         foreach (var x in d.TicketTemplates)
             Add(s, "Ticket templates", "Ticket template", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Type", x.Type), ("Title", x.Title), ("Description", x.Description), ("Category", x.Category), ("Priority", x.Priority),
                 ("SLA", x.SlaId is { } sla ? d.Slas.FirstOrDefault(y => y.Id == sla)?.Name ?? "" : "Automatic"),
-                ("Attribute defaults", x.AttributeValues.Count.ToString()));
+                ("Attribute defaults", x.AttributeValues.Count.ToString()), ("Helper line", x.HelperLine), ("Shown in portal", Yn(x.ShowInPortal)));
         foreach (var x in d.AssetAttributeDefinitions)
             Add(s, "Custom attributes", "Asset attribute", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Field type", x.FieldType), ("Choices", x.Choices), ("Asset types", x.AssetTypes.Count == 0 ? "All asset types" : Joined(x.AssetTypes)));

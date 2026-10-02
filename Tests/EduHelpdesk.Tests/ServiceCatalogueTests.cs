@@ -129,6 +129,105 @@ public class ServiceCatalogueTests
     }
 
     [Fact]
+    public void The_portal_offers_shown_items_and_shown_templates_together_by_category()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        foreach (var item in store.ServiceItems.ToList()) store.DeleteServiceItem(item.Id);
+
+        store.AddServiceItem("Hardware", "Dead pixel", "", "Stuck dot on the screen");
+        store.AddServiceItem("Hardware", "Hidden thing", "", null, showInPortal: false);
+        store.AddTicketTemplate("New starter laptop", "Request", "Laptop for a new starter", "", "Hardware", "Normal", null, null, "Login and email too", showInPortal: true);
+        store.AddTicketTemplate("Technician only", "Incident", "", "", "Hardware", "Normal", null, null);
+        store.AddTicketTemplate("Install a program", "Request", "", "", "Software", "Low", null, null, showInPortal: true);
+
+        var hardware = store.PortalChoices("hardware");
+        Assert.Equal(["Dead pixel", "New starter laptop"], hardware.Select(x => x.Label));
+        Assert.Equal("Stuck dot on the screen", hardware[0].HelperLine);
+        Assert.Equal(HelpdeskStore.PortalChoice.ItemKind, hardware[0].Kind);
+        Assert.Equal(HelpdeskStore.PortalChoice.TemplateKind, hardware[1].Kind);
+        Assert.Equal("Login and email too", hardware[1].HelperLine);
+
+        // Categories in their own order, only those with something to press.
+        Assert.Equal([("Hardware", 2), ("Software", 1)], store.PortalCategories());
+    }
+
+    [Fact]
+    public void A_template_is_only_offered_while_it_is_shown_and_its_category_exists()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        store.AddTicketTemplate("Shown", "Request", "", "", "Software", "Low", null, null, showInPortal: true);
+        store.AddTicketTemplate("Hidden", "Request", "", "", "Software", "Low", null, null);
+        var shown = store.TicketTemplates.Single(x => x.Name == "Shown");
+        var hidden = store.TicketTemplates.Single(x => x.Name == "Hidden");
+
+        Assert.NotNull(store.FindPortalTemplate(shown.Id));
+        Assert.Null(store.FindPortalTemplate(hidden.Id));
+        Assert.NotNull(store.FindPortalTemplateByName("software", "shown"));
+        Assert.Null(store.FindPortalTemplateByName("Hardware", "Shown"));
+
+        // A rename follows the template, so its button does not vanish.
+        store.UpdateTicketOption("Category", "Software", "Programs");
+        Assert.Equal("Programs", store.GetTicketTemplate(shown.Id)!.Category);
+        Assert.NotNull(store.FindPortalTemplate(shown.Id));
+        Assert.Contains(store.PortalChoices("Programs"), x => x.Label == "Shown");
+    }
+
+    [Fact]
+    public void Helper_lines_have_a_limit_and_templates_and_items_keep_both_new_settings_through_a_restart()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        var tooLong = new string('x', HelpdeskStore.MaxHelperLineLength + 1);
+        Assert.Contains("helper line is too long", store.AddServiceItem("Hardware", "Dead pixel", "", tooLong));
+        Assert.Contains("helper line is too long", store.AddTicketTemplate("T", "Request", "", "", "Hardware", "Normal", null, null, tooLong));
+
+        store.AddServiceItem("Hardware", "Dead pixel", "", "  Stuck dot  ", showInPortal: false);
+        store.AddTicketTemplate("New starter laptop", "Request", "", "", "Hardware", "Normal", null, null, "Login and email", showInPortal: true);
+        Assert.Null(store.CompareDatabaseWithMemory());
+
+        var reopened = test.Reopen();
+        var item = reopened.ServiceItems.Single(x => x.Name == "Dead pixel");
+        Assert.Equal("Stuck dot", item.HelperLine);
+        Assert.False(item.ShowInPortal);
+        var template = reopened.TicketTemplates.Single(x => x.Name == "New starter laptop");
+        Assert.Equal("Login and email", template.HelperLine);
+        Assert.True(template.ShowInPortal);
+    }
+
+    [Fact]
+    public void A_database_from_before_the_portal_buttons_keeps_its_items_visible_and_its_templates_hidden()
+    {
+        using var test = new TestStore();
+        test.Store.AddTicketTemplate("Old template", "Incident", "", "", "Hardware", "Normal", null, null);
+        // Put the file back as the previous release left it: the same tables without the two new columns.
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={test.DatabasePath};Pooling=False"))
+        {
+            connection.Open();
+            foreach (var sql in new[]
+            {
+                "ALTER TABLE ServiceItems DROP COLUMN HelperLine;", "ALTER TABLE ServiceItems DROP COLUMN ShowInPortal;",
+                "ALTER TABLE TicketTemplates DROP COLUMN HelperLine;", "ALTER TABLE TicketTemplates DROP COLUMN ShowInPortal;"
+            })
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.ExecuteNonQuery();
+            }
+        }
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        var reopened = test.Reopen();
+        Assert.NotEmpty(reopened.ServiceItems);
+        Assert.All(reopened.ServiceItems, x => Assert.True(x.ShowInPortal));
+        Assert.All(reopened.TicketTemplates, x => Assert.False(x.ShowInPortal));
+        Assert.NotEmpty(reopened.PortalCategories());
+        Assert.Null(reopened.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
     public void A_database_from_before_the_catalogue_opens_with_blank_sub_categories_and_an_empty_catalogue()
     {
         using var test = new TestStore();

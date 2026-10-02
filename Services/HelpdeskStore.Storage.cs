@@ -558,15 +558,19 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, TicketType, Title, Description, Category, Priority, SlaId FROM TicketTemplates ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal FROM TicketTemplates ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.TicketTemplates.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), TicketTypes.Normalize(reader.GetString(2)), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), NullableGuid(reader, 7)));
+            while (reader.Read()) data.TicketTemplates.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), TicketTypes.Normalize(reader.GetString(2)), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), NullableGuid(reader, 7))
+            {
+                HelperLine = reader.GetString(8),
+                ShowInPortal = reader.GetInt32(9) != 0
+            });
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Category, Name, DefaultPriority FROM ServiceItems ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Category, Name, DefaultPriority, HelperLine, ShowInPortal FROM ServiceItems ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.ServiceItems.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+            while (reader.Read()) data.ServiceItems.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5) != 0));
         }
         using (var command = connection.CreateCommand())
         {
@@ -921,12 +925,12 @@ public sealed partial class HelpdeskStore
                 ExecuteFor(activity, item.Number, item, connection, transaction, "INSERT INTO TicketActivities (TicketNumber, Action, Details, CreatedAt, Actor, ActorId) VALUES ($number,$action,$details,$created,$actor,$actorid);", static s => [("$number", s.Item.Number), ("$action", s.Record.Action), ("$details", s.Record.Details), ("$created", Iso(s.Record.CreatedAt)), ("$actor", s.Record.By?.Name), ("$actorid", s.Record.By?.Id?.ToString())]);
         }
         foreach (var item in data.ServiceItems)
-            Execute(connection, transaction, "INSERT INTO ServiceItems (Id, Category, Name, DefaultPriority) VALUES ($id,$category,$name,$priority);",
-                ("$id", item.Id.ToString()), ("$category", item.Category), ("$name", item.Name), ("$priority", item.DefaultPriority ?? ""));
+            Execute(connection, transaction, "INSERT INTO ServiceItems (Id, Category, Name, DefaultPriority, HelperLine, ShowInPortal) VALUES ($id,$category,$name,$priority,$helper,$show);",
+                ("$id", item.Id.ToString()), ("$category", item.Category), ("$name", item.Name), ("$priority", item.DefaultPriority ?? ""), ("$helper", item.HelperLine ?? ""), ("$show", item.ShowInPortal ? 1 : 0));
         foreach (var template in data.TicketTemplates)
         {
-            Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla);",
-                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()));
+            Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla,$helper,$show);",
+                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()), ("$helper", template.HelperLine ?? ""), ("$show", template.ShowInPortal ? 1 : 0));
             foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && ticketDefinitionIds.Contains(x.Key)))
                 Execute(connection, transaction, "INSERT INTO TicketTemplateAttributes (TemplateId, AttributeDefinitionId, Value) VALUES ($template,$definition,$value);", ("$template", template.Id.ToString()), ("$definition", pair.Key.ToString()), ("$value", pair.Value));
         }

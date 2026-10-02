@@ -12,11 +12,11 @@ public class ServiceCatalogueModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Priorities => store.Priorities;
 
     // Adds an item, or saves changes to one when an id is given.
-    public IActionResult OnPostSave(Guid? id, string? category, string? name, string? priority)
+    public IActionResult OnPostSave(Guid? id, string? category, string? name, string? priority, string? helperLine, bool showInPortal)
     {
         TempData["Message"] = id is { } existing
-            ? store.UpdateServiceItem(existing, category, name, priority)
-            : store.AddServiceItem(category, name, priority);
+            ? store.UpdateServiceItem(existing, category, name, priority, helperLine, showInPortal)
+            : store.AddServiceItem(category, name, priority, helperLine, showInPortal);
         return RedirectToPage();
     }
 

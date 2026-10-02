@@ -13,10 +13,12 @@
             <label>Category<select name="category">@foreach (var value in Model.Categories) { <option value="@value" selected="@string.Equals(value, category, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
             <label>Name<input name="name" value="@item?.Name" maxlength="@HelpdeskStore.MaxServiceItemNameLength" required placeholder="e.g. Projector has no signal" /></label>
             <label>Starting priority<select name="priority"><option value="">None - the portal starts on Normal</option>@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, item?.DefaultPriority, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
+            <label class="full">Helper line<input name="helperLine" value="@item?.HelperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under the button, e.g. Blank, blue or flickering screen" /></label>
+            <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@(item?.ShowInPortal ?? true)" /> Show in the staff portal<small class="muted">Untick to keep it in the catalogue without offering it to staff.</small></label>
         </div>
     }
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Service catalogue</h1><p class="hero-copy">The common problems and requests staff can pick from when they report something in the portal. They choose a room, a category, then one of the items below - the item becomes the ticket title. If theirs isn't listed they choose "Something else" and type it, so the catalogue never stops anyone reporting a problem.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Service catalogue</h1><p class="hero-copy">The buttons staff see when they report something in the portal. They tap a category, then one of the items below, and the item becomes the ticket title. Templates ticked "Show in portal" appear as buttons alongside these (see Ticket templates). If theirs isn't listed they tap "Something else" and type it, so the catalogue never stops anyone reporting a problem.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 <section class="panel">
     <div class="panel-heading"><h2>Add an item</h2></div>
@@ -34,7 +36,7 @@
         @foreach (var item in group)
         {
             <details class="template-item">
-                <summary><strong>@item.Name</strong> <span class="muted">@(item.DefaultPriority.Length == 0 ? "No starting priority" : "Starts on " + item.DefaultPriority)</span></summary>
+                <summary><strong>@item.Name</strong> @if (!item.ShowInPortal) { <span class="badge">Hidden from portal</span> } <span class="muted">@(item.DefaultPriority.Length == 0 ? "No starting priority" : "Starts on " + item.DefaultPriority)@(item.HelperLine.Length == 0 ? "" : " · " + item.HelperLine)</span></summary>
                 <form method="post" asp-page-handler="Save" class="settings-form">
                     <input type="hidden" name="id" value="@item.Id" />
                     @{ await ItemFields(item); }

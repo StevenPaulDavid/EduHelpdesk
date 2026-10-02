@@ -19,6 +19,11 @@
             <label class="full">Ticket title<input name="title" value="@item?.Title" maxlength="200" placeholder="Filled into the ticket title, which can be changed" /></label>
             <label class="full">Description<textarea name="description" rows="5" placeholder="Starter wording or a checklist for the description">@item?.Description</textarea></label>
         </div>
+        <p class="eyebrow">Staff portal</p>
+        <div class="template-fields">
+            <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@(item?.ShowInPortal ?? false)" /> Show in the staff portal<small class="muted">Staff see this template as a button under its category, next to the service catalogue items. Its name is the button; the ticket title is the title above (or the name if that is blank). Staff can edit the description but not the title.</small></label>
+            <label class="full">Helper line<input name="helperLine" value="@item?.HelperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under the button, e.g. Laptop, login and email for a new member of staff" /></label>
+        </div>
         @if (Model.Attributes.Count > 0)
         {
             <p class="eyebrow">Custom attribute defaults</p>
@@ -63,7 +68,7 @@
     @foreach (var item in Model.Templates)
     {
         <details class="template-item">
-            <summary><strong>@item.Name</strong> <span class="badge @(item.Type == TicketTypes.Request ? "type-request" : "")">@item.Type</span> <span class="muted">@item.Category · @item.Priority@(string.IsNullOrWhiteSpace(item.Title) ? "" : " · " + item.Title)</span></summary>
+            <summary><strong>@item.Name</strong> <span class="badge @(item.Type == TicketTypes.Request ? "type-request" : "")">@item.Type</span> @if (item.ShowInPortal) { <span class="badge">In staff portal</span> } <span class="muted">@item.Category · @item.Priority@(string.IsNullOrWhiteSpace(item.Title) ? "" : " · " + item.Title)</span></summary>
             <form method="post" asp-page-handler="Save" class="settings-form">
                 <input type="hidden" name="id" value="@item.Id" />
                 @{ await TemplateFields(item); }

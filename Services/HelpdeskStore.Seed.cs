@@ -291,28 +291,28 @@ public sealed partial class HelpdeskStore
     // asset types it is only seeded here, so a school that prunes it doesn't get the items back on the next startup.
     private void SeedServiceCatalogue()
     {
-        (string Category, string Name, string Priority)[] starter =
+        (string Category, string Name, string Priority, string Helper)[] starter =
         [
-            ("Classroom AV", "Projector or display has no picture", "High"),
-            ("Classroom AV", "No sound from the speakers", ""),
-            ("Classroom AV", "Interactive whiteboard not responding", "High"),
-            ("Classroom AV", "Visualiser or camera not working", ""),
-            ("Hardware", "Computer won't start", "High"),
-            ("Hardware", "Computer is slow or keeps freezing", ""),
-            ("Hardware", "Printer not printing or jammed", ""),
-            ("Hardware", "Keyboard, mouse or screen faulty", ""),
-            ("Software", "A program won't open or keeps crashing", ""),
-            ("Software", "I need software installing", "Low"),
-            ("Account", "I can't log in", "High"),
-            ("Account", "I've forgotten my password", "High"),
-            ("Network", "No internet or Wi-Fi", "High"),
-            ("Network", "A website is blocked", "Low"),
+            ("Classroom AV", "Projector or display has no picture", "High", "Blank, blue or flickering screen"),
+            ("Classroom AV", "No sound from the speakers", "", "Silent, crackling or very quiet"),
+            ("Classroom AV", "Interactive whiteboard not responding", "High", "Touch or pen not working"),
+            ("Classroom AV", "Visualiser or camera not working", "", "Document camera shows nothing"),
+            ("Hardware", "Computer won't start", "High", "Nothing happens when you press the button"),
+            ("Hardware", "Computer is slow or keeps freezing", "", "Takes ages or locks up"),
+            ("Hardware", "Printer not printing or jammed", "", "Won't print, paper jam or no toner"),
+            ("Hardware", "Keyboard, mouse or screen faulty", "", "Broken, missing or not responding"),
+            ("Software", "A program won't open or keeps crashing", "", "Error message or closes by itself"),
+            ("Software", "I need software installing", "Low", "A new program or app for your lessons"),
+            ("Account", "I can't log in", "High", "Wrong password message or locked out"),
+            ("Account", "I've forgotten my password", "High", "Get back into your account"),
+            ("Network", "No internet or Wi-Fi", "High", "Pages won't load or Wi-Fi drops"),
+            ("Network", "A website is blocked", "Low", "Need a site unblocked for teaching"),
         ];
-        foreach (var (category, name, priority) in starter)
+        foreach (var (category, name, priority, helper) in starter)
         {
             if (!_data.Categories.Contains(category, StringComparer.OrdinalIgnoreCase)) continue;
             var validPriority = _data.Priorities.FirstOrDefault(x => string.Equals(x, priority, StringComparison.OrdinalIgnoreCase)) ?? "";
-            _data.ServiceItems.Add(new ServiceItem(Guid.NewGuid(), category, name, validPriority));
+            _data.ServiceItems.Add(new ServiceItem(Guid.NewGuid(), category, name, validPriority, helper));
         }
     }
 

@@ -1,34 +1,125 @@
 @page
 @using EduHelpdesk.Services
+@using static EduHelpdesk.Pages.Portal.NewTicketModel
 @model EduHelpdesk.Pages.Portal.NewTicketModel
-@{ ViewData["Title"] = "Report a problem"; }
-<div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@(Model.Previous is null ? "Report a problem" : "Report it again")</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+@{
+    ViewData["Title"] = "Report a problem";
+    var tiles = Model.Mode is Step.Categories or Step.Choices;
+    var heading = Model.Previous is not null ? "Report it again" : Model.Mode switch
+    {
+        Step.Categories => "What do you need help with?",
+        Step.Choices => Model.Category,
+        Step.Confirm => "Nearly there",
+        _ => "Something else"
+    };
+
+    // The shared fields of the two forms: where it is, how urgent, the details and any attachments.
+    async Task CommonFields()
+    {
+        <label>Where is it?<select asp-for="Location" required><option value="">Choose a room or area…</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
+        <label>How urgent is it?<select asp-for="Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
+        <label>Tell us more (optional)<textarea asp-for="Description" rows="5" maxlength="@HelpdeskStore.MaxTicketTextLength" placeholder="Anything that might help - what you tried, when it started…"></textarea></label>
+        <label>Attach files (optional)<input type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" /><small class="muted">Up to @HelpdeskStore.MaxPortalAttachments files, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB - a photo of an error message helps.</small></label>
+    }
+}
+<div class="portal-shell @(tiles ? "portal-shell-wide" : "")">
+    <div class="page-heading">
+        <div><p class="eyebrow">EDUHELPDESK@(Model.Mode == Step.Choices ? " / " + Model.Category?.ToUpperInvariant() : "")</p><h1>@heading</h1></div>
+        @switch (Model.Mode)
+        {
+            case Step.Choices:
+                <a class="button button-secondary" asp-page="/Portal/NewTicket">← All categories</a>
+                break;
+            case Step.Confirm when Model.Previous is null:
+                <a class="button button-secondary" asp-page="/Portal/NewTicket" asp-route-category="@Model.Category">← Choose something else</a>
+                break;
+            case Step.Describe when Model.Previous is null && Model.PortalCategories.Count > 0:
+                <a class="button button-secondary" asp-page="/Portal/NewTicket">← Back to the list</a>
+                break;
+            default:
+                <a class="button button-secondary" asp-page="/Portal/Index">← Back</a>
+                break;
+        }
+    </div>
     @if (Model.Previous is { } previous)
     {
         <div class="notice">This will be linked to ticket #@previous.Number, so the team can see what was done last time. Tell them what's happening now.</div>
     }
-    <section class="panel portal-panel">
-        <form method="post" enctype="multipart/form-data" class="settings-form" id="portal-ticket-form">
-            <div asp-validation-summary="All" class="validation-summary-errors"></div>
-            @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
-            <label>Where is it?<select asp-for="Location" required><option value="">Choose a room or area…</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
-            <label>What kind of problem is it?<select asp-for="Category" id="portal-category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
-            <label>What's wrong?
-                <select asp-for="SubCategory" id="portal-subcategory">
-                    <option value="@Pages.Portal.NewTicketModel.ChooseOne">Choose what's wrong…</option>
-                    @foreach (var item in Model.ServiceItems) { <option value="@item.Name" data-category="@item.Category" data-priority="@item.DefaultPriority">@item.Name</option> }
-                    <option value="">Something else - I'll describe it</option>
-                </select>
-            </label>
-            <label id="portal-title-field">Describe the problem<input asp-for="Title" maxlength="@HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" /><small class="muted">Not in the list? Just tell us in a few words.</small></label>
-            <label>How urgent is it?<select asp-for="Priority" id="portal-priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
-            <label>Tell us more (optional)<textarea asp-for="Description" rows="5" maxlength="@HelpdeskStore.MaxTicketTextLength" placeholder="Anything that might help - what you tried, when it started…"></textarea></label>
-            <label>Attach files (optional)<input type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" /><small class="muted">Up to @HelpdeskStore.MaxPortalAttachments files, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB - a photo of an error message helps.</small></label>
-            <button class="button button-primary portal-button" type="submit">Submit</button>
-        </form>
-    </section>
+    @if (!ViewData.ModelState.IsValid) { <div asp-validation-summary="All" class="validation-summary-errors"></div> }
+
+    @if (Model.Mode == Step.Categories)
+    {
+        <p class="muted portal-lead">Tap the kind of problem. If you can't see yours, choose Something else at the end.</p>
+        <div class="portal-tiles">
+            @foreach (var (category, count) in Model.PortalCategories)
+            {
+                <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-category="@category">
+                    <span class="portal-tile-title">@category</span>
+                    <span class="portal-tile-help">@(count == 1 ? "1 option" : count + " options")</span>
+                </a>
+            }
+            <a class="portal-tile portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true">
+                <span class="portal-tile-title">Something else</span>
+                <span class="portal-tile-help">It's not in the list - I'll describe it</span>
+            </a>
+        </div>
+    }
+    else if (Model.Mode == Step.Choices)
+    {
+        <p class="muted portal-lead">What's wrong? Tap the closest match.</p>
+        <div class="portal-tiles">
+            @foreach (var choice in Model.Choices)
+            {
+                if (choice.Kind == HelpdeskStore.PortalChoice.TemplateKind)
+                {
+                    <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-templateId="@choice.Key">
+                        <span class="portal-tile-title">@choice.Label</span>
+                        @if (choice.HelperLine.Length > 0) { <span class="portal-tile-help">@choice.HelperLine</span> }
+                    </a>
+                }
+                else
+                {
+                    <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-category="@choice.Category" asp-route-subCategory="@choice.Key">
+                        <span class="portal-tile-title">@choice.Label</span>
+                        @if (choice.HelperLine.Length > 0) { <span class="portal-tile-help">@choice.HelperLine</span> }
+                    </a>
+                }
+            }
+            <a class="portal-tile portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true" asp-route-category="@Model.Category">
+                <span class="portal-tile-title">Something else</span>
+                <span class="portal-tile-help">It's not in the list - I'll describe it</span>
+            </a>
+        </div>
+    }
+    else if (Model.Mode == Step.Confirm)
+    {
+        <section class="panel portal-panel">
+            <div class="portal-chosen">
+                <span class="eyebrow">@Model.Category</span>
+                <strong>@Model.ChosenLabel</strong>
+                @if (!string.IsNullOrWhiteSpace(Model.ChosenHelper)) { <span class="muted">@Model.ChosenHelper</span> }
+            </div>
+            <form method="post" enctype="multipart/form-data" class="settings-form">
+                @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
+                <input type="hidden" name="Category" value="@Model.Category" />
+                @if (Model.TemplateId is { } templateId) { <input type="hidden" name="TemplateId" value="@templateId" /> }
+                else { <input type="hidden" name="SubCategory" value="@Model.SubCategory" /> }
+                @{ await CommonFields(); }
+                <button class="button button-primary portal-button" type="submit">Submit</button>
+            </form>
+        </section>
+    }
+    else
+    {
+        <section class="panel portal-panel">
+            <form method="post" enctype="multipart/form-data" class="settings-form">
+                @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
+                <input type="hidden" name="Other" value="true" />
+                <label>What's the problem?<input asp-for="Title" maxlength="@HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" required autofocus /></label>
+                <label>What kind of problem is it?<select asp-for="Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+                @{ await CommonFields(); }
+                <button class="button button-primary portal-button" type="submit">Submit</button>
+            </form>
+        </section>
+    }
 </div>
-@section Scripts {
-<script src="~/js/pages/portal-new-ticket.js" asp-append-version="true"></script>
-}
