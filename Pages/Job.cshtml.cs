@@ -62,6 +62,9 @@ public class JobModel(HelpdeskStore store) : PageModel
     // Offered on an open ticket that is not already yours. A team mismatch still shows the button, and the handler
     // explains why it was refused - a missing button would leave people wondering where it went.
     public bool CanAssignToMe => CanEdit && Ticket is { Status: not "Closed" } ticket && SignedInTechnicianId is { } me && ticket.TechnicianId != me;
+    // On an open ticket whose requester can see it in the staff portal, even one already yours: "assigned" earlier and
+    // "walking over now" are different moments.
+    public bool CanSayOnMyWay => CanEdit && Ticket is { Status: not "Closed" } ticket && SignedInTechnicianId is not null && store.PortalTicket(ticket.RequesterId, ticket.Number) is not null;
 
     public IActionResult OnGet(int number)
     {
@@ -202,6 +205,41 @@ public class JobModel(HelpdeskStore store) : PageModel
         }
         store.UpdateTicket(ticket with { TechnicianId = me });
         Message = "Assigned to you.";
+        return RedirectToPage(new { number });
+    }
+
+    // Takes the ticket, as Assign to me does, and tells the requester who is coming: a pop-up in their staff portal and a
+    // comment on the ticket, which is where clicking the pop-up lands and which keeps a record of when it was said.
+    public IActionResult OnPostOnMyWay(int number)
+    {
+        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
+        if (ticket is null) return NotFound();
+        if (SignedInTechnicianId is not { } me || store.Technicians.FirstOrDefault(x => x.Id == me) is not { } technician)
+        {
+            Message = "Your account isn't a technician account, so tickets can't be assigned to it.";
+            return RedirectToPage(new { number });
+        }
+        if (ticket.Status == "Closed")
+        {
+            Message = "This ticket is closed. Reopen it first if you're going back to it.";
+            return RedirectToPage(new { number });
+        }
+        if (store.PortalTicket(ticket.RequesterId, number) is null)
+        {
+            Message = "The requester can't see this ticket in the staff portal, so they can't be told you're on your way.";
+            return RedirectToPage(new { number });
+        }
+        if (!HelpdeskStore.TechnicianInTeam(technician, ticket.TeamName))
+        {
+            Message = $"This ticket belongs to the {ticket.TeamName} team, which you're not in. Change the team first if you're taking it on.";
+            return RedirectToPage(new { number });
+        }
+        var assigned = ticket.TechnicianId != me;
+        if (assigned) store.UpdateTicket(ticket with { TechnicianId = me });
+        store.AddTicketComment(number, $"{technician.Name} is on their way.");
+        var notified = store.AddNotification(HelpdeskStore.PortalAudience, ticket.RequesterId, HelpdeskStore.NotificationKinds.OnMyWay, number, me) != 0;
+        Message = (assigned ? "Assigned to you. " : "")
+            + (notified ? "The requester has been told you're on your way." : "A comment says you're on your way, but requester notifications are switched off in Settings, so no pop-up was sent.");
         return RedirectToPage(new { number });
     }
 

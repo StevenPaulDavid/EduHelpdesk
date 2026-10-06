@@ -18,6 +18,10 @@
         {
             <form method="post" asp-page-handler="AssignToMe"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-secondary" type="submit">Assign to me</button></form>
         }
+        @if (Model.CanSayOnMyWay)
+        {
+            <form method="post" asp-page-handler="OnMyWay"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-secondary" type="submit" title="Assigns the ticket to you and tells the requester you're on your way">On my way</button></form>
+        }
         @if (Model.CanEdit && Model.Ticket.Status != "Closed")
         {
             if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" data-open-blade="close-dialog-backdrop">Mark as closed</button> }

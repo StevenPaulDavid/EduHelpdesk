@@ -115,6 +115,18 @@ public class NotificationTests
     }
 
     [Fact]
+    public void On_my_way_keeps_who_is_coming_across_a_restart()
+    {
+        using var test = new TestStore();
+        var requester = Guid.NewGuid();
+        var technician = Guid.NewGuid();
+        test.Store.AddNotification(Portal, requester, HelpdeskStore.NotificationKinds.OnMyWay, 9, technician);
+
+        var found = Assert.Single(test.Reopen().NotificationsFor(Portal, requester, 0).Items);
+        Assert.Equal((HelpdeskStore.NotificationKinds.OnMyWay, 9, technician), (found.Kind, found.TicketNumber, found.ActorId));
+    }
+
+    [Fact]
     public void A_browser_asks_for_what_is_newer_than_the_last_one_it_handled()
     {
         using var test = new TestStore();

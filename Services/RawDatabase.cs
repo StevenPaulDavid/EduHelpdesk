@@ -57,7 +57,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Onboardings"] = "One row per new starter's onboarding, keyed by its ticket number.",
         ["PartActivities"] = "Each part's stock history: adjustments and why.",
         ["PartAssetTypes"] = "Which asset types each part is for.",
-        ["Notifications"] = "Pings waiting for browsers to show as a toast: what happened and the ticket number, never the ticket's words. Staff ones have no recipient; others name the account. Cleared after 14 days.",
+        ["Notifications"] = "Pings waiting for browsers to show as a toast: what happened and the ticket number, never the ticket's words. Staff ones have no recipient; others name the account. ActorId is the technician an \"on my way\" names. Cleared after 14 days.",
         ["NotificationReadMarks"] = "The bell in the header: for each staff account, the newest notification it had read everything up to (moved by Mark all as read).",
         ["NotificationReads"] = "The bell in the header: notifications a staff account has read one at a time, above its mark.",
         ["PartCategories"] = "The list of part categories.",

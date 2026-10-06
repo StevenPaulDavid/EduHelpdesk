@@ -129,8 +129,14 @@ public static class NotificationEndpoints
             HelpdeskStore.NotificationKinds.NewTicket => (forCentre ? $"New ticket #{notification.TicketNumber}" : "New ticket received", "Click to open it.", ticket ?? settings),
             HelpdeskStore.NotificationKinds.Reply => ($"Reply on ticket #{notification.TicketNumber}", "Click to open it.", ticket ?? settings),
             HelpdeskStore.NotificationKinds.StaffComment => ($"Update on your ticket #{notification.TicketNumber}", "Click to read it.", ticket ?? settings),
+            // The one that names someone: the requester needs to know who to expect at the door. A technician's name
+            // is no secret on a projected screen, unlike the ticket's words.
+            HelpdeskStore.NotificationKinds.OnMyWay => ($"{TechnicianName(notification.ActorId, context) ?? "A technician"} is on their way", $"About your ticket #{notification.TicketNumber}. Click to open it.", ticket ?? settings),
             _ => ("Helpdesk", "There is something new.", settings)
         };
         return new NotificationText(title, body, url);
     }
+
+    private static string? TechnicianName(Guid? id, HttpContext context) =>
+        id is { } technicianId ? context.RequestServices.GetRequiredService<HelpdeskStore>().Technicians.FirstOrDefault(x => x.Id == technicianId)?.Name : null;
 }

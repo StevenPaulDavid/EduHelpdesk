@@ -22,12 +22,15 @@ public sealed partial class HelpdeskStore
         public const string Reply = "ticket-reply";
         // A technician's comment, with Notify requester ticked: goes to that requester, on the portal side.
         public const string StaffComment = "staff-comment";
+        // A technician pressed On my way on the ticket: goes to that requester, naming the technician (ActorId).
+        public const string OnMyWay = "on-my-way";
     }
 
     // An Id is the time it was made, in milliseconds, or one more than the last: it only ever goes up, even after the
     // table has been emptied or the app restarted, so a browser can keep "the last one I handled" and ask for later ones.
-    // RecipientId is the account it is for; null means every staff account.
-    public sealed record Notification(long Id, string Audience, Guid? RecipientId, string Kind, int? TicketNumber, DateTime CreatedAt);
+    // RecipientId is the account it is for; null means every staff account. ActorId is the technician it is about, for
+    // the kinds that name one; their name is looked up when it is shown, like the rest of the wording.
+    public sealed record Notification(long Id, string Audience, Guid? RecipientId, string Kind, int? TicketNumber, DateTime CreatedAt, Guid? ActorId = null);
 
     // Everything newer than the caller asked for that is addressed to them, oldest first, and the cursor to ask from next
     // time: the newest id there is, which is also right when nothing was found. Unread is the bell's count, when it was
@@ -51,20 +54,20 @@ public sealed partial class HelpdeskStore
 
     // Returns 0, having recorded nothing, when that side is switched off in Settings → Notifications - so turning it back
     // on doesn't announce a backlog.
-    public long AddNotification(string audience, Guid? recipientId, string kind, int? ticketNumber = null)
+    public long AddNotification(string audience, Guid? recipientId, string kind, int? ticketNumber = null, Guid? actorId = null)
     {
         if (!NotificationsOpenFor(audience)) return 0;
         lock (_notificationSync)
         {
             var now = DateTime.UtcNow;
             var id = Math.Max(_lastNotificationId + 1, new DateTimeOffset(now).ToUnixTimeMilliseconds());
-            var notification = new Notification(id, audience, recipientId, kind, ticketNumber, now);
+            var notification = new Notification(id, audience, recipientId, kind, ticketNumber, now, actorId);
             // A ping that can't be written down must never stop the ticket or comment that caused it, so a failure is
             // logged and the ping still goes out from memory - it only won't survive a restart.
             try
             {
-                ExecuteDirect("INSERT INTO Notifications (Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt) VALUES ($id, $audience, $recipient, $kind, $ticket, $created);",
-                    ("$id", id), ("$audience", audience), ("$recipient", recipientId?.ToString()), ("$kind", kind), ("$ticket", ticketNumber), ("$created", Iso(now)));
+                ExecuteDirect("INSERT INTO Notifications (Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt, ActorId) VALUES ($id, $audience, $recipient, $kind, $ticket, $created, $actor);",
+                    ("$id", id), ("$audience", audience), ("$recipient", recipientId?.ToString()), ("$kind", kind), ("$ticket", ticketNumber), ("$created", Iso(now)), ("$actor", actorId?.ToString()));
             }
             catch (Exception exception) when (exception is SqliteException or IOException)
             {
@@ -310,12 +313,13 @@ public sealed partial class HelpdeskStore
             using var connection = new SqliteConnection($"Data Source={_path}");
             connection.Open();
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt FROM Notifications ORDER BY Id;";
+            command.CommandText = "SELECT Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt, ActorId FROM Notifications ORDER BY Id;";
             using (var reader = command.ExecuteReader())
                 while (reader.Read())
                     _notifications.Add(new Notification(reader.GetInt64(0), reader.GetString(1),
                         !reader.IsDBNull(2) && Guid.TryParse(reader.GetString(2), out var recipient) ? recipient : null,
-                        reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt32(4), Date(reader, 5)));
+                        reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt32(4), Date(reader, 5),
+                        !reader.IsDBNull(6) && Guid.TryParse(reader.GetString(6), out var actor) ? actor : null));
             // Ids are times, so a mark can be ahead of the newest message left (all of them pruned); that's still right.
             _lastNotificationId = _notifications.Count > 0 ? _notifications[^1].Id : 0;
             _nextNotificationPrune = DateTime.UtcNow.AddHours(1);
@@ -345,5 +349,12 @@ public sealed partial class HelpdeskStore
             + "CREATE TABLE IF NOT EXISTS NotificationReadMarks (AccountId TEXT PRIMARY KEY, ReadUpTo INTEGER NOT NULL);"
             + "CREATE TABLE IF NOT EXISTS NotificationReads (AccountId TEXT NOT NULL, NotificationId INTEGER NOT NULL, PRIMARY KEY (AccountId, NotificationId));";
         command.ExecuteNonQuery();
+        // Added for On my way; already there on a database that has been opened since.
+        try
+        {
+            command.CommandText = "ALTER TABLE Notifications ADD COLUMN ActorId TEXT NULL;";
+            command.ExecuteNonQuery();
+        }
+        catch (SqliteException) { }
     }
 }
