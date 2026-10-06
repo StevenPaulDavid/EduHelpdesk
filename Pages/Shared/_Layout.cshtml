@@ -43,6 +43,12 @@
         notifyAudience = HelpdeskStore.StaffAudience;
         notifyAccount = technicianId;
     }
+    // The bell: a pop-up that was missed is still waiting under it. For whoever hears about new tickets and replies,
+    // while the staff side of notifications is switched on in Settings - whether or not they switched pop-ups on here.
+    var bell = notifyAudience == HelpdeskStore.StaffAudience && Can(Modules.Tickets) && Helpdesk.NotificationsOpenFor(HelpdeskStore.StaffAudience)
+        ? Helpdesk.InboxFor(notifyAccount!.Value, broadcast: true, take: 15)
+        : null;
+    string BellLabel(int unread) => unread == 0 ? "Notifications, none unread" : $"Notifications, {unread} unread";
 
     // Light, dark or "match device", chosen per browser with the footer switch (Services/Themes.cs, site.css).
     var chosenTheme = Themes.Chosen(Context.Request);
@@ -139,6 +145,28 @@
         </details>
         </div>
         @if (Can(Modules.Tickets, ModulePermission.New)) { <a class="button button-primary header-job-button" asp-page="/NewTicket" aria-label="Log a ticket">＋<span class="header-job-text"> Log a ticket</span></a> }
+        @* Outside the site menu, so it stays in the bar on a phone. The list is drawn here so it opens at once (and works
+           without JavaScript); wwwroot/js/notifications.js keeps the badge live and refreshes the list when it opens. *@
+        @if (bell is not null)
+        {
+            <details class="nav-menu notify-bell" id="notify-bell" data-inbox="@NotificationEndpoints.InboxPath" data-unread="@bell.Unread">
+                <summary aria-label="@BellLabel(bell.Unread)" title="Notifications">
+                    <svg class="notify-bell-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                    <span class="notify-badge" hidden="@(bell.Unread == 0)">@(bell.Unread > 99 ? "99+" : bell.Unread.ToString())</span>
+                </summary>
+                <div class="nav-panel nav-panel-right notify-panel">
+                    <div class="notify-panel-head">
+                        <strong>Notifications</strong>
+                        <form method="post" asp-page="/Notifications" asp-page-handler="ReadAll" class="notify-readall" hidden="@(bell.Unread == 0)"><input type="hidden" name="returnUrl" value="@themeReturn" /><button type="submit">Mark all as read</button></form>
+                    </div>
+                    <ul class="notify-list" id="notify-bell-list">
+                        @if (bell.Entries.Count == 0) { <li class="notify-empty">Nothing in the last 14 days.</li> }
+                        else { <partial name="_NotificationItems" model="bell.Entries" /> }
+                    </ul>
+                    <a class="notify-panel-foot" asp-page="/Notifications">See all and notification settings</a>
+                </div>
+            </details>
+        }
         <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="site-menu"><span aria-hidden="true">☰</span> Menu</button>
     }
     </header>

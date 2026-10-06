@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EduHelpdesk.Models;
 using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -68,6 +69,8 @@ public class JobModel(HelpdeskStore store) : PageModel
         if (store.IsOnboardingTicket(number)) return RedirectToPage("/Onboarding/Details", new { number });
         Ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (Ticket is null) return NotFound();
+        // Whatever the bell was holding about this ticket has now been seen, however the technician got here.
+        if (Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var viewerId)) store.MarkTicketNotificationsRead(viewerId, number);
         Requester = store.Users.FirstOrDefault(x => x.Id == Ticket.RequesterId);
         Technician = store.Technicians.FirstOrDefault(x => x.Id == Ticket.TechnicianId);
         LinkedAssets = store.Assets.Where(x => Ticket.AssetIds.Contains(x.Id)).ToList();

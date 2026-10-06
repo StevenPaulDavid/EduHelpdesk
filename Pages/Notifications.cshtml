@@ -2,7 +2,32 @@
 @model EduHelpdesk.Pages.NotificationsModel
 @{ ViewData["Title"] = "Notifications"; }
 <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Notifications</h1></div><a class="button button-secondary" asp-page="/Index">← Back</a></div>
-<div class="notify-page"><partial name="_NotificationSettings" model="@("staff")" /></div>
+<div class="notify-page">
+    @* The notification centre: everything the bell has held in the last fortnight, newest first. *@
+    @if (Model.Inbox is { } inbox)
+    {
+        <section class="panel notify-centre" aria-labelledby="notify-centre-heading">
+            <div class="notify-centre-head">
+                <h2 id="notify-centre-heading">Recent <span class="muted">@(inbox.Unread == 0 ? "· all read" : $"· {inbox.Unread} unread")</span></h2>
+                @if (inbox.Unread > 0)
+                {
+                    <form method="post" asp-page-handler="ReadAll"><button type="submit" class="button button-secondary">Mark all as read</button></form>
+                }
+            </div>
+            @if (inbox.Entries.Count == 0)
+            {
+                <p class="muted">Nothing in the last 14 days. New tickets and replies from the staff portal will be listed here, as well as popping up.</p>
+            }
+            else
+            {
+                <ul class="notify-list"><partial name="_NotificationItems" model="inbox.Entries" /></ul>
+            }
+            <p class="muted notify-centre-note">Kept for 14 days. Opening a ticket marks its notifications as read.</p>
+        </section>
+    }
+    <h2 class="notify-settings-heading">Pop-ups and sound on this computer</h2>
+    <partial name="_NotificationSettings" model="@("staff")" />
+</div>
 @section Scripts {
 <script src="~/js/pages/notify-settings.js" asp-append-version="true"></script>
 }

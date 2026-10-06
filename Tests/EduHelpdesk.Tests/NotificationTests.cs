@@ -217,6 +217,105 @@ public class NotificationTests
         Assert.Empty((await waiting.WaitAsync(TimeSpan.FromSeconds(5))).Items);
     }
 
+    // ---- The bell (notification centre) ----
+
+    [Fact]
+    public void The_bell_starts_empty_for_an_account_it_has_not_seen_and_counts_what_arrives_after()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 1);
+        Assert.Equal(0, test.Store.UnreadNotificationCount(account, broadcast: true));
+
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 2);
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.Reply, 2);
+        var inbox = test.Store.InboxFor(account, broadcast: true, take: 10);
+        Assert.Equal(2, inbox.Unread);
+        // Newest first, and the one from before is listed but already read.
+        Assert.Equal([(HelpdeskStore.NotificationKinds.Reply, true), (HelpdeskStore.NotificationKinds.NewTicket, true), (HelpdeskStore.NotificationKinds.NewTicket, false)],
+            inbox.Entries.Select(x => (x.Notification.Kind, x.Unread)));
+    }
+
+    [Fact]
+    public void The_bell_leaves_out_tests_the_portal_and_tickets_the_account_cannot_see()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.UnreadNotificationCount(account, broadcast: true);
+        test.Store.AddNotification(Staff, account, Test);
+        test.Store.AddNotification(Portal, account, HelpdeskStore.NotificationKinds.StaffComment, 3);
+        test.Store.AddNotification(Staff, Guid.NewGuid(), HelpdeskStore.NotificationKinds.Reply, 4);
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 5);
+
+        Assert.Equal(1, test.Store.UnreadNotificationCount(account, broadcast: true));
+        Assert.Equal(0, test.Store.UnreadNotificationCount(account, broadcast: false));
+        Assert.Equal([5], test.Store.InboxFor(account, broadcast: true, take: 10).Entries.Select(x => x.Notification.TicketNumber));
+    }
+
+    [Fact]
+    public void Read_marks_belong_to_the_account_and_survive_a_restart()
+    {
+        using var test = new TestStore();
+        var me = Guid.NewGuid();
+        var colleague = Guid.NewGuid();
+        test.Store.UnreadNotificationCount(me, true);
+        test.Store.UnreadNotificationCount(colleague, true);
+        var first = test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 10);
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 11);
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.Reply, 11);
+
+        test.Store.MarkNotificationRead(me, first);
+        test.Store.MarkTicketNotificationsRead(me, 11);
+        Assert.Equal(0, test.Store.UnreadNotificationCount(me, true));
+        Assert.Equal(3, test.Store.UnreadNotificationCount(colleague, true));
+
+        var store = test.Reopen();
+        Assert.Equal(0, store.UnreadNotificationCount(me, true));
+        Assert.Equal(3, store.UnreadNotificationCount(colleague, true));
+        store.MarkAllNotificationsRead(colleague);
+        Assert.Equal(0, test.Reopen().UnreadNotificationCount(colleague, true));
+        Assert.Null(store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public void Marking_something_read_that_is_not_in_the_accounts_bell_does_nothing()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.UnreadNotificationCount(account, true);
+        var other = test.Store.AddNotification(Staff, Guid.NewGuid(), HelpdeskStore.NotificationKinds.Reply, 1);
+        var mine = test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 2);
+
+        test.Store.MarkNotificationRead(account, other);
+        test.Store.MarkNotificationRead(account, mine + 1000);
+        Assert.Equal(1, test.Store.UnreadNotificationCount(account, true));
+    }
+
+    [Fact]
+    public async Task Waiting_with_the_bells_count_ends_when_the_count_changes_elsewhere()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        test.Store.UnreadNotificationCount(account, true);
+        test.Store.AddNotification(Staff, null, HelpdeskStore.NotificationKinds.NewTicket, 8);
+        var cursor = test.Store.NotificationsFor(Staff, account, -1).Cursor;
+
+        // The page shows 1; the wait carries on while that is still true...
+        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, cursor, TimeSpan.FromSeconds(20), CancellationToken.None, knownUnread: 1);
+        await Task.Delay(100);
+        Assert.False(waiting.IsCompleted);
+
+        // ...and ends as soon as the ticket is opened in another tab.
+        test.Store.MarkTicketNotificationsRead(account, 8);
+        var batch = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, batch.Unread);
+        Assert.Empty(batch.Items);
+
+        // A page showing the wrong count is answered at once.
+        var stale = await test.Store.WaitForNotificationsAsync(Staff, account, cursor, TimeSpan.FromSeconds(20), CancellationToken.None, knownUnread: -1).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, stale.Unread);
+    }
+
     [Fact]
     public void Pings_never_disturb_the_main_save_and_a_factory_reset_clears_them()
     {

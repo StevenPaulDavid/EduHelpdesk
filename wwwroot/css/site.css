@@ -2182,3 +2182,36 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .notify-nudge > span:first-child { flex: 1 1 320px; }
 .notify-nudge-actions { display: flex; gap: 8px; }
 .notify-nudge .button { padding: 7px 14px; font-size: 13px; }
+/* The bell in the header - the notification centre (Pages/Shared/_Layout.cshtml, _NotificationItems, notifications.js).
+   It sits outside .site-menu, so on a phone it stays in the bar beside Log a ticket and the Menu button. The badge
+   colour is fixed rather than --red, which the dark palette lightens too far for white text. */
+.notify-bell { order: 2; }
+.notify-bell > summary { position: relative; padding: 6px; border-radius: 8px; }
+.notify-bell[open] > summary { color: var(--teal-text); background: var(--accent); }
+.notify-bell-icon { display: block; width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.notify-badge { position: absolute; top: -3px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #c4302b; color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
+.notify-panel { top: calc(100% + 20px); width: min(360px, calc(100vw - 32px)); padding: 0; gap: 0; }
+.notify-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); }
+.notify-panel-head strong { font-size: 14px; }
+.nav-panel .notify-readall { margin: 0; padding: 0; border: 0; }
+.nav-panel .notify-readall button { width: auto; padding: 6px 8px; font-size: 12px; color: var(--teal-text); }
+.notify-list { list-style: none; margin: 0; padding: 4px; display: grid; gap: 2px; max-height: min(420px, 60vh); overflow-y: auto; }
+.notify-list .notify-item { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 11px 9px 24px; border-radius: 7px; color: var(--muted); font-size: 13px; font-weight: 500; text-decoration: none; }
+.notify-list .notify-item.is-unread { color: var(--ink); font-weight: 700; }
+.notify-list .notify-item.is-unread::before { content: ""; position: absolute; left: 10px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--teal); }
+.notify-list .notify-item:hover { background: var(--accent); color: var(--teal-strong); }
+.notify-item-when { flex: none; color: var(--muted); font-size: 12px; font-weight: 500; }
+.notify-empty { padding: 14px 12px; color: var(--muted); font-size: 13px; }
+.nav-panel .notify-panel-foot { padding: 11px; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; color: var(--teal-text); text-align: center; }
+/* The same list on the Notifications page, at full length. */
+.notify-centre-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin-bottom: 10px; }
+.notify-centre-head h2 { margin: 0; font-size: 18px; }
+.notify-centre-head h2 .muted { font-size: 14px; font-weight: 600; }
+.notify-centre .notify-list { max-height: none; padding: 0; }
+.notify-centre-note { margin: 12px 0 0; font-size: 13px; }
+.notify-settings-heading { margin: 28px 0 12px; font-size: 18px; }
+
+@media(max-width:980px) {
+    .notify-bell { order: 1; }
+    .notify-bell .notify-panel { position: fixed; top: 62px; left: 16px; right: 16px; width: auto; }
+}

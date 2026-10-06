@@ -1,0 +1,11 @@
+@* Rows of the notification centre: the bell's drop-down (_Layout) and the Notifications page. wwwroot/js/notifications.js
+   builds the same markup when it refreshes the drop-down, so change both together. Each row goes through the
+   Notifications page's Open handler, which marks it read on the way to the ticket. *@
+@using EduHelpdesk.Services
+@model IReadOnlyList<HelpdeskStore.InboxEntry>
+@inject LinkGenerator Links
+@foreach (var entry in Model)
+{
+    var notification = entry.Notification;
+    <li><a class="notify-item @(entry.Unread ? "is-unread" : null)" href="@NotificationEndpoints.OpenUrl(notification, Links, Context)"><span class="notify-item-title">@NotificationEndpoints.Describe(notification, Links, Context, forCentre: true).Title@if (entry.Unread) { <span class="visually-hidden"> (unread)</span> }</span><span class="notify-item-when">@NotificationEndpoints.When(notification.CreatedAt)</span></a></li>
+}

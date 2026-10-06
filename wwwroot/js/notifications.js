@@ -12,6 +12,9 @@
 // or localhost, so anywhere else - the usual plain http://servername - it shows a banner in the page instead. The
 // ping sound is made here with the Web Audio API rather than loaded from a file; a browser may refuse to play it until
 // the page has been clicked, in which case the desktop notification's own sound is left on.
+//
+// On helpdesk pages it also runs the bell in the header (the notification centre - see "The bell" below), which lists
+// the same messages for anyone who missed the pop-up.
 (function () {
     const root = document.getElementById("notify-root");
     if (!root) return;
@@ -150,18 +153,20 @@
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+    // With the bell in the header (staff pages), the page keeps asking even with pop-ups off here, so the badge stays
+    // live; it just doesn't ping or pop anything up.
     const run = async () => {
         const mine = ++generation;
         controller?.abort();
         if (!enabled) { setStatus("disabled"); return; }
-        if (!prefs.on) { setStatus("off"); return; }
-        setStatus("connecting");
+        if (!prefs.on && !bell) { setStatus("off"); return; }
+        setStatus(prefs.on ? "connecting" : "off");
         let delay = 0;
         while (mine === generation) {
             controller = new AbortController();
             const cursor = read(cursorKey);
             try {
-                const url = `${pollUrl}?audience=${encodeURIComponent(audience)}&after=${cursor === null ? -1 : cursor}&wait=25`;
+                const url = `${pollUrl}?audience=${encodeURIComponent(audience)}&after=${cursor === null ? -1 : cursor}&wait=25` + (bell ? `&unread=${unread}` : "");
                 const response = await fetch(url, { credentials: "same-origin", cache: "no-store", signal: controller.signal });
                 if (mine !== generation) return;
                 if (response.status === 401) { setStatus("signed-out"); return; }
@@ -171,13 +176,14 @@
                 // Switched off while this page was open. It stays off until the page is next loaded.
                 if (data.disabled) { setStatus("disabled"); return; }
                 delay = 0;
-                setStatus("connected");
+                setStatus(prefs.on ? "connected" : "off");
                 // Another tab may have handled these already: only what is newer than the shared mark is news.
                 const handled = read(cursorKey);
                 const floor = handled === null ? -1 : Number(handled);
                 const fresh = cursor === null ? [] : data.items.filter(item => item.id > floor);
                 write(cursorKey, String(Math.max(floor, data.cursor)));
-                present(fresh);
+                if (prefs.on) present(fresh);
+                if (bell && typeof data.unread === "number") setUnread(data.unread, data.items.length > 0);
             } catch (error) {
                 if (mine !== generation || error.name === "AbortError") return;
                 setStatus("retrying");
@@ -280,6 +286,94 @@
         // Inside the portal's narrow column when the page has one, so the bar lines up with what is under it.
         (document.querySelector("main .portal-shell") || document.querySelector("main"))?.prepend(bar);
         nudgeBar = bar;
+    }
+
+    // ---- The bell ----
+
+    // The header's notification centre (Pages/Shared/_Layout.cshtml): a badge counting what this account hasn't looked
+    // at yet, and a drop-down of the newest. What has been read is kept on the server for the account, so the count is
+    // the same on every computer; each answer from the poll above carries it, and the poll ends early whenever it
+    // changes - another tab opened the ticket, or Mark all as read was pressed somewhere else.
+    function setUnread(count, newArrived) {
+        const changed = count !== unread;
+        unread = count;
+        const badge = bell.querySelector(".notify-badge");
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.hidden = count === 0;
+        bell.querySelector(".notify-readall").hidden = count === 0;
+        bell.querySelector("summary").setAttribute("aria-label", count === 0 ? "Notifications, none unread" : `Notifications, ${count} unread`);
+        // A tab left in the background shows the count in its title too, so it can be spotted from the tab strip.
+        document.title = (count > 0 ? `(${count > 99 ? "99+" : count}) ` : "") + baseTitle;
+        if (bell.open && (changed || newArrived)) loadInbox();
+    }
+
+    const bellItem = item => {
+        const li = document.createElement("li");
+        const link = document.createElement("a");
+        link.className = "notify-item" + (item.unread ? " is-unread" : "");
+        link.href = item.url;
+        const title = document.createElement("span");
+        title.className = "notify-item-title";
+        title.textContent = item.title;
+        if (item.unread) {
+            const hidden = document.createElement("span");
+            hidden.className = "visually-hidden";
+            hidden.textContent = " (unread)";
+            title.append(hidden);
+        }
+        const when = document.createElement("span");
+        when.className = "notify-item-when";
+        when.textContent = item.when;
+        link.append(title, when);
+        li.append(link);
+        return li;
+    };
+
+    // Asked for again each time the drop-down opens, so the times ("5 min ago") and read marks are current.
+    let loading = null;
+    async function loadInbox() {
+        if (loading) return;
+        const list = document.getElementById("notify-bell-list");
+        loading = fetch(bell.dataset.inbox, { credentials: "same-origin", cache: "no-store" });
+        try {
+            const response = await loading;
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.disabled || !Array.isArray(data.items)) return;
+            if (data.items.length === 0) {
+                const empty = document.createElement("li");
+                empty.className = "notify-empty";
+                empty.textContent = "Nothing in the last 14 days.";
+                list.replaceChildren(empty);
+            } else {
+                list.replaceChildren(...data.items.map(bellItem));
+            }
+            // Still loading, so this updates the badge without asking for the list again.
+            if (typeof data.unread === "number") setUnread(data.unread, false);
+        } catch {
+            // Offline for a moment: what the page was drawn with stays.
+        } finally {
+            loading = null;
+        }
+    }
+
+    const bell = document.getElementById("notify-bell");
+    let unread = bell ? Number(bell.dataset.unread) || 0 : 0;
+    const baseTitle = document.title;
+    if (bell) {
+        if (unread > 0) document.title = `(${unread > 99 ? "99+" : unread}) ${baseTitle}`;
+        bell.addEventListener("toggle", () => { if (bell.open) loadInbox(); });
+        // Mark all as read without leaving the page. Without JavaScript the form posts and comes back here.
+        const readAll = bell.querySelector(".notify-readall");
+        readAll.addEventListener("submit", async event => {
+            event.preventDefault();
+            try {
+                const response = await fetch(readAll.action, { method: "POST", body: new FormData(readAll), headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" });
+                if (!response.ok) return;
+                bell.querySelectorAll(".notify-item.is-unread").forEach(item => { item.classList.remove("is-unread"); item.querySelector(".visually-hidden")?.remove(); });
+                setUnread(0, false);
+            } catch { /* stays as it was; the next poll puts it right */ }
+        });
     }
 
     window.EduNotify = { state, setPrefs, requestPermission, ping, banner, audience };

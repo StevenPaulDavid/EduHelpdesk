@@ -30,8 +30,9 @@ public sealed partial class HelpdeskStore
     public sealed record Notification(long Id, string Audience, Guid? RecipientId, string Kind, int? TicketNumber, DateTime CreatedAt);
 
     // Everything newer than the caller asked for that is addressed to them, oldest first, and the cursor to ask from next
-    // time: the newest id there is, which is also right when nothing was found.
-    public sealed record NotificationBatch(long Cursor, IReadOnlyList<Notification> Items);
+    // time: the newest id there is, which is also right when nothing was found. Unread is the bell's count, when it was
+    // asked for (staff only).
+    public sealed record NotificationBatch(long Cursor, IReadOnlyList<Notification> Items, int? Unread = null);
 
     // A day-old ping is stale news, and a fortnight is longer than a school holiday week plus a bank holiday.
     public static readonly TimeSpan NotificationLifetime = TimeSpan.FromDays(14);
@@ -72,11 +73,17 @@ public sealed partial class HelpdeskStore
             _notifications.Add(notification);
             _lastNotificationId = id;
             if (_notifications.Count > NotificationCap || now >= _nextNotificationPrune) PruneNotifications(now);
-            var arrived = _notificationArrived;
-            _notificationArrived = NewSignal();
-            arrived.TrySetResult();
+            WakeNotificationWaiters();
             return id;
         }
+    }
+
+    // Called with the lock held.
+    private void WakeNotificationWaiters()
+    {
+        var arrived = _notificationArrived;
+        _notificationArrived = NewSignal();
+        arrived.TrySetResult();
     }
 
     // What is waiting for this account after the cursor the browser holds. A cursor below zero means "I have none": the
@@ -86,23 +93,26 @@ public sealed partial class HelpdeskStore
     // tickets should hear that one has arrived. What is addressed to them personally always gets through.
     public NotificationBatch NotificationsFor(string audience, Guid accountId, long after, bool broadcast = true)
     {
-        lock (_notificationSync) return BatchFor(audience, accountId, after, broadcast);
+        lock (_notificationSync) return BatchFor(audience, accountId, after, broadcast, countUnread: false);
     }
 
-    private NotificationBatch BatchFor(string audience, Guid accountId, long after, bool broadcast)
+    private NotificationBatch BatchFor(string audience, Guid accountId, long after, bool broadcast, bool countUnread)
     {
-        if (after < 0) return new NotificationBatch(_lastNotificationId, []);
+        int? unread = countUnread && audience == StaffAudience ? UnreadFor(accountId, broadcast) : null;
+        if (after < 0) return new NotificationBatch(_lastNotificationId, [], unread);
         var items = _notifications
             .Where(x => x.Id > after && x.Audience == audience && (x.RecipientId == accountId || (broadcast && x.RecipientId is null && audience == StaffAudience)))
             .TakeLast(NotificationsPerAnswer)
             .ToList();
-        return new NotificationBatch(_lastNotificationId, items);
+        return new NotificationBatch(_lastNotificationId, items, unread);
     }
 
     // As NotificationsFor, but when there is nothing yet, waits up to this long for something to arrive - so a browser
     // hears about a ticket the moment it is submitted without asking every few seconds. It also ends when the request
     // does (the browser moved to another page) and when the app is stopping.
-    public async Task<NotificationBatch> WaitForNotificationsAsync(string audience, Guid accountId, long after, TimeSpan wait, CancellationToken cancel, bool broadcast = true)
+    // knownUnread is the bell's count as the page shows it (staff only): the wait also ends when the real count differs,
+    // so reading something in one tab, or on another computer, clears the badge everywhere else straight away.
+    public async Task<NotificationBatch> WaitForNotificationsAsync(string audience, Guid accountId, long after, TimeSpan wait, CancellationToken cancel, bool broadcast = true, int? knownUnread = null)
     {
         var deadline = DateTime.UtcNow + wait;
         while (true)
@@ -111,11 +121,11 @@ public sealed partial class HelpdeskStore
             Task signal;
             lock (_notificationSync)
             {
-                batch = BatchFor(audience, accountId, after, broadcast);
+                batch = BatchFor(audience, accountId, after, broadcast, countUnread: knownUnread is not null);
                 signal = _notificationArrived.Task;
             }
             var remaining = deadline - DateTime.UtcNow;
-            if (batch.Items.Count > 0 || after < 0 || remaining <= TimeSpan.Zero || cancel.IsCancellationRequested) return batch;
+            if (batch.Items.Count > 0 || after < 0 || (batch.Unread is { } unread && unread != knownUnread) || remaining <= TimeSpan.Zero || cancel.IsCancellationRequested) return batch;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             timeout.CancelAfter(remaining);
             await Task.WhenAny(signal, Task.Delay(Timeout.Infinite, timeout.Token));
@@ -129,7 +139,146 @@ public sealed partial class HelpdeskStore
         lock (_notificationSync)
         {
             _notifications.Clear();
+            _readUpTo.Clear();
+            _readIds.Clear();
             ExecuteDirect("DELETE FROM Notifications;");
+            ExecuteDirect("DELETE FROM NotificationReads;");
+            ExecuteDirect("DELETE FROM NotificationReadMarks;");
+        }
+    }
+
+    // ---- The notification centre: the bell in the helpdesk's header ----
+    // A desktop pop-up is gone once it has been missed, so the same messages are also listed under a bell, with a count
+    // of those the technician hasn't looked at yet. Unlike the pop-up's "last one this browser handled", what has been
+    // read belongs to the account, not the browser - reading one on the office PC clears it on the laptop too.
+    // Kept per account as a mark ("everything up to here is read", moved by Mark all as read) plus the ones read
+    // individually above it, in two small tables written directly like the messages themselves.
+
+    public sealed record InboxEntry(Notification Notification, bool Unread);
+    public sealed record NotificationInbox(int Unread, IReadOnlyList<InboxEntry> Entries);
+
+    private readonly Dictionary<Guid, long> _readUpTo = [];
+    private readonly Dictionary<Guid, HashSet<long>> _readIds = [];
+
+    // The test only proves pop-ups work; it isn't something that needs doing, so it never sits in the list.
+    private static bool BelongsInCentre(Notification x) => x.Audience == StaffAudience && x.Kind != NotificationKinds.Test;
+
+    private static bool AddressedTo(Notification x, Guid accountId, bool broadcast) =>
+        x.RecipientId == accountId || (broadcast && x.RecipientId is null);
+
+    // How many the bell shows. broadcast as for NotificationsFor: only those who can see tickets hear about them.
+    public int UnreadNotificationCount(Guid accountId, bool broadcast)
+    {
+        lock (_notificationSync) return UnreadFor(accountId, broadcast);
+    }
+
+    // The newest first, up to take of them, with which are unread.
+    public NotificationInbox InboxFor(Guid accountId, bool broadcast, int take)
+    {
+        lock (_notificationSync)
+        {
+            var upTo = ReadUpTo(accountId);
+            var read = _readIds.GetValueOrDefault(accountId);
+            var entries = new List<InboxEntry>();
+            for (var i = _notifications.Count - 1; i >= 0 && entries.Count < take; i--)
+            {
+                var x = _notifications[i];
+                if (BelongsInCentre(x) && AddressedTo(x, accountId, broadcast))
+                    entries.Add(new InboxEntry(x, x.Id > upTo && read?.Contains(x.Id) != true));
+            }
+            return new NotificationInbox(UnreadFor(accountId, broadcast), entries);
+        }
+    }
+
+    public Notification? FindNotification(long id)
+    {
+        lock (_notificationSync) return _notifications.FirstOrDefault(x => x.Id == id);
+    }
+
+    public void MarkNotificationRead(Guid accountId, long id)
+    {
+        lock (_notificationSync)
+        {
+            if (_notifications.Any(x => x.Id == id && BelongsInCentre(x) && AddressedTo(x, accountId, broadcast: true)) && MarkRead(accountId, id))
+                WakeNotificationWaiters();
+        }
+    }
+
+    // Opening a ticket - from the bell, a pop-up, the list or anywhere else - deals with whatever the bell was holding
+    // about it, so it doesn't sit there unread after the work is done.
+    public void MarkTicketNotificationsRead(Guid accountId, int ticketNumber)
+    {
+        lock (_notificationSync)
+        {
+            var changed = false;
+            foreach (var x in _notifications)
+                if (x.TicketNumber == ticketNumber && BelongsInCentre(x) && AddressedTo(x, accountId, broadcast: true))
+                    changed |= MarkRead(accountId, x.Id);
+            if (changed) WakeNotificationWaiters();
+        }
+    }
+
+    public void MarkAllNotificationsRead(Guid accountId)
+    {
+        lock (_notificationSync)
+        {
+            var hadIds = _readIds.Remove(accountId);
+            if (_readUpTo.GetValueOrDefault(accountId, -1) == _lastNotificationId && !hadIds) return;
+            _readUpTo[accountId] = _lastNotificationId;
+            TryDirect("A notification couldn't be marked as read",
+                ("INSERT OR REPLACE INTO NotificationReadMarks (AccountId, ReadUpTo) VALUES ($account, $upTo);", [("$account", accountId.ToString()), ("$upTo", _lastNotificationId)]),
+                ("DELETE FROM NotificationReads WHERE AccountId = $account;", [("$account", accountId.ToString())]));
+            WakeNotificationWaiters();
+        }
+    }
+
+    // Called with the lock held. Whether anything changed.
+    private bool MarkRead(Guid accountId, long id)
+    {
+        if (id <= ReadUpTo(accountId)) return false;
+        if (!_readIds.TryGetValue(accountId, out var read)) _readIds[accountId] = read = [];
+        if (!read.Add(id)) return false;
+        TryDirect("A notification couldn't be marked as read",
+            ("INSERT OR IGNORE INTO NotificationReads (AccountId, NotificationId) VALUES ($account, $id);", [("$account", accountId.ToString()), ("$id", id)]));
+        return true;
+    }
+
+    // Called with the lock held. Messages are in id order, so counting stops at the account's mark.
+    private int UnreadFor(Guid accountId, bool broadcast)
+    {
+        var upTo = ReadUpTo(accountId);
+        var read = _readIds.GetValueOrDefault(accountId);
+        var count = 0;
+        for (var i = _notifications.Count - 1; i >= 0 && _notifications[i].Id > upTo; i--)
+        {
+            var x = _notifications[i];
+            if (BelongsInCentre(x) && AddressedTo(x, accountId, broadcast) && read?.Contains(x.Id) != true) count++;
+        }
+        return count;
+    }
+
+    // Called with the lock held. An account the bell hasn't seen before - a new technician, or everyone on the day this
+    // was installed - starts with nothing unread rather than a fortnight's backlog.
+    private long ReadUpTo(Guid accountId)
+    {
+        if (_readUpTo.TryGetValue(accountId, out var upTo)) return upTo;
+        _readUpTo[accountId] = _lastNotificationId;
+        TryDirect("A notification read mark couldn't be saved",
+            ("INSERT OR REPLACE INTO NotificationReadMarks (AccountId, ReadUpTo) VALUES ($account, $upTo);", [("$account", accountId.ToString()), ("$upTo", _lastNotificationId)]));
+        return _lastNotificationId;
+    }
+
+    // Like AddNotification, losing track of what was read must never break the page that asked: it is logged, and holds
+    // in memory until the next restart.
+    private void TryDirect(string problem, params (string Sql, (string Name, object? Value)[] Values)[] statements)
+    {
+        try
+        {
+            foreach (var (sql, values) in statements) ExecuteDirect(sql, values);
+        }
+        catch (Exception exception) when (exception is SqliteException or IOException)
+        {
+            LogProblem(exception, problem);
         }
     }
 
@@ -145,9 +294,11 @@ public sealed partial class HelpdeskStore
             _notifications.RemoveRange(0, _notifications.Count - NotificationCap);
         }
         if (removed == 0) return;
-        // Ids rise with time, so everything before the oldest survivor is what went.
+        // Ids rise with time, so everything before the oldest survivor is what went - and so is any record of reading it.
         var oldestKept = _notifications.Count > 0 ? _notifications[0].Id : _lastNotificationId + 1;
         ExecuteDirect("DELETE FROM Notifications WHERE Id < $oldest;", ("$oldest", oldestKept));
+        foreach (var read in _readIds.Values) read.RemoveWhere(id => id < oldestKept);
+        ExecuteDirect("DELETE FROM NotificationReads WHERE NotificationId < $oldest;", ("$oldest", oldestKept));
     }
 
     private void LoadNotifications()
@@ -160,20 +311,39 @@ public sealed partial class HelpdeskStore
             connection.Open();
             using var command = connection.CreateCommand();
             command.CommandText = "SELECT Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt FROM Notifications ORDER BY Id;";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-                _notifications.Add(new Notification(reader.GetInt64(0), reader.GetString(1),
-                    !reader.IsDBNull(2) && Guid.TryParse(reader.GetString(2), out var recipient) ? recipient : null,
-                    reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt32(4), Date(reader, 5)));
+            using (var reader = command.ExecuteReader())
+                while (reader.Read())
+                    _notifications.Add(new Notification(reader.GetInt64(0), reader.GetString(1),
+                        !reader.IsDBNull(2) && Guid.TryParse(reader.GetString(2), out var recipient) ? recipient : null,
+                        reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt32(4), Date(reader, 5)));
+            // Ids are times, so a mark can be ahead of the newest message left (all of them pruned); that's still right.
             _lastNotificationId = _notifications.Count > 0 ? _notifications[^1].Id : 0;
             _nextNotificationPrune = DateTime.UtcNow.AddHours(1);
+
+            _readUpTo.Clear();
+            _readIds.Clear();
+            command.CommandText = "SELECT AccountId, ReadUpTo FROM NotificationReadMarks;";
+            using (var reader = command.ExecuteReader())
+                while (reader.Read())
+                    if (Guid.TryParse(reader.GetString(0), out var account)) _readUpTo[account] = reader.GetInt64(1);
+            var oldest = _notifications.Count > 0 ? _notifications[0].Id : long.MaxValue;
+            command.CommandText = "SELECT AccountId, NotificationId FROM NotificationReads;";
+            using (var reader = command.ExecuteReader())
+                while (reader.Read())
+                    if (Guid.TryParse(reader.GetString(0), out var account) && reader.GetInt64(1) >= oldest)
+                    {
+                        if (!_readIds.TryGetValue(account, out var read)) _readIds[account] = read = [];
+                        read.Add(reader.GetInt64(1));
+                    }
         }
     }
 
     private static void EnsureNotificationSchema(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "CREATE TABLE IF NOT EXISTS Notifications (Id INTEGER PRIMARY KEY, Audience TEXT NOT NULL, RecipientId TEXT NULL, Kind TEXT NOT NULL, TicketNumber INTEGER NULL, CreatedAt TEXT NOT NULL);";
+        command.CommandText = "CREATE TABLE IF NOT EXISTS Notifications (Id INTEGER PRIMARY KEY, Audience TEXT NOT NULL, RecipientId TEXT NULL, Kind TEXT NOT NULL, TicketNumber INTEGER NULL, CreatedAt TEXT NOT NULL);"
+            + "CREATE TABLE IF NOT EXISTS NotificationReadMarks (AccountId TEXT PRIMARY KEY, ReadUpTo INTEGER NOT NULL);"
+            + "CREATE TABLE IF NOT EXISTS NotificationReads (AccountId TEXT NOT NULL, NotificationId INTEGER NOT NULL, PRIMARY KEY (AccountId, NotificationId));";
         command.ExecuteNonQuery();
     }
 }

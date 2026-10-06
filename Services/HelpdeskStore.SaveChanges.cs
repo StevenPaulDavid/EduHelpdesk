@@ -308,7 +308,7 @@ public sealed partial class HelpdeskStore
                 using (var command = connection.CreateCommand())
                 {
                     command.Transaction = transaction;
-                    command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('AuditLog', 'Metadata', 'Sessions', 'Notifications');";
+                    command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('AuditLog', 'Metadata', 'Sessions', 'Notifications', 'NotificationReadMarks', 'NotificationReads');";
                     using var reader = command.ExecuteReader();
                     while (reader.Read()) tables.Add(reader.GetString(0));
                 }
