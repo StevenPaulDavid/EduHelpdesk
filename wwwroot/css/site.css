@@ -16,7 +16,7 @@
     --space-6: 32px;
     --space-7: 48px;
     /* The side margin of the bar, the page and the footer, so they line up at every width. */
-    --gutter: clamp(16px, 3vw, 48px);
+    --gutter: clamp(16px, 6vw, 96px);
     /* How wide a page may get. Detail pages and forms stop here so lines stay readable; .shell-wide (lists, queues,
        reports, the overview - set with ViewData["Wide"]) lifts it. */
     --shell-max: 1600px;
@@ -2080,6 +2080,8 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 /* Phones: the rest of the layout. */
 
 @media(max-width:640px) {
+    /* A phone keeps the narrow margin: the wider one is for laptops and desktops. */
+    :root { --gutter: 16px; }
     .shell { padding: 22px 16px 24px; }
     .footer { padding: 0 16px 24px; }
     .panel { padding: 16px; margin-bottom: 16px; border-radius: 10px; }
