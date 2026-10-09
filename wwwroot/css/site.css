@@ -1543,12 +1543,6 @@ h3 .csv-link { margin-left: 8px; }
 
 
 /* Projects stage 6: ticket links and the projects report. */
-.start-project { margin-top: 10px; }
-.start-project > summary { list-style: none; display: inline-flex; cursor: pointer; }
-.start-project > summary::-webkit-details-marker { display: none; }
-.start-project[open] > summary { margin-bottom: 10px; }
-.start-project-form { display: grid; gap: 10px; }
-.start-project-form select, .start-project-form input, .start-project-form textarea { width: 100%; }
 .report-inline-metrics { margin: 0 0 12px; }
 tr.report-total td { border-top: 2px solid var(--ink); }
 tr.workload-unassigned td { background: color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -1911,7 +1905,9 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 .dash-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 24px; }
 
 @media(max-width:900px) {
-    .dash-grid { grid-template-columns: 1fr; }
+    /* minmax(0,…), not plain 1fr: a plain track won't shrink below a table's width, which pushed the onboarding
+       report's panels past the edge of a phone instead of letting the table scroll inside its own box. */
+    .dash-grid { grid-template-columns: minmax(0,1fr); }
 }
 
 .dash-list { list-style: none; margin: 0; padding: 0; }
@@ -2425,3 +2421,11 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .asset-form-actions { margin-top: var(--space-5); }
 .asset-subheading { margin: var(--space-5) 0 var(--space-2); font-size: 15px; }
 .asset-comment-form { margin-bottom: var(--space-4); }
+
+/* The ticket sidebar's links and additional details: lists with a button, the forms in slide-in panels. */
+.sidebar-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.attribute-values { margin: 6px 0 0; display: grid; gap: 8px; }
+.attribute-values dt { font-size: 12px; color: var(--muted); }
+.attribute-values dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; white-space: pre-wrap; }
+.related-follow-up { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.related-follow-up p { margin: 0; }

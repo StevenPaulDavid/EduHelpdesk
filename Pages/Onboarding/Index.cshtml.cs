@@ -169,6 +169,37 @@ public class IndexModel(HelpdeskStore store) : PageModel
         ["p"] = page > 1 ? page : null
     });
 
+    // Filters in the Filters panel that are switched on - the number on its button. Sort and page size aren't filters.
+    public int PanelFilterCount => new[] { Template, Department, Technician, Starting }.Count(x => !string.IsNullOrWhiteSpace(x));
+
+    // Every filter in force as a chip that takes just that one off (Pages/Shared/_FilterBar.cshtml).
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string? Without(string key)
+        {
+            var saved = (Search, Template, Department, Technician, Starting);
+            switch (key)
+            {
+                case "q": Search = null; break;
+                case "template": Template = null; break;
+                case "dept": Department = null; break;
+                case "tech": Technician = null; break;
+                case "starting": Starting = null; break;
+            }
+            var url = ListUrl(View, Sort, 1);
+            (Search, Template, Department, Technician, Starting) = saved;
+            return url;
+        }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        if (!string.IsNullOrWhiteSpace(Template)) chips.Add(new($"Checklist: {(Template == None ? "None" : Template)}", Without("template")));
+        if (!string.IsNullOrWhiteSpace(Department)) chips.Add(new($"Department: {(Department == None ? "None" : Department)}", Without("dept")));
+        if (!string.IsNullOrWhiteSpace(Technician))
+            chips.Add(new($"Technician: {(Technician == None ? "No lead technician" : Guid.TryParse(Technician, out var id) ? Technicians.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Technician)}", Without("tech")));
+        if (!string.IsNullOrWhiteSpace(Starting)) chips.Add(new($"Starting: {StartingLabel(Starting).ToLowerInvariant()}", Without("starting")));
+        return chips;
+    }
+
     public static string Starts(DateOnly start, DateOnly today) => (start.DayNumber - today.DayNumber) switch
     {
         0 => "Starts today",

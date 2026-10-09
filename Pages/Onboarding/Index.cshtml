@@ -15,17 +15,28 @@
         }
     </nav>
 
-    <form method="get" class="audit-filters ticket-filters">
-        <input type="hidden" name="view" value="@(Model.View == "active" ? "" : Model.View)" />
-        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, email, job title, department, checklist, ticket number" /></label>
-        <label>Checklist<select name="template"><option value="">Any checklist</option><option value="@IndexModel.None" selected="@(Model.Template == IndexModel.None)">No checklist</option>@foreach (var item in Model.Templates) { <option value="@item" selected="@string.Equals(item, Model.Template, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Department<select name="dept"><option value="">Any department</option><option value="@IndexModel.None" selected="@(Model.Department == IndexModel.None)">No department</option>@foreach (var item in Model.Departments) { <option value="@item" selected="@string.Equals(item, Model.Department, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Technician<select name="tech" title="Leads the onboarding, or has an IT task on it"><option value="">Anyone</option><option value="@IndexModel.None" selected="@(Model.Technician == IndexModel.None)">No lead technician</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
-        <label>Starting<select name="starting"><option value="">Any time</option>@foreach (var starting in IndexModel.Startings) { <option value="@starting" selected="@(Model.Starting == starting)">@IndexModel.StartingLabel(starting)</option> }</select></label>
-        <label>Sort by<select name="sort">@foreach (var sort in IndexModel.Sorts) { <option value="@sort" selected="@(Model.Sort == sort)">@IndexModel.SortLabel(sort)</option> }</select></label>
-        <label>Per page<select name="size">@foreach (var size in IndexModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="@Model.ClearUrl()">Clear</a></div>
-    </form>
+    @{
+        var filters = new EduHelpdesk.Pages.FilterBar
+        {
+            Id = "onboarding-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Name, email, job title, department, checklist, ticket number",
+            Title = "Filter onboardings",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Model.ClearUrl(),
+            Hidden = [("view", Model.View == "active" ? null : Model.View)],
+            Fields = @<text>
+                <label>Starting<select name="starting"><option value="">Any time</option>@foreach (var starting in IndexModel.Startings) { <option value="@starting" selected="@(Model.Starting == starting)">@IndexModel.StartingLabel(starting)</option> }</select></label>
+                <label>Checklist<select name="template"><option value="">Any checklist</option><option value="@IndexModel.None" selected="@(Model.Template == IndexModel.None)">No checklist</option>@foreach (var item in Model.Templates) { <option value="@item" selected="@string.Equals(item, Model.Template, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Department<select name="dept"><option value="">Any department</option><option value="@IndexModel.None" selected="@(Model.Department == IndexModel.None)">No department</option>@foreach (var item in Model.Departments) { <option value="@item" selected="@string.Equals(item, Model.Department, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Technician<select name="tech" title="Leads the onboarding, or has an IT task on it"><option value="">Anyone</option><option value="@IndexModel.None" selected="@(Model.Technician == IndexModel.None)">No lead technician</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
+                <label>Sort by<select name="sort">@foreach (var sort in IndexModel.Sorts) { <option value="@sort" selected="@(Model.Sort == sort)">@IndexModel.SortLabel(sort)</option> }</select></label>
+                <label>Per page<select name="size">@foreach (var size in IndexModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
 </section>
 
 <section class="panel directory-panel">
