@@ -15,6 +15,7 @@
 //   data-show="id …" / data-hide="id …"   shows and hides elements, for the edit-in-place forms
 //   data-describe="id"          on a select: puts the chosen option's data-description into that element
 //   data-expand="selector"      opens every <details> the selector matches; data-collapse closes them
+//   label.file-drop             a file box that takes a drop and names the chosen files
 //   role="tab" + aria-controls  inside a [role=tablist]: shows that tab's panel and hides its siblings'. An address
 //                               #fragment naming a panel, or anything inside one, opens that tab when the page loads
 (function () {
@@ -112,6 +113,20 @@
             if (e.shiftKey && (document.activeElement === first || !open.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
             else if (!e.shiftKey && (document.activeElement === last || !open.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
         }
+    });
+
+    // File boxes (label.file-drop): the invisible file input covering the box takes a drop as well as a click. This
+    // shows the box is a drop target and, once files are chosen, names them in place of the prompt.
+    document.querySelectorAll(".file-drop").forEach(box => {
+        const input = box.querySelector("input[type=file]");
+        const prompt = box.querySelector("span");
+        if (!input || !prompt) return;
+        ["dragenter", "dragover"].forEach(type => input.addEventListener(type, () => box.classList.add("is-over")));
+        ["dragleave", "drop"].forEach(type => input.addEventListener(type, () => box.classList.remove("is-over")));
+        input.addEventListener("change", () => {
+            const names = [...input.files].map(f => f.name);
+            if (names.length) prompt.textContent = names.length === 1 ? names[0] : `${names.length} files: ${names.join(", ")}`;
+        });
     });
 
     if (document.body?.hasAttribute("data-print-on-load")) window.addEventListener("load", () => window.print());

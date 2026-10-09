@@ -11,18 +11,4 @@
         const opener = document.querySelector(`[data-open-blade="${CSS.escape(panel.id)}"]`);
         if (opener) opener.click();
     });
-
-    // The quote's file box: the invisible file input covering it takes the drop; this shows it is a drop target and,
-    // once files are chosen, names them in place of the prompt.
-    document.querySelectorAll(".pj-drop").forEach(box => {
-        const input = box.querySelector("input[type=file]");
-        const prompt = box.querySelector("span");
-        if (!input || !prompt) return;
-        ["dragenter", "dragover"].forEach(type => input.addEventListener(type, () => box.classList.add("is-over")));
-        ["dragleave", "drop"].forEach(type => input.addEventListener(type, () => box.classList.remove("is-over")));
-        input.addEventListener("change", () => {
-            const names = [...input.files].map(f => f.name);
-            if (names.length) prompt.textContent = names.length === 1 ? names[0] : `${names.length} files: ${names.join(", ")}`;
-        });
-    });
 })();

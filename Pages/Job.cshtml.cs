@@ -250,7 +250,7 @@ public class JobModel(HelpdeskStore store) : PageModel
         var validAssetIds = (assetIds ?? []).Where(id => store.Assets.Any(x => x.Id == id)).Distinct().ToList();
         store.UpdateTicket(ticket with { AssetIds = validAssetIds });
         Message = "Linked assets updated.";
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, "assets-tab");
     }
 
     public IActionResult OnPostAssignPart(int number, Guid partId, int quantity)
@@ -258,16 +258,16 @@ public class JobModel(HelpdeskStore store) : PageModel
         if (partId == Guid.Empty || quantity <= 0)
         {
             Message = "Select a part and a quantity to assign.";
-            return RedirectToPage(new { number });
+            return RedirectToPage(null, null, new { number }, "parts-tab");
         }
         Message = store.SetTicketPartQuantity(number, partId, quantity) ?? "Part assigned.";
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, "parts-tab");
     }
 
     public IActionResult OnPostUpdatePartQuantity(int number, Guid partId, int quantity)
     {
         Message = store.SetTicketPartQuantity(number, partId, quantity) ?? (quantity <= 0 ? "Part removed." : "Part quantity updated.");
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, "parts-tab");
     }
 
     public IActionResult OnPostUpdateAttributes(int number, Dictionary<Guid, string>? customAttributes)
@@ -300,10 +300,11 @@ public class JobModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostAddComment(int number, string? comment, string? status, bool internalNote, bool notifyRequester)
     {
-        var label = internalNote ? "Internal note" : "Comment";
+        // "Reply" as the page's own switch calls it: a comment the requester can read.
+        var label = internalNote ? "Internal note" : "Reply";
         if (string.IsNullOrWhiteSpace(comment))
         {
-            Message = internalNote ? "Enter a note before saving." : "Enter a comment before saving.";
+            Message = internalNote ? "Enter a note before saving." : "Enter a reply before saving.";
             return RedirectToPage(new { number });
         }
 
@@ -371,7 +372,7 @@ public class JobModel(HelpdeskStore store) : PageModel
         if (chosen.Count == 0)
         {
             Message = "Choose a file to attach.";
-            return RedirectToPage(new { number });
+            return RedirectToPage(null, null, new { number }, "attachments-tab");
         }
         var added = 0;
         var problems = new List<string>();
@@ -386,20 +387,20 @@ public class JobModel(HelpdeskStore store) : PageModel
         if (chosen.Count > HelpdeskStore.MaxAttachmentsPerUpload)
             problems.Add($"Only {HelpdeskStore.MaxAttachmentsPerUpload} files can be attached at a time, so {chosen.Count - HelpdeskStore.MaxAttachmentsPerUpload} {(chosen.Count - HelpdeskStore.MaxAttachmentsPerUpload == 1 ? "was" : "were")} skipped.");
         Message = string.Join(" ", new[] { added > 0 ? $"{added} file{(added == 1 ? "" : "s")} attached." : null }.Concat(problems).Where(x => x is not null));
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, "attachments-tab");
     }
 
     public IActionResult OnPostShareAttachment(int number, Guid id, bool visible)
     {
         Message = store.SetAttachmentVisibleToRequester(number, id, visible)
             ?? (visible ? "The requester can now see that file in the staff portal." : "That file is no longer shown to the requester.");
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, "attachments-tab");
     }
 
     public IActionResult OnPostRemoveAttachment(int number, Guid id)
     {
         Message = store.RemoveTicketAttachment(number, id) ?? "Attachment removed.";
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, "attachments-tab");
     }
 
     // Pictures are shown in the page (inline); everything else is downloaded. Either way the browser is told not to guess the type

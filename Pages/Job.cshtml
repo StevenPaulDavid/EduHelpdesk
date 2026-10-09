@@ -11,8 +11,18 @@
    sit under "More" - they are rare, need Tickets: Delete, and a destructive button one slip away from "Mark as closed"
    was never a good neighbour. Back is navigation rather than an action, so it is a plain link above the title. *@
 <a class="back-link no-print" href="@Model.BackUrl">← Back to tickets</a>
-<div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / TICKET DETAIL</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div>
+@* The ticket's bar stays at the top of the screen while the page scrolls (wwwroot/js/pages/job.js marks it stuck),
+   so the everyday actions are always to hand however far down the comments go. *@
+<div class="page-heading ticket-bar" id="ticket-bar">
+    <div class="ticket-bar-title">
+        <h1><span class="ticket-bar-number">#@Model.Ticket.Number</span> @Model.Ticket.Title</h1>
+        <p class="ticket-bar-meta">
+            <span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span>
+            <span class="priority @Model.Ticket.Priority.ToLowerInvariant()">@Model.Ticket.Priority</span>
+            @if (Model.DueState != DueState.None) { <span class="badge @(Model.DueState == DueState.Overdue ? "badge-warning" : "")">@Model.DueText</span> }
+            <span class="muted">@(Model.Requester?.Name ?? "Unknown requester")@(string.IsNullOrWhiteSpace(Model.Ticket.Location) ? "" : " · " + Model.Ticket.Location)</span>
+        </p>
+    </div>
     <div class="heading-actions no-print">
         @if (Model.CanAssignToMe)
         {
@@ -170,6 +180,36 @@ else
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="attachments-tab">Attachments <span class="badge">@Model.Attachments.Count</span></button>
             </div>
             <div id="comments-tab" class="ticket-tab-panel active" role="tabpanel">
+                @* The reply box sits above the conversation. Reply or Internal note is chosen first, and the rest - notify,
+                   status, the button - opens out once there is something to send (wwwroot/js/pages/job.js); without
+                   script everything simply shows. *@
+                <form method="post" asp-page-handler="AddComment" class="composer" id="composer">
+                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                    <fieldset class="composer-kind">
+                        <legend class="visually-hidden">Comment type</legend>
+                        <label><input type="radio" name="internalNote" value="false" checked /><span>Reply</span></label>
+                        <label><input type="radio" name="internalNote" value="true" /><span>Internal note</span></label>
+                    </fieldset>
+                    <label for="ticket-comment" class="visually-hidden">Comment</label>
+                    <textarea id="ticket-comment" name="comment" rows="3" placeholder="Reply to @(Model.Requester?.Name ?? "the requester"), or record an update or next action…" data-note-placeholder="A note for the IT team only. It isn't shown to the requester or printed on the ticket."></textarea>
+                    <div class="composer-options">
+                        <label class="toggle-label" id="notify-requester-label"><input type="checkbox" name="notifyRequester" value="true" /> Notify the requester <span class="muted">(a ping in their staff portal, if they've switched it on)</span></label>
+                        <span class="composer-send">
+                            <label for="comment-status">Status</label>
+                            <select id="comment-status" name="status" data-current="@Model.Ticket.Status">
+                                @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))
+                                {
+                                    <option value="" selected>@Model.Ticket.Status</option>
+                                }
+                                @foreach (var status in Model.Statuses)
+                                {
+                                    <option value="@status" selected="@string.Equals(status, Model.Ticket.Status, StringComparison.OrdinalIgnoreCase)">@status</option>
+                                }
+                            </select>
+                            <button class="button button-primary" type="submit" id="comment-submit">Add reply</button>
+                        </span>
+                    </div>
+                </form>
                 @if (Model.Ticket.Comments.Count > 0)
                 {
                     <div class="comment-list">
@@ -189,25 +229,6 @@ else
                 {
                     <p class="muted">No comments have been added.</p>
                 }
-                <form method="post" asp-page-handler="AddComment" class="comment-form">
-                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
-                    <label for="ticket-comment">Add a comment</label>
-                    <textarea id="ticket-comment" name="comment" rows="3" placeholder="Add an update, finding, or next action…"></textarea>
-                    <label class="toggle-label"><input type="checkbox" name="internalNote" value="true" /> Internal note (technicians only, left off the printed ticket)</label>
-                    <label class="toggle-label" id="notify-requester-label"><input type="checkbox" name="notifyRequester" value="true" /> Notify the requester (a ping and pop-up in their staff portal, if they've switched it on)</label>
-                    <label for="comment-status">Status</label>
-                    <select id="comment-status" name="status" data-current="@Model.Ticket.Status">
-                        @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))
-                        {
-                            <option value="" selected>@Model.Ticket.Status</option>
-                        }
-                        @foreach (var status in Model.Statuses)
-                        {
-                            <option value="@status" selected="@string.Equals(status, Model.Ticket.Status, StringComparison.OrdinalIgnoreCase)">@status</option>
-                        }
-                    </select>
-                    <button class="button button-primary" type="submit" id="comment-submit">Add comment</button>
-                </form>
             </div>
             <div id="history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
                 @if (Model.Ticket.History.Count > 0)
@@ -230,7 +251,15 @@ else
                     <div class="linked-asset-list">
                         @foreach (var asset in Model.LinkedAssets)
                         {
-                            <a class="linked-asset-item" href="/Asset?id=@asset.Id"><strong>@asset.AssetTag</strong><span>@asset.Type · @asset.Model</span></a>
+                            <div class="linked-asset-row">
+                                <a class="linked-asset-item" href="/Asset?id=@asset.Id"><strong>@asset.AssetTag</strong><span>@asset.Type · @asset.Model</span></a>
+                                @* Unlinking one sends every other link, as the picker does - the handler sets the whole list. *@
+                                <form method="post" asp-page-handler="UpdateAssets">
+                                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                                    @foreach (var other in Model.Ticket.AssetIds.Where(x => x != asset.Id)) { <input type="hidden" name="assetIds" value="@other" /> }
+                                    <button class="icon-button delete-icon" type="submit" title="Unlink @asset.AssetTag" aria-label="Unlink @asset.AssetTag">@Icons.Close</button>
+                                </form>
+                            </div>
                         }
                     </div>
                 }
@@ -238,12 +267,7 @@ else
                 {
                     <p class="muted">No assets are linked to this ticket.</p>
                 }
-                <form method="post" asp-page-handler="UpdateAssets" class="asset-edit-form">
-                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
-                    <label for="ticket-assets">Linked assets</label>
-                    <select id="ticket-assets" name="assetIds" multiple size="6" data-picker data-picker-placeholder="Type an asset tag, model or serial to add…">@foreach (var asset in Model.Assets) { <option value="@asset.Id" data-search="@asset.Make @asset.SerialNumber" selected="@(Model.Ticket.AssetIds.Contains(asset.Id))">@asset.AssetTag · @asset.Type @asset.Model</option> }</select>
-                    <button class="button button-primary" type="submit">Save linked assets</button>
-                </form>
+                <button class="button button-secondary" type="button" data-open-blade="asset-blade">@Icons.Plus Link assets</button>
             </div>
             <div id="parts-tab" class="ticket-tab-panel" role="tabpanel" hidden>
                 @if (Model.TicketParts.Count > 0)
@@ -267,14 +291,7 @@ else
                 {
                     <p class="muted">No parts have been assigned to this ticket.</p>
                 }
-                <form method="post" asp-page-handler="AssignPart" class="asset-edit-form">
-                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
-                    <label for="ticket-part-select">Assign a part</label>
-                    <select id="ticket-part-select" name="partId"><option value="">Select a part…</option>@foreach (var part in Model.Parts) { <option value="@part.Id">@part.Name (@part.QuantityOnHand in stock)</option> }</select>
-                    <label for="ticket-part-quantity">Quantity</label>
-                    <input id="ticket-part-quantity" name="quantity" type="number" min="1" step="1" value="1" />
-                    <button class="button button-primary" type="submit">Assign part</button>
-                </form>
+                <button class="button button-secondary" type="button" data-open-blade="part-blade">@Icons.Plus Use a part</button>
             </div>
             <div id="attachments-tab" class="ticket-tab-panel" role="tabpanel" hidden>
                 @if (Model.Attachments.Count > 0)
@@ -308,14 +325,8 @@ else
                 {
                     <p class="muted">No files are attached to this ticket.</p>
                 }
-                <form method="post" enctype="multipart/form-data" asp-page-handler="UploadAttachments" class="asset-edit-form" id="attachment-form">
-                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
-                    <label for="ticket-files">Attach files</label>
-                    <input id="ticket-files" type="file" name="files" multiple accept="@HelpdeskStore.AttachmentAcceptAttribute" />
-                    <small class="muted">Up to @HelpdeskStore.MaxAttachmentsPerUpload files at a time, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB. Pictures, PDFs, Office documents, text and email files.</small>
-                    <label class="toggle-label"><input type="checkbox" name="shareWithRequester" value="true" /> Share with the requester (they'll see it in the staff portal)</label>
-                    <button class="button button-primary" type="submit">Upload</button>
-                </form>
+                <button class="button button-secondary" type="button" data-open-blade="upload-blade">@Icons.Upload Attach files</button>
+                <p class="muted attach-hint">Or drop files anywhere on this page to attach them.</p>
             </div>
         </div>
     </section>
@@ -395,6 +406,46 @@ else
         @if (Model.TicketAttributes.Count > 0) { <div class="detail-block"><p class="eyebrow">CUSTOM ATTRIBUTES</p><form method="post" asp-page-handler="UpdateAttributes"><input type="hidden" name="number" value="@Model.Ticket.Number" />@foreach (var field in Model.TicketAttributes) { var customValue = Model.TicketAttributeValues.GetValueOrDefault(field.Id, ""); if (field.FieldType == "dropdown") { <label>@field.Name<select name="customAttributes[@field.Id]"><option value="">Select an option</option>@foreach (var choice in HelpdeskStore.GetChoices(field)) { <option value="@choice" selected="@(choice == customValue)">@choice</option> }</select></label> } else if (field.FieldType == "checkbox") { <label class="toggle-label">@field.Name<input type="checkbox" name="customAttributes[@field.Id]" value="true" checked="@(customValue.Equals("true", StringComparison.OrdinalIgnoreCase))" /></label> } else if (field.FieldType == "multi-line") { <label>@field.Name<textarea name="customAttributes[@field.Id]" rows="3">@customValue</textarea></label> } else { <label>@field.Name<input name="customAttributes[@field.Id]" value="@customValue" /></label> } }<button class="button button-primary" type="submit">Save attributes</button></form></div> }
     </aside>
 </div>
+
+@* Slide-in panels for the Assets, Parts and Attachments tabs (actions.js). *@
+<div id="asset-blade" class="blade-backdrop no-print">
+    <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="asset-blade-title">
+        <div class="blade-head"><h2 id="asset-blade-title">Linked assets</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+        <form method="post" asp-page-handler="UpdateAssets" class="blade-form">
+            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+            <label for="ticket-assets">Type an asset tag, model or serial to add it. Everything listed here is linked when you save.</label>
+            <select id="ticket-assets" name="assetIds" multiple size="6" data-picker data-picker-placeholder="Type an asset tag, model or serial to add…">@foreach (var asset in Model.Assets) { <option value="@asset.Id" data-search="@asset.Make @asset.SerialNumber" selected="@(Model.Ticket.AssetIds.Contains(asset.Id))">@asset.AssetTag · @asset.Type @asset.Model</option> }</select>
+            <div class="blade-actions"><button class="button button-primary" type="submit">Save linked assets</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+        </form>
+    </div>
+</div>
+<div id="part-blade" class="blade-backdrop no-print">
+    <div class="blade" role="dialog" aria-modal="true" aria-labelledby="part-blade-title">
+        <div class="blade-head"><h2 id="part-blade-title">Use a part</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+        <form method="post" asp-page-handler="AssignPart" class="blade-form">
+            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+            <p class="muted">The quantity comes out of stock straight away.</p>
+            <label>Part<select name="partId" required><option value="">Select a part…</option>@foreach (var part in Model.Parts) { <option value="@part.Id">@part.Name (@part.QuantityOnHand in stock)</option> }</select></label>
+            <label>Quantity<input name="quantity" type="number" min="1" step="1" value="1" required /></label>
+            <div class="blade-actions"><button class="button button-primary" type="submit">Use part</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+        </form>
+    </div>
+</div>
+<div id="upload-blade" class="blade-backdrop no-print">
+    <div class="blade" role="dialog" aria-modal="true" aria-labelledby="upload-blade-title">
+        <div class="blade-head"><h2 id="upload-blade-title">Attach files</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+        <form method="post" enctype="multipart/form-data" asp-page-handler="UploadAttachments" class="blade-form" id="attachment-form">
+            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+            <label class="file-drop">@Icons.Upload <span><strong>Choose files</strong> or drop them here</span><input id="ticket-files" type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
+            <p class="muted">Up to @HelpdeskStore.MaxAttachmentsPerUpload files at a time, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB. Pictures, PDFs, Office documents, text and email files.</p>
+            <label class="toggle-label"><input type="checkbox" name="shareWithRequester" value="true" /> Share with the requester (they'll see it in the staff portal)</label>
+            <div class="blade-actions"><button class="button button-primary" type="submit">@Icons.Upload Upload</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+        </form>
+    </div>
+</div>
+@* Shown while files are dragged over the page; dropping them uploads them to this ticket, not shared (job.js). *@
+<div class="drop-overlay no-print" id="drop-overlay" hidden><div>@Icons.Upload Drop to attach to #@Model.Ticket.Number</div></div>
+
 @section Scripts {
 <script src="~/js/pages/job.js" asp-append-version="true"></script>
 }

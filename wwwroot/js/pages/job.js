@@ -20,29 +20,73 @@
     edit?.addEventListener("click", () => editing(true));
     document.querySelector("[data-cancel-content]")?.addEventListener("click", () => editing(false));
 
-    // The comment button says what else it will do: a note rather than a comment, and any status change on the way.
+    // The ticket's bar sticks to the top of the screen; once it has, it gets a shadow so it reads as above the page.
+    const bar = document.getElementById("ticket-bar");
+    if (bar && "IntersectionObserver" in window) {
+        const marker = document.createElement("div");
+        marker.setAttribute("aria-hidden", "true");
+        bar.before(marker);
+        new IntersectionObserver(([entry]) => bar.classList.toggle("is-stuck", !entry.isIntersecting)).observe(marker);
+    }
+
+    // Dropping files anywhere on the page attaches them to the ticket, through the Attach files form. They aren't
+    // shared with the requester - that is a choice made in the panel, or with Share afterwards.
+    const uploadForm = document.getElementById("attachment-form");
+    const overlay = document.getElementById("drop-overlay");
+    if (uploadForm && overlay) {
+        const input = uploadForm.querySelector("input[type=file]");
+        const hasFiles = e => [...(e.dataTransfer?.types ?? [])].includes("Files");
+        // Only page-wide drags show the overlay: the panel's own file box handles drops made onto it.
+        const inPanel = e => e.target instanceof Element && e.target.closest(".blade-backdrop.open");
+        let depth = 0;
+        document.addEventListener("dragenter", e => { if (!hasFiles(e) || inPanel(e)) return; depth++; overlay.hidden = false; });
+        document.addEventListener("dragleave", e => { if (!hasFiles(e) || inPanel(e)) return; depth = Math.max(0, depth - 1); if (depth === 0) overlay.hidden = true; });
+        document.addEventListener("dragover", e => { if (hasFiles(e) && !inPanel(e)) e.preventDefault(); });
+        document.addEventListener("drop", e => {
+            if (!hasFiles(e) || inPanel(e)) return;
+            e.preventDefault();
+            depth = 0;
+            overlay.hidden = true;
+            if (!e.dataTransfer.files.length) return;
+            input.files = e.dataTransfer.files;
+            uploadForm.requestSubmit();
+        });
+    }
+
+    // The reply box: Reply or Internal note, and the rest opens out once someone starts to write. The button says what
+    // it will do - a reply or a note, and any status change on the way.
+    const composer = document.getElementById("composer");
     const status = document.getElementById("comment-status");
     const submit = document.getElementById("comment-submit");
-    const internal = document.querySelector("[name=internalNote]");
-    if (!status || !submit) return;
+    const text = document.getElementById("ticket-comment");
+    if (!composer || !status || !submit || !text) return;
+    const isNote = () => composer.querySelector("[name=internalNote]:checked")?.value === "true";
+    const replyPlaceholder = text.placeholder;
+    if (!text.value) composer.classList.add("is-collapsed");
+    const open = () => composer.classList.remove("is-collapsed");
+    text.addEventListener("focus", open);
+
     const update = () => {
         const changed = status.value !== "" && status.value.toLowerCase() !== status.dataset.current.toLowerCase();
-        const noun = internal?.checked ? "internal note" : "comment";
+        const noun = isNote() ? "internal note" : "reply";
         submit.textContent = !changed ? "Add " + noun
             : status.value === "Closed" ? "Add " + noun + " & close ticket"
             : "Add " + noun + " & set status to " + status.value;
     };
-    status.addEventListener("change", update);
-    internal?.addEventListener("change", update);
-
     // An internal note is never shown to the requester, so there is nobody to notify: the tick goes and stays off.
-    const notify = document.querySelector("[name=notifyRequester]");
+    const notify = composer.querySelector("[name=notifyRequester]");
     const notifyLabel = document.getElementById("notify-requester-label");
-    const syncNotify = () => {
-        if (!notify || !notifyLabel) return;
-        if (internal?.checked) notify.checked = false;
-        notifyLabel.hidden = Boolean(internal?.checked);
+    const syncKind = () => {
+        const note = isNote();
+        composer.classList.toggle("is-note", note);
+        text.placeholder = note ? text.dataset.notePlaceholder : replyPlaceholder;
+        if (notify && notifyLabel) {
+            if (note) notify.checked = false;
+            notifyLabel.hidden = note;
+        }
+        update();
     };
-    internal?.addEventListener("change", syncNotify);
-    syncNotify();
+    status.addEventListener("change", update);
+    composer.querySelectorAll("[name=internalNote]").forEach(radio => radio.addEventListener("change", () => { syncKind(); open(); text.focus(); }));
+    syncKind();
 })();

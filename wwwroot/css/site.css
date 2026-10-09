@@ -1431,7 +1431,7 @@ h3 .csv-link { margin-left: 8px; }
 .pj-upload { display: grid; gap: var(--space-2); margin-top: var(--space-2) !important; }
 .pj-upload .button { justify-self: start; }
 /* The file box takes a drop as well as a click: the real file input covers it, invisibly. */
-.pj-drop {
+.file-drop {
     position: relative;
     display: flex;
     align-items: center;
@@ -1443,11 +1443,11 @@ h3 .csv-link { margin-left: 8px; }
     color: var(--muted);
     cursor: pointer;
 }
-.pj-drop strong { color: var(--teal-text); }
-.pj-drop .ico { width: 20px; height: 20px; color: var(--teal-text); }
-.pj-drop:hover, .pj-drop.is-over { border-color: var(--teal); background: var(--accent); }
-.pj-drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-.pj-drop input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.file-drop strong { color: var(--teal-text); }
+.file-drop .ico { width: 20px; height: 20px; color: var(--teal-text); }
+.file-drop:hover, .file-drop.is-over { border-color: var(--teal); background: var(--accent); }
+.file-drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.file-drop input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .pj-pay { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: var(--space-2) var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: 10px; }
 .pj-pay+.pj-pay { margin-top: var(--space-2) !important; }
 .pj-pay-wide { grid-column: 1/-1; }
@@ -2292,4 +2292,62 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 @media(max-width:980px) {
     .notify-bell { order: 1; }
     .notify-bell .notify-panel { position: fixed; top: 62px; left: 16px; right: 16px; width: auto; }
+}
+
+/* The ticket page (Pages/Job.cshtml): a bar that stays at the top while the page scrolls, the reply box above the
+   conversation, and + buttons that open panels for assets, parts and files. */
+.ticket-bar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    align-items: center;
+    background: var(--paper);
+    padding: var(--space-3) 0;
+    margin: calc(-1 * var(--space-3)) 0 var(--space-4);
+}
+.ticket-bar.is-stuck { box-shadow: 0 10px 14px -14px rgba(23,37,47,.35); border-bottom: 1px solid var(--line); }
+.ticket-bar-title { min-width: 0; flex: 1 1 360px; }
+.ticket-bar h1 { font-size: clamp(20px,1.9vw,26px); letter-spacing: -.035em; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ticket-bar.is-stuck h1 { -webkit-line-clamp: 1; }
+.ticket-bar-number { color: var(--muted); font-weight: 650; }
+.ticket-bar-meta { margin: 6px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.ticket-bar.is-stuck .ticket-bar-meta { display: none; }
+
+.composer { display: grid; border: 1px solid var(--field-line); border-radius: 10px; background: var(--field); margin-bottom: var(--space-4); overflow: hidden; }
+.composer:focus-within { border-color: var(--teal); }
+.composer textarea { border: 0; border-radius: 0; background: transparent; padding: 12px 14px; min-height: 70px; }
+.composer textarea:focus { outline: none; }
+.composer-kind { border: 0; margin: 0; padding: 6px; display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.composer-kind label { position: relative; cursor: pointer; }
+.composer-kind input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.composer-kind span { display: inline-block; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.composer-kind input:checked+span { background: var(--teal); color: #fff; }
+.composer-kind input:focus-visible+span { outline: 2px solid var(--focus); outline-offset: 1px; }
+.composer.is-note { background: var(--tone-wait-bg); border-color: var(--caution); }
+.composer.is-note .composer-kind input:checked+span { background: var(--caution); color: #2b1a02; }
+.composer-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+.composer.is-collapsed .composer-options { display: none; }
+.composer-options .toggle-label { font-size: 13px; }
+.composer-send { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.composer-send label { font-size: 12px; font-weight: 700; color: var(--label); }
+.composer-send select { width: auto; padding: 7px 10px; }
+
+.linked-asset-row { display: flex; align-items: center; gap: 8px; }
+.linked-asset-row .linked-asset-item { flex: 1; min-width: 0; }
+.linked-asset-row form { margin: 0; }
+.attach-hint { margin: 8px 0 0; font-size: 12px; }
+
+/* While files are dragged over the ticket page. */
+.drop-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: color-mix(in srgb,var(--teal) 16%,transparent); border: 3px dashed var(--teal); pointer-events: none; }
+.drop-overlay>div { display: flex; align-items: center; gap: 10px; background: var(--surface); color: var(--teal-text); border-radius: 12px; padding: 18px 26px; font-weight: 800; font-size: 16px; box-shadow: 0 12px 30px rgba(23,37,47,.2); }
+.drop-overlay .ico { width: 22px; height: 22px; }
+
+/* On a phone the bar would take too much of the screen to follow you down it. */
+@media(max-width:800px) {
+    .ticket-bar { position: static; margin-top: 0; padding-top: 0; }
+    /* The general phone rule spaces each heading button with its own top margin, which left ragged rows here. */
+    .ticket-bar .heading-actions { margin-top: 12px; justify-content: flex-start; gap: 8px; }
+    .ticket-bar .heading-actions .button { margin-top: 0; }
+    .composer-send { margin-left: 0; width: 100%; }
+    .composer-send select { flex: 1; }
 }

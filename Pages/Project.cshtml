@@ -504,7 +504,7 @@
                         {
                             <form method="post" asp-page-handler="UploadQuote" enctype="multipart/form-data" class="pj-upload">
                                 <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                <label class="pj-drop">@Icons.Upload <span><strong>@(updating ? "Upload the updated quote" : row.Documents.Count == 0 ? "Upload their quote" : "Add more files")</strong> - drop files here or choose them</span><input type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
+                                <label class="file-drop">@Icons.Upload <span><strong>@(updating ? "Upload the updated quote" : row.Documents.Count == 0 ? "Upload their quote" : "Add more files")</strong> - drop files here or choose them</span><input type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
                                 @if (updating && (row.Documents.Count > 0 || row.PaymentLines.Count > 0))
                                 {
                                     <p class="muted">An update was asked for, so these files replace the current ones and the prices are cleared for the new quote's.</p>
