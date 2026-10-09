@@ -1,9 +1,9 @@
 @page
 @model EduHelpdesk.Pages.Onboarding.IndexModel
-@{ ViewData["Title"] = "Onboarding"; }
+@{ ViewData["Title"] = "Onboarding"; ViewData["Wide"] = true; }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / ONBOARDING</p><h1>Onboarding</h1><p class="hero-copy">New staff, and everything to get ready for them. Each onboarding is a ticket, so IT's tasks show in the ticket list too.</p></div>
-    @if (Model.CanStart) { <a class="button button-primary" asp-page="/Onboarding/New">＋ New onboarding</a> }
+    @if (Model.CanStart) { <a class="button button-primary" asp-page="/Onboarding/New">@Icons.Plus New onboarding</a> }
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

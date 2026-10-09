@@ -36,7 +36,7 @@
             <span class="muted"><a asp-page="/Settings/Onboarding" asp-page-handler="Document" asp-route-documentId="@document.Id">@document.FileName</a> · @document.Pages page@(document.Pages == 1 ? "" : "s") · @HelpdeskStore.FormatSize(document.Size) · used by @Model.Templates.Count(x => x.DocumentIds.Contains(document.Id)) template@(Model.Templates.Count(x => x.DocumentIds.Contains(document.Id)) == 1 ? "" : "s")</span>
             <form method="post" asp-page-handler="DeleteDocument" data-confirm="Delete @document.Name? It comes out of every template and every welcome pack.">
                 <input type="hidden" name="documentId" value="@document.Id" />
-                <button class="icon-button delete-icon" type="submit" title="Delete document" aria-label="Delete @document.Name">♜</button>
+                <button class="icon-button delete-icon" type="submit" title="Delete document" aria-label="Delete @document.Name">@Icons.Bin</button>
             </form>
         </div>
     }
@@ -83,7 +83,7 @@
                     <partial name="_OnboardingActionField" model="@(new EduHelpdesk.Pages.Settings.OnboardingModel.ActionField(OnboardingActions.Encode(task.Action, task.AssetType), Model.AssetTypes))" />
                     <span class="band-actions">
                         <button class="button button-secondary" type="submit">Save</button>
-                        <button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Settings/Onboarding", "DeleteTask")" formnovalidate title="Remove task" aria-label="Remove @task.Title">♜</button>
+                        <button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Settings/Onboarding", "DeleteTask")" formnovalidate title="Remove task" aria-label="Remove @task.Title">@Icons.Bin</button>
                     </span>
                 </form>
             }

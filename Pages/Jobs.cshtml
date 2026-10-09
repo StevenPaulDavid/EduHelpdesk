@@ -4,14 +4,14 @@
 @model JobsModel
 @inject HelpdeskStore Helpdesk
 @{
-    ViewData["Title"] = "Tickets";
+    ViewData["Title"] = "Tickets"; ViewData["Wide"] = true;
     var currentTechnician = Model.CurrentTechnician;
     Model.AssetsById.TryGetValue(Guid.TryParse(Model.Asset, out var filteredAssetId) ? filteredAssetId : Guid.Empty, out var filteredAsset);
 }
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / TICKETS</p><h1>Tickets</h1><p class="hero-copy">Work through queues, search and filter, and update many tickets at once.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-primary" asp-page="/NewTicket">＋ New ticket</a></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-primary" asp-page="/NewTicket">@Icons.Plus New ticket</a></div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

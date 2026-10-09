@@ -56,6 +56,10 @@
     // Where the switch returns to. After a form post the address can carry a ?handler= that only answers posts, so
     // only a GET's query string is kept.
     var themeReturn = Context.Request.Path + (HttpMethods.IsGet(Context.Request.Method) ? Context.Request.QueryString.ToString() : "");
+
+    // Lists, queues, reports and the overview set ViewData["Wide"] = true and use the whole screen. Everything else -
+    // a ticket, a project, a form - stops at a readable width (.shell in site.css).
+    var shellClass = ViewData["Wide"] is true ? "shell shell-wide" : "shell";
 }
 <!DOCTYPE html>
 <html lang="en" data-theme="@Themes.Key(theme)">
@@ -144,7 +148,7 @@
             </div>
         </details>
         </div>
-        @if (Can(Modules.Tickets, ModulePermission.New)) { <a class="button button-primary header-job-button" asp-page="/NewTicket" aria-label="Log a ticket">＋<span class="header-job-text"> Log a ticket</span></a> }
+        @if (Can(Modules.Tickets, ModulePermission.New)) { <a class="button button-primary header-job-button" asp-page="/NewTicket" aria-label="Log a ticket">@Icons.Plus<span class="header-job-text"> Log a ticket</span></a> }
         @* Outside the site menu, so it stays in the bar on a phone. The list is drawn here so it opens at once (and works
            without JavaScript); wwwroot/js/notifications.js keeps the badge live and refreshes the list when it opens. *@
         @if (bell is not null)
@@ -170,8 +174,8 @@
         <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="site-menu"><span aria-hidden="true">☰</span> Menu</button>
     }
     </header>
-    <main class="shell" id="main" tabindex="-1">@RenderBody()</main>
-    <footer class="footer">
+    <main class="@shellClass" id="main" tabindex="-1">@RenderBody()</main>
+    <footer class="footer@(ViewData["Wide"] is true ? " shell-wide" : null)">
         <span>EduHelpdesk · Local technician operations</span>
         @* Per browser, so a technician's dark laptop and the staffroom PC can each have their own. Pressing the one
            already chosen goes back to the school's default. *@

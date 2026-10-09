@@ -7,7 +7,7 @@
         <div><p class="eyebrow">EDUHELPDESK</p><h1>@ViewData["Title"]</h1>@if (Model.IsLead) { <p class="hero-copy">As project lead, you confirm each project's priority and choose the technician.</p> }</div>
         <div class="heading-actions">
             <a class="button button-secondary" asp-page="/Portal/Index">← Back</a>
-            @if (Model.CurrentUser?.MayRaiseProjects == true) { <a class="button button-primary" asp-page="/Portal/NewProject">＋ Request a project</a> }
+            @if (Model.CurrentUser?.MayRaiseProjects == true) { <a class="button button-primary" asp-page="/Portal/NewProject">@Icons.Plus Request a project</a> }
         </div>
     </div>
     @if (Model.IsLead)

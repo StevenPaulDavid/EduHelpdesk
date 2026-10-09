@@ -2,7 +2,7 @@
 @model EduHelpdesk.Pages.Settings.DatabaseTableModel
 @{
     var result = Model.Result;
-    ViewData["Title"] = $"{result.Table} · Database";
+    ViewData["Title"] = $"{result.Table} · Database"; ViewData["Wide"] = true;
     var first = (Model.PageNumber - 1) * EduHelpdesk.Services.RawDatabase.PageSize + 1;
 }
 <div class="page-heading">

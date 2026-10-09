@@ -32,7 +32,7 @@
                     <td><input name="name" value="@row.Name" aria-label="Period name" maxlength="40" /></td>
                     <td><input name="start" type="time" value="@row.Start" aria-label="Start time" /></td>
                     <td><input name="end" type="time" value="@row.End" aria-label="End time" /></td>
-                    <td><button type="button" class="icon-button delete-icon period-remove" title="Remove period" aria-label="Remove @row.Name">♜</button></td>
+                    <td><button type="button" class="icon-button delete-icon period-remove" title="Remove period" aria-label="Remove @row.Name">@Icons.Bin</button></td>
                 </tr>
             }
             @* A spare row, so a period can be added even without JavaScript. Blank rows are ignored when saving. *@
@@ -44,7 +44,7 @@
             </tr>
         </tbody></table></div>
         <div class="heading-actions form-actions period-actions">
-            <button type="button" class="button button-secondary" id="period-add">＋ Add another period</button>
+            <button type="button" class="button button-secondary" id="period-add">@Icons.Plus Add another period</button>
             <button class="button button-primary">Save periods</button>
         </div>
     </form>

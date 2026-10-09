@@ -1,13 +1,13 @@
 @page
 @using EduHelpdesk.Services
 @model LoansModel
-@{ ViewData["Title"] = "Loans"; }
+@{ ViewData["Title"] = "Loans"; ViewData["Wide"] = true; }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / LOANS</p><h1>Loans</h1><p class="hero-copy">Everything out with staff right now — loan kits and individual devices — and what has come back lately.</p></div>
     <div class="heading-actions">
         <a class="button button-secondary" asp-page="/Reports/Loans">Loan report</a>
         <a class="button button-secondary" asp-page="/Kits">Kits</a>
-        <a class="button button-primary" asp-page="/Loans/Issue">＋ Issue a loan</a>
+        <a class="button button-primary" asp-page="/Loans/Issue">@Icons.Plus Issue a loan</a>
     </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }

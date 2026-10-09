@@ -80,7 +80,7 @@
                     <form method="post" asp-page-handler="UnlinkTicket" class="inline-unlink-form">
                         <input type="hidden" name="id" value="@Model.Asset!.Id" />
                         <input type="hidden" name="ticketNumber" value="@ticket.Number" />
-                        <button class="icon-button delete-icon" type="submit" title="Unlink ticket">♜</button>
+                        <button class="icon-button delete-icon" type="submit" title="Unlink ticket">@Icons.Bin</button>
                     </form>
                 </div>
             }

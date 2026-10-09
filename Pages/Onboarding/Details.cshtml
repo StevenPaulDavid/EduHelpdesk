@@ -147,7 +147,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                                 }
                                 <form method="post" asp-page-handler="RemoveTask" data-confirm="Remove &quot;@task.Title&quot; from this checklist?">
                                     <input type="hidden" name="number" value="@ticket.Number" /><input type="hidden" name="taskId" value="@task.Id" />
-                                    <button class="icon-button delete-icon" type="submit" title="Remove task" aria-label="Remove @task.Title">♜</button>
+                                    <button class="icon-button delete-icon" type="submit" title="Remove task" aria-label="Remove @task.Title">@Icons.Bin</button>
                                 </form>
                             </div>
                         }
@@ -160,7 +160,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
         @if (Model.CanEdit && !record.IsCancelled)
         {
             <details class="onboarding-add-task">
-                <summary>＋ Add a task for @(starter?.Name ?? "this person")</summary>
+                <summary>@Icons.Plus Add a task for @(starter?.Name ?? "this person")</summary>
                 <form method="post" asp-page-handler="AddTask" class="band-row band-new onboarding-task-row">
                     <input type="hidden" name="number" value="@ticket.Number" />
                     <label class="onboarding-task-title">Task<input name="title" maxlength="@HelpdeskStore.MaxOnboardingTextLength" required /></label>

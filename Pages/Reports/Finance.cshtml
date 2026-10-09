@@ -2,7 +2,7 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Reports.FinanceReportsModel
 @{
-    ViewData["Title"] = "Finance reports";
+    ViewData["Title"] = "Finance reports"; ViewData["Wide"] = true;
     var exportRoutes = new { period = "", year = Model.StartYear };
 }
 <div class="page-heading">

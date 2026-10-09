@@ -2,7 +2,7 @@
 @using EduHelpdesk.Services
 @model IndexModel
 @{
-    ViewData["Title"] = "Overview";
+    ViewData["Title"] = "Overview"; ViewData["Wide"] = true;
 
     // One ticket as a row in any of the overview's lists: number and title, who it's for, its status and due date.
     async Task TicketRow(TicketRecord ticket, bool showTechnician)

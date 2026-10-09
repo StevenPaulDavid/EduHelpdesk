@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Settings;
 
-// Settings â†’ Teams channel: the webhook that posts to a Teams channel when a requester submits a ticket or a ticket goes
+// Settings → Teams channel: the webhook that posts to a Teams channel when a requester submits a ticket or a ticket goes
 // overdue, which of those post, and a test button. Needs Settings: Edit, like the other pages under /Settings (Program.cs).
 // The saved address is never sent back to the browser - the page shows only the host it posts to - so nothing here can leak it.
 public class TeamsChannelModel(HelpdeskStore store, TeamsPoster poster) : PageModel

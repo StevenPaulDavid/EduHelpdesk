@@ -1,7 +1,7 @@
 ﻿@page
 @model EduHelpdesk.Pages.Settings.TeamsChannelModel
 @{ ViewData["Title"] = "Teams channel"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Teams channel</h1><p class="hero-copy">Post a short message to a Microsoft Teams channel when a requester submits a ticket in the portal, and when a ticket becomes overdue.</p></div><a class="button button-secondary" asp-page="/Settings">â† Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Teams channel</h1><p class="hero-copy">Post a short message to a Microsoft Teams channel when a requester submits a ticket in the portal, and when a ticket becomes overdue.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice@(Model.Problem ? " notice-warning" : "")">@Model.Message</div> }
 
 <section class="panel">
@@ -15,7 +15,7 @@
         <p class="muted">No webhook is saved yet. Create one in Teams (the steps are further down), then paste its address here.</p>
     }
     <form method="post" asp-page-handler="Save" class="settings-form">
-        <label>@(Model.Settings.HasUrl ? "New webhook address (leave blank to keep the current one)" : "Webhook address")<input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://â€¦" /></label>
+        <label>@(Model.Settings.HasUrl ? "New webhook address (leave blank to keep the current one)" : "Webhook address")<input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://…" /></label>
         <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Settings.Enabled" /> Post to Teams (the master switch - off pauses everything and keeps the address)</label>
         <label class="toggle-label"><input type="checkbox" name="newTicket" value="true" checked="@Model.Settings.NewTicket" /> A requester submits a new ticket in the staff portal</label>
         <label class="toggle-label"><input type="checkbox" name="overdue" value="true" checked="@Model.Settings.Overdue" /> A ticket becomes overdue (checked every few minutes)</label>
@@ -47,7 +47,7 @@
 <section class="panel">
     <div class="panel-heading"><h2>Getting a webhook address from Teams</h2></div>
     <ol class="muted">
-        <li>In Teams, open the channel, choose <strong>â€¦</strong> beside its name, then <strong>Workflows</strong>.</li>
+        <li>In Teams, open the channel, choose <strong>…</strong> beside its name, then <strong>Workflows</strong>.</li>
         <li>Pick <strong>Post to a channel when a webhook request is received</strong>, name it, and finish. Teams then shows a long address starting <code>https://</code>.</li>
         <li>Copy that address and paste it above. Anyone who has it can post to the channel, so treat it like a password.</li>
     </ol>

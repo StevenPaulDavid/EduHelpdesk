@@ -37,9 +37,8 @@
 @if (Model.CanAssign && project.IsActive)
 {
     <div id="assign-blade" class="blade-backdrop">
-        <div class="blade blade-wide">
-            <button class="blade-close" type="button" data-close-blade>×</button>
-            <h2>Assign @project.Reference</h2>
+        <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="assign-blade-title">
+            <div class="blade-head"><h2 id="assign-blade-title">Assign @project.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
             <p class="muted">The project lead normally assigns projects from the staff portal. Use this to reassign one when they can't.</p>
             <form method="post" asp-page-handler="Assign" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
@@ -56,9 +55,8 @@
 @if (Model.CanEdit && project.IsActive)
 {
     <div id="close-blade" class="blade-backdrop">
-        <div class="blade">
-            <button class="blade-close" type="button" data-close-blade>×</button>
-            <h2>Close @project.Reference</h2>
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="close-blade-title">
+            <div class="blade-head"><h2 id="close-blade-title">Close @project.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
             <p class="muted">Record how the project ended. It can be reopened later if it comes back.</p>
             <form method="post" asp-page-handler="Close" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
@@ -74,9 +72,8 @@
 @if (Model.CanDelete)
 {
     <div id="delete-blade" class="blade-backdrop">
-        <div class="blade">
-            <button class="blade-close" type="button" data-close-blade>×</button>
-            <h2>Delete @project.Reference</h2>
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="delete-blade-title">
+            <div class="blade-head"><h2 id="delete-blade-title">Delete @project.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
             <p class="muted">This permanently removes the project, its notes and its history. The requester will no longer see it in the portal. To keep the record, close it as Cancelled instead.</p>
             <form method="post" asp-page-handler="Delete" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
@@ -220,7 +217,7 @@
                             <div class="item-actions">
                                 @if (index > 0) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="-1" /><button class="icon-button" type="submit" title="Move up" aria-label="Move @item.Name up">↑</button></form> }
                                 @if (index < project.Items.Count - 1) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="1" /><button class="icon-button" type="submit" title="Move down" aria-label="Move @item.Name down">↓</button></form> }
-                                <form method="post" asp-page-handler="DeleteItem" data-confirm="Remove this item and its suppliers from the project?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="icon-button delete-icon" type="submit" title="Remove item" aria-label="Remove @item.Name">♜</button></form>
+                                <form method="post" asp-page-handler="DeleteItem" data-confirm="Remove this item and its suppliers from the project?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="icon-button delete-icon" type="submit" title="Remove item" aria-label="Remove @item.Name">@Icons.Bin</button></form>
                             </div>
                         }
                     @if (canWork)
@@ -255,7 +252,7 @@
                                                 <button class="button button-secondary" type="submit">Save</button>
                                             </form>
                                         </details>
-                                        <form method="post" asp-page-handler="DeleteSubItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="subItemId" value="@sub.Id" /><button class="icon-button delete-icon" type="submit" title="Remove" aria-label="Remove @sub.Name">♜</button></form>
+                                        <form method="post" asp-page-handler="DeleteSubItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="subItemId" value="@sub.Id" /><button class="icon-button delete-icon" type="submit" title="Remove" aria-label="Remove @sub.Name">@Icons.Bin</button></form>
                                     }
                                 </li>
                             }
@@ -310,7 +307,7 @@
                                 }
                                 @if (canWork)
                                 {
-                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" data-confirm="Take this supplier off the item? Their quote files, prices and status history go with it."><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">♜</button></form>
+                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" data-confirm="Take this supplier off the item? Their quote files, prices and status history go with it."><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">@Icons.Bin</button></form>
                                 }
                             </div>
                             @* Still inside the supplier-block div, which is markup, so these need their own code block. *@
@@ -341,7 +338,7 @@
                                                 <span class="muted">@HelpdeskStore.FormatSize(document.Size) · @document.UploadedAt.ToLocalTime().ToString("d MMM yyyy")</span>
                                                 @if (canWork)
                                                 {
-                                                    <form method="post" asp-page-handler="RemoveQuoteFile" data-confirm="Remove this file from the quote?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">♜</button></form>
+                                                    <form method="post" asp-page-handler="RemoveQuoteFile" data-confirm="Remove this file from the quote?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">@Icons.Bin</button></form>
                                                 }
                                             </div>
                                         }
@@ -378,7 +375,7 @@
                                                     <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="@line.TermYears" /></label>
                                                     <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
                                                     <span class="pay-line-total">@HelpdeskStore.FormatMoney(Model.LineTerm(line))<small>@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), @Model.VatLabel</small></span>
-                                                    <span class="pay-line-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" title="Remove line" aria-label="Remove line">♜</button></span>
+                                                    <span class="pay-line-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" title="Remove line" aria-label="Remove line">@Icons.Bin</button></span>
                                                 </form>
                                             }
                                             else { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line) - <strong>@HelpdeskStore.FormatMoney(Model.LineTerm(line))</strong> @Model.VatLabel</p> }
@@ -477,7 +474,7 @@
                         @if (canWork)
                         {
                             <details class="add-supplier">
-                                <summary>＋ Add a supplier</summary>
+                                <summary>@Icons.Plus Add a supplier</summary>
                                 <form method="post" asp-page-handler="AddSupplier" class="add-supplier-form">
                                     <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
                                     <label>From the directory<select name="supplierId"><option value="">Choose…</option>@foreach (var supplier in available) { <option value="@supplier.Id">@supplier.Name</option> }</select></label>
@@ -577,7 +574,7 @@
                     </div>
                     @if (Model.CanEdit)
                     {
-                        <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@ticket.Number" aria-label="Remove link to #@ticket.Number">♜</button></form>
+                        <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@ticket.Number" aria-label="Remove link to #@ticket.Number">@Icons.Bin</button></form>
                     }
                 </div>
             }

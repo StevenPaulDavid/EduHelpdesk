@@ -3,7 +3,7 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Reports.TicketReportsModel
 @{
-    ViewData["Title"] = "Ticket reports";
+    ViewData["Title"] = "Ticket reports"; ViewData["Wide"] = true;
 
     // One table of on-time figures for a grouping of tickets.
     async Task SlaTable(string heading, string firstColumn, IReadOnlyList<TicketReports.SlaRow> rows)

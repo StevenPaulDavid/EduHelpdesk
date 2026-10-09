@@ -10,7 +10,8 @@
 //   data-print-on-load          on <body>: opens the print dialog once the page is up
 //   data-href="url"             on a table row: a click anywhere on it opens the address, apart from its own links and controls
 //   data-open-blade="id"        opens a slide-in panel (.blade-backdrop); data-close-blade, a click on the backdrop or
-//                               Escape closes it again
+//                               Escape closes it again. Markup: .blade[role=dialog] > .blade-head (h2 + .blade-close),
+//                               then the content, with any .blade-actions last so they stay in view as it scrolls
 //   data-show="id …" / data-hide="id …"   shows and hides elements, for the edit-in-place forms
 //   data-describe="id"          on a select: puts the chosen option's data-description into that element
 //   data-expand="selector"      opens every <details> the selector matches; data-collapse closes them
@@ -18,6 +19,33 @@
 //                               #fragment naming a panel, or anything inside one, opens that tab when the page loads
 (function () {
     const ids = value => (value || "").split(/\s+/).filter(Boolean).map(id => document.getElementById(id)).filter(Boolean);
+
+    // Slide-in panels. Opening one moves the keyboard into it (its first field, or the panel itself) and stops the page
+    // behind from scrolling; Tab stays inside it while it is open; closing it puts focus back on what opened it - or,
+    // when that was an item in a menu that has since folded away, on the menu's own button.
+    const focusable = "a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex='-1'])";
+    let bladeOpener = null;
+    const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const openBlade = (backdrop, opener) => {
+        if (!backdrop) return;
+        bladeOpener = opener;
+        backdrop.classList.add("open");
+        document.documentElement.classList.add("blade-open");
+        const panel = backdrop.querySelector(".blade");
+        const first = [...(panel?.querySelectorAll(focusable) ?? [])].find(el => visible(el) && !el.matches(".blade-close"));
+        if (first) first.focus();
+        else if (panel) { panel.tabIndex = -1; panel.focus(); }
+    };
+    const closeBlade = backdrop => {
+        backdrop.classList.remove("open");
+        if (document.querySelector(".blade-backdrop.open")) return;
+        document.documentElement.classList.remove("blade-open");
+        // An item in a folded menu still has a size, so rather than guess, try it and fall back if focus didn't move.
+        const opener = bladeOpener;
+        bladeOpener = null;
+        opener?.focus();
+        if (opener && document.activeElement !== opener) opener.closest("details")?.querySelector("summary")?.focus();
+    };
 
     const selectTab = el => el.closest("[role=tablist]")?.querySelectorAll("[role=tab]").forEach(tab => {
         const on = tab === el;
@@ -56,8 +84,8 @@
             if (el.dataset.action === "print") window.print();
             if (el.dataset.action === "close") window.close();
             if (el.dataset.openWindow) window.open(el.dataset.openWindow, "_blank");
-            if (el.dataset.openBlade) document.getElementById(el.dataset.openBlade)?.classList.add("open");
-            if (el.hasAttribute("data-close-blade")) el.closest(".blade-backdrop")?.classList.remove("open");
+            if (el.dataset.openBlade) openBlade(document.getElementById(el.dataset.openBlade), el);
+            if (el.hasAttribute("data-close-blade")) { const backdrop = el.closest(".blade-backdrop"); if (backdrop) closeBlade(backdrop); }
             if (el.dataset.show || el.dataset.hide) {
                 ids(el.dataset.show).forEach(x => x.hidden = false);
                 ids(el.dataset.hide).forEach(x => x.hidden = true);
@@ -68,13 +96,22 @@
             return;
         }
         // The backdrop itself, not anything inside the panel.
-        if (e.target.classList?.contains("blade-backdrop")) { e.target.classList.remove("open"); return; }
+        if (e.target.classList?.contains("blade-backdrop")) { closeBlade(e.target); return; }
         const row = e.target.closest("tr[data-href]");
         if (row && !e.target.closest("a, button, input, select, textarea, label")) window.location.href = row.dataset.href;
     });
 
     document.addEventListener("keydown", e => {
-        if (e.key === "Escape") document.querySelectorAll(".blade-backdrop.open").forEach(b => b.classList.remove("open"));
+        const open = document.querySelector(".blade-backdrop.open");
+        if (!open) return;
+        if (e.key === "Escape") { closeBlade(open); return; }
+        if (e.key === "Tab") {
+            const items = [...open.querySelectorAll(focusable)].filter(visible);
+            if (items.length === 0) { e.preventDefault(); return; }
+            const first = items[0], last = items[items.length - 1];
+            if (e.shiftKey && (document.activeElement === first || !open.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && (document.activeElement === last || !open.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+        }
     });
 
     if (document.body?.hasAttribute("data-print-on-load")) window.addEventListener("load", () => window.print());

@@ -1,7 +1,7 @@
 @page
 @model PeopleModel
 @{
-    ViewData["Title"] = "People";
+    ViewData["Title"] = "People"; ViewData["Wide"] = true;
     // Blank department, location or team left a dangling " · " on the row.
     string Detail(params string?[] parts) => string.Join(" · ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
     var onUsers = Model.Tab == PeopleModel.UsersTab;
@@ -38,8 +38,8 @@
                         <button class="button button-secondary" title="Active @noun who can't sign in yet because nobody has given them a password - usually imported ones">Temporary passwords for @Model.WithoutPassword without one</button>
                     </form>
                 }
-                @if (onUsers && Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">＋ Add user</a> }
-                @if (onTechnicians && Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">＋ Add technician</a> }
+                @if (onUsers && Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">@Icons.Plus Add user</a> }
+                @if (onTechnicians && Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">@Icons.Plus Add technician</a> }
             </div>
         </div>
 
@@ -62,14 +62,14 @@
         {
             @foreach (var user in Model.UserRows)
             {
-                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">@(user.AnonymisedAt is null ? "Inactive" : "Anonymised")</span> }@if (Model.LeaversHolding.TryGetValue(user.Id, out var stillHeld)) { <text> </text><span class="badge badge-warning" title="Marked inactive, but assets or kits are still recorded against them">Still holds @stillHeld</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id" title="Delete @user.Name">♜</a> }</div></div>
+                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">@(user.AnonymisedAt is null ? "Inactive" : "Anonymised")</span> }@if (Model.LeaversHolding.TryGetValue(user.Id, out var stillHeld)) { <text> </text><span class="badge badge-warning" title="Marked inactive, but assets or kits are still recorded against them">Still holds @stillHeld</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id" title="Delete @user.Name">@Icons.Bin</a> }</div></div>
             }
         }
         else
         {
             @foreach (var item in Model.TechnicianRows)
             {
-                <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (!item.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(item.Email, item.Team, item.Role)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id" title="Delete @item.Name">♜</a> }</div></div>
+                <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (!item.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(item.Email, item.Team, item.Role)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id" title="Delete @item.Name">@Icons.Bin</a> }</div></div>
             }
         }
         @if (rowCount == 0) { <p class="empty">@(Model.IsFiltered ? $"No {noun} match this search." : onUsers ? "No users have been imported yet." : "No technicians have been added yet.")</p> }
@@ -88,7 +88,7 @@
 
 @if (Model.Tab == PeopleModel.RolesTab)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><div><p class="eyebrow">PERMISSIONS</p><h2>Roles</h2></div>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">＋ Add role</a> }</div>
+    <section class="panel directory-panel"><div class="panel-heading"><div><p class="eyebrow">PERMISSIONS</p><h2>Roles</h2></div>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">@Icons.Plus Add role</a> }</div>
     @* A role's grants run to a dozen modules plus flags, so each role's list is folded away behind a one-line summary
        and opened on demand. Chips wrap, so an opened row grows downwards rather than sideways. *@
     @foreach (var role in Model.Roles)
@@ -114,7 +114,7 @@
                     }
                 </div>
             </div>
-            <div class="row-actions">@if (!role.IsProtected && Model.CanDeleteRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name" title="Delete @role.Name">♜</a> }</div>
+            <div class="row-actions">@if (!role.IsProtected && Model.CanDeleteRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name" title="Delete @role.Name">@Icons.Bin</a> }</div>
         </div>
     }
     @if (Model.Roles.Count == 0) { <p class="empty">No roles yet.</p> }</section>
