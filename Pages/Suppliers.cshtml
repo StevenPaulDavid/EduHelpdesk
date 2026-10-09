@@ -1,5 +1,61 @@
 @page
 @model SuppliersModel
-@{ ViewData["Title"]="Suppliers"; ViewData["Wide"] = true; }<div class="page-heading"><div><p class="eyebrow">PROCUREMENT</p><h1>Suppliers</h1></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Suppliers/Edit">@Icons.Plus Add supplier</a> }</div>
-@if(!string.IsNullOrWhiteSpace(Model.Message)){<div class="notice">@Model.Message</div>}<section class="panel directory-panel"><div class="panel-heading"><h2>Supplier directory</h2><span class="badge">@Model.Suppliers.Count</span></div>
-@foreach(var item in Model.Suppliers){<div class="directory-row"><div class="directory-person"><div class="avatar">S</div><div><strong>@if (Model.CanView) { <a asp-page="/Supplier" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong><span>@item.ContactName · @item.Email · @item.Phone</span></div></div><div class="row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Suppliers/Edit" asp-route-id="@item.Id">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Suppliers/Delete" asp-route-id="@item.Id">@Icons.Bin</a> }</div></div>}@if(Model.Suppliers.Count==0){<p class="empty">No suppliers have been added yet.</p>}</section>
+@{
+    ViewData["Title"] = "Suppliers"; ViewData["Wide"] = true;
+    var cols = Model.Columns;
+    string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SUPPLIERS</p><h1>Suppliers</h1><p class="hero-copy">Who the school buys from: the assets bought from each, the parts they supply and the projects they've quoted on.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Suppliers/Edit">@Icons.Plus Add supplier</a> }</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel">
+    @{
+        var filters = new FilterBar
+        {
+            Id = "supplier-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Name, contact, email, phone, town, postcode",
+            Title = "Filter suppliers",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Suppliers"),
+            Fields = @<text>
+                <label>Show<select name="use"><option value="">All suppliers</option>@foreach (var use in SuppliersModel.Uses) { <option value="@use" selected="@(Model.Use == use)">@SuppliersModel.UseLabel(use)</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
+</section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">PROCUREMENT</p><h2>Supplier directory</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.Suppliers.Count}" : Model.Suppliers.Count.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
+        <th data-stack="head">Supplier</th>
+        @if (cols.Show("contact")) { <th>Contact</th> }
+        @if (cols.Show("email")) { <th>Email</th> }
+        @if (cols.Show("phone")) { <th>Phone</th> }
+        @if (cols.Show("assets")) { <th class="num">Assets</th> }
+        @if (cols.Show("parts")) { <th class="num">Parts</th> }
+        @if (cols.Show("website")) { <th>Website</th> }
+        @if (cols.Show("town")) { <th>Town or city</th> }
+        @if (cols.Show("postcode")) { <th>Postcode</th> }
+        <th aria-label="Actions"></th>
+    </tr></thead><tbody>
+    @foreach (var item in Model.Rows)
+    {
+        <tr>
+            <td><strong>@if (Model.CanView) { <a asp-page="/Supplier" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong></td>
+            @if (cols.Show("contact")) { <td>@Text(item.ContactName)</td> }
+            @if (cols.Show("email")) { <td>@if (string.IsNullOrWhiteSpace(item.Email)) { <span>—</span> } else { <a href="mailto:@item.Email">@item.Email</a> }</td> }
+            @if (cols.Show("phone")) { <td>@Text(item.Phone)</td> }
+            @if (cols.Show("assets")) { <td class="num">@Model.AssetCounts.GetValueOrDefault(item.Id)</td> }
+            @if (cols.Show("parts")) { <td class="num">@Model.PartCounts.GetValueOrDefault(item.Id)</td> }
+            @if (cols.Show("website")) { <td>@Text(item.Website)</td> }
+            @if (cols.Show("town")) { <td>@Text(item.City)</td> }
+            @if (cols.Show("postcode")) { <td>@Text(item.PostalCode)</td> }
+            <td class="asset-row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Suppliers/Edit" asp-route-id="@item.Id" title="Edit supplier" aria-label="Edit @item.Name">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Suppliers/Delete" asp-route-id="@item.Id" title="Delete supplier" aria-label="Delete @item.Name">@Icons.Bin</a> }</td>
+        </tr>
+    }
+    @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 2)" class="empty">@(Model.IsFiltered ? "No suppliers match this search." : "No suppliers have been added yet.")</td></tr> }
+    </tbody></table></div>
+</section>

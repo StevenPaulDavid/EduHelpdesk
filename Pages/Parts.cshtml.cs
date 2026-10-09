@@ -41,8 +41,12 @@ public class PartsModel(HelpdeskStore store) : PageModel
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Category) || !string.IsNullOrWhiteSpace(Location)
         || !string.IsNullOrWhiteSpace(Supplier) || !string.IsNullOrWhiteSpace(Flag);
 
+    // Which optional columns this person shows (the Columns menu).
+    public ColumnSet Columns { get; private set; } = null!;
+
     public void OnGet()
     {
+        Columns = ListColumns.For(store, User, "parts");
         Normalize();
         var matches = Run();
         TotalParts = store.Parts.Count;
@@ -135,15 +139,32 @@ public class PartsModel(HelpdeskStore store) : PageModel
         Flag = PartListQuery.Flags.Contains(Flag?.Trim().ToLowerInvariant()) ? Flag!.Trim().ToLowerInvariant() : null;
     }
 
-    private object RouteFor(int page, string sort, string dir) => new
+    private Dictionary<string, object?> RouteFor(int page, string sort, string dir) => new()
     {
-        q = string.IsNullOrWhiteSpace(Search) ? null : Search,
-        category = Blank(Category), location = Blank(Location), supplier = Blank(Supplier), flag = Blank(Flag),
-        sort = sort == "name" ? null : sort,
-        dir = dir == "desc" ? "desc" : null,
-        p = page > 1 ? page : (int?)null,
-        size = Size == 50 ? (int?)null : Size
+        ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
+        ["category"] = Blank(Category), ["location"] = Blank(Location), ["supplier"] = Blank(Supplier), ["flag"] = Blank(Flag),
+        ["sort"] = sort == "name" ? null : sort,
+        ["dir"] = dir == "desc" ? "desc" : null,
+        ["p"] = page > 1 ? page : null,
+        ["size"] = Size == 50 ? null : Size
     };
+
+    // Filters in the Filters panel that are switched on - the number on its button.
+    public int PanelFilterCount => new[] { Category, Location, Supplier, Flag }.Count(x => !string.IsNullOrWhiteSpace(x));
+
+    // Every filter in force as a chip that takes just that one off.
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string? Without(string key) { var route = RouteFor(1, Sort, Dir); route[key] = null; return Url.Page("/Parts", route); }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        if (!string.IsNullOrWhiteSpace(Category)) chips.Add(new($"Category: {(Category == PartListQuery.None ? "Uncategorized" : Category)}", Without("category")));
+        if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Location: {(Location == PartListQuery.None ? "Unassigned" : Location)}", Without("location")));
+        if (!string.IsNullOrWhiteSpace(Supplier))
+            chips.Add(new($"Supplier: {(Supplier == "none" ? "None" : Guid.TryParse(Supplier, out var id) ? Suppliers.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Supplier)}", Without("supplier")));
+        if (Flag == "low") chips.Add(new("Low stock only", Without("flag")));
+        return chips;
+    }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 

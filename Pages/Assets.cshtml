@@ -3,6 +3,7 @@
 @model AssetsModel
 @{
     ViewData["Title"] = "Assets"; ViewData["Wide"] = true;
+    var cols = Model.Columns;
 }
 
 <div class="page-heading">
@@ -12,23 +13,33 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <form method="get" class="audit-filters asset-filters">
-        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Tag, serial number, make, model, location, holder, purchase order" /></label>
-        <label>Status<select name="status"><option value="">Any status</option>@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Make<select name="make"><option value="">Any make</option>@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@string.Equals(item, Model.Make, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Location<select name="location"><option value="">Any location</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No location)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Held by<select name="holder" data-picker><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
-        <label>Show<select name="flag"><option value="">All assets</option><option value="review" selected="@(Model.Flag == "review")">Needs review</option><option value="loan" selected="@(Model.Flag == "loan")">On loan</option><option value="overdue" selected="@(Model.Flag == "overdue")">Loan overdue</option></select></label>
-        <label>Per page<select name="size">@foreach (var size in AssetsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
-        <input type="hidden" name="sort" value="@(Model.Sort == "tag" ? "" : Model.Sort)" />
-        <input type="hidden" name="dir" value="@(Model.Descending ? "desc" : "")" />
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" asp-page="/Assets">Clear</a></div>
-    </form>
+    @{
+        var filters = new FilterBar
+        {
+            Id = "asset-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Tag, serial number, make, model, location, holder, purchase order",
+            Title = "Filter assets",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Assets"),
+            Hidden = [("sort", Model.Sort == "tag" ? null : Model.Sort), ("dir", Model.Descending ? "desc" : null)],
+            Fields = @<text>
+                <label>Show<select name="flag"><option value="">All assets</option><option value="review" selected="@(Model.Flag == "review")">@AssetsModel.FlagLabel("review")</option><option value="loan" selected="@(Model.Flag == "loan")">@AssetsModel.FlagLabel("loan")</option><option value="overdue" selected="@(Model.Flag == "overdue")">@AssetsModel.FlagLabel("overdue")</option></select></label>
+                <label>Status<select name="status"><option value="">Any status</option>@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Make<select name="make"><option value="">Any make</option>@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@string.Equals(item, Model.Make, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Location<select name="location"><option value="">Any location</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No location)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Held by<select name="holder" data-picker><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
+                <label>Per page<select name="size">@foreach (var size in AssetsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalAssets}" : Model.TotalAssets.ToString())</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalAssets}" : Model.TotalAssets.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="asset" data-nouns="assets">
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="status" value="@Model.Status" />
@@ -46,13 +57,19 @@
         <div class="table-wrap"><table class="asset-table stack-table"><thead><tr>
             <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all assets on this page" /> }</th>
             <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("tag")">Asset@(Model.SortMark("tag"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("model")">Make and model@(Model.SortMark("model"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("holder")">Held by@(Model.SortMark("holder"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("status")">Status@(Model.SortMark("status"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("warranty")">Warranty ends@(Model.SortMark("warranty"))</a></th>
-            <th>Tickets</th><th></th>
+            @if (cols.Show("type")) { <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th> }
+            @if (cols.Show("serial")) { <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th> }
+            @if (cols.Show("holder")) { <th><a class="sort-link" href="@Model.SortUrl("holder")">Held by@(Model.SortMark("holder"))</a></th> }
+            @if (cols.Show("location")) { <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th> }
+            @if (cols.Show("status")) { <th><a class="sort-link" href="@Model.SortUrl("status")">Status@(Model.SortMark("status"))</a></th> }
+            @if (cols.Show("warranty")) { <th><a class="sort-link" href="@Model.SortUrl("warranty")">Warranty ends@(Model.SortMark("warranty"))</a></th> }
+            @if (cols.Show("tickets")) { <th>Tickets</th> }
+            @if (cols.Show("purchased")) { <th>Purchased</th> }
+            @if (cols.Show("price")) { <th class="num">Purchase price</th> }
+            @if (cols.Show("supplier")) { <th>Supplier</th> }
+            @if (cols.Show("order")) { <th>Purchase order</th> }
+            @if (cols.Show("replacement")) { <th>Replacement due</th> }
+            <th aria-label="Actions"></th>
         </tr></thead><tbody>
         @foreach (var asset in Model.Rows)
         {
@@ -62,17 +79,22 @@
             <tr>
                 <td>@if (Model.CanView) { <input class="asset-select" type="checkbox" name="ids" value="@asset.Id" aria-label="Select asset @asset.AssetTag" /> }</td>
                 <td><strong>@if (Model.CanView) { <a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a> } else { @asset.AssetTag }</strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
-                <td>@asset.Type</td>
-                <td>@asset.SerialNumber</td>
-                <td>@(holder ?? "—")@if (asset.AssignedUserId is not null && asset.LoanDueDate is { } loanDue) { <br /><span class="badge @(overdue ? "badge-warning" : "")">Loan due @AssetInsights.Format(loanDue)</span> }</td>
-                <td>@asset.Location</td>
-                <td><span class="status">@asset.Status</span></td>
-                <td>@if (asset.WarrantyEnd is { } warrantyEnd) { <span>@AssetInsights.Format(warrantyEnd)</span> @if (expired) { <br /><span class="badge badge-warning">Expired</span> } } else { <span class="muted">—</span> }</td>
-                <td>@if (Model.TicketCounts.GetValueOrDefault(asset.Id) > 0) { <a asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all" title="Show these tickets"><span class="badge">@Model.TicketCounts.GetValueOrDefault(asset.Id)</span></a> } else { <span class="badge">0</span> }</td>
-                <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset">@Icons.Bin</a> }</td>
+                @if (cols.Show("type")) { <td>@asset.Type</td> }
+                @if (cols.Show("serial")) { <td>@asset.SerialNumber</td> }
+                @if (cols.Show("holder")) { <td>@(holder ?? "—")@if (asset.AssignedUserId is not null && asset.LoanDueDate is { } loanDue) { <br /><span class="badge @(overdue ? "badge-warning" : "")">Loan due @AssetInsights.Format(loanDue)</span> }</td> }
+                @if (cols.Show("location")) { <td>@asset.Location</td> }
+                @if (cols.Show("status")) { <td><span class="status">@asset.Status</span></td> }
+                @if (cols.Show("warranty")) { <td>@if (asset.WarrantyEnd is { } warrantyEnd) { <span>@AssetInsights.Format(warrantyEnd)</span> @if (expired) { <br /><span class="badge badge-warning">Expired</span> } } else { <span class="muted">—</span> }</td> }
+                @if (cols.Show("tickets")) { <td>@if (Model.TicketCounts.GetValueOrDefault(asset.Id) > 0) { <a asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all" title="Show these tickets"><span class="badge">@Model.TicketCounts.GetValueOrDefault(asset.Id)</span></a> } else { <span class="badge">0</span> }</td> }
+                @if (cols.Show("purchased")) { <td>@(asset.PurchaseDate is { } bought ? AssetInsights.Format(bought) : "—")</td> }
+                @if (cols.Show("price")) { <td class="num">@(asset.PurchasePrice is { } price ? HelpdeskStore.FormatMoney(price) : "—")</td> }
+                @if (cols.Show("supplier")) { <td>@(asset.SupplierId is { } supplierId ? Model.SupplierNames.GetValueOrDefault(supplierId) ?? "—" : "—")</td> }
+                @if (cols.Show("order")) { <td>@(string.IsNullOrWhiteSpace(asset.PurchaseOrder) ? "—" : asset.PurchaseOrder)</td> }
+                @if (cols.Show("replacement")) { <td>@(AssetInsights.ReplacementDate(asset, Model.Lifespans) is { } replace ? AssetInsights.Format(replace) : "—")</td> }
+                <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset" aria-label="Edit @asset.AssetTag">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset" aria-label="Delete @asset.AssetTag">@Icons.Bin</a> }</td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="10" class="empty">@(Model.IsFiltered ? "No assets match these filters." : "No assets have been added yet.")</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@(Model.IsFiltered ? "No assets match these filters." : "No assets have been added yet.")</td></tr> }
         </tbody></table></div>
 
         @if (Model.Rows.Count > 0 && Model.CanView)

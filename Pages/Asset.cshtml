@@ -3,102 +3,110 @@
 @model AssetModel
 @{
     ViewData["Title"] = $"Edit {Model.Asset?.AssetTag}";
-    var linkedTicketRecords = Model.Tickets.Where(x => x.AssetIds.Contains(Model.Asset!.Id)).ToList();
-    var unlinkedTickets = Model.Tickets.Where(x => !x.AssetIds.Contains(Model.Asset!.Id)).ToList();
-    var replacementHint = Model.Asset!.ReplacementDate is not null
+    var asset = Model.Asset!;
+    var linkedTicketRecords = Model.Tickets.Where(x => x.AssetIds.Contains(asset.Id)).ToList();
+    var unlinkedTickets = Model.Tickets.Where(x => !x.AssetIds.Contains(asset.Id)).ToList();
+    var replacementHint = asset.ReplacementDate is not null
         ? "A typed date. Clear it to use the lifespan set for this asset type."
         : Model.ReplacementDue is { } calculated
             ? $"Blank, so it is due {AssetInsights.Format(calculated)} from this asset type's lifespan."
             : "Optional. Set a lifespan on the asset type in Settings, or type a date here.";
+    var holderText = Model.HolderName is not null ? $"Held by {Model.HolderName}" : Model.HeldByKit is { } kitHeld ? $"Out with {kitHeld.Loan.BorrowerName}" : "Not assigned";
+    var warrantyExpired = asset.WarrantyEnd is { } warrantyEnds && warrantyEnds < Model.Today;
 }
 
+<a class="back-link" asp-page="/Assets">← Back to assets</a>
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / ASSET</p><h1>Edit asset</h1><p class="hero-copy">Update the asset details and choose which tickets belong to it.</p></div>
+    <div>
+        <p class="eyebrow">EDUHELPDESK / ASSET</p>
+        <h1>@asset.AssetTag</h1>
+        <p class="hero-copy asset-heading-meta">
+            <span>@asset.Make @asset.Model · @asset.Type</span>
+            <span class="status">@asset.Status</span>
+            <span>@holderText</span>
+            @if (asset.AssignedUserId is not null && asset.LoanDueDate is { } headingDue) { <span class="badge @(Model.LoanOverdue ? "badge-warning" : "")">On loan, due back @AssetInsights.Format(headingDue)</span> }
+            @if (warrantyExpired) { <span class="badge badge-warning">Warranty expired</span> }
+        </p>
+    </div>
     <div class="heading-actions">
-        <partial name="_RawDataLink" model='("asset", Model.Asset!.Id.ToString())' />
-        <a class="button button-secondary" asp-page="/Assets">&lt;- Back to assets</a>
+        <partial name="_RawDataLink" model='("asset", asset.Id.ToString())' />
     </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
-<div class="grid two asset-edit-grid">
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">ASSET DETAILS</p><h2>@Model.Asset!.AssetTag</h2></div></div>
-        <form method="post" asp-page-handler="Save">
-            <input type="hidden" name="id" value="@Model.Asset!.Id" />
-            <div class="form-grid">
-                <label>Asset tag<input name="assetTag" value="@Model.Asset.AssetTag" required /></label>
-                <label>Make<select name="make" id="asset-make-select" data-model-filter="asset-model-select" data-keep-initial required><option value="">Select a make</option>@foreach (var make in Model.AssetMakes) { <option value="@make" selected="@(string.Equals(make, Model.Asset.Make, StringComparison.OrdinalIgnoreCase))">@make</option> }</select></label>
-                <label>Model<select name="model" id="asset-model-select" required><option value="">Select a model</option>@foreach (var assetModel in Model.AssetModels) { <option value="@assetModel" data-make="@Model.AssetModelMakes.GetValueOrDefault(assetModel)" selected="@(string.Equals(assetModel, Model.Asset.Model, StringComparison.OrdinalIgnoreCase))">@assetModel</option> }</select></label>
-                <label>Type<select name="type" required><option value="">Select a type</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@(string.Equals(type, Model.Asset.Type, StringComparison.OrdinalIgnoreCase))">@type</option> }</select></label>
-                <label>Serial number<input name="serialNumber" value="@Model.Asset.SerialNumber" /></label>
-                <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, Model.Asset.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
-                <label>Assigned user<select name="assignedUserId" data-picker><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id == Model.Asset.AssignedUserId)">@user.Name</option> }</select></label>
-                <label>Supplier<select name="supplierId"><option value="">No supplier</option>@foreach (var supplier in Model.Suppliers) { <option value="@supplier.Id" selected="@(supplier.Id == Model.Asset.SupplierId)">@supplier.Name</option> }</select></label>
-                <label>Status<select name="status">@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Asset.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-                @if (Model.Asset.LoanDueDate is { } onLoanUntil)
-                {
-                    <label>Loan due back<input type="date" value="@onLoanUntil.ToString("yyyy-MM-dd")" disabled /><small class="muted">Set when the device was loaned out. Book it back in below to clear it.</small></label>
-                }
-                <label>Purchase date<input name="purchaseDate" type="date" value="@Model.Asset.PurchaseDate?.ToString("yyyy-MM-dd")" /></label>
-                <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="@Model.Asset.PurchasePrice?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" /></label>
-                <label>Purchase order<input name="purchaseOrder" value="@Model.Asset.PurchaseOrder" /><small class="muted">The Trust's PO, if you were given one.</small></label>
-                <label>Quote reference<input name="quoteReference" value="@Model.Asset.QuoteReference" /><small class="muted">The supplier's quote number — often the only reference for an order placed via the Trust.</small></label>
-                <label>Warranty end<input name="warrantyEnd" type="date" value="@Model.Asset.WarrantyEnd?.ToString("yyyy-MM-dd")" /></label>
-                <label>Replacement date<input name="replacementDate" type="date" value="@Model.Asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
-                @foreach (var customAttribute in Model.CustomAttributes)
-                {
-                    var customValue = Model.CustomAttributeValues.TryGetValue(customAttribute.Id, out var value) ? value : string.Empty;
-                    if (customAttribute.FieldType == "dropdown")
-                    {
-                        <label>@customAttribute.Name<select name="customAttributes[@customAttribute.Id]"><option value="">Select an option</option>@foreach (var choice in AssetModel.Choices(customAttribute)) { <option value="@choice" selected="@(string.Equals(choice, customValue, StringComparison.Ordinal))">@choice</option> }</select></label>
-                    }
-                    else if (customAttribute.FieldType == "checkbox")
-                    {
-                        <label class="toggle-label">@customAttribute.Name<input type="checkbox" name="customAttributes[@customAttribute.Id]" value="true" checked="@(string.Equals(customValue, "true", StringComparison.OrdinalIgnoreCase))" /></label>
-                    }
-                    else if (customAttribute.FieldType == "multi-line")
-                    {
-                        <label>@customAttribute.Name<textarea name="customAttributes[@customAttribute.Id]" rows="3">@customValue</textarea></label>
-                    }
-                    else
-                    {
-                        <label>@customAttribute.Name<input name="customAttributes[@customAttribute.Id]" value="@customValue" /></label>
-                    }
-                }
-            </div>
-            <button class="button button-primary" type="submit">Save asset</button>
-        </form>
-    </section>
-    <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Linked tickets</h2></div><span class="badge">@linkedTicketRecords.Count linked</span>@if (linkedTicketRecords.Count > 0) { <a class="button button-secondary" asp-page="/Jobs" asp-route-asset="@Model.Asset!.Id" asp-route-view="all">Open in ticket list</a> }</div>
-        <div class="asset-job-list">
-            @foreach (var ticket in linkedTicketRecords)
-            {
-                <div class="asset-job-option">
-                    <a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a>
-                    <form method="post" asp-page-handler="UnlinkTicket" class="inline-unlink-form">
-                        <input type="hidden" name="id" value="@Model.Asset!.Id" />
-                        <input type="hidden" name="ticketNumber" value="@ticket.Number" />
-                        <button class="icon-button delete-icon" type="submit" title="Unlink ticket">@Icons.Bin</button>
-                    </form>
-                </div>
-            }
-            @if (linkedTicketRecords.Count == 0) { <p class="empty">No tickets are linked to this asset yet.</p> }
-        </div>
-        <form method="post" asp-page-handler="LinkTicket" class="asset-link-ticket-form">
-            <input type="hidden" name="id" value="@Model.Asset!.Id" />
-            <label>Link a ticket<select name="ticketNumber"><option value="">Select a ticket…</option>@foreach (var ticket in unlinkedTickets) { <option value="@ticket.Number">#@ticket.Number - @ticket.Title</option> }</select></label>
-            <button class="button button-secondary" type="submit">Link ticket</button>
-            @if (unlinkedTickets.Count == 0) { <p class="empty">Every ticket is already linked to this asset.</p> }
-        </form>
-    </section>
+@* One page, in tabs, rather than four long sections one under another. Each form comes back to its own tab: asp-fragment
+   puts the tab in the form's address, and the browser keeps it through the redirect after saving. *@
+<div class="ticket-tab-buttons asset-tabs" role="tablist" aria-label="Asset">
+    <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="asset-details">Details</button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-purchase">Purchase &amp; warranty</button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-loans">Ownership &amp; loans</button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-tickets">Tickets <span class="badge">@linkedTicketRecords.Count</span></button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-comments">Comments <span class="badge">@asset.Comments.Count</span></button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-history">History <span class="badge">@asset.History.Count</span></button>
 </div>
-<section class="panel">
+
+@* ---- Details: what it is, where it is and who has it. The purchase fields further down belong to this same form. ---- *@
+<section id="asset-details" class="ticket-tab-panel active panel" role="tabpanel">
+    <form method="post" asp-page-handler="Save" asp-fragment="asset-details" id="asset-form">
+        <input type="hidden" name="id" value="@asset.Id" />
+        <div class="form-grid asset-form-grid">
+            <label>Asset tag<input name="assetTag" value="@asset.AssetTag" required /></label>
+            <label>Status<select name="status">@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, asset.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+            <label>Make<select name="make" id="asset-make-select" data-model-filter="asset-model-select" data-keep-initial required><option value="">Select a make</option>@foreach (var make in Model.AssetMakes) { <option value="@make" selected="@(string.Equals(make, asset.Make, StringComparison.OrdinalIgnoreCase))">@make</option> }</select></label>
+            <label>Model<select name="model" id="asset-model-select" required><option value="">Select a model</option>@foreach (var assetModel in Model.AssetModels) { <option value="@assetModel" data-make="@Model.AssetModelMakes.GetValueOrDefault(assetModel)" selected="@(string.Equals(assetModel, asset.Model, StringComparison.OrdinalIgnoreCase))">@assetModel</option> }</select></label>
+            <label>Type<select name="type" required><option value="">Select a type</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@(string.Equals(type, asset.Type, StringComparison.OrdinalIgnoreCase))">@type</option> }</select></label>
+            <label>Serial number<input name="serialNumber" value="@asset.SerialNumber" /></label>
+            <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, asset.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
+            <label>Assigned user<select name="assignedUserId" data-picker><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id == asset.AssignedUserId)">@user.Name</option> }</select></label>
+            @if (asset.LoanDueDate is { } onLoanUntil)
+            {
+                <label>Loan due back<input type="date" value="@onLoanUntil.ToString("yyyy-MM-dd")" disabled /><small class="muted">Set when the device was loaned out. Book it back in under Ownership &amp; loans to clear it.</small></label>
+            }
+            @foreach (var customAttribute in Model.CustomAttributes)
+            {
+                var customValue = Model.CustomAttributeValues.TryGetValue(customAttribute.Id, out var value) ? value : string.Empty;
+                if (customAttribute.FieldType == "dropdown")
+                {
+                    <label>@customAttribute.Name<select name="customAttributes[@customAttribute.Id]"><option value="">Select an option</option>@foreach (var choice in AssetModel.Choices(customAttribute)) { <option value="@choice" selected="@(string.Equals(choice, customValue, StringComparison.Ordinal))">@choice</option> }</select></label>
+                }
+                else if (customAttribute.FieldType == "checkbox")
+                {
+                    <label class="toggle-label">@customAttribute.Name<input type="checkbox" name="customAttributes[@customAttribute.Id]" value="true" checked="@(string.Equals(customValue, "true", StringComparison.OrdinalIgnoreCase))" /></label>
+                }
+                else if (customAttribute.FieldType == "multi-line")
+                {
+                    <label>@customAttribute.Name<textarea name="customAttributes[@customAttribute.Id]" rows="3">@customValue</textarea></label>
+                }
+                else
+                {
+                    <label>@customAttribute.Name<input name="customAttributes[@customAttribute.Id]" value="@customValue" /></label>
+                }
+            }
+        </div>
+        <div class="asset-form-actions"><button class="button button-primary" type="submit">Save asset</button></div>
+    </form>
+</section>
+
+@* ---- Purchase & warranty: part of the Details form (form="asset-form"), so saving either tab saves both. ---- *@
+<section id="asset-purchase" class="ticket-tab-panel panel" role="tabpanel" hidden>
+    <div class="form-grid asset-form-grid">
+        <label>Supplier<select name="supplierId" form="asset-form"><option value="">No supplier</option>@foreach (var supplier in Model.Suppliers) { <option value="@supplier.Id" selected="@(supplier.Id == asset.SupplierId)">@supplier.Name</option> }</select></label>
+        <label>Purchase date<input name="purchaseDate" type="date" form="asset-form" value="@asset.PurchaseDate?.ToString("yyyy-MM-dd")" /></label>
+        <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" form="asset-form" value="@asset.PurchasePrice?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" /></label>
+        <label>Purchase order<input name="purchaseOrder" form="asset-form" value="@asset.PurchaseOrder" /><small class="muted">The Trust's PO, if you were given one.</small></label>
+        <label>Quote reference<input name="quoteReference" form="asset-form" value="@asset.QuoteReference" /><small class="muted">The supplier's quote number — often the only reference for an order placed via the Trust.</small></label>
+        <label>Warranty end<input name="warrantyEnd" type="date" form="asset-form" value="@asset.WarrantyEnd?.ToString("yyyy-MM-dd")" />@if (warrantyExpired) { <small class="muted">Expired.</small> }</label>
+        <label>Replacement date<input name="replacementDate" type="date" form="asset-form" value="@asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
+    </div>
+    <div class="asset-form-actions"><button class="button button-primary" type="submit" form="asset-form" formaction="@(Url.Page("/Asset", "Save") + "#asset-purchase")">Save asset</button></div>
+</section>
+
+@* ---- Ownership & loans: who has it, lending it out and booking it back, disposal, and the record of holders. ---- *@
+<section id="asset-loans" class="ticket-tab-panel panel" role="tabpanel" hidden>
     <div class="panel-heading">
         @* A kit issued to someone outside the directory leaves no holder on the asset, so "Not assigned" would be wrong. *@
-        <div><p class="eyebrow">OWNERSHIP AND LOANS</p><h2>@(Model.HolderName is not null ? $"Held by {Model.HolderName}" : Model.HeldByKit is { } outWith ? $"Out with {outWith.Loan.BorrowerName}" : "Not assigned")</h2></div>
-        @if (Model.Asset.AssignedUserId is not null && Model.Asset.LoanDueDate is { } loanDue) { <span class="badge @(Model.LoanOverdue ? "badge-warning" : "")">On loan, due back @AssetInsights.Format(loanDue)@(Model.LoanOverdue ? " (overdue)" : "")</span> }
+        <div><h2>@holderText</h2></div>
+        @if (asset.AssignedUserId is not null && asset.LoanDueDate is { } loanDue) { <span class="badge @(Model.LoanOverdue ? "badge-warning" : "")">On loan, due back @AssetInsights.Format(loanDue)@(Model.LoanOverdue ? " (overdue)" : "")</span> }
     </div>
     @if (Model.HeldByKit is { } held)
     {
@@ -121,18 +129,18 @@
                 <a asp-page="/Loans">Issue the kit from the Loans page</a>, or take it out of the kit first if it needs to be lent on its own.
             </div>
         }
-        else if (Model.Asset.AssignedUserId is not null)
+        else if (asset.AssignedUserId is not null)
         {
             @* Someone already holds it, so it can be neither lent nor put in a kit until it comes back (HelpdeskStore.HeldBlock). *@
-            @if (Model.Asset.LoanDueDate is null)
+            @if (asset.LoanDueDate is null)
             {
                 <p class="muted">Assigned to @(Model.HolderName ?? "someone"), so it can't be loaned out or put in a kit. Return it first if it needs to be lent.</p>
             }
         }
         else
         {
-            <form method="post" asp-page-handler="Loan" class="import-row">
-                <input type="hidden" name="id" value="@Model.Asset.Id" />
+            <form method="post" asp-page-handler="Loan" asp-fragment="asset-loans" class="import-row">
+                <input type="hidden" name="id" value="@asset.Id" />
                 <label>Loan to<select name="userId" required data-picker><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department">@user.Name</option> }</select></label>
                 @* Required, from the same list kit loans use, so this loan can be told apart in the repeat-borrower report. *@
                 <label>Reason<select name="reason" required><option value="">Choose a reason…</option>@foreach (var reason in Model.LoanReasons) { <option value="@reason">@reason</option> }</select></label>
@@ -141,11 +149,11 @@
             </form>
         }
         @* Still offered for a kit member that is not out: it can carry a holder from before it joined the kit, and this is the only way to clear that. *@
-        @if (Model.Asset.AssignedUserId is not null)
+        @if (asset.AssignedUserId is not null)
         {
-            <form method="post" asp-page-handler="Return" class="import-row">
-                <input type="hidden" name="id" value="@Model.Asset.Id" />
-                <label>Return with status<select name="status">@foreach (var item in Model.Statuses) { <option value="@item" selected="@(string.Equals(item, "In stock or spare", StringComparison.OrdinalIgnoreCase) || (!Model.Statuses.Contains("In stock or spare", StringComparer.OrdinalIgnoreCase) && string.Equals(item, Model.Asset.Status, StringComparison.OrdinalIgnoreCase)))">@item</option> }</select></label>
+            <form method="post" asp-page-handler="Return" asp-fragment="asset-loans" class="import-row">
+                <input type="hidden" name="id" value="@asset.Id" />
+                <label>Return with status<select name="status">@foreach (var item in Model.Statuses) { <option value="@item" selected="@(string.Equals(item, "In stock or spare", StringComparison.OrdinalIgnoreCase) || (!Model.Statuses.Contains("In stock or spare", StringComparer.OrdinalIgnoreCase) && string.Equals(item, asset.Status, StringComparison.OrdinalIgnoreCase)))">@item</option> }</select></label>
                 <button class="button button-secondary" type="submit">Return device</button>
             </form>
         }
@@ -156,9 +164,9 @@
     @if (Model.IsDisposed)
     {
         <div class="notice">
-            <strong>Disposed@(Model.Asset.DisposalDate is { } disposedOn ? " on " + AssetInsights.Format(disposedOn) : "").</strong>
-            @(string.IsNullOrWhiteSpace(Model.Asset.DisposalMethod) ? "" : Model.Asset.DisposalMethod + ".")
-            @(Model.Asset.DisposalProceeds is { } got ? $"Proceeds {got.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}." : "")
+            <strong>Disposed@(asset.DisposalDate is { } disposedOn ? " on " + AssetInsights.Format(disposedOn) : "").</strong>
+            @(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "" : asset.DisposalMethod + ".")
+            @(asset.DisposalProceeds is { } got ? $"Proceeds {got.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}." : "")
             It stays in the register for audit, and appears in the finance report.
         </div>
     }
@@ -167,8 +175,8 @@
         <details class="dispose-block">
             <summary>Record a disposal</summary>
             <p class="muted">Use this when the asset leaves the school — sold, recycled, donated or written off. It keeps the record for finance and auditors instead of deleting it. Book it back in, or take it out of its kit, first.</p>
-            <form method="post" asp-page-handler="Dispose" class="import-row" data-confirm="Record this asset as disposed?">
-                <input type="hidden" name="id" value="@Model.Asset.Id" />
+            <form method="post" asp-page-handler="Dispose" asp-fragment="asset-loans" class="import-row" data-confirm="Record this asset as disposed?">
+                <input type="hidden" name="id" value="@asset.Id" />
                 <label>Date<input name="disposalDate" type="date" max="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
                 <label>How<select name="disposalMethod" required><option value="">Choose…</option>@foreach (var method in Model.DisposalMethods) { <option value="@method">@method</option> }</select></label>
                 <label>Proceeds (optional)<input name="disposalProceeds" type="number" min="0" step="0.01" placeholder="0.00" /></label>
@@ -177,7 +185,8 @@
         </details>
     }
     }
-    <div class="table-wrap"><table><thead><tr><th>Held by</th><th>From</th><th>Until</th><th>Due back</th></tr></thead><tbody>
+    <h3 class="asset-subheading">Who has held it</h3>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Held by</th><th>From</th><th>Until</th><th>Due back</th></tr></thead><tbody>
     @foreach (var period in Model.Ownership)
     {
         <tr>
@@ -190,55 +199,76 @@
     @if (Model.Ownership.Count == 0) { <tr><td colspan="4" class="empty">This asset has not been assigned to anyone.</td></tr> }
     </tbody></table></div>
 </section>
-<section class="panel">
-    <div class="ticket-tabs">
-        <div class="ticket-tab-buttons" role="tablist">
-            <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="asset-comments-tab">Comments <span class="badge">@Model.Asset.Comments.Count</span></button>
-            <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-history-tab">History <span class="badge">@Model.Asset.History.Count</span></button>
-        </div>
-        <div id="asset-comments-tab" class="ticket-tab-panel active" role="tabpanel">
-            @if (Model.Asset.Comments.Count > 0)
-            {
-                <div class="comment-list">
-                    @foreach (var comment in Model.Asset.Comments.OrderByDescending(x => x.CreatedAt))
-                    {
-                        <article class="comment"><p>@comment.Text</p><small><strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveComment(comment))
-                        {
-                            <form method="post" asp-page-handler="RemoveComment" class="comment-remove" data-confirm="Remove this comment? It can't be put back - the history will only record that it was removed.">
-                                <input type="hidden" name="id" value="@Model.Asset.Id" /><input type="hidden" name="comment" value="@HelpdeskStore.CommentKey(comment.CreatedAt)" />
-                                <button class="link-button" type="submit">Remove</button>
-                            </form>
-                        }</article>
-                    }
-                </div>
-            }
-            else
-            {
-                <p class="muted">No comments have been added.</p>
-            }
-            <form method="post" asp-page-handler="AddComment" class="comment-form">
-                <input type="hidden" name="id" value="@Model.Asset.Id" />
-                <label for="asset-comment">Add a comment</label>
-                <textarea id="asset-comment" name="comment" rows="3" placeholder="Add a note about this asset…"></textarea>
-                <button class="button button-primary" type="submit">Add comment</button>
-            </form>
-        </div>
-        <div id="asset-history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
-            @if (Model.Asset.History.Count > 0)
-            {
-                <div class="history-list">
-                    @foreach (var activity in Model.Asset.History.OrderByDescending(x => x.CreatedAt))
-                    {
-                        <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
-                    }
-                </div>
-            }
-            else
-            {
-                <p class="muted">No asset changes have been recorded.</p>
-            }
-        </div>
+
+@* ---- Tickets ---- *@
+<section id="asset-tickets" class="ticket-tab-panel panel" role="tabpanel" hidden>
+    <div class="panel-heading"><div><h2>Linked tickets</h2></div>@if (linkedTicketRecords.Count > 0) { <a class="button button-secondary" asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all">Open in ticket list</a> }</div>
+    <div class="asset-job-list">
+        @foreach (var ticket in linkedTicketRecords)
+        {
+            <div class="asset-job-option">
+                <a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a>
+                <form method="post" asp-page-handler="UnlinkTicket" asp-fragment="asset-tickets" class="inline-unlink-form">
+                    <input type="hidden" name="id" value="@asset.Id" />
+                    <input type="hidden" name="ticketNumber" value="@ticket.Number" />
+                    <button class="icon-button delete-icon" type="submit" title="Unlink ticket" aria-label="Unlink ticket #@ticket.Number">@Icons.Close</button>
+                </form>
+            </div>
+        }
+        @if (linkedTicketRecords.Count == 0) { <p class="empty">No tickets are linked to this asset yet.</p> }
     </div>
+    <form method="post" asp-page-handler="LinkTicket" asp-fragment="asset-tickets" class="asset-link-ticket-form">
+        <input type="hidden" name="id" value="@asset.Id" />
+        <label>Link a ticket<select name="ticketNumber" data-picker><option value="">Select a ticket…</option>@foreach (var ticket in unlinkedTickets) { <option value="@ticket.Number">#@ticket.Number - @ticket.Title</option> }</select></label>
+        <button class="button button-secondary" type="submit">Link ticket</button>
+        @if (unlinkedTickets.Count == 0) { <p class="empty">Every ticket is already linked to this asset.</p> }
+    </form>
+</section>
+
+@* ---- Comments ---- *@
+<section id="asset-comments" class="ticket-tab-panel panel" role="tabpanel" hidden>
+    <form method="post" asp-page-handler="AddComment" asp-fragment="asset-comments" class="comment-form asset-comment-form">
+        <input type="hidden" name="id" value="@asset.Id" />
+        <label for="asset-comment">Add a comment</label>
+        <textarea id="asset-comment" name="comment" rows="3" placeholder="Add a note about this asset…"></textarea>
+        <button class="button button-primary" type="submit">Add comment</button>
+    </form>
+    @if (asset.Comments.Count > 0)
+    {
+        <div class="comment-list">
+            @foreach (var comment in asset.Comments.OrderByDescending(x => x.CreatedAt))
+            {
+                <article class="comment"><p>@comment.Text</p><small><strong>@Actor.Label(comment.By)</strong> · @comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveComment(comment))
+                {
+                    <form method="post" asp-page-handler="RemoveComment" asp-fragment="asset-comments" class="comment-remove" data-confirm="Remove this comment? It can't be put back - the history will only record that it was removed.">
+                        <input type="hidden" name="id" value="@asset.Id" /><input type="hidden" name="comment" value="@HelpdeskStore.CommentKey(comment.CreatedAt)" />
+                        <button class="link-button" type="submit">Remove</button>
+                    </form>
+                }</article>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="muted">No comments have been added.</p>
+    }
+</section>
+
+@* ---- History ---- *@
+<section id="asset-history" class="ticket-tab-panel panel" role="tabpanel" hidden>
+    @if (asset.History.Count > 0)
+    {
+        <div class="history-list">
+            @foreach (var activity in asset.History.OrderByDescending(x => x.CreatedAt))
+            {
+                <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="muted">No asset changes have been recorded.</p>
+    }
 </section>
 @section Scripts {
 <script src="~/js/model-filter.js" asp-append-version="true"></script>

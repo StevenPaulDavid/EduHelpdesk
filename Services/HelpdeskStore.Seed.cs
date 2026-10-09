@@ -252,6 +252,7 @@ public sealed partial class HelpdeskStore
             // Every account was replaced, so nobody's sign-in carries on.
         EndAllSessions();
         ClearNotifications();
+        ClearPreferences();
         return (true, $"System reset to factory settings. Sign in again as {BootstrapAdminEmail} with the password {BootstrapAdminPassword}, and change it straight away."
                 + (backupName is null ? "" : $" A backup of the old data was saved as {backupName} in {BackupFolder}."));
         }

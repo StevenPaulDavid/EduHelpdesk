@@ -243,6 +243,7 @@ public sealed partial class HelpdeskStore
         EnsureLifecycleSchema(connection);
         EnsureSessionSchema(connection);
         EnsureNotificationSchema(connection);
+        EnsurePreferenceSchema(connection);
         EnsureTwoFactorSchema(connection);
         EnsureRecoveryKeySchema(connection);
         EnsureOnboardingSchema(connection);

@@ -1,26 +1,39 @@
 @page
 @using EduHelpdesk.Services
 @model PartsModel
-@{ ViewData["Title"] = "Parts"; ViewData["Wide"] = true; }
-<div class="page-heading"><div><p class="eyebrow">INVENTORY</p><h1>Parts</h1></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Parts/Edit">@Icons.Plus Add part</a> }</div>
+@{
+    ViewData["Title"] = "Parts"; ViewData["Wide"] = true;
+    var cols = Model.Columns;
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / PARTS</p><h1>Parts</h1><p class="hero-copy">Spares and consumables in stock, where they're kept and who supplies them.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Parts/Edit">@Icons.Plus Add part</a> }</div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <form method="get" class="audit-filters part-filters">
-        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, SKU, category, location, supplier" /></label>
-        <label>Category<select name="category"><option value="">Any category</option><option value="@PartListQuery.None" selected="@(Model.Category == PartListQuery.None)">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item" selected="@string.Equals(item, Model.Category, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Location<select name="location"><option value="">Any location</option><option value="@PartListQuery.None" selected="@(Model.Location == PartListQuery.None)">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-        <label>Supplier<select name="supplier"><option value="">Any supplier</option><option value="none" selected="@(Model.Supplier == "none")">No supplier</option>@foreach (var item in Model.Suppliers) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Supplier)">@item.Name</option> }</select></label>
-        <label>Show<select name="flag"><option value="">All parts</option><option value="low" selected="@(Model.Flag == "low")">Low stock only</option></select></label>
-        <label>Per page<select name="size">@foreach (var size in PartsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
-        <input type="hidden" name="sort" value="@(Model.Sort == "name" ? "" : Model.Sort)" />
-        <input type="hidden" name="dir" value="@(Model.Descending ? "desc" : "")" />
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" asp-page="/Parts">Clear</a></div>
-    </form>
+    @{
+        var filters = new FilterBar
+        {
+            Id = "part-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Name, SKU, category, location, supplier",
+            Title = "Filter parts",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Parts"),
+            Hidden = [("sort", Model.Sort == "name" ? null : Model.Sort), ("dir", Model.Descending ? "desc" : null)],
+            Fields = @<text>
+                <label>Show<select name="flag"><option value="">All parts</option><option value="low" selected="@(Model.Flag == "low")">Low stock only</option></select></label>
+                <label>Category<select name="category"><option value="">Any category</option><option value="@PartListQuery.None" selected="@(Model.Category == PartListQuery.None)">Uncategorized</option>@foreach (var item in Model.Categories) { <option value="@item" selected="@string.Equals(item, Model.Category, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Location<select name="location"><option value="">Any location</option><option value="@PartListQuery.None" selected="@(Model.Location == PartListQuery.None)">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Supplier<select name="supplier"><option value="">Any supplier</option><option value="none" selected="@(Model.Supplier == "none")">No supplier</option>@foreach (var item in Model.Suppliers) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Supplier)">@item.Name</option> }</select></label>
+                <label>Per page<select name="size">@foreach (var size in PartsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">STOCK</p><h2>Parts inventory</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalParts}" : Model.TotalParts.ToString())</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">STOCK</p><h2>Parts inventory</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalParts}" : Model.TotalParts.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="part" data-nouns="parts">
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="category" value="@Model.Category" />
@@ -33,15 +46,17 @@
         <input type="hidden" name="size" value="@Model.Size" />
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />
         <div class="select-banner" id="select-banner" hidden></div>
-        <div class="table-wrap"><table><thead><tr>
+        <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
             <th data-stack="check">@if (Model.CanView) { <input id="select-page" type="checkbox" aria-label="Select all parts on this page" /> }</th>
             <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("name")">Part@(Model.SortMark("name"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("sku")">SKU@(Model.SortMark("sku"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("category")">Category@(Model.SortMark("category"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th>
-            <th>Suppliers</th>
-            <th><a class="sort-link" href="@Model.SortUrl("quantity")">Quantity@(Model.SortMark("quantity"))</a></th>
-            <th></th>
+            @if (cols.Show("sku")) { <th><a class="sort-link" href="@Model.SortUrl("sku")">SKU@(Model.SortMark("sku"))</a></th> }
+            @if (cols.Show("category")) { <th><a class="sort-link" href="@Model.SortUrl("category")">Category@(Model.SortMark("category"))</a></th> }
+            @if (cols.Show("location")) { <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th> }
+            @if (cols.Show("suppliers")) { <th>Suppliers</th> }
+            @if (cols.Show("quantity")) { <th><a class="sort-link" href="@Model.SortUrl("quantity")">Quantity@(Model.SortMark("quantity"))</a></th> }
+            @if (cols.Show("reorder")) { <th class="num">Reorder at</th> }
+            @if (cols.Show("types")) { <th>For asset types</th> }
+            <th aria-label="Actions"></th>
         </tr></thead><tbody>
         @foreach (var item in Model.Rows)
         {
@@ -49,15 +64,17 @@
                 <td>@if (Model.CanView) { <input class="part-select" type="checkbox" name="ids" value="@item.Id" aria-label="Select part @item.Name" /> }</td>
                 @* /Parts/Edit is the detail page: it opens read-only, but still needs Edit because the stock controls are on it. The pencil goes straight to the form. *@
                 <td><strong>@if (Model.CanEdit) { <a asp-page="/Parts/Edit" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong></td>
-                <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td>
-                <td>@(string.IsNullOrWhiteSpace(item.Category) ? "—" : item.Category)</td>
-                <td>@(string.IsNullOrWhiteSpace(item.Location) ? "—" : item.Location)</td>
-                <td>@{ var suppliers = Model.SupplierNames(item); }@(suppliers.Length == 0 ? "—" : suppliers)</td>
-                <td><span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span></td>
-                <td class="asset-row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" asp-route-edit="true" title="Edit part">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part">@Icons.Bin</a> }</td>
+                @if (cols.Show("sku")) { <td>@(string.IsNullOrWhiteSpace(item.Sku) ? "—" : item.Sku)</td> }
+                @if (cols.Show("category")) { <td>@(string.IsNullOrWhiteSpace(item.Category) ? "—" : item.Category)</td> }
+                @if (cols.Show("location")) { <td>@(string.IsNullOrWhiteSpace(item.Location) ? "—" : item.Location)</td> }
+                @if (cols.Show("suppliers")) { var suppliers = Model.SupplierNames(item); <td>@(suppliers.Length == 0 ? "—" : suppliers)</td> }
+                @if (cols.Show("quantity")) { <td><span class="badge @(Model.IsLow(item) ? "badge-warning" : "")">@item.QuantityOnHand in stock</span></td> }
+                @if (cols.Show("reorder")) { <td class="num">@(item.ReorderThreshold ?? Model.DefaultReorderThreshold)@if (item.ReorderThreshold is null) { <span class="muted"> (default)</span> }</td> }
+                @if (cols.Show("types")) { <td>@(item.AssetTypes.Count == 0 ? "—" : string.Join(", ", item.AssetTypes))</td> }
+                <td class="asset-row-actions">@if (Model.CanEdit) { <a class="icon-button" asp-page="/Parts/Edit" asp-route-id="@item.Id" asp-route-edit="true" title="Edit part" aria-label="Edit @item.Name">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Parts/Delete" asp-route-id="@item.Id" title="Delete part" aria-label="Delete @item.Name">@Icons.Bin</a> }</td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="8" class="empty">@(Model.IsFiltered ? "No parts match these filters." : "No parts have been added yet.")</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@(Model.IsFiltered ? "No parts match these filters." : "No parts have been added yet.")</td></tr> }
         </tbody></table></div>
 
         @if (Model.Rows.Count > 0 && Model.CanView)

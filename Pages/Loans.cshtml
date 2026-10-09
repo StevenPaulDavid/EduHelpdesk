@@ -13,15 +13,36 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <div class="metrics">
-    <div class="metric"><span>Out now</span><strong>@Model.Out.Count</strong><small>With staff</small></div>
+    <div class="metric"><span>Out now</span><strong>@Model.OutTotal</strong><small>With staff</small></div>
     <div class="metric"><span>Overdue</span><strong>@Model.OverdueCount</strong><small>Past their due-back date</small></div>
     <div class="metric"><span>Kits</span><strong>@Model.KitCount</strong><small>Of those out</small></div>
     <div class="metric"><span>Individual devices</span><strong>@Model.AssetCount</strong><small>Of those out</small></div>
 </div>
 
+<section class="panel">
+    @{
+        var filters = new FilterBar
+        {
+            Id = "loan-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Kit name, asset tag or borrower",
+            Title = "Filter loans",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Loans"),
+            Fields = @<text>
+                <label>What<select name="kind"><option value="">Kits and devices</option><option value="@LoanInsights.KitKind" selected="@(Model.Kind == LoanInsights.KitKind)">@LoansModel.KindLabel(LoanInsights.KitKind)</option><option value="@LoanInsights.AssetKind" selected="@(Model.Kind == LoanInsights.AssetKind)">@LoansModel.KindLabel(LoanInsights.AssetKind)</option></select></label>
+                <label>Reason<select name="reason"><option value="">Any reason</option>@foreach (var reason in Model.Reasons) { <option value="@reason" selected="@string.Equals(reason, Model.Reason, StringComparison.OrdinalIgnoreCase)">@reason</option> }</select></label>
+                <label class="toggle-label"><input type="checkbox" name="overdue" value="true" checked="@Model.OverdueOnly" /> Overdue only</label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
+</section>
+
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">OUT NOW</p><h2>On loan</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.Out.Count</span></div>
-    <div class="table-wrap"><table><thead><tr>
+    <div class="panel-heading"><div><p class="eyebrow">OUT NOW</p><h2>On loan</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@(Model.IsFiltered ? $"{Model.Out.Count} of {Model.OutTotal}" : Model.Out.Count.ToString())</span></div>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th>Type</th><th data-stack="head">What</th><th>Borrower</th><th>Reason</th><th>Out for</th><th>Due back</th><th></th>
     </tr></thead><tbody>
     @foreach (var loan in Model.Out)
@@ -51,13 +72,13 @@
             </td>
         </tr>
     }
-    @if (Model.Out.Count == 0) { <tr><td colspan="7" class="empty">Nothing is out on loan.</td></tr> }
+    @if (Model.Out.Count == 0) { <tr><td colspan="7" class="empty">@(Model.IsFiltered ? "Nothing out on loan matches these filters." : "Nothing is out on loan.")</td></tr> }
     </tbody></table></div>
 </section>
 
 <section class="panel directory-panel">
     <div class="panel-heading"><div><p class="eyebrow">RECENTLY BACK</p><h2>Returned</h2></div><span class="badge">Last @LoansModel.RecentLimit</span></div>
-    <div class="table-wrap"><table><thead><tr>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th>Type</th><th data-stack="head">What</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Returned</th><th>Kept</th>
     </tr></thead><tbody>
     @foreach (var loan in Model.Recent)

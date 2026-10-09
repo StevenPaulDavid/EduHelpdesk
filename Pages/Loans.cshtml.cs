@@ -21,14 +21,59 @@ public class LoansModel(HelpdeskStore store) : PageModel
     public int KitCount { get; private set; }
     public int AssetCount { get; private set; }
 
+    // The filter bar over what is out now, the same as the other inventory lists: search, then kind, reason and overdue.
+    [BindProperty(SupportsGet = true, Name = "q")] public string? Search { get; set; }
+    [BindProperty(SupportsGet = true, Name = "kind")] public string? Kind { get; set; }
+    [BindProperty(SupportsGet = true, Name = "reason")] public string? Reason { get; set; }
+    [BindProperty(SupportsGet = true, Name = "overdue")] public bool OverdueOnly { get; set; }
+    public IReadOnlyList<string> Reasons { get; private set; } = [];
+    // How many are out before the filters: the counts at the top are of everything out, not of what is showing.
+    public int OutTotal { get; private set; }
+    public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Kind) || !string.IsNullOrWhiteSpace(Reason) || OverdueOnly;
+    public int PanelFilterCount => (string.IsNullOrWhiteSpace(Kind) ? 0 : 1) + (string.IsNullOrWhiteSpace(Reason) ? 0 : 1) + (OverdueOnly ? 1 : 0);
+    public static string KindLabel(string? kind) => kind == LoanInsights.KitKind ? "Kits" : kind == LoanInsights.AssetKind ? "Individual devices" : kind ?? "";
+
     public void OnGet()
     {
         var all = store.AllLoans();
-        Out = LoanInsights.CurrentlyOut(all);
-        OverdueCount = Out.Count(x => x.IsOverdue(Today));
-        KitCount = Out.Count(x => x.Kind == LoanInsights.KitKind);
-        AssetCount = Out.Count(x => x.Kind == LoanInsights.AssetKind);
+        var outNow = LoanInsights.CurrentlyOut(all);
+        OutTotal = outNow.Count;
+        OverdueCount = outNow.Count(x => x.IsOverdue(Today));
+        KitCount = outNow.Count(x => x.Kind == LoanInsights.KitKind);
+        AssetCount = outNow.Count(x => x.Kind == LoanInsights.AssetKind);
+        Reasons = outNow.Select(x => x.ReasonLabel).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+        IEnumerable<LoanInsights.LoanEntry> query = outNow;
+        if (!string.IsNullOrWhiteSpace(Search))
+        {
+            var terms = Search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            query = query.Where(x => terms.All(t => x.What.Contains(t, StringComparison.OrdinalIgnoreCase) || (x.BorrowerName ?? "").Contains(t, StringComparison.OrdinalIgnoreCase)));
+        }
+        if (Kind is LoanInsights.KitKind or LoanInsights.AssetKind) query = query.Where(x => x.Kind == Kind);
+        if (!string.IsNullOrWhiteSpace(Reason)) query = query.Where(x => string.Equals(x.ReasonLabel, Reason, StringComparison.OrdinalIgnoreCase));
+        if (OverdueOnly) query = query.Where(x => x.IsOverdue(Today));
+        Out = query.ToList();
         Recent = all.Where(x => !x.IsOut).OrderByDescending(x => x.ReturnedAt).Take(RecentLimit).ToList();
+    }
+
+    private Dictionary<string, object?> Route() => new()
+    {
+        ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
+        ["kind"] = string.IsNullOrWhiteSpace(Kind) ? null : Kind,
+        ["reason"] = string.IsNullOrWhiteSpace(Reason) ? null : Reason,
+        ["overdue"] = OverdueOnly ? "true" : null
+    };
+
+    // Every filter in force as a chip that takes just that one off.
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string? Without(string key) { var route = Route(); route[key] = null; return Url.Page("/Loans", route); }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        if (!string.IsNullOrWhiteSpace(Kind)) chips.Add(new(KindLabel(Kind), Without("kind")));
+        if (!string.IsNullOrWhiteSpace(Reason)) chips.Add(new($"Reason: {Reason}", Without("reason")));
+        if (OverdueOnly) chips.Add(new("Overdue only", Without("overdue")));
+        return chips;
     }
 
     public string Duration(LoanInsights.LoanEntry loan) => LoanInsights.Duration(loan, Now);

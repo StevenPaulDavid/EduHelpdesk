@@ -47,8 +47,15 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Type) || !string.IsNullOrWhiteSpace(Make)
         || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Holder) || !string.IsNullOrWhiteSpace(Flag);
 
+    // Which optional columns this person shows (the Columns menu), and what the extra ones need.
+    public ColumnSet Columns { get; private set; } = null!;
+    public IReadOnlyDictionary<Guid, string> SupplierNames { get; private set; } = new Dictionary<Guid, string>();
+    public IReadOnlyDictionary<string, int> Lifespans => store.AssetTypeLifespans;
+
     public void OnGet()
     {
+        Columns = ListColumns.For(store, User, "assets");
+        SupplierNames = store.Suppliers.ToDictionary(x => x.Id, x => x.Name);
         Normalize();
         var matches = Run();
         TotalAssets = store.Assets.Count;
@@ -133,15 +140,36 @@ public class AssetsModel(HelpdeskStore store) : PageModel
 
     private IActionResult Back() => RedirectToPage(RouteFor(PageNumber, Sort, Dir));
 
-    private object RouteFor(int page, string sort, string dir) => new
+    private Dictionary<string, object?> RouteFor(int page, string sort, string dir) => new()
     {
-        q = string.IsNullOrWhiteSpace(Search) ? null : Search,
-        status = Blank(Status), type = Blank(Type), make = Blank(Make), location = Blank(Location), holder = Blank(Holder), flag = Blank(Flag),
-        sort = sort == "tag" ? null : sort,
-        dir = dir == "desc" ? "desc" : null,
-        p = page > 1 ? page : (int?)null,
-        size = Size == 50 ? (int?)null : Size
+        ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
+        ["status"] = Blank(Status), ["type"] = Blank(Type), ["make"] = Blank(Make), ["location"] = Blank(Location), ["holder"] = Blank(Holder), ["flag"] = Blank(Flag),
+        ["sort"] = sort == "tag" ? null : sort,
+        ["dir"] = dir == "desc" ? "desc" : null,
+        ["p"] = page > 1 ? page : null,
+        ["size"] = Size == 50 ? null : Size
     };
+
+    // Filters in the Filters panel that are switched on - the number on its button.
+    public int PanelFilterCount => new[] { Status, Type, Make, Location, Holder, Flag }.Count(x => !string.IsNullOrWhiteSpace(x));
+
+    public static string FlagLabel(string? flag) => flag switch { "review" => "Needs review", "loan" => "On loan", "overdue" => "Loan overdue", _ => flag ?? "" };
+
+    // Every filter in force as a chip that takes just that one off.
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string? Without(string key) { var route = RouteFor(1, Sort, Dir); route[key] = null; return Url.Page("/Assets", route); }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        if (!string.IsNullOrWhiteSpace(Status)) chips.Add(new($"Status: {Status}", Without("status")));
+        if (!string.IsNullOrWhiteSpace(Type)) chips.Add(new($"Type: {Type}", Without("type")));
+        if (!string.IsNullOrWhiteSpace(Make)) chips.Add(new($"Make: {Make}", Without("make")));
+        if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Location: {(Location == AssetListQuery.None ? "None" : Location)}", Without("location")));
+        if (!string.IsNullOrWhiteSpace(Holder))
+            chips.Add(new($"Held by: {(Holder == "none" ? "Unassigned" : Guid.TryParse(Holder, out var id) ? store.Users.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Holder)}", Without("holder")));
+        if (!string.IsNullOrWhiteSpace(Flag)) chips.Add(new(FlagLabel(Flag), Without("flag")));
+        return chips;
+    }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 

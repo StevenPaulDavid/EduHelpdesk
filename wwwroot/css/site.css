@@ -2060,6 +2060,8 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
         letter-spacing: .06em;
     }
     .stack-table.is-labelled td:not([data-label]) { padding-left: 0; }
+    /* A number column is right-aligned in a table; on a card it lines up with the other values instead. */
+    .stack-table.is-labelled td.num, .stack-table.is-labelled td.num::before { text-align: left; }
     .stack-table.is-labelled td:not([data-label])::before { content: none; }
     .stack-table.is-labelled td.stack-head {
         order: -1;
@@ -2405,3 +2407,21 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .option-rename { display: flex; align-items: center; gap: var(--space-2); flex: 1; margin: 0; }
 .option-rename input { flex: 1; min-width: 0; max-width: 420px; }
 .option-empty { margin: 0 0 var(--space-3); }
+
+/* The Columns menu above a list (Pages/Shared/_ColumnPicker.cshtml), kept per account. */
+.column-picker>summary.button { display: inline-flex; align-items: center; gap: 6px; }
+.column-panel { min-width: 230px; padding: var(--space-3) var(--space-4); max-height: min(70vh, 520px); overflow-y: auto; overscroll-behavior: contain; }
+.column-panel form { display: grid; gap: 6px; margin: 0; }
+.column-panel-title { margin: 0 0 4px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.column-panel .toggle-label { font-size: 13px; font-weight: 500; color: var(--ink); padding: 2px 0; }
+.column-panel-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.column-panel-actions .button { padding: 8px 14px; }
+.panel-heading .heading-actions .badge { align-self: center; }
+
+/* The asset page (Pages/Asset.cshtml): a heading that says what it is, then tabs. */
+.asset-heading-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.asset-tabs { margin-bottom: var(--space-4); }
+.asset-form-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.asset-form-actions { margin-top: var(--space-5); }
+.asset-subheading { margin: var(--space-5) 0 var(--space-2); font-size: 15px; }
+.asset-comment-form { margin-bottom: var(--space-4); }

@@ -1,0 +1,21 @@
+@model EduHelpdesk.Pages.ColumnSet
+@* The Columns menu above a list: tick what to show, and it is kept for this person on any computer (Pages/Columns).
+   A menu like the header's (details.nav-menu), so it opens without script and closes on a click elsewhere. *@
+<details class="nav-menu action-menu column-picker">
+    <summary class="button button-secondary">@Icons.Columns <span>Columns</span><span class="chev" aria-hidden="true">▾</span></summary>
+    <div class="nav-panel nav-panel-right column-panel">
+        <form method="post" asp-page="/Columns">
+            <input type="hidden" name="list" value="@Model.List" />
+            <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
+            <p class="column-panel-title">Show these columns</p>
+            @foreach (var column in Model.All)
+            {
+                <label class="toggle-label"><input type="checkbox" name="show" value="@column.Key" checked="@Model.Show(column.Key)" /> @column.Label</label>
+            }
+            <div class="column-panel-actions">
+                <button class="button button-primary" type="submit">Show</button>
+                @if (Model.Chosen) { <button class="button button-secondary" type="submit" name="reset" value="true" formnovalidate>Default</button> }
+            </div>
+        </form>
+    </div>
+</details>
