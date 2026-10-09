@@ -10,15 +10,28 @@
     </div>
 </div>
 <section class="panel">
-    <form method="get" class="audit-filters">
-        <label>Area<select name="section"><option value="">All areas</option>@foreach (var area in AuditModel.Areas) { <option value="@area" selected="@string.Equals(area, Model.Section, StringComparison.OrdinalIgnoreCase)">@area</option> }</select></label>
-        <label>Action<select name="act"><option value="">Any action</option>@foreach (var action in Model.Actions) { <option value="@action" selected="@string.Equals(action, Model.ActionFilter, StringComparison.OrdinalIgnoreCase)">@action</option> }</select></label>
-        <label>Who<select name="who"><option value="">Anyone</option>@foreach (var person in Model.Actors) { <option value="@person" selected="@string.Equals(person, Model.ActorFilter, StringComparison.OrdinalIgnoreCase)">@person</option> }</select></label>
-        <label>From<input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></label>
-        <label>To<input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></label>
-        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Name, ticket number, or anything in the details" /></label>
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" asp-page="/Settings/Audit">Clear</a></div>
-    </form>
+    @{
+        var filters = new EduHelpdesk.Pages.FilterBar
+        {
+            Id = "audit-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Name, ticket number, or anything in the details",
+            Title = "Filter the audit log",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Settings/Audit"),
+            Fields = @<text>
+                <label>Area<select name="section"><option value="">All areas</option>@foreach (var area in AuditModel.Areas) { <option value="@area" selected="@string.Equals(area, Model.Section, StringComparison.OrdinalIgnoreCase)">@area</option> }</select></label>
+                <label>Action<select name="act"><option value="">Any action</option>@foreach (var action in Model.Actions) { <option value="@action" selected="@string.Equals(action, Model.ActionFilter, StringComparison.OrdinalIgnoreCase)">@action</option> }</select></label>
+                <label>Who<select name="who"><option value="">Anyone</option>@foreach (var person in Model.Actors) { <option value="@person" selected="@string.Equals(person, Model.ActorFilter, StringComparison.OrdinalIgnoreCase)">@person</option> }</select></label>
+                <div class="filter-pair">
+                    <label>From<input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></label>
+                    <label>To<input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></label>
+                </div>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
 </section>
 <section class="panel">
     <div class="panel-heading"><div><p class="eyebrow">AUDIT LOG</p><h2>@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalEvents} events" : $"{Model.TotalEvents} events")</h2></div><span class="badge">Page @Model.PageNumber of @Model.TotalPages</span></div>

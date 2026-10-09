@@ -29,9 +29,6 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true, Name = "size")] public int Size { get; set; } = 50;
-    // Set by the Apply button inside "More filters", so the panel is still open after changing several things in it.
-    // Not part of the list's state: links and the back cookie leave it out, and the panel starts folded.
-    [BindProperty(SupportsGet = true, Name = "more")] public bool ShowMoreFilters { get; set; }
 
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
@@ -69,8 +66,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
 
     public void OnGet()
     {
-        var listState = QueryString.Create(Request.Query.Where(x => !string.Equals(x.Key, "more", StringComparison.OrdinalIgnoreCase)));
-        Response.Cookies.Append(BackCookie, Request.Path + listState, new CookieOptions
+        Response.Cookies.Append(BackCookie, Request.Path + Request.QueryString, new CookieOptions
         {
             HttpOnly = true, SameSite = SameSiteMode.Lax, Secure = Request.IsHttps, IsEssential = true
         });
@@ -274,13 +270,11 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public string? ViewUrl(string view) => Url.Page("/Jobs", RouteFor(1, TicketListQuery.DefaultSort(view).Sort, TicketListQuery.DefaultSort(view).Descending ? "desc" : "asc", view));
     public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View });
 
-    // Filters folded into "More filters" that are switched on - the count on its summary line.
-    public int MoreFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count
+    // Filters in the Filters panel that are switched on - the number on its button.
+    public int PanelFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count
         + new[] { Technician, Team, Requester, Department, Location }.Count(x => !string.IsNullOrWhiteSpace(x));
 
-    public sealed record ActiveFilter(string Label, string? RemoveUrl);
-
-    // Every filter in force, each as a chip that takes just that one off. With the panel folded, this is how the list
+    // Every filter in force, each as a chip that takes just that one off. With the panel closed, this is how the list
     // says what it is showing.
     public IReadOnlyList<ActiveFilter> ActiveFilters()
     {

@@ -109,6 +109,30 @@ public class AuditModel(HelpdeskStore store) : PageModel
         };
     }
 
+    // Filters in the Filters panel that are switched on - the number on its button.
+    public int PanelFilterCount => new[] { Section, ActionFilter, ActorFilter }.Count(x => !string.IsNullOrWhiteSpace(x)) + (From.HasValue ? 1 : 0) + (To.HasValue ? 1 : 0);
+
+    private Dictionary<string, object?> Route() => new()
+    {
+        ["section"] = Blank(Section), ["act"] = Blank(ActionFilter), ["who"] = Blank(ActorFilter), ["q"] = Blank(Search),
+        ["from"] = From?.ToString("yyyy-MM-dd"), ["to"] = To?.ToString("yyyy-MM-dd")
+    };
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    // Every filter in force as a chip that takes just that one off.
+    public IReadOnlyList<Pages.ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<Pages.ActiveFilter>();
+        string? Without(string key) { var route = Route(); route[key] = null; return Url.Page("/Settings/Audit", route); }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        if (!string.IsNullOrWhiteSpace(Section)) chips.Add(new($"Area: {Section}", Without("section")));
+        if (!string.IsNullOrWhiteSpace(ActionFilter)) chips.Add(new($"Action: {ActionFilter}", Without("act")));
+        if (!string.IsNullOrWhiteSpace(ActorFilter)) chips.Add(new($"Who: {ActorFilter}", Without("who")));
+        if (From is { } from) chips.Add(new($"From {from:d MMM yyyy}", Without("from")));
+        if (To is { } to) chips.Add(new($"To {to:d MMM yyyy}", Without("to")));
+        return chips;
+    }
+
     private static bool Has(string text, string term) => text.Contains(term, StringComparison.OrdinalIgnoreCase);
 
     private static DateTime LocalMidnightToUtc(DateTime date) => DateTime.SpecifyKind(date.Date, DateTimeKind.Local).ToUniversalTime();

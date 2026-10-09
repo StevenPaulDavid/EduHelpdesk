@@ -112,8 +112,10 @@ public class ProjectsModel(HelpdeskStore store) : PageModel
 
     public string ViewUrl(string view) => Url.Page("/Projects", new { view = view == "active" ? null : view })!;
     public string ClearUrl() => ViewUrl(View);
+    public string PageUrl(int page) => Url.Page("/Projects", Route(page))!;
+
     // Arrays, not lists: an array becomes one query-string entry per value, which is what the filter binding reads back.
-    public string PageUrl(int page) => Url.Page("/Projects", new Dictionary<string, object?>
+    private Dictionary<string, object?> Route(int page) => new()
     {
         ["view"] = View == "active" ? null : View,
         ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
@@ -123,5 +125,28 @@ public class ProjectsModel(HelpdeskStore store) : PageModel
         ["sort"] = Sort == "due" ? null : Sort,
         ["size"] = Size == 25 ? null : Size,
         ["p"] = page > 1 ? page : null
-    })!;
+    };
+
+    // Filters in the Filters panel that are switched on - the number on its button. Sort and page size aren't filters.
+    public int PanelFilterCount => Priority.Count + Status.Count + (string.IsNullOrWhiteSpace(Technician) ? 0 : 1);
+
+    // Every filter in force as a chip that takes just that one off.
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string Without(string key, object? value) { var route = Route(1); route[key] = value; return Url.Page("/Projects", route)!; }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q", null)));
+        if (!string.IsNullOrWhiteSpace(Technician))
+            chips.Add(new($"Technician: {(Technician == "none" ? "Unassigned" : Guid.TryParse(Technician, out var id) ? TechnicianNames.GetValueOrDefault(id, "Unknown") : Technician)}", Without("tech", null)));
+        foreach (var level in Priority)
+            chips.Add(new($"Priority: {ProjectPriorities.Label(level)}", Without("priority", Priority.Where(x => x != level).ToArray() is { Length: > 0 } rest ? rest : null)));
+        foreach (var status in Status)
+            chips.Add(new($"Status: {status}", Without("status", Status.Where(x => !string.Equals(x, status, StringComparison.OrdinalIgnoreCase)).ToArray() is { Length: > 0 } rest ? rest : null)));
+        return chips;
+    }
+
+    // The list's money columns use the same VAT setting as the project page (Settings → Spending bands).
+    public bool IncVat => store.ProjectPageIncludesVat;
+    public string VatLabel => IncVat ? "inc. VAT" : "ex. VAT";
+    public decimal ChosenTerm(ProjectRecord project) => IncVat ? project.ChosenTotals.TermIncVat : project.ChosenTotals.TermExVat;
 }

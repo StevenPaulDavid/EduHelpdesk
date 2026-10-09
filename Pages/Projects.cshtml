@@ -1,5 +1,6 @@
 @page
 @using EduHelpdesk.Models
+@using EduHelpdesk.Services
 @model ProjectsModel
 @{ ViewData["Title"] = "Projects"; ViewData["Wide"] = true; }
 
@@ -28,41 +29,56 @@
         <p class="muted queue-hint">Open projects the project lead hasn't given to anyone yet.</p>
     }
 
-    <form method="get" class="audit-filters ticket-filters">
-        <input type="hidden" name="view" value="@(Model.View == "active" ? "" : Model.View)" />
-        <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Reference, title, items, requester, department, technician" /></label>
-        <label>Technician<select name="tech"><option value="">Anyone</option><option value="none" selected="@(Model.Technician == "none")">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
-        <label>Sort by<select name="sort">@foreach (var sort in ProjectsModel.Sorts) { <option value="@sort" selected="@(Model.Sort == sort)">@ProjectsModel.SortLabel(sort)</option> }</select></label>
-        <label>Per page<select name="size">@foreach (var size in ProjectsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
-        <div class="filter-checks">
-            <fieldset><legend>Priority</legend>@foreach (var level in ProjectPriorities.All) { <label class="toggle-label"><input type="checkbox" name="priority" value="@level" checked="@Model.Priority.Contains(level)" /> @ProjectPriorities.Label(level)</label> }</fieldset>
-            <fieldset><legend>Status</legend>@foreach (var status in ProjectStatuses.All) { <label class="toggle-label"><input type="checkbox" name="status" value="@status" checked="@Model.Status.Contains(status, StringComparer.OrdinalIgnoreCase)" /> @status</label> }</fieldset>
-        </div>
-        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="@Model.ClearUrl()">Clear</a></div>
-    </form>
+    @{
+        var filters = new FilterBar
+        {
+            Id = "project-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Reference, title, items, requester, department, technician",
+            Title = "Filter projects",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Model.ClearUrl(),
+            Hidden = [("view", Model.View == "active" ? null : Model.View)],
+            Fields = @<text>
+                <label>Technician<select name="tech"><option value="">Anyone</option><option value="none" selected="@(Model.Technician == "none")">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
+                <fieldset class="filter-group"><legend>Priority</legend>@foreach (var level in ProjectPriorities.All) { <label class="toggle-label"><input type="checkbox" name="priority" value="@level" checked="@Model.Priority.Contains(level)" /> @ProjectPriorities.Label(level)</label> }</fieldset>
+                <fieldset class="filter-group"><legend>Status</legend>@foreach (var status in ProjectStatuses.All) { <label class="toggle-label"><input type="checkbox" name="status" value="@status" checked="@Model.Status.Contains(status, StringComparer.OrdinalIgnoreCase)" /> @status</label> }</fieldset>
+                <label>Sort by<select name="sort">@foreach (var sort in ProjectsModel.Sorts) { <option value="@sort" selected="@(Model.Sort == sort)">@ProjectsModel.SortLabel(sort)</option> }</select></label>
+                <label>Per page<select name="size">@foreach (var size in ProjectsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">PROJECT REGISTER</p><h2>@ProjectsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">PROJECT REGISTER</p><h2>@ProjectsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown") · sorted by @ProjectsModel.SortLabel(Model.Sort).ToLowerInvariant()</span></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
-        <th data-stack="head">Project</th><th>Requested by</th><th>Technician</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Updated</th>
+        <th data-stack="head">Project</th><th>Requested by</th><th>Technician</th><th>Priority</th><th>Status</th><th>Quotes</th><th class="num">Chosen total</th><th>Needed by</th><th>Updated</th>
     </tr></thead><tbody>
     @foreach (var project in Model.Rows)
     {
         var overdue = project.IsOverdue(Model.Today);
         var soon = project.IsDueSoon(Model.Today);
         var requester = Model.Requesters.GetValueOrDefault(project.RequesterId);
+        // Quotes in out of suppliers asked, across every item - how far the project has got, without opening it.
+        var quoteRows = project.Items.SelectMany(x => x.Suppliers).ToList();
+        var toChase = quoteRows.Any(x => x.DaysAwaited(DateTime.UtcNow) >= QuoteStatuses.ChaseAfterDays);
+        var itemsChosen = project.Items.Count(x => x.Chosen is not null);
         <tr class="clickable-row @(overdue ? "row-overdue" : soon ? "row-soon" : "")" data-href="@Url.Page("/Project", new { number = project.Number })">
             <td><strong><a asp-page="/Project" asp-route-number="@project.Number">@project.Reference</a></strong><br /><span class="muted">@project.Title</span></td>
             <td>@(requester?.Name ?? "Unknown")@if (!string.IsNullOrWhiteSpace(requester?.Department)) { <br /><span class="muted">@requester.Department</span> }</td>
             <td>@(project.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unknown" : "Unassigned")</td>
             <td><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span>@if (project.Priority is null) { <br /><span class="muted">Suggested</span> }</td>
             <td><span class="status">@project.Status</span>@if (project.Outcome is { } outcome) { <br /><span class="muted">@outcome</span> }</td>
+            <td>@(quoteRows.Count == 0 ? "None asked" : $"{quoteRows.Count(x => x.HasQuote)} of {quoteRows.Count}")@if (toChase) { <br /><span class="badge badge-warning">To chase</span> }</td>
+            <td class="num">@(itemsChosen == 0 ? "-" : HelpdeskStore.FormatMoney(Model.ChosenTerm(project)))@if (itemsChosen > 0) { <br /><span class="muted">@Model.VatLabel@(itemsChosen < project.Items.Count ? $" · {itemsChosen} of {project.Items.Count} items" : "")</span> }</td>
             <td>@project.DueDate.ToString("dd MMM yyyy")@if (overdue) { <br /><span class="badge badge-warning">Late</span> } else if (soon) { <br /><span class="badge">Due soon</span> }</td>
             <td>@project.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")<br /><span class="muted">Raised @project.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span></td>
         </tr>
     }
-    @if (Model.Rows.Count == 0) { <tr><td colspan="7" class="empty">@(Model.IsFiltered ? "No projects match these filters." : Model.TotalProjects == 0 ? "No projects have been raised yet. Line managers raise them from the staff portal." : "Nothing in this queue.")</td></tr> }
+    @if (Model.Rows.Count == 0) { <tr><td colspan="9" class="empty">@(Model.IsFiltered ? "No projects match these filters." : Model.TotalProjects == 0 ? "No projects have been raised yet. Line managers raise them from the staff portal." : "Nothing in this queue.")</td></tr> }
     </tbody></table></div>
 
     @if (Model.TotalPages > 1)

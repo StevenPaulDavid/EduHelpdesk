@@ -1,0 +1,34 @@
+@model EduHelpdesk.Pages.FilterBar
+@* Search, Filters, chips and the filter panel above a list (Pages/Shared/FilterBar.cs). One GET form holds the lot, so
+   Search and Show results both send the box and the panel together. Cancel resets the form to how the page drew it, so
+   half-made changes in the panel don't ride along with the next search. *@
+<form method="get" class="filter-form" id="@Model.Id">
+    @foreach (var (name, value) in Model.Hidden.Where(x => !string.IsNullOrEmpty(x.Value)))
+    {
+        <input type="hidden" name="@name" value="@value" />
+    }
+    <div class="filter-toolbar">
+        <label class="filter-search-box"><span class="visually-hidden">Search</span>@Icons.Search<input type="search" name="@Model.SearchName" value="@Model.Search" placeholder="@Model.SearchPlaceholder" /></label>
+        <button class="button button-primary" type="submit">Search</button>
+        <button class="button button-secondary filter-open" type="button" data-open-blade="@Model.Id-panel" aria-haspopup="dialog">@Icons.Filter <span>Filters</span>@if (Model.PanelCount > 0) { <span class="filter-count"><span class="visually-hidden">, </span>@Model.PanelCount<span class="visually-hidden"> on</span></span> }</button>
+    </div>
+    @if (Model.Chips.Count > 0)
+    {
+        <div class="filter-chips" aria-label="Filters in force">
+            <span class="muted">Showing only</span>
+            @foreach (var chip in Model.Chips) { <a class="filter-chip-link" href="@chip.RemoveUrl" title="Remove this filter">@chip.Label <span aria-hidden="true">×</span><span class="visually-hidden"> (remove)</span></a> }
+            @if (Model.Chips.Count > 1 && Model.ClearUrl is not null) { <a class="filter-clear" href="@Model.ClearUrl">Clear all</a> }
+        </div>
+    }
+    <div id="@Model.Id-panel" class="blade-backdrop">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="@Model.Id-panel-title">
+            <div class="blade-head"><h2 id="@Model.Id-panel-title">@Model.Title</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <div class="filter-fields">@Model.Fields(null)</div>
+            <div class="blade-actions">
+                <button class="button button-primary" type="submit">Show results</button>
+                <button class="button button-secondary" type="reset" data-close-blade>Cancel</button>
+                @if (Model.ClearUrl is not null && Model.Chips.Count > 0) { <a class="filter-clear" href="@Model.ClearUrl">Clear all filters</a> }
+            </div>
+        </div>
+    </div>
+</form>

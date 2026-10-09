@@ -143,15 +143,38 @@ public class PeopleModel(HelpdeskStore store, TemporaryPasswords passwords) : Pa
 
     // Defaults are left out of the URL so a plain tab link stays short.
     public string? TabUrl(string tab) => Url.Page("/People", new { tab });
-    public string? PageUrl(int page) => Url.Page("/People", new
+    public string? PageUrl(int page) => Url.Page("/People", Route(page));
+    private Dictionary<string, object?> Route(int page) => new()
     {
-        tab = Tab,
-        q = string.IsNullOrWhiteSpace(Search) ? null : Search,
-        group = string.IsNullOrWhiteSpace(Group) ? null : Group,
-        status = string.IsNullOrWhiteSpace(Status) ? null : Status,
-        p = page == 1 ? (int?)null : page,
-        size = Size == DefaultSize ? (int?)null : Size
-    });
+        ["tab"] = Tab,
+        ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
+        ["group"] = string.IsNullOrWhiteSpace(Group) ? null : Group,
+        ["status"] = string.IsNullOrWhiteSpace(Status) ? null : Status,
+        ["p"] = page == 1 ? null : page,
+        ["size"] = Size == DefaultSize ? null : Size
+    };
+
+    // Filters in the Filters panel that are switched on - the number on its button.
+    public int PanelFilterCount => (string.IsNullOrWhiteSpace(Group) ? 0 : 1) + (string.IsNullOrWhiteSpace(Status) ? 0 : 1);
+
+    public static string StatusLabel(string? status) => status switch
+    {
+        "active" => "Active",
+        "inactive" => "Inactive",
+        "leavers" => "Left, still holding equipment",
+        _ => status ?? ""
+    };
+
+    // Every filter in force as a chip that takes just that one off.
+    public IReadOnlyList<ActiveFilter> ActiveFilters()
+    {
+        var chips = new List<ActiveFilter>();
+        string? Without(string key) { var route = Route(1); route[key] = null; return Url.Page("/People", route); }
+        if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        if (!string.IsNullOrWhiteSpace(Group)) chips.Add(new($"{(Tab == UsersTab ? "Department" : "Team")}: {Group}", Without("group")));
+        if (!string.IsNullOrWhiteSpace(Status)) chips.Add(new($"Status: {StatusLabel(Status)}", Without("status")));
+        return chips;
+    }
 
     // How many technician accounts hold each role - worth seeing before editing or deleting one.
     public int MemberCount(RoleRecord role) => store.Technicians.Count(x => string.Equals(x.Role, role.Name, StringComparison.OrdinalIgnoreCase));

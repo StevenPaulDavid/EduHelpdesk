@@ -1859,24 +1859,24 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 }
 .picker-remove:hover { color: var(--red); background: var(--danger-soft); }
 
-/* Ticket list filters: search on its own line, everything else folded into "More filters", and chips for what is in force. */
-.filter-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 12px; }
-.filter-search { flex: 1 1 320px; display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
-.filter-more { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; }
-.filter-more>summary {
-    cursor: pointer;
-    padding: 10px 0;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--teal-strong);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: max-content;
-    max-width: 100%;
-}
-.filter-more[open]>summary { border-bottom: 1px solid var(--line); margin-bottom: 14px; }
-.filter-more-grid { padding-bottom: 14px; }
+/* List filters (Pages/Shared/_FilterBar.cshtml): a search box, a Filters button that opens the rest in a slide-in
+   panel, and chips for what is in force. Used by Tickets, Projects, People and the audit log. */
+.filter-form { margin: 0; }
+.filter-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.filter-search-box { position: relative; flex: 1 1 320px; max-width: 640px; display: block; }
+.filter-search-box .ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); width: 16px; height: 16px; pointer-events: none; }
+.filter-search-box input { padding-left: 34px; }
+.filter-open { display: inline-flex; align-items: center; gap: 6px; }
+.filter-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--teal); color: #fff; font-size: 11px; font-weight: 800; }
+.filter-clear { font-size: 13px; font-weight: 700; color: var(--teal-text); margin-left: 4px; }
+.filter-fields { display: grid; gap: var(--space-4); padding-bottom: var(--space-2); }
+.filter-fields>label, .filter-pair label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; color: var(--label); }
+.filter-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.filter-group { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; min-width: 0; }
+.filter-group legend { width: 100%; padding: 0; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--label); }
+.filter-group .toggle-label { font-size: 13px; font-weight: 500; }
+.filter-note { margin: 10px 0 0; }
+.ticket-table .num, .ticket-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
 .filter-chips .muted { margin-right: 2px; }
 
@@ -2104,8 +2104,9 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
     .audit-filters>* { min-width: 0; }
     .audit-filters .audit-search, .audit-filters .filter-checks, .audit-filters .audit-filter-actions, .audit-filters .filter-chip { grid-column: 1/-1; }
     .audit-filters .audit-filter-actions .button { flex: 1; text-align: center; }
-    .filter-bar .audit-filter-actions { width: 100%; }
-    .filter-bar .audit-filter-actions .button { flex: 1; text-align: center; }
+    /* The search box takes its own row; Search and Filters share the one below. */
+    .filter-search-box { flex-basis: 100%; max-width: none; }
+    .filter-toolbar>.button { flex: 1; justify-content: center; text-align: center; }
     .bulk-actions label { min-width: 0; flex: 1 1 100%; }
     .bulk-actions .button { width: 100%; }
     .audit-pager { flex-wrap: wrap; justify-content: center; }

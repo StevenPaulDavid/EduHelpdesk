@@ -43,19 +43,30 @@
             </div>
         </div>
 
-        <form method="get" class="audit-filters people-filters">
-            <input type="hidden" name="tab" value="@Model.Tab" />
-            <label class="audit-search">Search<input type="search" name="q" value="@Model.Search" placeholder="@(onUsers ? "Name, email, department or location" : "Name, email, team or role")" /></label>
-            <label>@(onUsers ? "Department" : "Team")
-                <select name="group">
-                    <option value="">@(onUsers ? "Any department" : "Any team")</option>
-                    @foreach (var item in onUsers ? Model.Departments : Model.TechnicianTeams) { <option value="@item" selected="@string.Equals(item, Model.Group, StringComparison.OrdinalIgnoreCase)">@item</option> }
-                </select>
-            </label>
-            <label>Status<select name="status"><option value="">Any</option><option value="active" selected="@(Model.Status == "active")">Active</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactive</option>@if (Model.Tab == "users") { <option value="leavers" selected="@(Model.Status == "leavers")">Left, still holding equipment</option> }</select></label>
-            <label>Per page<select name="size">@foreach (var size in PeopleModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
-            <div class="audit-filter-actions"><button class="button button-primary" type="submit">Search</button>@if (Model.IsFiltered) { <a class="button button-secondary" href="@Model.TabUrl(Model.Tab!)">Clear</a> }</div>
-        </form>
+        @{
+            var filters = new FilterBar
+            {
+                Id = "people-filters",
+                Search = Model.Search,
+                SearchPlaceholder = onUsers ? "Name, email, department or location" : "Name, email, team or role",
+                Title = onUsers ? "Filter users" : "Filter technicians",
+                Chips = Model.ActiveFilters(),
+                PanelCount = Model.PanelFilterCount,
+                ClearUrl = Model.TabUrl(Model.Tab!),
+                Hidden = [("tab", Model.Tab)],
+                Fields = @<text>
+                    <label>@(onUsers ? "Department" : "Team")
+                        <select name="group">
+                            <option value="">@(onUsers ? "Any department" : "Any team")</option>
+                            @foreach (var item in onUsers ? Model.Departments : Model.TechnicianTeams) { <option value="@item" selected="@string.Equals(item, Model.Group, StringComparison.OrdinalIgnoreCase)">@item</option> }
+                        </select>
+                    </label>
+                    <label>Status<select name="status"><option value="">Any</option><option value="active" selected="@(Model.Status == "active")">@PeopleModel.StatusLabel("active")</option><option value="inactive" selected="@(Model.Status == "inactive")">@PeopleModel.StatusLabel("inactive")</option>@if (onUsers) { <option value="leavers" selected="@(Model.Status == "leavers")">@PeopleModel.StatusLabel("leavers")</option> }</select></label>
+                    <label>Per page<select name="size">@foreach (var size in PeopleModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+                </text>
+            };
+        }
+        <partial name="_FilterBar" model="filters" />
 
         <div class="people-rows">
         @if (onUsers)

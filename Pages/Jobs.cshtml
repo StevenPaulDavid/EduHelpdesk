@@ -61,43 +61,33 @@
         <p class="muted queue-hint">Every ticket, including closed ones.</p>
     }
 
-    <form method="get" class="ticket-filters">
-        <input type="hidden" name="view" value="@(Model.View == "open" ? "" : Model.View)" />
-        <input type="hidden" name="sort" value="@Model.Sort" />
-        <input type="hidden" name="dir" value="@Model.Dir" />
-        @if (!string.IsNullOrWhiteSpace(Model.Asset)) { <input type="hidden" name="asset" value="@Model.Asset" /> }
-        <div class="filter-bar">
-            <label class="filter-search">Search<input type="search" name="q" value="@Model.Search" placeholder="Number, title, description, comments, requester, asset tag, technician" /></label>
-            <div class="audit-filter-actions"><button class="button button-primary" type="submit">Search</button>@if (Model.IsFiltered) { <a class="button button-secondary" href="@Model.ClearUrl()">Clear all</a> }</div>
-        </div>
-        @* Folded by default so the list starts near the top of the screen; the chips below say what is in force. *@
-        <details class="filter-more" open="@Model.ShowMoreFilters">
-            <summary>More filters @if (Model.MoreFilterCount > 0) { <span class="badge">@Model.MoreFilterCount on</span> }</summary>
-            <div class="audit-filters filter-more-grid">
+    @{
+        var filters = new FilterBar
+        {
+            Id = "ticket-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Number, title, description, comments, requester, asset tag, technician",
+            Title = "Filter tickets",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Model.ClearUrl(),
+            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset)],
+            Fields = @<text>
                 <label>Technician<select name="tech"><option value="">Anyone</option><option value="me" selected="@(Model.Technician == "me")">Me@(currentTechnician is null ? " (set Working as)" : "")</option><option value="none" selected="@(Model.Technician == "none")">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
                 <label>Team<select name="team"><option value="">Any team</option><option value="@TicketListQuery.None" selected="@(Model.Team == TicketListQuery.None)">(No team)</option>@foreach (var item in Model.Teams) { <option value="@item" selected="@string.Equals(item, Model.Team, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Requester<select name="requester" data-picker><option value="">Anyone</option>@foreach (var user in Model.Users.OrderBy(x => x.Name)) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id.ToString() == Model.Requester)">@user.Name</option> }</select></label>
                 <label>Department<select name="dept"><option value="">Any department</option>@foreach (var item in Model.Departments) { <option value="@item" selected="@string.Equals(item, Model.Department, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Location<select name="loc"><option value="">Any location</option><option value="@TicketListQuery.None" selected="@(Model.Location == TicketListQuery.None)">(Not specified)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <fieldset class="filter-group"><legend>Status</legend>@foreach (var item in Model.Statuses) { <label class="toggle-label"><input type="checkbox" name="status" value="@item" checked="@Model.Status.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
+                <fieldset class="filter-group"><legend>Priority</legend>@foreach (var item in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priority" value="@item" checked="@Model.Priority.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
+                <fieldset class="filter-group"><legend>Type</legend>@foreach (var item in Model.Types) { <label class="toggle-label"><input type="checkbox" name="type" value="@item" checked="@Model.Type.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
+                <fieldset class="filter-group"><legend>Category</legend>@foreach (var item in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="category" value="@item" checked="@Model.Category.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
                 <label>Per page<select name="size">@foreach (var size in JobsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
-                <div class="filter-checks">
-                    <fieldset><legend>Status</legend>@foreach (var item in Model.Statuses) { <label class="toggle-label"><input type="checkbox" name="status" value="@item" checked="@Model.Status.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
-                    <fieldset><legend>Type</legend>@foreach (var item in Model.Types) { <label class="toggle-label"><input type="checkbox" name="type" value="@item" checked="@Model.Type.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset><fieldset><legend>Priority</legend>@foreach (var item in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priority" value="@item" checked="@Model.Priority.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
-                    <fieldset><legend>Category</legend>@foreach (var item in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="category" value="@item" checked="@Model.Category.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
-                </div>
-                <div class="audit-filter-actions"><button class="button button-primary" type="submit" name="more" value="true">Apply filters</button></div>
-            </div>
-        </details>
-        @{ var activeFilters = Model.ActiveFilters(); }
-        @if (activeFilters.Count > 0)
-        {
-            <div class="filter-chips" aria-label="Filters in force">
-                <span class="muted">Showing only</span>
-                @foreach (var chip in activeFilters) { <a class="filter-chip-link" href="@chip.RemoveUrl" title="Remove this filter">@chip.Label <span aria-hidden="true">×</span><span class="visually-hidden"> (remove)</span></a> }
-            </div>
-        }
-        @if (filteredAsset is not null) { <p class="muted filter-chip">Tickets linked to asset <strong>@filteredAsset.AssetTag</strong> (@filteredAsset.Make @filteredAsset.Model).</p> }
-    </form>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
+    @if (filteredAsset is not null) { <p class="muted filter-note">Tickets linked to asset <strong>@filteredAsset.AssetTag</strong> (@filteredAsset.Make @filteredAsset.Model).</p> }
 </section>
 
 <section class="panel directory-panel">
