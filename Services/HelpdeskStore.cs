@@ -82,7 +82,14 @@ public sealed partial class HelpdeskStore
             PurchaseOrder = x.PurchaseOrder ?? string.Empty,
             QuoteReference = x.QuoteReference ?? string.Empty,
             DisposalMethod = x.DisposalMethod ?? string.Empty,
-            LoanDueDate = x.AssignedUserId.HasValue ? x.LoanDueDate : null
+            LoanDueDate = x.AssignedUserId.HasValue ? x.LoanDueDate : null,
+            Building = x.Building ?? string.Empty,
+            OperatingSystem = x.OperatingSystem ?? string.Empty,
+            Condition = x.Condition ?? string.Empty,
+            Ownership = AssetOwnership.Normalize(x.Ownership),
+            LastCheckBy = x.LastCheckBy ?? string.Empty,
+            DisposedBy = x.DisposedBy ?? string.Empty,
+            DisposalCertificate = x.DisposalCertificate ?? string.Empty
         }).ToList();
         _data.Suppliers ??= [];
         _data.Suppliers = _data.Suppliers.Select(x => x with
@@ -138,11 +145,16 @@ public sealed partial class HelpdeskStore
         _data.AssetModelMakes = new Dictionary<string, string>(_data.AssetModelMakes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         EnsureSystemOptions();
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
+        EnsureOptions(_data.Buildings, _data.Assets.Select(x => x.Building).Where(x => !string.IsNullOrWhiteSpace(x)));
+        EnsureOptions(_data.AssetConditions, _data.Assets.Select(x => x.Condition).Where(x => !string.IsNullOrWhiteSpace(x)));
         EnsureOptions(_data.PartCategories, _data.Parts.Select(x => x.Category).Where(x => !string.IsNullOrWhiteSpace(x))!);
         EnsureOptions(_data.PartLocations, _data.Parts.Select(x => x.Location).Where(x => !string.IsNullOrWhiteSpace(x)));
         _data.Parts = _data.Parts.Select(x => x with { AssetTypes = NormalizeScope(x.AssetTypes).Where(t => _data.AssetTypes.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList() }).ToList();
         _data.AssetTypeLifespans = new Dictionary<string, int>(_data.AssetTypeLifespans ?? new Dictionary<string, int>(), StringComparer.OrdinalIgnoreCase);
         if (_data.AssetReviewDays is < 0 or > 3650) _data.AssetReviewDays = 60;
+        if (_data.CheckDueSoonDays is < 0 or > 3650) _data.CheckDueSoonDays = AssetChecks.DefaultDueSoonDays;
+        if (_data.SupportWarningDays is < 0 or > 3650) _data.SupportWarningDays = AssetChecks.DefaultSupportWarningDays;
+        if (_data.CheckIntervalMonths is < 1 or > 120) _data.CheckIntervalMonths = AssetChecks.DefaultIntervalMonths;
         if (_data.AcademicYearStartMonth is < 1 or > 12) _data.AcademicYearStartMonth = AcademicYear.DefaultStartMonth;
         if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
         if (_data.PartsDefaultReorderThreshold < 0) _data.PartsDefaultReorderThreshold = 5;
@@ -182,6 +194,10 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<string> PartCategories { get { lock (_sync) return _data.PartCategories.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> PartLocations { get { lock (_sync) return _data.PartLocations.OrderBy(x => x).ToList(); } }
     public IReadOnlyList<string> LoanReasons { get { lock (_sync) return _data.LoanReasons.ToList(); } }
+    public IReadOnlyList<string> Buildings { get { lock (_sync) return _data.Buildings.OrderBy(x => x, NaturalComparer.Instance).ToList(); } }
+    // Kept in the order they were added: New, Used, Refurbished, Donated reads better than alphabetical.
+    public IReadOnlyList<string> AssetConditions { get { lock (_sync) return _data.AssetConditions.ToList(); } }
+    public AssetCheckSettings AssetCheckSettings { get { lock (_sync) return new(_data.CheckDueSoonDays, _data.SupportWarningDays, _data.CheckIntervalMonths); } }
     public IReadOnlyList<LoanKit> LoanKits { get { lock (_sync) return _data.LoanKits.OrderBy(x => x.Name, NaturalComparer.Instance).ToList(); } }
     public IReadOnlyList<KitLoan> KitLoans { get { lock (_sync) return _data.KitLoans.OrderByDescending(x => x.IssuedAt).ToList(); } }
     public int LoanRepeatCount { get { lock (_sync) return _data.LoanRepeatCount; } }

@@ -91,7 +91,7 @@
             <td><strong><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
             <td>@asset.Type</td>
             <td>@(asset.DisposalDate is { } d ? AssetInsights.Format(d) : "—")</td>
-            <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)</td>
+            <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)@if (!string.IsNullOrWhiteSpace(asset.DisposedBy) || !string.IsNullOrWhiteSpace(asset.DisposalCertificate)) { <br /><span class="muted">@string.Join(" · ", new[] { string.IsNullOrWhiteSpace(asset.DisposedBy) ? null : $"By {asset.DisposedBy}", string.IsNullOrWhiteSpace(asset.DisposalCertificate) ? null : $"Certificate {asset.DisposalCertificate}" }.Where(x => x is not null))</span> }</td>
             <td>@FinanceReportsModel.Money(asset.DisposalProceeds)</td>
             <td>@FinanceReportsModel.Money(asset.PurchasePrice)</td>
         </tr>

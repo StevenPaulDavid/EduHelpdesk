@@ -10,7 +10,11 @@
 <label>Type<select name="type" required>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@(item == Model.Posted("type"))">@item</option> }</select></label>
 <label>Serial number<input name="serialNumber" value="@Model.Posted("serialNumber")" /></label>
 <label>Status<select name="status">@foreach (var item in Model.Statuses) { <option value="@item" selected="@(item == Model.Posted("status"))">@item</option> }</select></label>
-<label>Location<select name="location"><option value="">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@(item == Model.Posted("location"))">@item</option> }</select></label>
+<label>Operating system<input name="operatingSystem" value="@Model.Posted("operatingSystem")" placeholder="For example Windows 11 Pro 24H2" /></label>
+<label>Building<select name="building"><option value="">Not recorded</option>@foreach (var item in Model.Buildings) { <option value="@item" selected="@(item == Model.Posted("building"))">@item</option> }</select></label>
+<label>Room<select name="location"><option value="">Unassigned</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@(item == Model.Posted("location"))">@item</option> }</select></label>
+<label>Condition<select name="condition"><option value="">Not recorded</option>@foreach (var item in Model.Conditions) { <option value="@item" selected="@(item == Model.Posted("condition"))">@item</option> }</select></label>
+<label>Ownership<select name="ownership">@foreach (var item in AssetOwnership.All) { <option value="@item" selected="@(item == Model.Posted("ownership"))">@AssetOwnership.Label(item)</option> }</select></label>
 <label>Assigned user<select name="assignedUserId" data-picker><option value="">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Posted("assignedUserId"))">@item.Name</option> }</select></label>
 <label>Supplier<select name="supplierId"><option value="">No supplier</option>@foreach (var item in Model.Suppliers) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Posted("supplierId"))">@item.Name</option> }</select></label>
 <label>Purchase date<input name="purchaseDate" type="date" value="@Model.Posted("purchaseDate")" /></label>
@@ -19,6 +23,8 @@
                 <label>Quote reference<input name="quoteReference" value="@Model.Posted("quoteReference")" /></label>
 <label>Warranty end<input name="warrantyEnd" type="date" value="@Model.Posted("warrantyEnd")" /></label>
 <label>Replacement date<input name="replacementDate" type="date" value="@Model.Posted("replacementDate")" /><small class="muted">Optional. Leave blank to use the lifespan set for this asset type.</small></label>
+<label>Next check<input name="nextCheckDate" type="date" value="@Model.Posted("nextCheckDate")" /></label>
+<label>End of support<input name="endOfSupport" type="date" value="@Model.Posted("endOfSupport")" /><small class="muted">When it stops getting security updates, or the lease ends.</small></label>
 <button class="button button-primary" type="submit">Add asset</button>
 </form></section>
 @section Scripts {

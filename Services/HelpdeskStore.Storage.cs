@@ -298,6 +298,8 @@ public sealed partial class HelpdeskStore
         ReadStrings(connection, "PartCategories", data.PartCategories);
         ReadStrings(connection, "PartLocations", data.PartLocations);
         ReadStrings(connection, "LoanReasons", data.LoanReasons);
+        ReadStrings(connection, "Buildings", data.Buildings);
+        ReadStrings(connection, "AssetConditions", data.AssetConditions);
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT Id, Name, Notes, CreatedAt, IsRetired FROM LoanKits;";
@@ -334,6 +336,9 @@ public sealed partial class HelpdeskStore
             while (reader.Read()) data.AssetTypeLifespans[reader.GetString(0)] = reader.GetInt32(1);
         }
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetReviewDays';") as string, out var reviewDays)) data.AssetReviewDays = reviewDays;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'CheckDueSoonDays';") as string, out var checkDueSoon)) data.CheckDueSoonDays = checkDueSoon;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SupportWarningDays';") as string, out var supportWarning)) data.SupportWarningDays = supportWarning;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'CheckIntervalMonths';") as string, out var checkInterval)) data.CheckIntervalMonths = checkInterval;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AcademicYearStartMonth';") as string, out var academicStart)) data.AcademicYearStartMonth = academicStart;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PermissionModelVersion';") as string, out var permissionVersion)) data.PermissionModelVersion = permissionVersion;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
@@ -612,7 +617,7 @@ public sealed partial class HelpdeskStore
             // This reader is ordinal-indexed, so new columns are appended to the END of the SELECT. Inserting one in the
             // middle shifts every ordinal after it and silently scrambles the whole register - which is exactly how the
             // Type/Model swap bug happened.
-            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds FROM Assets;";
+            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate FROM Assets;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Assets.Add(new AssetRecord(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8))
             {
@@ -626,7 +631,17 @@ public sealed partial class HelpdeskStore
                 QuoteReference = NullableString(reader, 16) ?? "",
                 DisposalDate = NullableDateOnly(reader, 17),
                 DisposalMethod = NullableString(reader, 18) ?? "",
-                DisposalProceeds = NullableString(reader, 19) is { } proceeds && decimal.TryParse(proceeds, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedProceeds) ? parsedProceeds : null
+                DisposalProceeds = NullableString(reader, 19) is { } proceeds && decimal.TryParse(proceeds, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedProceeds) ? parsedProceeds : null,
+                Building = NullableString(reader, 20) ?? "",
+                OperatingSystem = NullableString(reader, 21) ?? "",
+                Condition = NullableString(reader, 22) ?? "",
+                Ownership = AssetOwnership.Normalize(NullableString(reader, 23)),
+                LastCheckDate = NullableDateOnly(reader, 24),
+                LastCheckBy = NullableString(reader, 25) ?? "",
+                NextCheckDate = NullableDateOnly(reader, 26),
+                EndOfSupport = NullableDateOnly(reader, 27),
+                DisposedBy = NullableString(reader, 28) ?? "",
+                DisposalCertificate = NullableString(reader, 29) ?? ""
             });
         }
         ReadAssetChildren(connection, data.Assets);
@@ -789,6 +804,8 @@ public sealed partial class HelpdeskStore
         InsertStrings(connection, transaction, "PartCategories", data.PartCategories);
         InsertStrings(connection, transaction, "PartLocations", data.PartLocations);
         InsertStrings(connection, transaction, "LoanReasons", data.LoanReasons);
+        InsertStrings(connection, transaction, "Buildings", data.Buildings);
+        InsertStrings(connection, transaction, "AssetConditions", data.AssetConditions);
         SetMetadata(connection, transaction, "LoanRepeatCount", data.LoanRepeatCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "LoanRepeatDays", data.LoanRepeatDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "SchoolDays", string.Join(",", data.SchoolDays.Select(x => (int)x)));
@@ -801,6 +818,9 @@ public sealed partial class HelpdeskStore
         foreach (var pair in data.AssetTypeLifespans.Where(x => x.Value > 0 && data.AssetTypes.Contains(x.Key, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetTypeLifespans (AssetType, Years) VALUES ($type,$years);", ("$type", pair.Key), ("$years", pair.Value));
         SetMetadata(connection, transaction, "AssetReviewDays", data.AssetReviewDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "CheckDueSoonDays", data.CheckDueSoonDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "SupportWarningDays", data.SupportWarningDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "CheckIntervalMonths", data.CheckIntervalMonths.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "AcademicYearStartMonth", data.AcademicYearStartMonth.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "PermissionModelVersion", data.PermissionModelVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -879,9 +899,12 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Assets)
         {
-            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds,$building,$os,$condition,$ownership,$lastcheck,$lastcheckby,$nextcheck,$eos,$disposedby,$certificate);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
                 ("$status", string.IsNullOrWhiteSpace(s.Item.Status) ? "In use" : s.Item.Status), ("$purchased", IsoDay(s.Item.PurchaseDate)), ("$price", s.Item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", s.Item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(s.Item.WarrantyEnd)), ("$replacement", IsoDay(s.Item.ReplacementDate)), ("$loan", IsoDay(s.Item.LoanDueDate)),
-                ("$quote", s.Item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(s.Item.DisposalDate)), ("$method", s.Item.DisposalMethod ?? string.Empty), ("$proceeds", s.Item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture))]);
+                ("$quote", s.Item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(s.Item.DisposalDate)), ("$method", s.Item.DisposalMethod ?? string.Empty), ("$proceeds", s.Item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("$building", s.Item.Building ?? string.Empty), ("$os", s.Item.OperatingSystem ?? string.Empty), ("$condition", s.Item.Condition ?? string.Empty), ("$ownership", s.Item.Ownership ?? string.Empty),
+                ("$lastcheck", IsoDay(s.Item.LastCheckDate)), ("$lastcheckby", s.Item.LastCheckBy ?? string.Empty), ("$nextcheck", IsoDay(s.Item.NextCheckDate)), ("$eos", IsoDay(s.Item.EndOfSupport)),
+                ("$disposedby", s.Item.DisposedBy ?? string.Empty), ("$certificate", s.Item.DisposalCertificate ?? string.Empty)]);
             foreach (var assignment in item.Assignments)
                 ExecuteFor(assignment, item.Id, item, connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", static s => [("$id", s.Item.Id.ToString()), ("$user", s.Record.UserId?.ToString()), ("$name", s.Record.UserName), ("$started", s.Record.StartedAt.HasValue ? Iso(s.Record.StartedAt.Value) : null), ("$ended", s.Record.EndedAt.HasValue ? Iso(s.Record.EndedAt.Value) : null), ("$due", IsoDay(s.Record.DueBack)), ("$reason", s.Record.Reason), ("$kitloan", s.Record.KitLoanId?.ToString())]);
             foreach (var comment in item.Comments)
@@ -969,7 +992,7 @@ public sealed partial class HelpdeskStore
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "DELETE FROM OnboardingPackDocuments; DELETE FROM OnboardingTemplateDocuments; DELETE FROM OnboardingDocuments; DELETE FROM OnboardingTasks; DELETE FROM Onboardings; DELETE FROM OnboardingTemplateTasks; DELETE FROM OnboardingTemplates; DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM ServiceItems; DELETE FROM CategoryStyles; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings; DELETE FROM SizeHistory; DELETE FROM SpiceworksImports; DELETE FROM SpiceworksLinks; DELETE FROM SpiceworksTicketStates; DELETE FROM SpiceworksUndo;";
+        command.CommandText = "DELETE FROM OnboardingPackDocuments; DELETE FROM OnboardingTemplateDocuments; DELETE FROM OnboardingDocuments; DELETE FROM OnboardingTasks; DELETE FROM Onboardings; DELETE FROM OnboardingTemplateTasks; DELETE FROM OnboardingTemplates; DELETE FROM ProjectTickets; DELETE FROM SpendingBands; DELETE FROM ProjectPaymentLines; DELETE FROM ProjectQuoteDocuments; DELETE FROM ProjectQuoteVersions; DELETE FROM ProjectQuoteStatusChanges; DELETE FROM ProjectItemSuppliers; DELETE FROM ProjectSubItems; DELETE FROM ProjectItems; DELETE FROM ProjectRequirements; DELETE FROM ProjectNotes; DELETE FROM ProjectActivities; DELETE FROM Projects; DELETE FROM PurchasingRequirements; DELETE FROM TicketTemplateAttributes; DELETE FROM TicketTemplates; DELETE FROM ServiceItems; DELETE FROM CategoryStyles; DELETE FROM TicketLinks; DELETE FROM TicketAttachments; DELETE FROM TicketSlaPauses; DELETE FROM TicketActivities; DELETE FROM TicketComments; DELETE FROM TicketAttributeValues; DELETE FROM TicketAssets; DELETE FROM TicketParts; DELETE FROM PartSuppliers; DELETE FROM PartAssetTypes; DELETE FROM PartActivities; DELETE FROM Parts; DELETE FROM Tickets; DELETE FROM TicketAttributeCategories; DELETE FROM TicketAttributeDefinitions; DELETE FROM AssetAssignments; DELETE FROM AssetComments; DELETE FROM AssetActivities; DELETE FROM AssetAttributeValues; DELETE FROM Assets; DELETE FROM Suppliers; DELETE FROM Technicians; DELETE FROM Roles; DELETE FROM Users; DELETE FROM AssetAttributeAssetTypes; DELETE FROM AssetAttributeDefinitions; DELETE FROM SlaPriorities; DELETE FROM SlaCategories; DELETE FROM Slas; DELETE FROM TechnicianTeams; DELETE FROM Departments; DELETE FROM Locations; DELETE FROM AssetTypes; DELETE FROM AssetMakes; DELETE FROM AssetModelMakes; DELETE FROM AssetStatuses; DELETE FROM AssetTypeLifespans; DELETE FROM PartCategories; DELETE FROM PartLocations; DELETE FROM KitLoans; DELETE FROM LoanKitAssets; DELETE FROM LoanKits; DELETE FROM LoanReasons; DELETE FROM Buildings; DELETE FROM AssetConditions; DELETE FROM SchoolPeriods;DELETE FROM AssetModels; DELETE FROM Categories; DELETE FROM Statuses; DELETE FROM StatusDescriptions; DELETE FROM SlaPauseStatuses; DELETE FROM Priorities; DELETE FROM RequireCloseMessagePriorities; DELETE FROM RequireCloseMessageCategories; DELETE FROM DemoRecords; DELETE FROM RolePermissions; DELETE FROM BrandingSettings; DELETE FROM SizeHistory; DELETE FROM SpiceworksImports; DELETE FROM SpiceworksLinks; DELETE FROM SpiceworksTicketStates; DELETE FROM SpiceworksUndo;";
         command.ExecuteNonQuery();
     }
 

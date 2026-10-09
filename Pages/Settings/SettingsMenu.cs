@@ -34,11 +34,12 @@ public static class SettingsMenu
         ]),
         new("Assets & inventory",
         [
-            new("Asset, part & loan rules", "/Settings/InventoryRules", "review warranty replacement academic year finance reorder threshold low stock loan repeat borrowing"),
+            new("Asset, part & loan rules", "/Settings/InventoryRules", "review warranty replacement academic year finance reorder threshold low stock loan repeat borrowing dfe check interval end of support unsupported"),
             new("Asset types", "/Settings/AssetTypes", "type lifespan laptop"),
             new("Asset makes", "/Settings/AssetMakes", "make manufacturer brand"),
             new("Asset models", "/Settings/AssetModels", "model"),
             new("Asset statuses", "/Settings/AssetStatuses", "asset status disposed"),
+            new("Asset conditions", "/Settings/AssetConditions", "asset condition new used refurbished donated dfe"),
             new("Custom asset attributes", "/Settings/AssetAttributes", "custom fields attributes extra"),
             new("Part categories", "/Settings/PartCategories", "part category"),
             new("Part locations", "/Settings/PartLocations", "part location store cupboard"),
@@ -48,7 +49,8 @@ public static class SettingsMenu
         [
             new("Teams", "/Settings/Teams", "team"),
             new("Departments", "/Settings/Departments", "department"),
-            new("Locations", "/Settings/Locations", "location room building site"),
+            new("Buildings", "/Settings/Buildings", "building block site campus dfe"),
+            new("Locations (rooms)", "/Settings/Locations", "location room building site"),
             new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Onboarding checklists", "/Settings/Onboarding", "onboarding new starter staff checklist template tasks"),
         ]),

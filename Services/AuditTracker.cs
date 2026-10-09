@@ -121,6 +121,8 @@ internal static class AuditTracker
         foreach (var pair in d.AssetTypeLifespans)
             Add(s, "Lists", "Asset type lifespan", pair.Key.ToLowerInvariant(), $"Lifespan for asset type: {pair.Key}", Track.All, ("Years", pair.Value.ToString()));
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
+        Add(s, "Settings", "Asset checks", "asset-checks", "DfE check and end-of-support windows", Track.Update,
+            ("Check due soon days", d.CheckDueSoonDays.ToString()), ("Support warning days", d.SupportWarningDays.ToString()), ("Months between checks", d.CheckIntervalMonths.ToString()));
         Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
         Add(s, "Settings", "Ticket reopen window", "ticket-reopen-window", "Replies reopen closed tickets", Track.Update, ("For days", d.ReopenWindowDays.ToString()));
         // What gets deleted or anonymised is worth knowing who changed. The runs themselves write their own summary.
@@ -166,6 +168,8 @@ internal static class AuditTracker
         AddList(s, "Lists", "Part location", d.PartLocations);
         AddList(s, "Lists", "Loan reason", d.LoanReasons);
         AddList(s, "Lists", "Purchasing requirement", d.PurchasingRequirements);
+        AddList(s, "Lists", "Building", d.Buildings);
+        AddList(s, "Lists", "Asset condition", d.AssetConditions);
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);
         return s;

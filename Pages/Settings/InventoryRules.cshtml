@@ -1,13 +1,24 @@
 @page
 @model EduHelpdesk.Pages.Settings.InventoryRulesModel
 @{ ViewData["Title"] = "Asset, part & loan rules"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
     <div class="panel-heading"><h2>Asset review</h2></div>
     <p class="muted">The overview lists assets whose warranty ends, or that are due for replacement, within this many days, along with any already past. Overdue loans are always listed.</p>
     <form method="post" asp-page-handler="SaveAssetReview" class="import-row"><label>Review window (days)<input name="days" type="number" min="0" max="3650" step="1" value="@Model.AssetReviewDays" required /></label><button class="button button-primary">Save</button></form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>DfE checks and end of support</h2></div>
+    <p class="muted">The DfE digital and technology standards ask for a register that records when each asset was last checked and when its next check is due, and when it stops being supported. Assets also come up for review when a check is due within the first window, or support (or a lease) ends within the second. Recording a check sets the next one this many months later.</p>
+    <form method="post" asp-page-handler="SaveAssetChecks" class="import-row">
+        <label>Check due soon (days)<input name="dueSoonDays" type="number" min="0" max="3650" step="1" value="@Model.Checks.DueSoonDays" required /></label>
+        <label>Support ending warning (days)<input name="supportWarningDays" type="number" min="0" max="3650" step="1" value="@Model.Checks.SupportWarningDays" required /></label>
+        <label>Months between checks<input name="intervalMonths" type="number" min="1" max="120" step="1" value="@Model.Checks.IntervalMonths" required /></label>
+        <button class="button button-primary">Save</button>
+    </form>
 </section>
 
 <section class="panel">

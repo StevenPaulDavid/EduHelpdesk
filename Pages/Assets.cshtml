@@ -18,18 +18,19 @@
         {
             Id = "asset-filters",
             Search = Model.Search,
-            SearchPlaceholder = "Tag, serial number, make, model, location, holder, purchase order",
+            SearchPlaceholder = "Tag, serial number, make, model, building, room, holder, purchase order",
             Title = "Filter assets",
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
             ClearUrl = Url.Page("/Assets"),
             Hidden = [("sort", Model.Sort == "tag" ? null : Model.Sort), ("dir", Model.Descending ? "desc" : null)],
             Fields = @<text>
-                <label>Show<select name="flag"><option value="">All assets</option><option value="review" selected="@(Model.Flag == "review")">@AssetsModel.FlagLabel("review")</option><option value="loan" selected="@(Model.Flag == "loan")">@AssetsModel.FlagLabel("loan")</option><option value="overdue" selected="@(Model.Flag == "overdue")">@AssetsModel.FlagLabel("overdue")</option></select></label>
+                <label>Show<select name="flag"><option value="">All assets</option>@foreach (var flag in AssetListQuery.Flags) { <option value="@flag" selected="@(Model.Flag == flag)">@AssetsModel.FlagLabel(flag)</option> }</select></label>
                 <label>Status<select name="status"><option value="">Any status</option>@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Make<select name="make"><option value="">Any make</option>@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@string.Equals(item, Model.Make, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-                <label>Location<select name="location"><option value="">Any location</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No location)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Building<select name="building"><option value="">Any building</option><option value="@AssetListQuery.None" selected="@(Model.Building == AssetListQuery.None)">(No building)</option>@foreach (var item in Model.Buildings) { <option value="@item" selected="@string.Equals(item, Model.Building, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Room<select name="location"><option value="">Any room</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No room)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Held by<select name="holder" data-picker><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
                 <label>Per page<select name="size">@foreach (var size in AssetsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
             </text>
@@ -45,6 +46,7 @@
         <input type="hidden" name="status" value="@Model.Status" />
         <input type="hidden" name="type" value="@Model.Type" />
         <input type="hidden" name="make" value="@Model.Make" />
+        <input type="hidden" name="building" value="@Model.Building" />
         <input type="hidden" name="location" value="@Model.Location" />
         <input type="hidden" name="holder" value="@Model.Holder" />
         <input type="hidden" name="flag" value="@Model.Flag" />
@@ -60,7 +62,8 @@
             @if (cols.Show("type")) { <th><a class="sort-link" href="@Model.SortUrl("type")">Type@(Model.SortMark("type"))</a></th> }
             @if (cols.Show("serial")) { <th><a class="sort-link" href="@Model.SortUrl("serial")">Serial number@(Model.SortMark("serial"))</a></th> }
             @if (cols.Show("holder")) { <th><a class="sort-link" href="@Model.SortUrl("holder")">Held by@(Model.SortMark("holder"))</a></th> }
-            @if (cols.Show("location")) { <th><a class="sort-link" href="@Model.SortUrl("location")">Location@(Model.SortMark("location"))</a></th> }
+            @if (cols.Show("building")) { <th><a class="sort-link" href="@Model.SortUrl("building")">Building@(Model.SortMark("building"))</a></th> }
+            @if (cols.Show("location")) { <th><a class="sort-link" href="@Model.SortUrl("location")">Room@(Model.SortMark("location"))</a></th> }
             @if (cols.Show("status")) { <th><a class="sort-link" href="@Model.SortUrl("status")">Status@(Model.SortMark("status"))</a></th> }
             @if (cols.Show("warranty")) { <th><a class="sort-link" href="@Model.SortUrl("warranty")">Warranty ends@(Model.SortMark("warranty"))</a></th> }
             @if (cols.Show("tickets")) { <th>Tickets</th> }
@@ -69,6 +72,11 @@
             @if (cols.Show("supplier")) { <th>Supplier</th> }
             @if (cols.Show("order")) { <th>Purchase order</th> }
             @if (cols.Show("replacement")) { <th>Replacement due</th> }
+            @if (cols.Show("os")) { <th>Operating system</th> }
+            @if (cols.Show("condition")) { <th>Condition</th> }
+            @if (cols.Show("ownership")) { <th>Ownership</th> }
+            @if (cols.Show("nextcheck")) { <th><a class="sort-link" href="@Model.SortUrl("nextcheck")">Next check@(Model.SortMark("nextcheck"))</a></th> }
+            @if (cols.Show("support")) { <th><a class="sort-link" href="@Model.SortUrl("support")">End of support@(Model.SortMark("support"))</a></th> }
             <th aria-label="Actions"></th>
         </tr></thead><tbody>
         @foreach (var asset in Model.Rows)
@@ -82,6 +90,7 @@
                 @if (cols.Show("type")) { <td>@asset.Type</td> }
                 @if (cols.Show("serial")) { <td>@asset.SerialNumber</td> }
                 @if (cols.Show("holder")) { <td>@(holder ?? "—")@if (asset.AssignedUserId is not null && asset.LoanDueDate is { } loanDue) { <br /><span class="badge @(overdue ? "badge-warning" : "")">Loan due @AssetInsights.Format(loanDue)</span> }</td> }
+                @if (cols.Show("building")) { <td>@(string.IsNullOrWhiteSpace(asset.Building) ? "—" : asset.Building)</td> }
                 @if (cols.Show("location")) { <td>@asset.Location</td> }
                 @if (cols.Show("status")) { <td><span class="status">@asset.Status</span></td> }
                 @if (cols.Show("warranty")) { <td>@if (asset.WarrantyEnd is { } warrantyEnd) { <span>@AssetInsights.Format(warrantyEnd)</span> @if (expired) { <br /><span class="badge badge-warning">Expired</span> } } else { <span class="muted">—</span> }</td> }
@@ -91,6 +100,19 @@
                 @if (cols.Show("supplier")) { <td>@(asset.SupplierId is { } supplierId ? Model.SupplierNames.GetValueOrDefault(supplierId) ?? "—" : "—")</td> }
                 @if (cols.Show("order")) { <td>@(string.IsNullOrWhiteSpace(asset.PurchaseOrder) ? "—" : asset.PurchaseOrder)</td> }
                 @if (cols.Show("replacement")) { <td>@(AssetInsights.ReplacementDate(asset, Model.Lifespans) is { } replace ? AssetInsights.Format(replace) : "—")</td> }
+                @if (cols.Show("os")) { <td>@(string.IsNullOrWhiteSpace(asset.OperatingSystem) ? "—" : asset.OperatingSystem)</td> }
+                @if (cols.Show("condition")) { <td>@(string.IsNullOrWhiteSpace(asset.Condition) ? "—" : asset.Condition)</td> }
+                @if (cols.Show("ownership")) { <td>@AssetOwnership.Label(asset.Ownership)</td> }
+                @if (cols.Show("nextcheck"))
+                {
+                    var checkState = AssetChecks.CheckState(asset, Model.Today, Model.Checks.DueSoonDays);
+                    <td>@if (asset.NextCheckDate is { } nextCheck) { <span>@AssetInsights.Format(nextCheck)</span> @if (checkState is AssetChecks.State.Overdue or AssetChecks.State.Soon && !HelpdeskStore.IsDisposed(asset)) { <br /><span class="badge @AssetChecks.Tone(checkState)">@(checkState == AssetChecks.State.Overdue ? "Overdue" : "Due soon")</span> } } else { <span class="muted">—</span> }</td>
+                }
+                @if (cols.Show("support"))
+                {
+                    var supportState = AssetChecks.SupportState(asset, Model.Today, Model.Checks.SupportWarningDays);
+                    <td>@if (asset.EndOfSupport is { } supportEnds) { <span>@AssetInsights.Format(supportEnds)</span> @if (supportState is AssetChecks.State.Overdue or AssetChecks.State.Soon && !HelpdeskStore.IsDisposed(asset)) { <br /><span class="badge @AssetChecks.Tone(supportState)">@AssetChecks.SupportLabel(asset, supportState)</span> } } else { <span class="muted">—</span> }</td>
+                }
                 <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset" aria-label="Edit @asset.AssetTag">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset" aria-label="Delete @asset.AssetTag">@Icons.Bin</a> }</td>
             </tr>
         }
@@ -102,12 +124,17 @@
             <div class="bulk-actions">
                 <strong>With selected assets</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change location</option> }<option value="export" data-button="Export selected">Export to CSV</option></select></label>
+                <label>Action<select name="operation" id="bulk-operation">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change room</option><option value="check" data-button="Record check">Record a check</option> }<option value="export" data-button="Export selected">Export to CSV</option></select></label>
                 @if (Model.CanEdit)
                 {
                     <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>
                     <label id="bulk-owner-field" hidden>New owner<select name="newOwner" disabled data-picker><option value="none">Nobody (unassigned)</option>@foreach (var item in Model.Users) { <option value="@item.Id">@item.Name</option> }</select></label>
-                    <label id="bulk-location-field" hidden>New location<select name="newLocation" disabled><option value="@AssetListQuery.None">No location</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                    <label id="bulk-location-field" hidden>New room<select name="newLocation" disabled><option value="@AssetListQuery.None">No room</option>@foreach (var item in Model.Locations) { <option value="@item">@item</option> }</select></label>
+                    @* DfE "Record a check": the next check is set @Model.Checks.IntervalMonths months on (Settings › Inventory rules). *@
+                    <span id="bulk-check-field" class="bulk-field-group" hidden>
+                        <label>Checked on<input name="checkDate" type="date" value="@Model.Today.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" disabled /></label>
+                        <label>By<input name="checkBy" value="@Model.CurrentUserName" disabled data-required-message="Enter who did the check." /></label>
+                    </span>
                 }
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
             </div>

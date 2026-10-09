@@ -94,7 +94,9 @@ public sealed partial class HelpdeskStore
     // the record to survive - what it cost, when it was bought and what became of it.
     // The holder is cleared as well, because DeleteUser refuses while any asset is assigned to somebody, and a scrapped
     // laptop still showing a leaver as its holder would block deleting them for good.
-    public (bool Ok, string Message) DisposeAsset(Guid assetId, DateOnly? date, string? method, decimal? proceeds)
+    // disposedBy and certificate are the DfE evidence that it went *securely*: who did it (often the WEEE contractor)
+    // and the recycling or data-destruction certificate number. Both optional, since a lost device has neither.
+    public (bool Ok, string Message) DisposeAsset(Guid assetId, DateOnly? date, string? method, decimal? proceeds, string? disposedBy = null, string? certificate = null)
     {
         lock (_sync)
         {
@@ -121,7 +123,9 @@ public sealed partial class HelpdeskStore
                 LoanDueDate = null,
                 DisposalDate = disposedOn,
                 DisposalMethod = method.Trim(),
-                DisposalProceeds = proceeds
+                DisposalProceeds = proceeds,
+                DisposedBy = (disposedBy ?? string.Empty).Trim(),
+                DisposalCertificate = (certificate ?? string.Empty).Trim()
             });
             Save();
             return (true, $"{asset.AssetTag} recorded as disposed on {AssetInsights.Format(disposedOn)}.");
@@ -129,8 +133,37 @@ public sealed partial class HelpdeskStore
     }
 
     // The methods offered when disposing of an asset. Fixed rather than a managed list: they map to how a school
-    // actually accounts for kit leaving, and the finance report groups on them.
-    public static readonly string[] DisposalMethods = ["Sold", "Recycled (WEEE)", "Donated", "Written off", "Lost or stolen"];
+    // actually accounts for kit leaving, and the finance report groups on them. The DfE register's own methods (data
+    // destruction, returned to lessor, part exchange) were added when EduInventory was merged in.
+    public static readonly string[] DisposalMethods = ["Sold", "Recycled (WEEE)", "Data destruction and recycling", "Returned to lessor", "Part exchange", "Donated", "Written off", "Lost or stolen"];
+
+    // DfE "Record a check": stamps the check date and who did it on each asset and sets the next check from the interval
+    // in Settings → Inventory rules. Saves once for the lot. Disposed assets are skipped - there is nothing to check.
+    // Unchanged: already carrying this exact check. Skipped: disposed.
+    public (int Checked, int Unchanged, int Skipped, string? Error) RecordAssetChecks(IEnumerable<Guid> assetIds, DateOnly checkedOn, string? checkedBy)
+    {
+        lock (_sync)
+        {
+            if (checkedOn > AssetInsights.Today) return (0, 0, 0, "The check date cannot be in the future.");
+            var by = (checkedBy ?? string.Empty).Trim();
+            if (by.Length == 0) return (0, 0, 0, "Enter who did the check.");
+            var next = AssetChecks.NextCheck(checkedOn, _data.CheckIntervalMonths);
+            int count = 0, unchanged = 0, skipped = 0;
+            foreach (var id in assetIds.Distinct())
+            {
+                var index = _data.Assets.FindIndex(x => x.Id == id);
+                if (index < 0) continue;
+                if (IsDisposed(_data.Assets[index])) { skipped++; continue; }
+                var asset = _data.Assets[index];
+                var updated = asset with { LastCheckDate = checkedOn, LastCheckBy = by, NextCheckDate = next };
+                if (updated == asset) { unchanged++; continue; }
+                ApplyAssetUpdate(index, updated);
+                count++;
+            }
+            if (count > 0) Save();
+            return (count, unchanged, skipped, null);
+        }
+    }
 
     // Ends the current holder's period. The status can be set at the same time, for example back to stock.
     public string ReturnAsset(Guid assetId, string? status)
@@ -446,5 +479,19 @@ public sealed partial class HelpdeskStore
         if (previous.Location != updated.Location) history.Add(new("Location changed", string.IsNullOrWhiteSpace(updated.Location) ? "The location was removed." : $"Moved to {updated.Location}.", now));
         if (previous.AssignedUserId != updated.AssignedUserId) history.Add(new("Assigned user changed", updated.AssignedUserId.HasValue ? $"Assigned to {Person(updated.AssignedUserId)}." : $"No longer assigned to {Person(previous.AssignedUserId)}.", now));
         if (previous.SupplierId != updated.SupplierId) history.Add(new("Supplier changed", updated.SupplierId.HasValue ? "A supplier was linked." : "The supplier was removed.", now));
+        // DfE register fields.
+        if (!string.Equals(previous.Building, updated.Building, StringComparison.Ordinal)) history.Add(new("Building changed", string.IsNullOrWhiteSpace(updated.Building) ? "The building was removed." : $"Moved to {updated.Building}.", now));
+        if (!string.Equals(previous.OperatingSystem, updated.OperatingSystem, StringComparison.Ordinal)) history.Add(new("Operating system changed", $"{Text(previous.OperatingSystem)} -> {Text(updated.OperatingSystem)}", now));
+        if (!string.Equals(previous.Condition, updated.Condition, StringComparison.Ordinal)) history.Add(new("Condition changed", $"{Text(previous.Condition)} -> {Text(updated.Condition)}", now));
+        if (!string.Equals(previous.Ownership, updated.Ownership, StringComparison.Ordinal)) history.Add(new("Ownership changed", $"{AssetOwnership.Label(previous.Ownership)} -> {AssetOwnership.Label(updated.Ownership)}", now));
+        if (previous.EndOfSupport != updated.EndOfSupport) history.Add(new("End of support changed", $"{Date(previous.EndOfSupport)} -> {Date(updated.EndOfSupport)}", now));
+        // A recorded check reads as one line, rather than three separate field changes.
+        if (previous.LastCheckDate != updated.LastCheckDate || !string.Equals(previous.LastCheckBy, updated.LastCheckBy, StringComparison.Ordinal))
+            history.Add(new("Check recorded", updated.LastCheckDate.HasValue
+                ? $"Checked {Date(updated.LastCheckDate)}{(string.IsNullOrWhiteSpace(updated.LastCheckBy) ? "" : $" by {updated.LastCheckBy}")}; next check {Date(updated.NextCheckDate)}."
+                : "The last check was cleared.", now));
+        else if (previous.NextCheckDate != updated.NextCheckDate) history.Add(new("Next check changed", $"{Date(previous.NextCheckDate)} -> {Date(updated.NextCheckDate)}", now));
+        if (previous.DisposalDate is null && updated.DisposalDate is { } disposed)
+            history.Add(new("Disposed", $"{Date(disposed)}: {Text(updated.DisposalMethod)}{(string.IsNullOrWhiteSpace(updated.DisposedBy) ? "" : $", by {updated.DisposedBy}")}{(string.IsNullOrWhiteSpace(updated.DisposalCertificate) ? "" : $", certificate {updated.DisposalCertificate}")}.", now));
     }
 }

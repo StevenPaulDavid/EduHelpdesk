@@ -157,10 +157,10 @@ public class FinanceReportsModel(HelpdeskStore store) : PageModel
                 x => [x.AssetTag, x.Type, x.Make, x.Model, x.PurchaseDate?.ToString("yyyy-MM-dd") ?? "", AcademicLabelFor(x.PurchaseDate),
                       MoneyCell(x.PurchasePrice), Reference(x)?.Reference ?? "", Reference(x)?.Kind ?? "", SupplierName(x), x.Status])),
             "disposals" => ("finance-disposals", Csv.Table(
-                ["Asset tag", "Type", "Make", "Model", "Disposed", "Academic year", "Method", "Proceeds", "Original price", "Purchase date"],
+                ["Asset tag", "Type", "Make", "Model", "Disposed", "Academic year", "Method", "Proceeds", "Original price", "Purchase date", "Disposed by", "Certificate"],
                 AcademicDisposals,
                 x => [x.AssetTag, x.Type, x.Make, x.Model, x.DisposalDate?.ToString("yyyy-MM-dd") ?? "", AcademicLabelFor(x.DisposalDate),
-                      x.DisposalMethod, MoneyCell(x.DisposalProceeds), MoneyCell(x.PurchasePrice), x.PurchaseDate?.ToString("yyyy-MM-dd") ?? ""])),
+                      x.DisposalMethod, MoneyCell(x.DisposalProceeds), MoneyCell(x.PurchasePrice), x.PurchaseDate?.ToString("yyyy-MM-dd") ?? "", x.DisposedBy, x.DisposalCertificate])),
             "orders" => ("finance-orders", Csv.Table(
                 ["Reference", "Kind", "Date", "Dates differ", "Amount", "Supplier", "Assets", "What was bought"],
                 Orders,

@@ -32,8 +32,11 @@ public static class AssetInsights
     // (or overdue), and loans past their due-back date. Most urgent first.
     // departedHolders: people marked inactive. An asset still recorded against one of them is flagged, so a leaver's
     // laptop doesn't sit on their name for ever (HelpdeskStore.DepartedUserIds).
-    public static List<ReviewItem> ReviewItems(IEnumerable<AssetRecord> assets, IReadOnlyDictionary<string, int> lifespanYears, int windowDays, DateOnly today, IReadOnlySet<Guid>? departedHolders = null)
+    // checks: the DfE check and end-of-support windows (AssetChecks). They have their own windows rather than windowDays,
+    // because a 30-day check reminder and a six-month unsupported warning are different kinds of notice.
+    public static List<ReviewItem> ReviewItems(IEnumerable<AssetRecord> assets, IReadOnlyDictionary<string, int> lifespanYears, int windowDays, DateOnly today, IReadOnlySet<Guid>? departedHolders = null, AssetCheckSettings? checks = null)
     {
+        checks ??= new(AssetChecks.DefaultDueSoonDays, AssetChecks.DefaultSupportWarningDays, AssetChecks.DefaultIntervalMonths);
         var horizon = today.AddDays(Math.Max(0, windowDays));
         var items = new List<ReviewItem>();
         foreach (var asset in assets)
@@ -50,6 +53,13 @@ public static class AssetInsights
                 reasons.Add(new("Loan", $"Overdue: due back {Format(due)} ({today.DayNumber - due.DayNumber} day{(today.DayNumber - due.DayNumber == 1 ? "" : "s")} late)", due, true));
             if (asset.AssignedUserId is { } holder && departedHolders?.Contains(holder) == true)
                 reasons.Add(new("Leaver", "Held by someone who has left", today, true));
+            if (asset.NextCheckDate is { } next && AssetChecks.CheckState(asset, today, checks.DueSoonDays) is AssetChecks.State.Overdue or AssetChecks.State.Soon)
+                reasons.Add(new("Check", next < today ? $"Check overdue since {Format(next)}" : next == today ? "Check due today" : $"Check due {Format(next)} ({Days(next, today)})", next, next < today));
+            if (asset.EndOfSupport is { } end && AssetChecks.SupportState(asset, today, checks.SupportWarningDays) is var support and (AssetChecks.State.Overdue or AssetChecks.State.Soon))
+            {
+                var label = AssetChecks.SupportLabel(asset, support);
+                reasons.Add(new("Support", end < today ? $"{label} since {Format(end)}" : end == today ? $"{label} today" : $"{label}: {Format(end)} ({Days(end, today)})", end, end < today));
+            }
             if (reasons.Count > 0) items.Add(new ReviewItem(asset, reasons));
         }
         return items.OrderBy(x => x.SortDate).ThenBy(x => x.Asset.AssetTag, StringComparer.OrdinalIgnoreCase).ToList();

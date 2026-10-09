@@ -560,6 +560,9 @@ html.blade-open { overflow: hidden; }
 
 .badge-warning { background: var(--danger-soft); color: var(--red); }
 .badge-good { background: var(--notice-bg); color: var(--notice-ink); }
+/* Several fields for one bulk action (Record a check) sit in the bar as if they were its own. Not when [hidden]. */
+.bulk-field-group:not([hidden]) { display: contents; }
+.badge-soon { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--amber); }
 
 .part-list { display: grid; gap: 10px; margin-bottom: 18px; }
 .part-row {

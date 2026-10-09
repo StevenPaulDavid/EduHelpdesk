@@ -15,6 +15,12 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> AssetModels => store.AssetModels;
     public IReadOnlyDictionary<string, string> AssetModelMakes => store.AssetModelMakes;
     public IReadOnlyList<string> Locations => store.Locations;
+    public IReadOnlyList<string> Buildings => store.Buildings;
+    public IReadOnlyList<string> Conditions => store.AssetConditions;
+    public AssetCheckSettings Checks => store.AssetCheckSettings;
+    public AssetChecks.State CheckState => Asset is null ? AssetChecks.State.None : AssetChecks.CheckState(Asset, AssetInsights.Today, Checks.DueSoonDays);
+    public AssetChecks.State SupportState => Asset is null ? AssetChecks.State.None : AssetChecks.SupportState(Asset, AssetInsights.Today, Checks.SupportWarningDays);
+    public string CurrentUserName => store.CurrentActor().Name;
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
     public IReadOnlyList<string> LoanReasons => store.LoanReasons;
@@ -57,7 +63,15 @@ public class AssetModel(HelpdeskStore store) : PageModel
         string? purchaseOrder,
         string? quoteReference,
         DateOnly? warrantyEnd,
-        DateOnly? replacementDate)
+        DateOnly? replacementDate,
+        string? building,
+        string? operatingSystem,
+        string? condition,
+        string? ownership,
+        DateOnly? lastCheckDate,
+        string? lastCheckBy,
+        DateOnly? nextCheckDate,
+        DateOnly? endOfSupport)
     {
         if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
@@ -94,6 +108,23 @@ public class AssetModel(HelpdeskStore store) : PageModel
             return RedirectToPage(new { id });
         }
         var current = store.Assets.FirstOrDefault(x => x.Id == id);
+        // Building and condition come from their Settings lists. A value no longer on the list is kept while unchanged,
+        // so renaming the list never blocks saving an unrelated field.
+        if (!AssetForm.TryListValue(building, current?.Building, store.Buildings, out var chosenBuilding))
+        {
+            Message = "Select a building from the list.";
+            return RedirectToPage(new { id });
+        }
+        if (!AssetForm.TryListValue(condition, current?.Condition, store.AssetConditions, out var chosenCondition))
+        {
+            Message = "Select a condition from the list.";
+            return RedirectToPage(new { id });
+        }
+        if (lastCheckDate > AssetInsights.Today)
+        {
+            Message = "The last check date cannot be in the future.";
+            return RedirectToPage(new { id });
+        }
         var makeModelChanged = current is null
             || !string.Equals(current.Make, (make ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase)
             || !string.Equals(current.Model, model.Trim(), StringComparison.OrdinalIgnoreCase);
@@ -121,11 +152,21 @@ public class AssetModel(HelpdeskStore store) : PageModel
             DisposalDate = current?.DisposalDate,
             DisposalMethod = current?.DisposalMethod ?? string.Empty,
             DisposalProceeds = current?.DisposalProceeds,
+            DisposedBy = current?.DisposedBy ?? string.Empty,
+            DisposalCertificate = current?.DisposalCertificate ?? string.Empty,
             WarrantyEnd = warrantyEnd,
             ReplacementDate = replacementDate,
             // Deliberately not editable here. A due-back date is what makes an assignment a loan, and loans need a
             // reason, so they are set by Loan out and cleared by Return rather than typed into the details form.
-            LoanDueDate = current?.LoanDueDate
+            LoanDueDate = current?.LoanDueDate,
+            Building = chosenBuilding,
+            OperatingSystem = (operatingSystem ?? string.Empty).Trim(),
+            Condition = chosenCondition,
+            Ownership = AssetOwnership.Normalize(ownership),
+            LastCheckDate = lastCheckDate,
+            LastCheckBy = lastCheckDate is null ? string.Empty : (lastCheckBy ?? string.Empty).Trim(),
+            NextCheckDate = nextCheckDate,
+            EndOfSupport = endOfSupport
         };
         if (!store.UpdateAssetAttributeValues(id, type.Trim(), customAttributes))
         {
@@ -153,7 +194,7 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public bool IsDisposed => Asset is not null && HelpdeskStore.IsDisposed(Asset);
 
     // Disposal takes an asset out of the register for good, so it sits behind Delete rather than Edit.
-    public IActionResult OnPostDispose(Guid id, DateOnly? disposalDate, string? disposalMethod, string? disposalProceeds)
+    public IActionResult OnPostDispose(Guid id, DateOnly? disposalDate, string? disposalMethod, string? disposalProceeds, string? disposedBy, string? disposalCertificate)
     {
         if (!store.UserCan(User, Modules.Assets, ModulePermission.Delete)) return Forbid();
         if (!AssetForm.TryPrice(disposalProceeds, out var proceeds))
@@ -161,7 +202,16 @@ public class AssetModel(HelpdeskStore store) : PageModel
             Message = "Enter the proceeds as a positive amount, such as 45.00, or leave it blank.";
             return RedirectToPage(new { id });
         }
-        Message = store.DisposeAsset(id, disposalDate, disposalMethod, proceeds).Message;
+        Message = store.DisposeAsset(id, disposalDate, disposalMethod, proceeds, disposedBy, disposalCertificate).Message;
+        return RedirectToPage(new { id });
+    }
+
+    // "Record a check" for this one asset: the same as the bulk action on the asset list.
+    public IActionResult OnPostCheck(Guid id, DateOnly? checkDate, string? checkBy)
+    {
+        if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
+        var (count, unchanged, disposed, error) = store.RecordAssetChecks([id], checkDate ?? AssetInsights.Today, checkBy);
+        Message = error ?? (count > 0 ? "Check recorded." : unchanged > 0 ? "That check is already recorded." : disposed > 0 ? "This asset has been disposed of, so it has no checks." : "Asset was not found.");
         return RedirectToPage(new { id });
     }
 

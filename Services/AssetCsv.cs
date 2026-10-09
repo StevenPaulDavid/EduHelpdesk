@@ -27,7 +27,10 @@ public static class AssetCsv
         {
             "Asset tag", "Make", "Model", "Type", "Serial number", "Status", "Location", "Assigned to", "Loan due back", "Supplier",
             "Purchase date", "Purchase price", "Purchase order", "Quote reference", "Warranty end", "Replacement date",
-            "Disposal date", "Disposal method", "Disposal proceeds"
+            "Disposal date", "Disposal method", "Disposal proceeds",
+            // The DfE register's columns, added after the original ones so older spreadsheets built on this layout still line up.
+            "Building", "Operating system", "Condition", "Ownership", "Last check", "Checked by", "Next check", "End of support",
+            "Disposed by", "Disposal certificate"
         };
         // Two attributes can share a name (they apply to different types); keep the columns distinct.
         var attributeHeaders = new List<string>();
@@ -58,7 +61,11 @@ public static class AssetCsv
                 Day(AssetInsights.ReplacementDate(asset, lifespanYears)),
                 Day(asset.DisposalDate),
                 asset.DisposalMethod,
-                asset.DisposalProceeds?.ToString("0.00", CultureInfo.InvariantCulture) ?? ""
+                asset.DisposalProceeds?.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
+                asset.Building, asset.OperatingSystem, asset.Condition,
+                string.IsNullOrEmpty(asset.Ownership) ? "Owned" : asset.Ownership,
+                Day(asset.LastCheckDate), asset.LastCheckBy, Day(asset.NextCheckDate), Day(asset.EndOfSupport),
+                asset.DisposedBy, asset.DisposalCertificate
             };
             foreach (var attribute in attributes)
                 cells.Add(attribute.AppliesTo(asset.Type) && values is not null && values.TryGetValue(attribute.Id, out var value) ? value : "");

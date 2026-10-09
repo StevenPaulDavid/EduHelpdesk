@@ -13,6 +13,13 @@
             : "Optional. Set a lifespan on the asset type in Settings, or type a date here.";
     var holderText = Model.HolderName is not null ? $"Held by {Model.HolderName}" : Model.HeldByKit is { } kitHeld ? $"Out with {kitHeld.Loan.BorrowerName}" : "Not assigned";
     var warrantyExpired = asset.WarrantyEnd is { } warrantyEnds && warrantyEnds < Model.Today;
+    // A saved building or condition that has since left its Settings list is still offered, so saving keeps it.
+    var buildingOptions = Model.Buildings.Concat(string.IsNullOrWhiteSpace(asset.Building) || Model.Buildings.Contains(asset.Building, StringComparer.OrdinalIgnoreCase) ? [] : new[] { asset.Building }).ToList();
+    var conditionOptions = Model.Conditions.Concat(string.IsNullOrWhiteSpace(asset.Condition) || Model.Conditions.Contains(asset.Condition, StringComparer.OrdinalIgnoreCase) ? [] : new[] { asset.Condition }).ToList();
+    var checkState = Model.CheckState;
+    var supportState = Model.SupportState;
+    var checkFlagged = checkState is AssetChecks.State.Overdue or AssetChecks.State.Soon;
+    var supportFlagged = supportState is AssetChecks.State.Overdue or AssetChecks.State.Soon;
 }
 
 <a class="back-link" asp-page="/Assets">← Back to assets</a>
@@ -26,6 +33,8 @@
             <span>@holderText</span>
             @if (asset.AssignedUserId is not null && asset.LoanDueDate is { } headingDue) { <span class="badge @(Model.LoanOverdue ? "badge-warning" : "")">On loan, due back @AssetInsights.Format(headingDue)</span> }
             @if (warrantyExpired) { <span class="badge badge-warning">Warranty expired</span> }
+            @if (!Model.IsDisposed && checkFlagged) { <span class="badge @AssetChecks.Tone(checkState)">@AssetChecks.CheckLabel(checkState)</span> }
+            @if (!Model.IsDisposed && supportFlagged) { <span class="badge @AssetChecks.Tone(supportState)">@AssetChecks.SupportLabel(asset, supportState)</span> }
         </p>
     </div>
     <div class="heading-actions">
@@ -39,6 +48,7 @@
 <div class="ticket-tab-buttons asset-tabs" role="tablist" aria-label="Asset">
     <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="asset-details">Details</button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-purchase">Purchase &amp; warranty</button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-checks">Checks &amp; support@(checkFlagged || supportFlagged ? " ⚠" : "")</button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-loans">Ownership &amp; loans</button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-tickets">Tickets <span class="badge">@linkedTicketRecords.Count</span></button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-comments">Comments <span class="badge">@asset.Comments.Count</span></button>
@@ -56,7 +66,12 @@
             <label>Model<select name="model" id="asset-model-select" required><option value="">Select a model</option>@foreach (var assetModel in Model.AssetModels) { <option value="@assetModel" data-make="@Model.AssetModelMakes.GetValueOrDefault(assetModel)" selected="@(string.Equals(assetModel, asset.Model, StringComparison.OrdinalIgnoreCase))">@assetModel</option> }</select></label>
             <label>Type<select name="type" required><option value="">Select a type</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@(string.Equals(type, asset.Type, StringComparison.OrdinalIgnoreCase))">@type</option> }</select></label>
             <label>Serial number<input name="serialNumber" value="@asset.SerialNumber" /></label>
-            <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, asset.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
+            <label>Operating system<input name="operatingSystem" value="@asset.OperatingSystem" placeholder="For example Windows 11 Pro 24H2" /></label>
+            @* DfE records where kit is as building and room. The room is the same Locations list tickets and people use. *@
+            <label>Building<select name="building"><option value="">Not recorded</option>@foreach (var item in buildingOptions) { <option value="@item" selected="@(string.Equals(item, asset.Building, StringComparison.OrdinalIgnoreCase))">@item</option> }</select></label>
+            <label>Room<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, asset.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
+            <label>Condition<select name="condition"><option value="">Not recorded</option>@foreach (var item in conditionOptions) { <option value="@item" selected="@(string.Equals(item, asset.Condition, StringComparison.OrdinalIgnoreCase))">@item</option> }</select></label>
+            <label>Ownership<select name="ownership">@foreach (var item in AssetOwnership.All) { <option value="@item" selected="@(item == asset.Ownership)">@AssetOwnership.Label(item)</option> }</select></label>
             <label>Assigned user<select name="assignedUserId" data-picker><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id == asset.AssignedUserId)">@user.Name</option> }</select></label>
             @if (asset.LoanDueDate is { } onLoanUntil)
             {
@@ -99,6 +114,36 @@
         <label>Replacement date<input name="replacementDate" type="date" form="asset-form" value="@asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
     </div>
     <div class="asset-form-actions"><button class="button button-primary" type="submit" form="asset-form" formaction="@(Url.Page("/Asset", "Save") + "#asset-purchase")">Save asset</button></div>
+</section>
+
+@* ---- Checks & support: the DfE register's check dates and end of support. Also part of the Details form. ---- *@
+<section id="asset-checks" class="ticket-tab-panel panel" role="tabpanel" hidden>
+    @if (!Model.IsDisposed)
+    {
+        <div class="panel-heading">
+            <div>
+                <h2>@AssetChecks.CheckLabel(checkState)</h2>
+                <p class="muted">@(asset.LastCheckDate is { } lastChecked ? $"Last checked {AssetInsights.Format(lastChecked)}{(string.IsNullOrWhiteSpace(asset.LastCheckBy) ? "" : $" by {asset.LastCheckBy}")}." : "No check recorded yet.")
+                    @(asset.NextCheckDate is { } nextDue ? $"Next check {AssetInsights.Format(nextDue)}." : "")</p>
+            </div>
+            <span class="badge @AssetChecks.Tone(supportState)">@AssetChecks.SupportLabel(asset, supportState)</span>
+        </div>
+        <form method="post" asp-page-handler="Check" asp-fragment="asset-checks" class="import-row">
+            <input type="hidden" name="id" value="@asset.Id" />
+            <label>Checked on<input name="checkDate" type="date" value="@Model.Today.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
+            <label>By<input name="checkBy" value="@Model.CurrentUserName" required /></label>
+            <button class="button button-primary" type="submit">Record a check</button>
+            <small class="muted">Sets the next check @Model.Checks.IntervalMonths month@(Model.Checks.IntervalMonths == 1 ? "" : "s") later (Settings › Inventory rules).</small>
+        </form>
+    }
+    <h3 class="asset-subheading">On the register</h3>
+    <div class="form-grid asset-form-grid">
+        <label>Last check<input name="lastCheckDate" type="date" form="asset-form" value="@asset.LastCheckDate?.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" /></label>
+        <label>Checked by<input name="lastCheckBy" form="asset-form" value="@asset.LastCheckBy" /></label>
+        <label>Next check<input name="nextCheckDate" type="date" form="asset-form" value="@asset.NextCheckDate?.ToString("yyyy-MM-dd")" /></label>
+        <label>@(string.IsNullOrEmpty(asset.Ownership) ? "End of support" : "Lease or loan ends")<input name="endOfSupport" type="date" form="asset-form" value="@asset.EndOfSupport?.ToString("yyyy-MM-dd")" /><small class="muted">When it stops getting security updates (or goes back to its owner). Separate from the replacement date, which is for budgeting.</small></label>
+    </div>
+    <div class="asset-form-actions"><button class="button button-primary" type="submit" form="asset-form" formaction="@(Url.Page("/Asset", "Save") + "#asset-checks")">Save asset</button></div>
 </section>
 
 @* ---- Ownership & loans: who has it, lending it out and booking it back, disposal, and the record of holders. ---- *@
@@ -167,6 +212,8 @@
             <strong>Disposed@(asset.DisposalDate is { } disposedOn ? " on " + AssetInsights.Format(disposedOn) : "").</strong>
             @(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "" : asset.DisposalMethod + ".")
             @(asset.DisposalProceeds is { } got ? $"Proceeds {got.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}." : "")
+            @(string.IsNullOrWhiteSpace(asset.DisposedBy) ? "" : $"Disposed of by {asset.DisposedBy}.")
+            @(string.IsNullOrWhiteSpace(asset.DisposalCertificate) ? "" : $"Certificate {asset.DisposalCertificate}.")
             It stays in the register for audit, and appears in the finance report.
         </div>
     }
@@ -180,6 +227,8 @@
                 <label>Date<input name="disposalDate" type="date" max="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
                 <label>How<select name="disposalMethod" required><option value="">Choose…</option>@foreach (var method in Model.DisposalMethods) { <option value="@method">@method</option> }</select></label>
                 <label>Proceeds (optional)<input name="disposalProceeds" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+                <label>Disposed of by (optional)<input name="disposedBy" placeholder="Person or recycling company" /></label>
+                <label>Certificate (optional)<input name="disposalCertificate" placeholder="WEEE or data destruction certificate number" /></label>
                 <button class="button button-danger" type="submit">Record disposal</button>
             </form>
         </details>

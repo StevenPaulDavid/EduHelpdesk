@@ -77,7 +77,7 @@
                 <td>@asset.Make @asset.Model</td>
                 <td>@asset.Type</td>
                 <td>@(asset.DisposalDate is { } d ? AssetInsights.Format(d) : "—")</td>
-                <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)</td>
+                <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)@if (!string.IsNullOrWhiteSpace(asset.DisposedBy) || !string.IsNullOrWhiteSpace(asset.DisposalCertificate)) { <br /><small>@string.Join(" · ", new[] { string.IsNullOrWhiteSpace(asset.DisposedBy) ? null : $"By {asset.DisposedBy}", string.IsNullOrWhiteSpace(asset.DisposalCertificate) ? null : $"Certificate {asset.DisposalCertificate}" }.Where(x => x is not null))</small> }</td>
                 <td class="num">@FinanceReportsModel.Money(asset.DisposalProceeds)</td>
                 <td class="num">@FinanceReportsModel.Money(asset.PurchasePrice)</td>
             </tr>

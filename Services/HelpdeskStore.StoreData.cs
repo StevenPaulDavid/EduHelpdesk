@@ -24,6 +24,8 @@ public sealed partial class HelpdeskStore
         public List<string> PartCategories { get; set; } = [];
         public List<string> PartLocations { get; set; } = [];
         public List<string> LoanReasons { get; set; } = [];
+        public List<string> Buildings { get; set; } = [];
+        public List<string> AssetConditions { get; set; } = [];
         public List<LoanKit> LoanKits { get; set; } = [];
         public List<KitLoan> KitLoans { get; set; } = [];
         // A borrower with this many loans inside this many days is flagged on the loan report.
@@ -58,6 +60,11 @@ public sealed partial class HelpdeskStore
         public Dictionary<string, int> AssetTypeLifespans { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Warranty ends and replacement dates inside this many days go on the overview review list.
         public int AssetReviewDays { get; set; } = 60;
+        // DfE asset checks (see AssetChecks): how early a check shows as due, how early end of support warns, and how far
+        // ahead "Record a check" sets the next one.
+        public int CheckDueSoonDays { get; set; } = AssetChecks.DefaultDueSoonDays;
+        public int SupportWarningDays { get; set; } = AssetChecks.DefaultSupportWarningDays;
+        public int CheckIntervalMonths { get; set; } = AssetChecks.DefaultIntervalMonths;
         // The month the academic year starts in, for the finance and audit report. September for most schools.
         public int AcademicYearStartMonth { get; set; } = AcademicYear.DefaultStartMonth;
         // Open tickets due within this many hours count as "due soon" on the ticket list.

@@ -150,6 +150,8 @@ public sealed partial class HelpdeskStore
                     "Asset type" when string.Equals(asset.Type, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Type = newValue },
                     "Asset model" when string.Equals(asset.Model, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Model = newValue },
                     "Asset status" when string.Equals(asset.Status, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Status = newValue },
+                    "Building" when string.Equals(asset.Building, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Building = newValue },
+                    "Asset condition" when string.Equals(asset.Condition, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Condition = newValue },
                     _ => asset
                 };
             }
@@ -213,6 +215,8 @@ public sealed partial class HelpdeskStore
                 "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)) || _data.Parts.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)),
                 "Asset model" => _data.Assets.Any(x => string.Equals(x.Model, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset status" => _data.Assets.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
+                "Building" => _data.Assets.Any(x => string.Equals(x.Building, item, StringComparison.OrdinalIgnoreCase)),
+                "Asset condition" => _data.Assets.Any(x => string.Equals(x.Condition, item, StringComparison.OrdinalIgnoreCase)),
                 "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
                 "Part location" => _data.Parts.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
                 "Loan reason" => _data.KitLoans.Any(x => string.Equals(x.Reason, item, StringComparison.OrdinalIgnoreCase)),
@@ -272,6 +276,19 @@ public sealed partial class HelpdeskStore
             _data.AssetReviewDays = days;
             Save();
             return "Asset review window saved.";
+        }
+    }
+    public string SetAssetCheckSettings(int dueSoonDays, int supportWarningDays, int intervalMonths)
+    {
+        lock (_sync)
+        {
+            if (dueSoonDays is < 0 or > 3650 || supportWarningDays is < 0 or > 3650) return "Enter a number of days between 0 and 3650.";
+            if (intervalMonths is < 1 or > 120) return "Enter between 1 and 120 months between checks.";
+            _data.CheckDueSoonDays = dueSoonDays;
+            _data.SupportWarningDays = supportWarningDays;
+            _data.CheckIntervalMonths = intervalMonths;
+            Save();
+            return "Check and support windows saved.";
         }
     }
     public string SetAcademicYearStartMonth(int month)
@@ -555,7 +572,10 @@ public sealed partial class HelpdeskStore
         if (_data.Priorities.Count == 0) EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
         if (_data.Categories.Count == 0) EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
         if (_data.LoanReasons.Count == 0) EnsureOptions(_data.LoanReasons, ["Forgot own device", "Supply or visitor", "Own device in repair", "Other"]);
+        // The DfE asset register's condition column. Existing databases get these on first start after the update too.
+        if (_data.AssetConditions.Count == 0) EnsureOptions(_data.AssetConditions, AssetConditionDefaults);
     }
+    private static readonly string[] AssetConditionDefaults = ["New", "Used", "Refurbished", "Donated"];
 
     // The lists a brand new install (or a factory reset) starts with.
     private void EnsureFactoryOptions()
@@ -570,6 +590,7 @@ public sealed partial class HelpdeskStore
         if (_data.SlaPauseStatuses.Count == 0) _data.SlaPauseStatuses.Add("On Hold");
         EnsureOptions(_data.Priorities, ["Normal", "Low", "High", "Urgent"]);
         EnsureOptions(_data.LoanReasons, ["Forgot own device", "Supply or visitor", "Own device in repair", "Other"]);
+        EnsureOptions(_data.AssetConditions, AssetConditionDefaults);
     }
 
     // Kinds use the same names as the Settings option pages: AssetTypes, AssetMakes, AssetModels and Categories.
@@ -623,6 +644,8 @@ public sealed partial class HelpdeskStore
         "PartLocations" => "Part location",
         "LoanReasons" => "Loan reason",
         "PurchasingRequirements" => "Purchasing requirement",
+        "Buildings" => "Building",
+        "AssetConditions" => "Asset condition",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -640,10 +663,12 @@ public sealed partial class HelpdeskStore
         "Loan reason" => _data.LoanReasons,
         // Deleting one is always allowed: a project keeps the text of what it asked for, so nothing points at the list.
         "Purchasing requirement" => _data.PurchasingRequirements,
+        "Building" => _data.Buildings,
+        "Asset condition" => _data.AssetConditions,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement" or "Building" or "Asset condition";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 

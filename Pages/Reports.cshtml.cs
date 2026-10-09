@@ -65,13 +65,15 @@ public class ReportsModel(HelpdeskStore store) : PageModel
         [
             ("By type", Count(assets, x => x.Type)),
             ("By make", Count(assets, x => x.Make)),
-            ("By location", Count(assets, x => x.Location)),
+            ("By building", Count(assets, x => x.Building)),
+            ("By room", Count(assets, x => x.Location)),
+            ("By condition", Count(assets, x => x.Condition)),
             // From the full register on purpose, so Disposed appears here and nowhere else on this page.
             ("By status", Count(register, x => x.Status))
         ];
 
         // Review list (same rules as the overview)
-        Review = AssetInsights.ReviewItems(assets, lifespans, ReviewWindowDays, today, store.DepartedUserIds);
+        Review = AssetInsights.ReviewItems(assets, lifespans, ReviewWindowDays, today, store.DepartedUserIds, store.AssetCheckSettings);
 
         // Fleet age and refresh
         var dated = assets.Where(x => x.PurchaseDate.HasValue).ToList();

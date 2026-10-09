@@ -9,6 +9,7 @@ namespace EduHelpdesk.Pages.Settings;
 public class InventoryRulesModel(HelpdeskStore store) : PageModel
 {
     public int AssetReviewDays => store.AssetReviewDays;
+    public AssetCheckSettings Checks => store.AssetCheckSettings;
     public int AcademicYearStartMonth => store.AcademicYearStartMonth;
     public static IReadOnlyList<(int Month, string Name)> AcademicMonths => AcademicYear.Months;
     public int PartsDefaultReorderThreshold => store.PartsDefaultReorderThreshold;
@@ -21,6 +22,12 @@ public class InventoryRulesModel(HelpdeskStore store) : PageModel
     public IActionResult OnPostSaveAssetReview(int days)
     {
         Message = store.SetAssetReviewDays(days);
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostSaveAssetChecks(int dueSoonDays, int supportWarningDays, int intervalMonths)
+    {
+        Message = store.SetAssetCheckSettings(dueSoonDays, supportWarningDays, intervalMonths);
         return RedirectToPage();
     }
 

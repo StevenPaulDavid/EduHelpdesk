@@ -22,7 +22,7 @@
 
 <section class="panel" id="review">
     <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-page-handler="Export" asp-route-table="review" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge @(Model.Review.Count > 0 ? "badge-warning" : "")">@Model.Review.Count</span></div></div>
-    <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and overdue loans. The window is set in Settings.</p>
+    <p class="muted">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), overdue loans, leavers' kit, and DfE checks or end of support coming up. The windows are set in Settings › Inventory rules.</p>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Held by</th><th>Why it needs review</th></tr></thead><tbody>
     @foreach (var item in Model.Review)
     {

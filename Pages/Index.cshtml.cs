@@ -36,8 +36,9 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public IReadOnlyDictionary<Guid, string> TechnicianNames { get; private set; } = new Dictionary<Guid, string>();
 
     private IReadOnlyList<AssetInsights.ReviewItem>? _assetsToReview;
-    // Warranty ending or replacement due within the review window (or already past), and overdue loans, most urgent first.
-    public IReadOnlyList<AssetInsights.ReviewItem> AssetsToReview => _assetsToReview ??= AssetInsights.ReviewItems(store.Assets, store.AssetTypeLifespans, store.AssetReviewDays, AssetInsights.Today, store.DepartedUserIds);
+    // Warranty ending or replacement due within the review window (or already past), overdue loans, and DfE checks and
+    // end of support coming up, most urgent first.
+    public IReadOnlyList<AssetInsights.ReviewItem> AssetsToReview => _assetsToReview ??= AssetInsights.ReviewItems(store.Assets, store.AssetTypeLifespans, store.AssetReviewDays, AssetInsights.Today, store.DepartedUserIds, store.AssetCheckSettings);
     public int ReviewWindowDays => store.AssetReviewDays;
     private IReadOnlyList<PartRecord>? _partsToReview;
     // Parts at or below their reorder threshold, lowest quantity first.

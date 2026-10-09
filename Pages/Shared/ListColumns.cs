@@ -25,10 +25,13 @@ public static class ListColumns
     {
         ["assets"] =
         [
-            new("type", "Type"), new("serial", "Serial number"), new("holder", "Held by"), new("location", "Location"),
+            new("type", "Type"), new("serial", "Serial number"), new("holder", "Held by"), new("building", "Building", false), new("location", "Room"),
             new("status", "Status"), new("warranty", "Warranty ends"), new("tickets", "Tickets"),
             new("purchased", "Purchased", false), new("price", "Purchase price", false), new("supplier", "Supplier", false),
             new("order", "Purchase order", false), new("replacement", "Replacement due", false),
+            // The DfE register's columns.
+            new("os", "Operating system", false), new("condition", "Condition", false), new("ownership", "Ownership", false),
+            new("nextcheck", "Next check", false), new("support", "End of support", false),
         ],
         ["parts"] =
         [

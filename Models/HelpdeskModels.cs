@@ -150,6 +150,48 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
     public DateOnly? ReplacementDate { get; init; }
     // Set while the asset is on loan to AssignedUserId.
     public DateOnly? LoanDueDate { get; init; }
+
+    // ---- The DfE digital technology asset register's own columns (merged from EduInventory) ----
+    // DfE records location as building and room. Location above is the room - the same Locations list tickets and people
+    // use - and Building is its own list (Settings → Buildings).
+    public string Building { get; init; } = "";
+    public string OperatingSystem { get; init; } = "";
+    // From Settings → Asset conditions: New, Used, Refurbished, Donated.
+    public string Condition { get; init; } = "";
+    // Blank means owned by the school; otherwise AssetOwnership.Leased or .Loaned (on loan TO the school from someone
+    // else - not one of the school's own loans to staff, which are AssignedUserId and LoanDueDate).
+    public string Ownership { get; init; } = "";
+    // DfE: the date of the last check or replacement and who did it, and the date of the next. The termly walk-round is
+    // recorded with the bulk "Record a check" on the asset list.
+    public DateOnly? LastCheckDate { get; init; }
+    public string LastCheckBy { get; init; } = "";
+    public DateOnly? NextCheckDate { get; init; }
+    // DfE cyber security standard: when the asset expires or becomes unsupported. Separate from ReplacementDate, which
+    // is a budgeting date; unsupported kit is a security risk whether or not money has been set aside.
+    public DateOnly? EndOfSupport { get; init; }
+    // Disposal evidence the standard asks for - the asset was *securely* disposed of: who did it, and the WEEE or
+    // data-destruction certificate.
+    public string DisposedBy { get; init; } = "";
+    public string DisposalCertificate { get; init; } = "";
+}
+public static class AssetOwnership
+{
+    public const string Owned = "";
+    public const string Leased = "Leased";
+    public const string Loaned = "Loaned";
+    public static readonly string[] All = [Owned, Leased, Loaned];
+    public static string Label(string? value) => value switch
+    {
+        Leased => "Leased",
+        Loaned => "On loan to the school",
+        _ => "Owned by the school"
+    };
+    public static string Normalize(string? value) => value?.Trim() switch
+    {
+        var v when string.Equals(v, Leased, StringComparison.OrdinalIgnoreCase) => Leased,
+        var v when string.Equals(v, Loaned, StringComparison.OrdinalIgnoreCase) || string.Equals(v, "Loan", StringComparison.OrdinalIgnoreCase) => Loaned,
+        _ => Owned
+    };
 }
 // One period in which an asset was held by someone. StartedAt is null for holders recorded before assignments were tracked.
 // A period with a DueBack is a loan - something expected back. One without is a permanent allocation (a teacher's own

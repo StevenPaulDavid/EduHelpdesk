@@ -146,6 +146,17 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN DisposalDate TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN DisposalMethod TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Assets ADD COLUMN DisposalProceeds TEXT NULL;",
+            // The DfE digital technology asset register's columns, merged from EduInventory.
+            "ALTER TABLE Assets ADD COLUMN Building TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN OperatingSystem TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN Condition TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN Ownership TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN LastCheckDate TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN LastCheckBy TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN NextCheckDate TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN EndOfSupport TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN DisposedBy TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN DisposalCertificate TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Parts ADD COLUMN ReorderThreshold INTEGER NULL;",
             // Actor attribution. Nullable on purpose: everything recorded before this existed keeps no actor rather
@@ -216,6 +227,8 @@ public sealed partial class HelpdeskStore
         using var loanTables = connection.CreateCommand();
         loanTables.CommandText = """
             CREATE TABLE IF NOT EXISTS LoanReasons (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS Buildings (Name TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS AssetConditions (Name TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS SchoolPeriods (Position INTEGER PRIMARY KEY, Name TEXT NOT NULL, StartTime TEXT NOT NULL, EndTime TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS LoanKits (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, Notes TEXT NOT NULL DEFAULT '',
                 CreatedAt TEXT NOT NULL, IsRetired INTEGER NOT NULL DEFAULT 0);

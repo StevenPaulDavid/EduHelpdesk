@@ -15,6 +15,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "status")] public string? Status { get; set; }
     [BindProperty(SupportsGet = true, Name = "type")] public string? Type { get; set; }
     [BindProperty(SupportsGet = true, Name = "make")] public string? Make { get; set; }
+    [BindProperty(SupportsGet = true, Name = "building")] public string? Building { get; set; }
     [BindProperty(SupportsGet = true, Name = "location")] public string? Location { get; set; }
     [BindProperty(SupportsGet = true, Name = "holder")] public string? Holder { get; set; }
     [BindProperty(SupportsGet = true, Name = "flag")] public string? Flag { get; set; }
@@ -27,7 +28,11 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
     public IReadOnlyList<string> AssetMakes => store.AssetMakes;
     public IReadOnlyList<string> Locations => store.Locations;
+    public IReadOnlyList<string> Buildings => store.Buildings;
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
+    public AssetCheckSettings Checks => store.AssetCheckSettings;
+    // Who did the check: the person signed in, which they can overwrite (a contractor's name, say).
+    public string CurrentUserName => store.CurrentActor().Name;
     [TempData] public string? Message { get; set; }
 
     // The list opens at Access, so the view asks what this role can actually do before drawing any of the buttons.
@@ -45,7 +50,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public DateOnly Today { get; } = AssetInsights.Today;
     public bool Descending => Dir == "desc";
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Type) || !string.IsNullOrWhiteSpace(Make)
-        || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Holder) || !string.IsNullOrWhiteSpace(Flag);
+        || !string.IsNullOrWhiteSpace(Building) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Holder) || !string.IsNullOrWhiteSpace(Flag);
 
     // Which optional columns this person shows (the Columns menu), and what the extra ones need.
     public ColumnSet Columns { get; private set; } = null!;
@@ -67,7 +72,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         TicketCounts = store.Tickets.SelectMany(t => t.AssetIds.Distinct()).GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
     }
 
-    public IActionResult OnPostBulk(string? operation, Guid[]? ids, bool selectAll, string? newStatus, string? newOwner, string? newLocation)
+    public IActionResult OnPostBulk(string? operation, Guid[]? ids, bool selectAll, string? newStatus, string? newOwner, string? newLocation, DateOnly? checkDate, string? checkBy)
     {
         // The list itself only needs Access, so the handlers on it carry their own level: export reads the register,
         // everything else writes to it.
@@ -89,6 +94,19 @@ public class AssetsModel(HelpdeskStore store) : PageModel
             var csv = AssetCsv.Build(sorted, store.Users, store.Suppliers, store.AssetAttributeDefinitions, store.AssetAttributeValues, store.AssetTypeLifespans);
             var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
             return File(bytes, "text/csv; charset=utf-8", AssetCsv.FileName(DateTime.Now));
+        }
+
+        // DfE "Record a check": the date and who did it, with the next check worked out from Settings → Inventory rules.
+        if (operation == "check")
+        {
+            var (checkedCount, sameCheck, disposed, checkError) = store.RecordAssetChecks(targets, checkDate ?? AssetInsights.Today, checkBy);
+            static string Assets(int n) => $"{n} asset{(n == 1 ? "" : "s")}";
+            var notes = new List<string>();
+            if (sameCheck > 0) notes.Add($"{Assets(sameCheck)} already had this check");
+            if (disposed > 0) notes.Add($"{Assets(disposed)} skipped as disposed");
+            Message = checkError ?? (checkedCount == 0 && notes.Count == 0 ? "None of the selected assets could be found."
+                : $"Check recorded on {Assets(checkedCount)}" + (notes.Count > 0 ? $"; {string.Join(", ", notes)}." : "."));
+            return Back();
         }
 
         HelpdeskStore.AssetBulkChange? change = operation switch
@@ -124,8 +142,8 @@ public class AssetsModel(HelpdeskStore store) : PageModel
 
     private AssetListQuery BuildQuery() => new()
     {
-        Search = Search, Status = Status, Type = Type, Make = Make, Location = Location, Holder = Holder, Flag = Flag,
-        Sort = Sort, Descending = Descending
+        Search = Search, Status = Status, Type = Type, Make = Make, Building = Building, Location = Location, Holder = Holder, Flag = Flag,
+        Sort = Sort, Descending = Descending, Checks = store.AssetCheckSettings
     };
 
     // Ignores unknown sort columns, page sizes and flags rather than failing.
@@ -143,7 +161,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     private Dictionary<string, object?> RouteFor(int page, string sort, string dir) => new()
     {
         ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
-        ["status"] = Blank(Status), ["type"] = Blank(Type), ["make"] = Blank(Make), ["location"] = Blank(Location), ["holder"] = Blank(Holder), ["flag"] = Blank(Flag),
+        ["status"] = Blank(Status), ["type"] = Blank(Type), ["make"] = Blank(Make), ["building"] = Blank(Building), ["location"] = Blank(Location), ["holder"] = Blank(Holder), ["flag"] = Blank(Flag),
         ["sort"] = sort == "tag" ? null : sort,
         ["dir"] = dir == "desc" ? "desc" : null,
         ["p"] = page > 1 ? page : null,
@@ -151,9 +169,14 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     };
 
     // Filters in the Filters panel that are switched on - the number on its button.
-    public int PanelFilterCount => new[] { Status, Type, Make, Location, Holder, Flag }.Count(x => !string.IsNullOrWhiteSpace(x));
+    public int PanelFilterCount => new[] { Status, Type, Make, Building, Location, Holder, Flag }.Count(x => !string.IsNullOrWhiteSpace(x));
 
-    public static string FlagLabel(string? flag) => flag switch { "review" => "Needs review", "loan" => "On loan", "overdue" => "Loan overdue", _ => flag ?? "" };
+    public static string FlagLabel(string? flag) => flag switch
+    {
+        "review" => "Needs review", "loan" => "On loan", "overdue" => "Loan overdue",
+        "check" => "Check overdue or due soon", "support" => "Unsupported or support ending", "disposed" => "Disposed",
+        _ => flag ?? ""
+    };
 
     // Every filter in force as a chip that takes just that one off.
     public IReadOnlyList<ActiveFilter> ActiveFilters()
@@ -164,7 +187,8 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Status)) chips.Add(new($"Status: {Status}", Without("status")));
         if (!string.IsNullOrWhiteSpace(Type)) chips.Add(new($"Type: {Type}", Without("type")));
         if (!string.IsNullOrWhiteSpace(Make)) chips.Add(new($"Make: {Make}", Without("make")));
-        if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Location: {(Location == AssetListQuery.None ? "None" : Location)}", Without("location")));
+        if (!string.IsNullOrWhiteSpace(Building)) chips.Add(new($"Building: {(Building == AssetListQuery.None ? "None" : Building)}", Without("building")));
+        if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Room: {(Location == AssetListQuery.None ? "None" : Location)}", Without("location")));
         if (!string.IsNullOrWhiteSpace(Holder))
             chips.Add(new($"Held by: {(Holder == "none" ? "Unassigned" : Guid.TryParse(Holder, out var id) ? store.Users.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Holder)}", Without("holder")));
         if (!string.IsNullOrWhiteSpace(Flag)) chips.Add(new(FlagLabel(Flag), Without("flag")));

@@ -185,7 +185,7 @@
         {
             <section class="panel">
                 <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
-                <p class="muted dash-note">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), and overdue loans.</p>
+                <p class="muted dash-note">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), overdue loans, leavers' kit, and DfE checks or end of support coming up.</p>
                 @if (Model.AssetsToReview.Count == 0) { <p class="empty">No assets need review right now.</p> }
                 else
                 {

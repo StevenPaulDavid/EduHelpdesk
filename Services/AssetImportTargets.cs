@@ -28,7 +28,9 @@ public static class AssetImportTargets
         ("tag", "Asset tag (required)"), ("make", "Make"), ("model", "Model"), ("type", "Type"), ("serial", "Serial number"), ("status", "Status"),
         ("location", "Location"), ("holder", "Assigned to (name or email)"), ("loanDue", "Loan due back"), ("supplier", "Supplier"),
         ("purchaseDate", "Purchase date"), ("purchasePrice", "Purchase price"), ("purchaseOrder", "Purchase order"), ("quoteReference", "Quote reference"),
-        ("warrantyEnd", "Warranty end"), ("replacementDate", "Replacement date")
+        ("warrantyEnd", "Warranty end"), ("replacementDate", "Replacement date"),
+        ("building", "Building"), ("os", "Operating system"), ("condition", "Condition"), ("ownership", "Ownership (owned, leased or loaned)"),
+        ("lastCheck", "Last check"), ("lastCheckBy", "Checked by"), ("nextCheck", "Next check"), ("endOfSupport", "End of support")
     ];
 
     private static readonly Dictionary<string, string[]> Synonyms = new()
@@ -39,7 +41,15 @@ public static class AssetImportTargets
         ["model"] = ["model", "modelname", "devicemodel", "productmodel"],
         ["type"] = ["type", "assettype", "devicetype", "category", "assetcategory", "class", "devicecategory"],
         ["status"] = ["status", "assetstatus", "devicestatus", "state", "lifecycle", "lifecyclestatus"],
-        ["location"] = ["location", "room", "site", "building", "campus", "assetlocation"],
+        ["location"] = ["location", "room", "roomname", "assetlocation"],
+        ["building"] = ["building", "buildingname", "site", "campus", "block"],
+        ["os"] = ["os", "operatingsystem", "osversion", "operatingsystemversion"],
+        ["condition"] = ["condition", "assetcondition"],
+        ["ownership"] = ["ownership", "ownedbyschool", "ownedorleased", "leasedorloaned", "leased"],
+        ["lastCheck"] = ["lastcheck", "lastcheckdate", "dateoflastcheck", "lastchecked", "dateoflastcheckorreplacement", "lastcheckorreplacement"],
+        ["lastCheckBy"] = ["checkedby", "lastcheckby", "lastcheckedby"],
+        ["nextCheck"] = ["nextcheck", "nextcheckdate", "dateofnextcheck", "nextcheckdue"],
+        ["endOfSupport"] = ["endofsupport", "endofsupportdate", "supportends", "supportenddate", "unsupportedfrom", "expirydate", "dateofexpiry", "expiryorunsupported"],
         ["holder"] = ["assignedto", "assigneduser", "user", "owner", "primaryuser", "holder", "heldby", "assignee", "userprincipalname", "upn", "useremail", "owneremail", "primaryuseremail", "currentuser", "checkedoutto"],
         ["loanDue"] = ["loanduedate", "loandueback", "dueback", "loandue", "returndate"],
         ["supplier"] = ["supplier", "vendor", "reseller", "purchasedfrom"],

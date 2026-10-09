@@ -5,7 +5,8 @@ namespace EduHelpdesk.Services;
 // Importing assets from a spreadsheet: rows are matched to existing assets by asset tag (a match updates that asset, no match adds one).
 public sealed partial class HelpdeskStore
 {
-    private const string ListType = "Asset type", ListMake = "Asset make", ListModel = "Asset model", ListLocation = "Location", ListStatus = "Asset status", ListSupplier = "Supplier";
+    private const string ListType = "Asset type", ListMake = "Asset make", ListModel = "Asset model", ListLocation = "Location", ListStatus = "Asset status", ListSupplier = "Supplier",
+        ListBuilding = "Building", ListCondition = "Asset condition";
 
     // What the import would do, without changing anything.
     public AssetImportPlan PlanAssetImport(IReadOnlyList<string[]> rows, IReadOnlyList<string?> targets, AssetImportOptions options)
@@ -48,6 +49,8 @@ public sealed partial class HelpdeskStore
         public readonly HashSet<string> Makes = new(StringComparer.OrdinalIgnoreCase);
         public readonly HashSet<string> Locations = new(StringComparer.OrdinalIgnoreCase);
         public readonly HashSet<string> Statuses = new(StringComparer.OrdinalIgnoreCase);
+        public readonly HashSet<string> Buildings = new(StringComparer.OrdinalIgnoreCase);
+        public readonly HashSet<string> Conditions = new(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<string, string> Models = new(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<string, SupplierRecord> Suppliers = new(StringComparer.OrdinalIgnoreCase);
         public readonly List<(string List, string Value)> Created = [];
@@ -124,6 +127,8 @@ public sealed partial class HelpdeskStore
             case ListMake: added = pending.Makes.Add(need.Value); if (added && apply) _data.AssetMakes.Add(need.Value); break;
             case ListLocation: added = pending.Locations.Add(need.Value); if (added && apply) _data.Locations.Add(need.Value); break;
             case ListStatus: added = pending.Statuses.Add(need.Value); if (added && apply) _data.AssetStatuses.Add(need.Value); break;
+            case ListBuilding: added = pending.Buildings.Add(need.Value); if (added && apply) _data.Buildings.Add(need.Value); break;
+            case ListCondition: added = pending.Conditions.Add(need.Value); if (added && apply) _data.AssetConditions.Add(need.Value); break;
             case ListModel:
                 added = pending.Models.TryAdd(need.Value, need.Make ?? string.Empty);
                 if (added && apply)
@@ -218,6 +223,36 @@ public sealed partial class HelpdeskStore
         if (status.Has && Resolve(ListStatus, status.Value, _data.AssetStatuses, pending.Statuses) is { } resolvedStatus) next = next with { Status = resolvedStatus };
         if (row.Error is not null) return row;
 
+        // The DfE register's columns.
+        var building = Field("building", true);
+        if (building.Has && Resolve(ListBuilding, building.Value, _data.Buildings, pending.Buildings) is { } resolvedBuilding) next = next with { Building = resolvedBuilding };
+        else if (building.Clear) next = next with { Building = string.Empty };
+        if (row.Error is not null) return row;
+        var condition = Field("condition", true);
+        if (condition.Has && Resolve(ListCondition, condition.Value, _data.AssetConditions, pending.Conditions) is { } resolvedCondition) next = next with { Condition = resolvedCondition };
+        else if (condition.Clear) next = next with { Condition = string.Empty };
+        if (row.Error is not null) return row;
+        var os = Field("os", true);
+        if (os.Has) next = next with { OperatingSystem = os.Value };
+        else if (os.Clear) next = next with { OperatingSystem = string.Empty };
+        var checkedBy = Field("lastCheckBy", true);
+        if (checkedBy.Has) next = next with { LastCheckBy = checkedBy.Value };
+        else if (checkedBy.Clear) next = next with { LastCheckBy = string.Empty };
+        // The DfE template asks "Owned by school?" (Yes/No) and "Leased or loaned?"; this column takes either wording.
+        var ownership = Field("ownership", true);
+        if (ownership.Has)
+        {
+            var text = ownership.Value.Trim().ToLowerInvariant();
+            next = next with
+            {
+                Ownership = text.Contains("leas") ? AssetOwnership.Leased
+                    : text.Contains("loan") ? AssetOwnership.Loaned
+                    : text is "no" or "n" or "false" ? AssetOwnership.Leased
+                    : AssetOwnership.Owned
+            };
+        }
+        else if (ownership.Clear) next = next with { Ownership = AssetOwnership.Owned };
+
         var serial = Field("serial", true);
         if (serial.Has) next = next with { SerialNumber = serial.Value };
         else if (serial.Clear) next = next with { SerialNumber = string.Empty };
@@ -293,7 +328,11 @@ public sealed partial class HelpdeskStore
         var purchaseDate = ParseDateField("purchaseDate", "purchase date", next.PurchaseDate, out var failedPurchase);
         var warrantyEnd = ParseDateField("warrantyEnd", "warranty end date", next.WarrantyEnd, out var failedWarranty);
         var replacement = ParseDateField("replacementDate", "replacement date", next.ReplacementDate, out var failedReplacement);
-        if (failedPurchase || failedWarranty || failedReplacement) return row;
+        var lastCheck = ParseDateField("lastCheck", "last check date", next.LastCheckDate, out var failedLastCheck);
+        var nextCheck = ParseDateField("nextCheck", "next check date", next.NextCheckDate, out var failedNextCheck);
+        var endOfSupport = ParseDateField("endOfSupport", "end of support date", next.EndOfSupport, out var failedSupport);
+        if (failedPurchase || failedWarranty || failedReplacement || failedLastCheck || failedNextCheck || failedSupport) return row;
+        next = next with { LastCheckDate = lastCheck, NextCheckDate = nextCheck, EndOfSupport = endOfSupport };
         // An exported file carries the calculated replacement date; typing that same date back must not turn it into an override.
         if (existing is not null && existing.ReplacementDate is null && replacement.HasValue && replacement == AssetInsights.ReplacementDate(existing, _data.AssetTypeLifespans)) replacement = null;
         next = next with { PurchaseDate = purchaseDate, WarrantyEnd = warrantyEnd, ReplacementDate = replacement };
@@ -352,7 +391,10 @@ public sealed partial class HelpdeskStore
                 ("Make", next.Make), ("Model", next.Model), ("Type", next.Type), ("Serial number", next.SerialNumber), ("Status", next.Status), ("Location", next.Location),
                 ("Assigned to", next.AssignedUserId is { } holderName ? UserName(holderName) : null), ("Loan due back", Date(next.LoanDueDate)), ("Supplier", supplierName),
                 ("Purchase date", Date(next.PurchaseDate)), ("Purchase price", next.PurchasePrice?.ToString("0.00")), ("Purchase order", next.PurchaseOrder), ("Quote reference", next.QuoteReference),
-                ("Warranty end", Date(next.WarrantyEnd)), ("Replacement date", Date(next.ReplacementDate))
+                ("Warranty end", Date(next.WarrantyEnd)), ("Replacement date", Date(next.ReplacementDate)),
+                ("Building", next.Building), ("Operating system", next.OperatingSystem), ("Condition", next.Condition),
+                ("Ownership", string.IsNullOrEmpty(next.Ownership) ? null : AssetOwnership.Label(next.Ownership)),
+                ("Last check", Date(next.LastCheckDate)), ("Checked by", next.LastCheckBy), ("Next check", Date(next.NextCheckDate)), ("End of support", Date(next.EndOfSupport))
             })
                 if (!string.IsNullOrWhiteSpace(value)) row.Changes.Add($"{label}: {value}");
             foreach (var (definitionId, value) in row.Attributes)
@@ -383,6 +425,14 @@ public sealed partial class HelpdeskStore
         Change("Quote reference", existing.QuoteReference, next.QuoteReference);
         Change("Warranty end", Day(existing.WarrantyEnd), Day(next.WarrantyEnd));
         Change("Replacement date", Day(existing.ReplacementDate), Day(next.ReplacementDate));
+        Change("Building", existing.Building, next.Building);
+        Change("Operating system", existing.OperatingSystem, next.OperatingSystem);
+        Change("Condition", existing.Condition, next.Condition);
+        Change("Ownership", AssetOwnership.Label(existing.Ownership), AssetOwnership.Label(next.Ownership));
+        Change("Last check", Day(existing.LastCheckDate), Day(next.LastCheckDate));
+        Change("Checked by", existing.LastCheckBy, next.LastCheckBy);
+        Change("Next check", Day(existing.NextCheckDate), Day(next.NextCheckDate));
+        Change("End of support", Day(existing.EndOfSupport), Day(next.EndOfSupport));
         foreach (var (definitionId, value) in row.Attributes)
             Change(definitions[definitionId].Name, attributeValues.TryGetValue((existing.Id, definitionId), out var before) ? before : null, value);
         row.Action = row.Changes.Count == 0 ? ImportAction.Unchanged : ImportAction.Update;
