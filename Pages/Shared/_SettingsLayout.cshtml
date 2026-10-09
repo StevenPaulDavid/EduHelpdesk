@@ -1,0 +1,46 @@
+@using EduHelpdesk.Services
+@inject HelpdeskStore Helpdesk
+@{
+    Layout = "_Layout";
+    // The settings menu: every settings page this person can open, grouped as on the Settings index (SettingsMenu), with
+    // the one they are on marked. Someone who can open none but this page - a DPO given only the audit log - just sees it.
+    var path = Context.Request.Path.Value ?? "";
+    var current = SettingsMenu.For(path);
+    var sections = SettingsMenu.Sections
+        .Select(s => (s.Title, Items: s.Items.Where(i => i.Need != SettingsMenu.Need.Info && SettingsMenu.CanOpen(Helpdesk, User, i)).ToList()))
+        .Where(s => s.Items.Count > 0)
+        .ToList();
+    var canSeeIndex = Helpdesk.UserCan(User, Modules.Settings, ModulePermission.Access);
+}
+<div class="settings-shell">
+    @if (sections.Sum(s => s.Items.Count) > 1)
+    {
+        @* Open by default, so it shows without script; on a phone settings-nav.js folds it to one line naming the page. *@
+        <details class="settings-nav" id="settings-nav" open>
+            <summary><span class="settings-nav-summary-label">Settings</span>@if (current is not null) { <span class="settings-nav-current">@current.Title</span> }</summary>
+            <nav aria-label="Settings">
+                @if (canSeeIndex) { <a class="settings-nav-home" asp-page="/Settings">← All settings</a> }
+                <label class="settings-nav-find"><span class="visually-hidden">Find a setting</span>@Icons.Search<input type="search" id="settings-nav-find" placeholder="Find a setting" autocomplete="off" /></label>
+                @foreach (var (title, items) in sections)
+                {
+                    <div class="settings-nav-group">
+                        <h2>@title</h2>
+                        <ul>
+                            @foreach (var item in items)
+                            {
+                                var on = ReferenceEquals(item, current);
+                                <li><a href="@Url.Content("~" + item.Page)" aria-current="@(on ? "page" : null)" data-keywords="@item.Title @item.Keywords">@item.Title</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+                <p class="settings-nav-none muted" hidden>Nothing matches that.</p>
+            </nav>
+        </details>
+    }
+    <div class="settings-main">@RenderBody()</div>
+</div>
+@section Scripts {
+    <script src="~/js/settings-nav.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+}

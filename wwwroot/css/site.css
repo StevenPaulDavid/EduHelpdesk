@@ -2351,3 +2351,57 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
     .composer-send { margin-left: 0; width: 100%; }
     .composer-send select { flex: 1; }
 }
+
+/* Settings pages: every setting in a menu down the left (Pages/Shared/_SettingsLayout.cshtml), so moving from one to
+   another doesn't mean going back to the Settings index. On a narrow screen it folds to one line above the page. */
+.settings-shell { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: var(--space-6); align-items: start; }
+.settings-main { min-width: 0; }
+.settings-nav {
+    position: sticky;
+    top: var(--space-4);
+    max-height: calc(100vh - 2 * var(--space-4));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: var(--space-3);
+}
+.settings-nav>summary { display: none; }
+.settings-nav nav { display: grid; gap: var(--space-3); }
+.settings-nav-home { font-size: 13px; font-weight: 700; color: var(--teal-text); text-decoration: none; padding: 2px 8px; }
+.settings-nav-home:hover { text-decoration: underline; }
+.settings-nav-find { position: relative; display: block; }
+.settings-nav-find .ico { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted); pointer-events: none; }
+.settings-nav-find input { padding: 7px 10px 7px 30px; font-size: 13px; }
+.settings-nav-group h2 { margin: 0 0 4px; padding: 0 8px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.settings-nav-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.settings-nav-group a { display: block; padding: 5px 8px; border-radius: 6px; font-size: 13px; line-height: 1.35; color: var(--ink); text-decoration: none; }
+.settings-nav-group a:hover { background: var(--hover); }
+.settings-nav-group a[aria-current="page"] { background: var(--accent); color: var(--teal-strong); font-weight: 700; }
+.settings-nav-none { margin: 0; padding: 0 8px; }
+@media(max-width:900px) {
+    .settings-shell { grid-template-columns: 1fr; gap: var(--space-4); }
+    .settings-nav { position: static; max-height: none; padding: var(--space-2) var(--space-3); }
+    .settings-nav>summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 700; padding: 6px 4px; }
+    .settings-nav>summary::-webkit-details-marker { display: none; }
+    .settings-nav>summary::after { content: "\25BE"; margin-left: auto; color: var(--muted); }
+    .settings-nav[open]>summary { margin-bottom: var(--space-2); border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
+    .settings-nav-summary-label { color: var(--muted); font-weight: 600; }
+    .settings-nav-current::before { content: "\203A  "; color: var(--muted); }
+    .settings-nav nav { padding-bottom: var(--space-2); }
+}
+
+/* The simple option lists under Settings (Pages/Settings/_Option.cshtml): an add box, then one row per value with
+   rename and remove. */
+.option-add { display: flex; gap: var(--space-2); margin: 0 0 var(--space-4); max-width: 560px; }
+.option-add input { flex: 1; min-width: 0; }
+.option-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.option-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 48px; padding: 6px 4px; border-bottom: 1px solid var(--row-line); }
+.option-row:hover { background: var(--hover); }
+.option-name { font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.option-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.option-actions form { margin: 0; }
+.option-rename { display: flex; align-items: center; gap: var(--space-2); flex: 1; margin: 0; }
+.option-rename input { flex: 1; min-width: 0; max-width: 420px; }
+.option-empty { margin: 0 0 var(--space-3); }

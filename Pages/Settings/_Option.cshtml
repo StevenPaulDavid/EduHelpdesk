@@ -1,3 +1,44 @@
 @model EduHelpdesk.Pages.Settings.OptionModel
-@{ViewData["Title"]="Manage "+Model.Kind;}<div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
-@if(TempData["Message"] is string message){<div class="notice">@message</div>}<section class="panel"><form method="post" class="settings-form"><input type="hidden" name="kind" value="@Model.Kind"/><label>Add value<input name="value" required/></label><button class="button button-primary">Add</button></form><div class="directory-list">@foreach(var value in Model.Values){<div class="directory-row"><strong>@value</strong><div class="row-actions"><form method="post"><input type="hidden" name="kind" value="@Model.Kind"/><input type="hidden" name="currentValue" value="@value"/><input name="value" value="@value" required/><button class="button button-secondary">Save</button></form><form method="post" asp-page-handler="Delete"><input type="hidden" name="kind" value="@Model.Kind"/><input type="hidden" name="value" value="@value"/><button class="button button-danger">Delete</button></form></div></div>}</div></section>
+@{
+    // The simple option lists (locations, departments, makes...). The heading is the page's name in the settings menu,
+    // not the store's key - which read "Manage AssetMakes".
+    var title = SettingsMenu.For(Context.Request.Path.Value ?? "")?.Title ?? ViewData["Title"] as string ?? Model.Kind;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">SETTINGS</p><h1>@title</h1><p class="hero-copy">@Model.Values.Count in the list. Rename one with the pencil; the bin takes it off the list.</p></div>
+    <a class="button button-secondary" asp-page="/Settings">← Settings</a>
+</div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<section class="panel option-panel">
+    <form method="post" class="option-add">
+        <input type="hidden" name="kind" value="@Model.Kind" />
+        <label class="visually-hidden" for="option-new">Add to @title.ToLowerInvariant()</label>
+        <input id="option-new" name="value" required placeholder="Add a new one…" autocomplete="off" />
+        <button class="button button-primary" type="submit">@Icons.Plus Add</button>
+    </form>
+    @if (Model.Values.Count == 0) { <p class="muted option-empty">Nothing in the list yet.</p> }
+    <ul class="option-list">
+        @for (var i = 0; i < Model.Values.Count; i++)
+        {
+            var value = Model.Values[i];
+            @* Rename swaps the row's name and buttons for its own small form, and Cancel swaps them back (actions.js). *@
+            <li class="option-row">
+                <span class="option-name" id="option-name-@i">@value</span>
+                <span class="option-actions" id="option-actions-@i">
+                    <button class="icon-button" type="button" data-show="option-rename-@i" data-hide="option-name-@i option-actions-@i" title="Rename" aria-label="Rename @value">@Icons.Edit</button>
+                    <form method="post" asp-page-handler="Delete" data-confirm="Take “@value” off the list?">
+                        <input type="hidden" name="kind" value="@Model.Kind" /><input type="hidden" name="value" value="@value" />
+                        <button class="icon-button delete-icon" type="submit" title="Remove" aria-label="Remove @value">@Icons.Bin</button>
+                    </form>
+                </span>
+                <form method="post" class="option-rename" id="option-rename-@i" hidden>
+                    <input type="hidden" name="kind" value="@Model.Kind" /><input type="hidden" name="currentValue" value="@value" />
+                    <label class="visually-hidden" for="option-value-@i">New name for @value</label>
+                    <input id="option-value-@i" name="value" value="@value" required />
+                    <button class="button button-primary" type="submit">Save</button>
+                    <button class="button button-secondary" type="button" data-show="option-name-@i option-actions-@i" data-hide="option-rename-@i">Cancel</button>
+                </form>
+            </li>
+        }
+    </ul>
+</section>

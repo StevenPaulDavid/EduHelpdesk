@@ -63,14 +63,13 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         return "Keeps " + string.Join(", ", parts) + ", then removes them each night.";
     }
 
+    // What each card says beyond its title: a description, and an optional badge (a count, or a state worth seeing).
+    private sealed record Detail(string Description, string? Badge = null, bool Warn = false, bool Good = false);
+
     public void OnGet()
     {
-        var edit = CanEdit;
         RecentErrors = FileLog.CountSince(log.Folder, DateTime.Now.AddDays(-7));
-        Card Page(string title, string page, string description, string keywords, string? badge = null, bool warn = false) =>
-            new(title, page, description, keywords, badge, warn, edit);
-        Card List(string title, string page, IReadOnlyCollection<string> values, string description, string keywords) =>
-            Page(title, page, description, keywords, $"{values.Count}");
+        static Detail List(IReadOnlyCollection<string> values, string description) => new(description, $"{values.Count}");
 
         var backups = Backups;
         // Backups beside the data survive a mistake or a bad update, but not the drive failing - worth a flag here too.
@@ -78,77 +77,56 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         var backupBadge = backups.NeedsAttention(DateTime.UtcNow) ? "Needs attention" : !backups.Enabled ? "Off" : sameDrive ? "Same drive as data" : "Nightly";
         var lastBackup = backups.LastSuccessAt is { } last ? $"Last backup {last.ToLocalTime():ddd d MMM, HH:mm}." : "No backup has been made yet.";
 
-        Groups =
-        [
-            new("Tickets",
-            [
-                Page("Ticket queues & closing", "/Settings/TicketRules", "Due-soon window, how long replies reopen closed tickets, which tickets need a closing message, and the print template.",
-                    "due soon overdue window hours reopen reply closed days closing message requirement print template word docx",
-                    store.HasPrintTemplate ? "Template uploaded" : null),
-                List("Statuses", "/Settings/Statuses", store.Statuses, "The steps a ticket moves through, what each means, and which stop the SLA clock.", "status on hold pause sla clock"),
-                List("Categories", "/Settings/Categories", store.Categories, "What a ticket is about, for filters, reports and templates.", "category hardware software"),
-                List("Priorities", "/Settings/Priorities", store.Priorities, "How urgent a ticket is.", "priority urgent high normal low"),
-                List("SLAs", "/Settings/Slas", store.Slas.Select(x => x.Name).ToList(), "How long tickets have, by priority and category.", "sla service level due date target"),
-                Page("School day and periods", "/Settings/SchoolDay", "The school week and lesson times that work-day and period SLAs count against.", "school day week periods lessons timetable working hours"),
-                List("Service catalogue", "/Settings/ServiceCatalogue", store.ServiceItems.Select(x => $"{x.Category} › {x.Name}").ToList(), "The common problems staff pick from when they report one in the portal.", "service catalogue catalog sub category portal common problems"),
-                List("Ticket templates", "/Settings/TicketTemplates", store.TicketTemplates.Select(x => x.Name).ToList(), "Saved starting points for repeat jobs.", "template repeat job"),
-                List("Ticket custom attributes", "/Settings/TicketAttributes", store.TicketAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on tickets, by category.", "custom fields attributes extra"),
-            ]),
-            new("Assets & inventory",
-            [
-                Page("Asset, part & loan rules", "/Settings/InventoryRules", "Asset review window, academic year, parts reorder threshold and repeat-borrowing flag.",
-                    "review warranty replacement academic year finance reorder threshold low stock loan repeat borrowing"),
-                List("Asset types", "/Settings/AssetTypes", store.AssetTypes, "Kinds of device, and how long each should last.", "type lifespan laptop"),
-                List("Asset makes", "/Settings/AssetMakes", store.AssetMakes, "Manufacturers.", "make manufacturer brand"),
-                List("Asset models", "/Settings/AssetModels", store.AssetModels, "Models, each linked to its make.", "model"),
-                List("Asset statuses", "/Settings/AssetStatuses", store.AssetStatuses, "Where an asset is in its life.", "asset status disposed"),
-                List("Custom asset attributes", "/Settings/AssetAttributes", store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type.", "custom fields attributes extra"),
-                List("Part categories", "/Settings/PartCategories", store.PartCategories, "How parts are grouped.", "part category"),
-                List("Part locations", "/Settings/PartLocations", store.PartLocations, "Where parts are kept.", "part location store cupboard"),
-                List("Loan reasons", "/Settings/LoanReasons", store.LoanReasons, "Why a device was borrowed.", "loan reason kit"),
-            ]),
-            new("People & places",
-            [
-                List("Teams", "/Settings/Teams", store.TechnicianTeams, "Technician teams that tickets can be assigned to.", "team"),
-                List("Departments", "/Settings/Departments", store.Departments, "Requesters' departments.", "department"),
-                List("Locations", "/Settings/Locations", store.Locations, "Rooms and areas, for tickets, assets and people.", "location room building site"),
-                Page("Imports", "/Settings/Imports", "Requesters, staff accounts and option lists from CSV files.", "import csv upload users technicians lists bulk"),
-                Page("Onboarding checklists", "/Settings/Onboarding", "The tasks for each kind of new starter, and when they're due.", "onboarding new starter staff checklist template tasks"),
-            ]),
-            new("Projects",
-            [
-                Page("Spending bands", "/Settings/SpendingBands", "Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT.", "spending bands quotes finance policy threshold vat ex inc excluding including amounts project page"),
-                List("Purchasing requirements", "/Settings/PurchasingRequirements", store.PurchasingRequirements, "Tick boxes offered when a project is requested.", "purchasing requirement project request"),
-            ]),
-            new("System",
-            [
-                Page("Branding & logo", "/Settings/Branding", $"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()}).",
-                    "branding brand name colour color logo crest dark mode light appearance theme overview wording"),
-                Page("Backups & data", "/Settings/Backups", lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""),
-                    "backup restore data folder onedrive", backupBadge, backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
-                Page("Sign-in security", "/Settings/SignIn",
-                    $"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Two-step sign-in {(store.RequireTwoFactor ? "is required" : $"is set up for {TwoFactorCount} of {ActiveStaff} staff")}. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
-                    "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor", IsHttps ? "Encrypted" : "Not encrypted",
-                    warn: !IsHttps) with { Good = IsHttps },
-                Page("Notifications", "/Settings/Notifications", NotificationSummary(),
-                    "notifications pings pop-ups toast alerts banner reminder enable disable staff requesters portal sound",
-                    !store.NotificationSettings.Enabled ? "Off" : null),
-                Page("Teams channel", "/Settings/TeamsChannel", TeamsSummary(),
-                    "teams microsoft channel webhook post message new ticket overdue alert workflow",
-                    store.TeamsSettings.Ready ? "On" : null),
-                Page("Data retention", "/Settings/Retention", RetentionSummary(),
-                    "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection",
-                    store.Retention.AnyOn ? "On" : null),
-                new("Audit log", "/Settings/Audit", "Who changed what, and when, across the whole helpdesk.", "audit log history changes who", Open: CanSeeAudit),
-                new("Database", "/Settings/Database", "How big the data is and how fast it's growing, disk space and save times - and every table exactly as it is stored, read-only.",
-                    "database raw data tables rows sql sqlite debug problem investigate health size growth disk space slow save", "Read-only", Open: CanSeeRaw),
-                Page("Error log", "/Settings/Log", RecentErrors == 0 ? "Warnings and errors the helpdesk has recorded. None in the last 7 days." : $"Warnings and errors the helpdesk has recorded. {RecentErrors} error{(RecentErrors == 1 ? "" : "s")} in the last 7 days.",
-                    "error log problems crash warning logs reference", RecentErrors > 0 ? $"{RecentErrors} this week" : null, RecentErrors > 0),
-                new("About EduHelpdesk", "/Settings", $"Version {AppVersion}. Made by Steven Davidson; free to use and share under the MIT licence, provided as it is with no warranty.",
-                    "about version licence license author release update", $"v{AppVersion}", Info: true),
-                Page("Go live & reset", "/Settings/Reset", HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.",
-                    "demo data go live factory reset erase delete everything", HasDemoData ? "Demo data present" : null),
-            ]),
-        ];
+        // Keyed by page. The titles, order, grouping and who can open each come from SettingsMenu, which the settings
+        // pages' own menu uses too.
+        var details = new Dictionary<string, Detail>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["/Settings/TicketRules"] = new("Due-soon window, how long replies reopen closed tickets, which tickets need a closing message, and the print template.", store.HasPrintTemplate ? "Template uploaded" : null),
+            ["/Settings/Statuses"] = List(store.Statuses, "The steps a ticket moves through, what each means, and which stop the SLA clock."),
+            ["/Settings/Categories"] = List(store.Categories, "What a ticket is about, for filters, reports and templates."),
+            ["/Settings/Priorities"] = List(store.Priorities, "How urgent a ticket is."),
+            ["/Settings/Slas"] = List(store.Slas.Select(x => x.Name).ToList(), "How long tickets have, by priority and category."),
+            ["/Settings/SchoolDay"] = new("The school week and lesson times that work-day and period SLAs count against."),
+            ["/Settings/ServiceCatalogue"] = List(store.ServiceItems.Select(x => $"{x.Category} › {x.Name}").ToList(), "The common problems staff pick from when they report one in the portal."),
+            ["/Settings/TicketTemplates"] = List(store.TicketTemplates.Select(x => x.Name).ToList(), "Saved starting points for repeat jobs."),
+            ["/Settings/TicketAttributes"] = List(store.TicketAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on tickets, by category."),
+            ["/Settings/InventoryRules"] = new("Asset review window, academic year, parts reorder threshold and repeat-borrowing flag."),
+            ["/Settings/AssetTypes"] = List(store.AssetTypes, "Kinds of device, and how long each should last."),
+            ["/Settings/AssetMakes"] = List(store.AssetMakes, "Manufacturers."),
+            ["/Settings/AssetModels"] = List(store.AssetModels, "Models, each linked to its make."),
+            ["/Settings/AssetStatuses"] = List(store.AssetStatuses, "Where an asset is in its life."),
+            ["/Settings/AssetAttributes"] = List(store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type."),
+            ["/Settings/PartCategories"] = List(store.PartCategories, "How parts are grouped."),
+            ["/Settings/PartLocations"] = List(store.PartLocations, "Where parts are kept."),
+            ["/Settings/LoanReasons"] = List(store.LoanReasons, "Why a device was borrowed."),
+            ["/Settings/Teams"] = List(store.TechnicianTeams, "Technician teams that tickets can be assigned to."),
+            ["/Settings/Departments"] = List(store.Departments, "Requesters' departments."),
+            ["/Settings/Locations"] = List(store.Locations, "Rooms and areas, for tickets, assets and people."),
+            ["/Settings/Imports"] = new("Requesters, staff accounts and option lists from CSV files."),
+            ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
+            ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
+            ["/Settings/PurchasingRequirements"] = List(store.PurchasingRequirements, "Tick boxes offered when a project is requested."),
+            ["/Settings/Branding"] = new($"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()})."),
+            ["/Settings/Backups"] = new(lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""), backupBadge,
+                backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
+            ["/Settings/SignIn"] = new($"{(IsHttps ? "Passwords reach the helpdesk encrypted." : "Passwords cross the network unencrypted.")} Two-step sign-in {(store.RequireTwoFactor ? "is required" : $"is set up for {TwoFactorCount} of {ActiveStaff} staff")}. {(RecentLockouts == 0 ? "No lockouts" : RecentLockouts == 1 ? "1 lockout" : $"{RecentLockouts} lockouts")} in the last 7 days.",
+                IsHttps ? "Encrypted" : "Not encrypted", Warn: !IsHttps, Good: IsHttps),
+            ["/Settings/Notifications"] = new(NotificationSummary(), !store.NotificationSettings.Enabled ? "Off" : null),
+            ["/Settings/TeamsChannel"] = new(TeamsSummary(), store.TeamsSettings.Ready ? "On" : null),
+            ["/Settings/Retention"] = new(RetentionSummary(), store.Retention.AnyOn ? "On" : null),
+            ["/Settings/Audit"] = new("Who changed what, and when, across the whole helpdesk."),
+            ["/Settings/Database"] = new("How big the data is and how fast it's growing, disk space and save times - and every table exactly as it is stored, read-only.", "Read-only"),
+            ["/Settings/Log"] = new(RecentErrors == 0 ? "Warnings and errors the helpdesk has recorded. None in the last 7 days." : $"Warnings and errors the helpdesk has recorded. {RecentErrors} error{(RecentErrors == 1 ? "" : "s")} in the last 7 days.",
+                RecentErrors > 0 ? $"{RecentErrors} this week" : null, RecentErrors > 0),
+            ["/Settings"] = new($"Version {AppVersion}. Made by Steven Davidson; free to use and share under the MIT licence, provided as it is with no warranty.", $"v{AppVersion}"),
+            ["/Settings/Reset"] = new(HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.", HasDemoData ? "Demo data present" : null),
+        };
+
+        Groups = SettingsMenu.Sections.Select(section => new Group(section.Title, section.Items.Select(item =>
+        {
+            var detail = details.GetValueOrDefault(item.Page) ?? new Detail("");
+            return new Card(item.Title, item.Page, detail.Description, item.Keywords, detail.Badge, detail.Warn,
+                Open: SettingsMenu.CanOpen(store, User, item), Info: item.Need == SettingsMenu.Need.Info, Good: detail.Good);
+        }).ToList())).ToList();
     }
 }
