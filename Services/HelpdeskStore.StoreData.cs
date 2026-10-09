@@ -26,6 +26,14 @@ public sealed partial class HelpdeskStore
         public List<string> LoanReasons { get; set; } = [];
         public List<string> Buildings { get; set; } = [];
         public List<string> AssetConditions { get; set; } = [];
+        // The contracts register (HelpdeskStore.Contracts) and its lists.
+        public List<ContractRecord> Contracts { get; set; } = [];
+        public List<string> ContractTypes { get; set; } = [];
+        public List<string> SpendCategories { get; set; } = [];
+        public List<string> ContractDurations { get; set; } = [];
+        public List<string> ContractStatuses { get; set; } = [];
+        // 1: the contract lists' starting values and the Business manager and Governor or auditor roles are in place.
+        public int ComplianceVersion { get; set; }
         public List<LoanKit> LoanKits { get; set; } = [];
         public List<KitLoan> KitLoans { get; set; } = [];
         // A borrower with this many loans inside this many days is flagged on the loan report.

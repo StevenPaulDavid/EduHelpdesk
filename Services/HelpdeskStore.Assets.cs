@@ -484,6 +484,7 @@ public sealed partial class HelpdeskStore
         if (!string.Equals(previous.OperatingSystem, updated.OperatingSystem, StringComparison.Ordinal)) history.Add(new("Operating system changed", $"{Text(previous.OperatingSystem)} -> {Text(updated.OperatingSystem)}", now));
         if (!string.Equals(previous.Condition, updated.Condition, StringComparison.Ordinal)) history.Add(new("Condition changed", $"{Text(previous.Condition)} -> {Text(updated.Condition)}", now));
         if (!string.Equals(previous.Ownership, updated.Ownership, StringComparison.Ordinal)) history.Add(new("Ownership changed", $"{AssetOwnership.Label(previous.Ownership)} -> {AssetOwnership.Label(updated.Ownership)}", now));
+        if (previous.ContractId != updated.ContractId) history.Add(new("Contract changed", updated.ContractId.HasValue ? "Linked to a contract on the contracts register." : "No longer linked to a contract.", now));
         if (previous.EndOfSupport != updated.EndOfSupport) history.Add(new("End of support changed", $"{Date(previous.EndOfSupport)} -> {Date(updated.EndOfSupport)}", now));
         // A recorded check reads as one line, rather than three separate field changes.
         if (previous.LastCheckDate != updated.LastCheckDate || !string.Equals(previous.LastCheckBy, updated.LastCheckBy, StringComparison.Ordinal))

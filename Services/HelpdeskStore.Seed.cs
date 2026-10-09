@@ -233,6 +233,7 @@ public sealed partial class HelpdeskStore
             // the system until the app was restarted. They only ran at startup before.
             EnsureSeedRoles();
             EnsureOnboardingRole();
+            EnsureComplianceDefaults();
             EnsureBootstrapAdministrator();
             // Deleted rows otherwise linger in the file's free pages, which defeats the point of a purge.
             using (var connection = new SqliteConnection($"Data Source={_path}"))

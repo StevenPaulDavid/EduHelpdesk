@@ -157,6 +157,7 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN EndOfSupport TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN DisposedBy TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Assets ADD COLUMN DisposalCertificate TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN ContractId TEXT NULL;",
             "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Parts ADD COLUMN ReorderThreshold INTEGER NULL;",
             // Actor attribution. Nullable on purpose: everything recorded before this existed keeps no actor rather
@@ -251,6 +252,7 @@ public sealed partial class HelpdeskStore
             """;
         roleTable.ExecuteNonQuery();
         EnsureProjectSchema(connection);
+        EnsureContractSchema(connection);
         EnsureProjectTicketSchema(connection);
         EnsureTicketProcessSchema(connection);
         EnsureLifecycleSchema(connection);

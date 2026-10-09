@@ -129,5 +129,14 @@
         });
     });
 
+    // After a change made in a panel was refused or saved, the page can come back with that panel marked
+    // data-reopen="true", and it opens again through its own button, so closing it later returns focus there. Razor
+    // always writes data- attributes (empty when null), so this looks for the value, not just the attribute.
+    const reopen = document.querySelector('.blade-backdrop[data-reopen="true"]');
+    if (reopen) {
+        const opener = document.querySelector(`[data-open-blade="${CSS.escape(reopen.id)}"]`);
+        if (opener) opener.click(); else openBlade(reopen, null);
+    }
+
     if (document.body?.hasAttribute("data-print-on-load")) window.addEventListener("load", () => window.print());
 })();

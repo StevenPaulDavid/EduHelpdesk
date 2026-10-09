@@ -1,0 +1,91 @@
+@page
+@using EduHelpdesk.Services
+@model ContractsModel
+@{
+    ViewData["Title"] = "Contracts register"; ViewData["Wide"] = true;
+    var cols = Model.Columns;
+    string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    string Day(DateOnly? value) => value is { } d ? AssetInsights.Format(d) : "—";
+}
+<div class="page-heading">
+    <div><p class="eyebrow">COMPLIANCE / CONTRACTS REGISTER</p><h1>Contracts register</h1><p class="hero-copy">The DfE digital technology contracts register: what the school pays for, who supplies it, and when each contract renews or needs notice.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanView) { <a class="button button-secondary" href="@Url.Page("/Contracts", "Export", Model.Route())">⬇ Export CSV</a> }
+        @if (Model.CanAdd) { <a class="button button-primary" asp-page="/Contracts/Add">@Icons.Plus Add contract</a> }
+    </div>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<div class="metrics">
+    <div class="metric"><span>Live contracts</span><strong>@Model.LiveCount</strong><small>@(Model.All.Count - Model.LiveCount) expired</small></div>
+    <div class="metric"><span>A year</span><strong>@HelpdeskStore.FormatMoney(Model.AnnualSpend)</strong><small>@(Model.UnpricedLive == 0 ? "Live contracts, one-off costs left out" : $"{Model.UnpricedLive} live with no cost recorded")</small></div>
+    <div class="metric"><span>Renewing soon</span><strong>@Model.RenewingSoon</strong><small>In the next 3 months</small></div>
+    <div class="metric"><span>Notice due</span><strong>@Model.NoticeSoon</strong><small>Notice dates in the next month</small></div>
+</div>
+
+<section class="panel">
+    @{
+        var filters = new FilterBar
+        {
+            Id = "contract-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Name, supplier, type, owner, notes",
+            Title = "Filter contracts",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Contracts"),
+            Fields = @<text>
+                <label>Show<select name="show"><option value="">All contracts</option>@foreach (var show in ContractsModel.Shows) { <option value="@show" selected="@(Model.Show == show)">@ContractsModel.ShowLabel(show)@(show == "attention" ? $" ({Model.NeedAttention})" : "")</option> }</select></label>
+                <label>Status<select name="status"><option value="">Any status</option>@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.Types) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Spend category<select name="spend"><option value="">Any category</option>@foreach (var item in Model.SpendCategories) { <option value="@item" selected="@string.Equals(item, Model.Spend, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Supplier<select name="supplier" data-picker><option value="">Any supplier</option>@foreach (var item in Model.Suppliers) { <option value="@item.Id" selected="@(item.Id == Model.SupplierId)">@item.Name</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
+</section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">REGISTER</p><h2>Contracts</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.All.Count}" : Model.All.Count.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
+        <th data-stack="head">Contract</th>
+        @if (cols.Show("supplier")) { <th>Supplier</th> }
+        @if (cols.Show("type")) { <th>Type</th> }
+        @if (cols.Show("status")) { <th>Status</th> }
+        @if (cols.Show("cost")) { <th class="num">Cost</th> }
+        @if (cols.Show("annual")) { <th class="num">A year</th> }
+        @if (cols.Show("renewal")) { <th>Next renewal</th> }
+        @if (cols.Show("notice")) { <th>Notice by</th> }
+        @if (cols.Show("end")) { <th>Ends</th> }
+        @if (cols.Show("spend")) { <th>Spend category</th> }
+        @if (cols.Show("owner")) { <th>Owner</th> }
+        @if (cols.Show("compliance")) { <th>Compliance</th> }
+        <th aria-label="Actions"></th>
+    </tr></thead><tbody>
+    @foreach (var item in Model.Rows)
+    {
+        var flags = ContractRules.Flags(item, Model.Today);
+        var live = ContractRules.IsLive(item);
+        <tr class="@(live ? null : "row-muted")">
+            <td>
+                <strong>@if (Model.CanView) { <a asp-page="/Contract" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>
+                @if (flags.Count > 0) { <br />@foreach (var flag in flags) { <span class="badge @flag.Tone" title="@AssetInsights.Format(flag.Date)">@flag.Text</span> } }
+            </td>
+            @if (cols.Show("supplier")) { <td>@Text(Model.SupplierName(item))</td> }
+            @if (cols.Show("type")) { <td>@Text(item.ContractType)</td> }
+            @if (cols.Show("status")) { <td><span class="status @(live ? "" : "status-closed")">@item.Status</span></td> }
+            @if (cols.Show("cost")) { <td class="num">@(item.Cost is { } cost ? HelpdeskStore.FormatMoney(cost) : "—")<br /><span class="muted">@(item.Cost is null ? "" : item.CostPeriod.ToLowerInvariant())</span></td> }
+            @if (cols.Show("annual")) { <td class="num">@(ContractRules.AnnualCost(item) is { } annual ? HelpdeskStore.FormatMoney(annual) : "—")</td> }
+            @if (cols.Show("renewal")) { <td>@Day(item.NextRenewalDate)</td> }
+            @if (cols.Show("notice")) { <td>@Day(ContractRules.NoticeDate(item))</td> }
+            @if (cols.Show("end")) { <td>@Day(item.EndDate)</td> }
+            @if (cols.Show("spend")) { <td>@Text(item.SpendCategory)</td> }
+            @if (cols.Show("owner")) { <td>@Text(item.ContractOwner)</td> }
+            @if (cols.Show("compliance")) { <td>@string.Join(", ", new[] { item.ApprovedApp ? "Approved app" : null, item.ProcessesPersonalData ? "Personal data" : null, item.RelatedParty ? "Related party" : null }.Where(x => x is not null)) </td> }
+            <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Contract" asp-route-id="@item.Id" title="Open contract" aria-label="Open @item.Name">@Icons.Edit</a> }</td>
+        </tr>
+    }
+    @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 2)" class="empty">@(Model.IsFiltered ? "No contracts match these filters." : "Nothing on the register yet. Add the school's subscriptions, licences, support and leases - or add one from an approved project.")</td></tr> }
+    </tbody></table></div>
+</section>

@@ -173,6 +173,8 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
     // data-destruction certificate.
     public string DisposedBy { get; init; } = "";
     public string DisposalCertificate { get; init; } = "";
+    // DfE: "If the asset is leased ... make sure the details are recorded in your contracts register." This is that link.
+    public Guid? ContractId { get; init; }
 }
 public static class AssetOwnership
 {

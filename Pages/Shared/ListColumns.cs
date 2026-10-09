@@ -33,6 +33,12 @@ public static class ListColumns
             new("os", "Operating system", false), new("condition", "Condition", false), new("ownership", "Ownership", false),
             new("nextcheck", "Next check", false), new("support", "End of support", false),
         ],
+        ["contracts"] =
+        [
+            new("supplier", "Supplier"), new("type", "Type"), new("status", "Status"), new("cost", "Cost"), new("annual", "Cost a year", false),
+            new("renewal", "Next renewal"), new("notice", "Notice by"), new("end", "Ends", false), new("spend", "Spend category", false),
+            new("owner", "Owner", false), new("compliance", "Compliance", false),
+        ],
         ["parts"] =
         [
             new("sku", "SKU"), new("category", "Category"), new("location", "Location"), new("suppliers", "Suppliers"),

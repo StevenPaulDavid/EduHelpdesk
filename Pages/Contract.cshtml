@@ -1,0 +1,165 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model ContractModel
+@{
+    var contract = Model.Contract!;
+    ViewData["Title"] = contract.Name;
+    var live = ContractRules.IsLive(contract);
+    var flags = ContractRules.Flags(contract, Model.Today);
+    var annual = ContractRules.AnnualCost(contract);
+    var notice = ContractRules.NoticeDate(contract);
+    string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "Not recorded" : value;
+    string Day(DateOnly? value) => value is { } d ? d.ToString("d MMMM yyyy") : "Not recorded";
+}
+
+<a class="back-link" asp-page="/Contracts">← Back to the contracts register</a>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">COMPLIANCE / CONTRACT</p>
+        <h1>@contract.Name</h1>
+        <p class="hero-copy asset-heading-meta">
+            <span>@(Model.Supplier?.Name ?? "No supplier recorded")@(string.IsNullOrWhiteSpace(contract.ContractType) ? "" : " · " + contract.ContractType)</span>
+            <span class="status @(live ? "" : "status-closed")">@contract.Status</span>
+            @foreach (var flag in flags) { <span class="badge @flag.Tone">@flag.Text</span> }
+        </p>
+    </div>
+    <div class="heading-actions">
+        @if (Model.CanEdit) { <button class="button button-primary" type="button" data-open-blade="edit-blade">@Icons.Edit Edit contract</button> }
+        @if (Model.CanDelete)
+        {
+            <details class="nav-menu action-menu">
+                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+                <div class="nav-panel nav-panel-right"><button type="button" class="menu-danger" data-open-blade="delete-blade">Remove from the register…</button></div>
+            </details>
+        }
+    </div>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+@* What it costs and what is coming up, first - the questions a business manager or an auditor opens it to answer. *@
+<div class="metrics">
+    <div class="metric"><span>Cost</span><strong>@(contract.Cost is { } cost ? HelpdeskStore.FormatMoney(cost) : "-")</strong><small>@(contract.Cost is null ? "Not recorded" : contract.CostPeriod)</small></div>
+    <div class="metric"><span>A year</span><strong>@(annual is { } a ? HelpdeskStore.FormatMoney(a) : "-")</strong><small>@(annual is null ? (contract.CostPeriod == ContractCostPeriods.OneOff ? "One-off, not yearly" : "Not recorded") : live ? "Counted in the register's total" : "Expired, not counted")</small></div>
+    <div class="metric"><span>Next renewal</span><strong>@(contract.NextRenewalDate is { } renews ? AssetInsights.Format(renews) : "-")</strong><small>@(string.IsNullOrWhiteSpace(contract.RenewalType) ? "Renewal not recorded" : contract.RenewalType)</small></div>
+    <div class="metric"><span>Notice by</span><strong>@(notice is { } n ? AssetInsights.Format(n) : "-")</strong><small>@(contract.NoticeMonths is { } months ? $"{months} month{(months == 1 ? "" : "s")} before {(contract.NextRenewalDate is null ? "it ends" : "renewal")}" : "No notice period recorded")</small></div>
+</div>
+
+<div class="contract-layout">
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">THE CONTRACT</p><h2>What it is</h2></div></div>
+        @if (!string.IsNullOrWhiteSpace(contract.Description)) { <p class="job-description">@contract.Description</p> }
+        <dl class="pj-facts">
+            <div><dt>Contract type</dt><dd>@Text(contract.ContractType)</dd></div>
+            <div><dt>Spend category</dt><dd>@Text(contract.SpendCategory)</dd></div>
+            <div><dt>Duration</dt><dd>@Text(contract.Duration)</dd></div>
+            <div><dt>Contract owner in school</dt><dd>@Text(contract.ContractOwner)</dd></div>
+            <div><dt>Procurement approach</dt><dd>@Text(contract.ProcurementApproach)</dd></div>
+            <div><dt>Status</dt><dd>@contract.Status<span class="pj-sub">@(live ? "Live" : "Ended - left out of warnings and the yearly total")</span></dd></div>
+        </dl>
+        <h3 class="asset-subheading">Money and dates</h3>
+        <dl class="pj-facts">
+            <div><dt>Cost</dt><dd>@ContractRules.DescribeCost(contract)@if (!string.IsNullOrWhiteSpace(contract.CostNotes)) { <span class="pj-sub">@contract.CostNotes</span> }</dd></div>
+            <div><dt>Start date</dt><dd>@Day(contract.StartDate)</dd></div>
+            <div><dt>End date</dt><dd>@Day(contract.EndDate)@if (ContractRules.End(contract, Model.Today) is { } ends) { <span class="badge @ends.Tone">@ends.Text</span> }</dd></div>
+            <div><dt>Next renewal date</dt><dd>@Day(contract.NextRenewalDate)@if (ContractRules.Renewal(contract, Model.Today) is { } renewal) { <span class="badge @renewal.Tone">@renewal.Text</span> }</dd></div>
+            <div><dt>Renewal</dt><dd>@Text(contract.RenewalType)</dd></div>
+            <div><dt>Notice needed</dt><dd>@(contract.NoticeMonths is { } m ? $"{m} month{(m == 1 ? "" : "s")}" : "Not recorded")@if (notice is { } noticeDate) { <span class="pj-sub">Give notice by @AssetInsights.Format(noticeDate)</span> }</dd></div>
+        </dl>
+        @if (!string.IsNullOrWhiteSpace(contract.Notes))
+        {
+            <h3 class="asset-subheading">Additional comments</h3>
+            <p class="job-description">@contract.Notes</p>
+        }
+    </section>
+    <aside class="panel">
+        <dl class="pj-facts pj-facts-stack">
+            <div><dt>Supplier</dt><dd>
+                @if (Model.Supplier is { } supplier)
+                {
+                    if (Model.CanOpenSuppliers) { <a asp-page="/Supplier" asp-route-id="@supplier.Id"><strong>@supplier.Name</strong></a> } else { <strong>@supplier.Name</strong> }
+                    <span class="pj-sub">@string.Join(" · ", new[] { supplier.ContactName, supplier.Email, supplier.Phone }.Where(x => !string.IsNullOrWhiteSpace(x)))</span>
+                }
+                else { <span class="muted">Not recorded</span> }
+                @if (!string.IsNullOrWhiteSpace(contract.SupplierContact)) { <span class="pj-sub">Contact for this contract: @contract.SupplierContact</span> }
+            </dd></div>
+            <div><dt>Compliance</dt><dd>
+                <ul class="plain-list">
+                    <li>@(contract.ApprovedApp ? "✓ An approved application" : "Not on the approved applications list")</li>
+                    <li>@(contract.ProcessesPersonalData ? "✓ Processes personal data - needs a DPIA" : "Doesn't process personal data")</li>
+                    <li>@(contract.RelatedParty ? (contract.RelatedPartyReportedOn is { } reported ? $"✓ Related party, reported to DfE on {AssetInsights.Format(reported)}" : "Related party - not yet reported to DfE") : "Not a related party transaction")</li>
+                </ul>
+                @if (ContractRules.RelatedPartyCheck(contract) is { } related) { <span class="badge @related.Tone">@related.Text</span> }
+            </dd></div>
+            @if (Model.Project is { } project)
+            {
+                <div><dt>From project</dt><dd>@if (Model.CanOpenProjects) { <a asp-page="/Project" asp-route-number="@project.Number">@project.Reference @project.Title</a> } else { <span>@project.Reference @project.Title</span> }<span class="pj-sub">Added from the quote chosen when it was approved.</span></dd></div>
+            }
+            <div><dt>On the register since</dt><dd>@contract.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</dd></div>
+        </dl>
+    </aside>
+</div>
+
+@* DfE: leased assets are recorded in the contracts register as well as the asset register. *@
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">LEASED OR LOANED ASSETS</p><h2>Assets under this contract</h2></div><span class="badge">@Model.LeasedAssets.Count</span></div>
+    @if (Model.LeasedAssets.Count == 0)
+    {
+        <p class="muted">No assets are linked. Link a leased or loaned asset from its own page (Purchase &amp; warranty tab).</p>
+    }
+    else
+    {
+        <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Asset</th><th>Type</th><th>Ownership</th><th>Status</th><th>End of support</th></tr></thead><tbody>
+        @foreach (var asset in Model.LeasedAssets)
+        {
+            <tr>
+                <td><strong>@if (Model.CanOpenAssets) { <a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a> } else { @asset.AssetTag }</strong><br /><span class="muted">@asset.Make @asset.Model</span></td>
+                <td>@asset.Type</td>
+                <td>@AssetOwnership.Label(asset.Ownership)</td>
+                <td><span class="status">@asset.Status</span></td>
+                <td>@(asset.EndOfSupport is { } eos ? AssetInsights.Format(eos) : "—")</td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">AUDIT TRAIL</p><h2>History</h2></div><span class="badge">@Model.History.Count</span></div>
+    @if (Model.History.Count == 0) { <p class="muted">No changes recorded yet.</p> }
+    else
+    {
+        <div class="history-list">
+            @foreach (var entry in Model.History)
+            {
+                <article class="history-entry"><strong>@entry.Action</strong><p>@entry.Details</p><small>@Actor.Label(entry.By) · @entry.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.CanEdit)
+{
+    <div id="edit-blade" class="blade-backdrop" data-reopen="@(Model.ReopenEdit ? "true" : null)">
+        <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="edit-blade-title">
+            <div class="blade-head"><h2 id="edit-blade-title">Edit @contract.Name</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            @if (Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
+            <form method="post" asp-page-handler="Save" asp-route-id="@contract.Id" class="blade-form">
+                <partial name="~/Pages/Contracts/_ContractForm.cshtml" model="Model.Form" />
+                <div class="blade-actions"><button class="button button-primary" type="submit">Save contract</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}
+@if (Model.CanDelete)
+{
+    <div id="delete-blade" class="blade-backdrop">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="delete-blade-title">
+            <div class="blade-head"><h2 id="delete-blade-title">Remove @contract.Name</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <p class="muted">This takes it off the register for good@(Model.LeasedAssets.Count > 0 ? $", and unlinks the {Model.LeasedAssets.Count} asset{(Model.LeasedAssets.Count == 1 ? "" : "s")} under it" : ""). To keep the record of a contract that has finished, set its status to Expired instead.</p>
+            <form method="post" asp-page-handler="Delete" asp-route-id="@contract.Id" class="blade-form">
+                <div class="blade-actions"><button class="button button-danger" type="submit">Remove permanently</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}

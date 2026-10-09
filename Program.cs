@@ -90,6 +90,11 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Suppliers/Edit", Policy(Modules.Suppliers, NewOrEdit));
     options.Conventions.AuthorizePage("/Suppliers/Delete", Policy(Modules.Suppliers, ModulePermission.Delete));
 
+    // The contracts register. Editing and removing happen on the contract's own page and are checked in its handlers.
+    options.Conventions.AuthorizePage("/Contracts", Policy(Modules.Contracts, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Contract", Policy(Modules.Contracts, ModulePermission.View));
+    options.Conventions.AuthorizePage("/Contracts/Add", Policy(Modules.Contracts, ModulePermission.New));
+
     // People is three directories on one page, so the page itself only needs to reach one of them; each maintenance
     // page carries its own permission. /User is the requester detail page and was the one duplicating /People/User
     // without any check - it edits names, emails, portal passwords and ticket ownership.

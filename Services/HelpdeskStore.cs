@@ -57,6 +57,7 @@ public sealed partial class HelpdeskStore
         MigrateRolePermissions();
         EnsureSeedRoles();
         EnsureOnboardingRole();
+        EnsureComplianceDefaults();
         EnsureBootstrapAdministrator();
         SaveBaseline();
     }
@@ -101,6 +102,7 @@ public sealed partial class HelpdeskStore
             PostalCode = x.PostalCode?.Trim() ?? string.Empty, Country = x.Country?.Trim() ?? string.Empty,
             Website = x.Website?.Trim() ?? string.Empty, Notes = x.Notes?.Trim() ?? string.Empty
         }).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
+        PrepareContracts();
         _data.Parts ??= [];
         var supplierIds = _data.Suppliers.Select(x => x.Id).ToHashSet();
         _data.Parts = _data.Parts.Select(x => x with

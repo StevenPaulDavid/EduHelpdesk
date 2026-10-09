@@ -1,0 +1,57 @@
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Contracts.ContractForm
+@{
+    // The fields of one contract, grouped as the DfE contracts register groups its columns. The surrounding <form>, its
+    // handler and its buttons belong to the page using it (/Contracts/Edit to add, the drawer on /Contract to edit).
+    var x = Model.Input;
+    string Day(DateOnly? value) => value?.ToString("yyyy-MM-dd") ?? "";
+    bool Same(string a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+}
+<input type="hidden" name="Input.ProjectNumber" value="@x.ProjectNumber" />
+<input type="hidden" name="Input.ProjectItemId" value="@x.ProjectItemId" />
+<fieldset class="contract-fieldset">
+    <legend>The contract or service</legend>
+    <div class="form-grid contract-form-grid">
+        <label class="span-2">Name of contract or service<input name="Input.Name" value="@x.Name" maxlength="200" required placeholder="e.g. Microsoft 365 A3 licences" /></label>
+        <label class="span-2">Description<textarea name="Input.Description" rows="3" maxlength="4000">@x.Description</textarea></label>
+        <label>Contract type<select name="Input.ContractType"><option value="">Not recorded</option>@foreach (var item in EduHelpdesk.Pages.Contracts.ContractForm.With(Model.Types, x.ContractType)) { <option value="@item" selected="@Same(item, x.ContractType)">@item</option> }</select></label>
+        <label>Spend category<select name="Input.SpendCategory"><option value="">Not recorded</option>@foreach (var item in EduHelpdesk.Pages.Contracts.ContractForm.With(Model.SpendCategories, x.SpendCategory)) { <option value="@item" selected="@Same(item, x.SpendCategory)">@item</option> }</select></label>
+        <label>Status<select name="Input.Status">@foreach (var item in EduHelpdesk.Pages.Contracts.ContractForm.With(Model.Statuses, x.Status)) { <option value="@item" selected="@Same(item, x.Status)">@item</option> }</select></label>
+        <label>Contract owner in school<input name="Input.ContractOwner" value="@x.ContractOwner" placeholder="e.g. Business manager" /></label>
+        <label class="span-2">Procurement approach used<input name="Input.ProcurementApproach" value="@x.ProcurementApproach" placeholder="e.g. 3 quotes, DfE framework, direct award" /></label>
+    </div>
+</fieldset>
+<fieldset class="contract-fieldset">
+    <legend>Supplier</legend>
+    <div class="form-grid contract-form-grid">
+        <label>Supplier<select name="Input.SupplierId" data-picker><option value="">Not recorded</option>@foreach (var supplier in Model.Suppliers) { <option value="@supplier.Id" selected="@(supplier.Id == x.SupplierId)">@supplier.Name</option> }</select><small class="muted">From the supplier directory.</small></label>
+        <label>Supplier contact<input name="Input.SupplierContact" value="@x.SupplierContact" placeholder="Account manager, email or phone" /></label>
+    </div>
+</fieldset>
+<fieldset class="contract-fieldset">
+    <legend>Cost</legend>
+    <div class="form-grid contract-form-grid">
+        <label>Cost (£)<input name="Input.Cost" inputmode="decimal" value="@x.Cost" placeholder="0.00" /></label>
+        <label>Per<select name="Input.CostPeriod">@foreach (var period in ContractCostPeriods.All) { <option value="@period" selected="@Same(period, x.CostPeriod ?? ContractCostPeriods.PerYear)">@period</option> }</select></label>
+        <label class="span-2">Cost notes<input name="Input.CostNotes" value="@x.CostNotes" placeholder="e.g. £875 in year 1 only; excludes VAT" /></label>
+    </div>
+</fieldset>
+<fieldset class="contract-fieldset">
+    <legend>Dates and renewal</legend>
+    <div class="form-grid contract-form-grid">
+        <label>Start date<input name="Input.StartDate" type="date" value="@Day(x.StartDate)" /></label>
+        <label>End date<input name="Input.EndDate" type="date" value="@Day(x.EndDate)" /></label>
+        <label>Next renewal date<input name="Input.NextRenewalDate" type="date" value="@Day(x.NextRenewalDate)" /></label>
+        <label>Notice needed (months)<input name="Input.NoticeMonths" type="number" min="0" max="60" step="1" value="@x.NoticeMonths" /><small class="muted">To renew or cancel, counted back from the renewal date (or the end date).</small></label>
+        <label>Duration<select name="Input.Duration"><option value="">Not recorded</option>@foreach (var item in EduHelpdesk.Pages.Contracts.ContractForm.With(Model.Durations, x.Duration)) { <option value="@item" selected="@Same(item, x.Duration)">@item</option> }</select></label>
+        <label>Renewal<select name="Input.RenewalType"><option value="">Not recorded</option>@foreach (var item in ContractRenewalTypes.All) { <option value="@item" selected="@Same(item, x.RenewalType)">@item</option> }</select></label>
+    </div>
+</fieldset>
+<fieldset class="contract-fieldset">
+    <legend>Compliance</legend>
+    <label class="toggle-label"><input type="checkbox" name="Input.ApprovedApp" value="true" checked="@x.ApprovedApp" /> An approved application <span class="muted">(the cyber security standard's list of approved apps)</span></label>
+    <label class="toggle-label"><input type="checkbox" name="Input.ProcessesPersonalData" value="true" checked="@x.ProcessesPersonalData" /> Processes personal data <span class="muted">(needs a DPIA and a line on the information asset register)</span></label>
+    <label class="toggle-label"><input type="checkbox" name="Input.RelatedParty" value="true" checked="@x.RelatedParty" /> A related party transaction <span class="muted">(Academy Trust Handbook: report to DfE before it starts or renews)</span></label>
+    <label>Reported to DfE on<input name="Input.RelatedPartyReportedOn" type="date" value="@Day(x.RelatedPartyReportedOn)" /><small class="muted">Only kept for related party contracts.</small></label>
+</fieldset>
+<label>Additional comments<textarea name="Input.Notes" rows="3" maxlength="4000">@x.Notes</textarea></label>

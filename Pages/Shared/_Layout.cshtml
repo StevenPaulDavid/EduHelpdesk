@@ -10,6 +10,7 @@
     var onInventory = NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
     var onPeople = NavOn("/People");
     var onOnboarding = NavOn("/Onboarding");
+    var onCompliance = NavOn("/Contracts", "/Contract");
 
     // A link nobody can follow is worse than no link: people click it, get refused, and raise a ticket about it. So the
     // menu is built from what this role can actually reach. The pages enforce the same permissions themselves - this
@@ -19,6 +20,10 @@
     // People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough.
     var canPeople = Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles);
     var canOnboarding = Can(Modules.Onboarding);
+    // The DfE registers that aren't inventory. Like HR, a menu only when there is more than one thing in it for this role;
+    // the access control register and the compliance summary join the contracts register here.
+    var compliance = new List<(string Page, string Label)>();
+    if (Can(Modules.Contracts)) compliance.Add(("/Contracts", "Contracts register"));
     // /Reports is the asset report, not an index, so pointing the menu at it would refuse anyone given only one of the
     // other reports. The link goes to the first report this role can actually open.
     var reportPages = new (string Page, string Flag)[]
@@ -124,6 +129,14 @@
                     </div>
                 </details>
             }
+            @if (compliance.Count > 1)
+            {
+                <details class="nav-menu">
+                    <summary class="@(onCompliance ? "active" : null)">Compliance<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel">@foreach (var link in compliance) { <a href="@Url.Page(link.Page)">@link.Label</a> }</div>
+                </details>
+            }
+            else if (compliance.Count == 1) { <a href="@Url.Page(compliance[0].Page)" class="@(onCompliance ? "active" : null)">Contracts</a> }
             @* Reports needs the area level AND at least one readable report - the area on its own opens nothing. *@
             @if (firstReport is not null) { <a asp-page="@firstReport" class="@(NavOn("/Reports") ? "active" : null)">Reports</a> }
             @if (Can(Modules.Settings)) { <a asp-page="/Settings" class="@(NavOn("/Settings") ? "active" : null)">Settings</a> }

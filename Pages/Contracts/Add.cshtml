@@ -1,0 +1,21 @@
+@page
+@model EduHelpdesk.Pages.Contracts.AddModel
+@{ ViewData["Title"] = "Add contract"; }
+<a class="back-link" asp-page="/Contracts">← Back to the contracts register</a>
+<div class="page-heading"><div><p class="eyebrow">COMPLIANCE / CONTRACTS REGISTER</p><h1>Add a contract</h1>
+    @if (Model.FromProject is { } project)
+    {
+        <p class="hero-copy">Filled in from the quote chosen on <a asp-page="/Project" asp-route-number="@project.Number">@project.Reference @project.Title</a>. Check the dates and cost - quotes don't say when a contract renews or how much notice it needs.</p>
+    }
+    else
+    {
+        <p class="hero-copy">Subscriptions, licences, support, broadband, leases - anything the school pays a supplier for that has dates to keep an eye on.</p>
+    }
+</div></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice notice-warning">@Model.Message</div> }
+<section class="panel">
+    <form method="post" class="contract-form">
+        <partial name="_ContractForm" model="Model.Form" />
+        <div class="asset-form-actions"><button class="button button-primary" type="submit">Add to the register</button><a class="button button-secondary" asp-page="/Contracts">Cancel</a></div>
+    </form>
+</section>

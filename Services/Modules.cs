@@ -15,6 +15,7 @@ public static class Modules
     public const string Loans = "Loans";
     public const string Parts = "Parts";
     public const string Suppliers = "Suppliers";
+    public const string Contracts = "Contracts";
     public const string Requesters = "Requesters";
     public const string StaffAccounts = "StaffAccounts";
     public const string Roles = "Roles";
@@ -40,6 +41,7 @@ public static class Modules
         new(Loans, "Loans", "New issues a device, Edit books it back in.", Full),
         new(Parts, "Parts", "The parts inventory. Edit covers stock adjustments.", Full),
         new(Suppliers, "Suppliers", "The supplier directory.", Full),
+        new(Contracts, "Contracts", "The DfE contracts register: what the school pays for, renewal and notice dates. It shows what each contract costs.", Full),
         new(Requesters, "Requesters", "The staff directory tickets are raised for. Edit includes resetting a portal password.", Full),
         new(StaffAccounts, "Staff accounts", "Technician accounts, their team and their role. Edit includes resetting passwords.", Full),
         new(Roles, "Roles", "Role definitions and what each one grants.", Full),

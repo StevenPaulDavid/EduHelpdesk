@@ -22,6 +22,8 @@ public sealed partial class HelpdeskStore
         {
             if (_data.Assets.Any(x => x.SupplierId == id)) return "This supplier is linked to assets and cannot be deleted.";
             if (_data.Parts.Any(x => x.SupplierIds.Contains(id))) return "This supplier is linked to parts and cannot be deleted.";
+            if (_data.Contracts.FirstOrDefault(x => x.SupplierId == id) is { } contract)
+                return $"This supplier is on the contracts register ({contract.Name}) and cannot be deleted.";
             // Their quotes are part of a project's record, so they stay until they are taken off the project.
             if (_data.Projects.FirstOrDefault(p => p.Items.Any(i => i.Suppliers.Any(s => s.SupplierId == id))) is { } project)
                 return $"This supplier is on the quote list for {project.Reference} and cannot be deleted. Remove them from the project first.";

@@ -21,6 +21,8 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public AssetChecks.State CheckState => Asset is null ? AssetChecks.State.None : AssetChecks.CheckState(Asset, AssetInsights.Today, Checks.DueSoonDays);
     public AssetChecks.State SupportState => Asset is null ? AssetChecks.State.None : AssetChecks.SupportState(Asset, AssetInsights.Today, Checks.SupportWarningDays);
     public string CurrentUserName => store.CurrentActor().Name;
+    public IReadOnlyList<ContractRecord> Contracts => store.Contracts;
+    public bool CanOpenContracts => store.UserCan(User, Modules.Contracts, ModulePermission.View);
     public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
     public IReadOnlyList<string> LoanReasons => store.LoanReasons;
@@ -71,7 +73,8 @@ public class AssetModel(HelpdeskStore store) : PageModel
         DateOnly? lastCheckDate,
         string? lastCheckBy,
         DateOnly? nextCheckDate,
-        DateOnly? endOfSupport)
+        DateOnly? endOfSupport,
+        Guid? contractId)
     {
         if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         if (string.IsNullOrWhiteSpace(assetTag) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(model))
@@ -120,6 +123,11 @@ public class AssetModel(HelpdeskStore store) : PageModel
             Message = "Select a condition from the list.";
             return RedirectToPage(new { id });
         }
+        if (store.CheckContractLink(contractId) is { } contractError)
+        {
+            Message = contractError;
+            return RedirectToPage(new { id });
+        }
         if (lastCheckDate > AssetInsights.Today)
         {
             Message = "The last check date cannot be in the future.";
@@ -166,7 +174,8 @@ public class AssetModel(HelpdeskStore store) : PageModel
             LastCheckDate = lastCheckDate,
             LastCheckBy = lastCheckDate is null ? string.Empty : (lastCheckBy ?? string.Empty).Trim(),
             NextCheckDate = nextCheckDate,
-            EndOfSupport = endOfSupport
+            EndOfSupport = endOfSupport,
+            ContractId = contractId
         };
         if (!store.UpdateAssetAttributeValues(id, type.Trim(), customAttributes))
         {

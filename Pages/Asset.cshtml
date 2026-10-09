@@ -112,6 +112,9 @@
         <label>Quote reference<input name="quoteReference" form="asset-form" value="@asset.QuoteReference" /><small class="muted">The supplier's quote number — often the only reference for an order placed via the Trust.</small></label>
         <label>Warranty end<input name="warrantyEnd" type="date" form="asset-form" value="@asset.WarrantyEnd?.ToString("yyyy-MM-dd")" />@if (warrantyExpired) { <small class="muted">Expired.</small> }</label>
         <label>Replacement date<input name="replacementDate" type="date" form="asset-form" value="@asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
+        @* DfE: a leased asset's details belong on the contracts register too. *@
+        <label>Lease or loan contract<select name="contractId" form="asset-form" data-picker><option value="">None</option>@foreach (var contract in Model.Contracts) { <option value="@contract.Id" selected="@(contract.Id == asset.ContractId)">@contract.Name</option> }</select>
+            <small class="muted">@if (asset.ContractId is { } linkedId && Model.CanOpenContracts) { <a asp-page="/Contract" asp-route-id="@linkedId">Open the contract</a> } else { <text>For leased or loaned kit: its contract on the contracts register.</text> }</small></label>
     </div>
     <div class="asset-form-actions"><button class="button button-primary" type="submit" form="asset-form" formaction="@(Url.Page("/Asset", "Save") + "#asset-purchase")">Save asset</button></div>
 </section>

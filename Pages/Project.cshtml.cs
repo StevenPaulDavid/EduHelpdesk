@@ -37,6 +37,11 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     // only opens for someone who can view tickets.
     public IReadOnlyList<TicketRecord> LinkedTickets { get; private set; } = [];
     public bool CanOpenTickets => store.UserCan(User, Modules.Tickets, ModulePermission.View);
+    // An approved project's chosen quotes can go straight onto the contracts register, one per item; this is which are
+    // already there. Shown to whoever can add contracts, or read the register.
+    public bool CanAddContracts => store.UserCan(User, Modules.Contracts, ModulePermission.New);
+    public bool CanOpenContracts => store.UserCan(User, Modules.Contracts, ModulePermission.View);
+    public IReadOnlyDictionary<Guid, ContractRecord> ContractsByItem { get; private set; } = new Dictionary<Guid, ContractRecord>();
     [TempData] public string? Message { get; set; }
 
     public IActionResult OnGet(int number)
@@ -57,6 +62,8 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         BandBasis = store.BandBasisFor(Project);
         CurrentBand = store.BandFor(BandBasis);
         LinkedTickets = store.Tickets.Where(x => Project.TicketNumbers.Contains(x.Number)).OrderBy(x => x.Number).ToList();
+        ContractsByItem = store.Contracts.Where(x => x.ProjectNumber == number && x.ProjectItemId is not null)
+            .GroupBy(x => x.ProjectItemId!.Value).ToDictionary(g => g.Key, g => g.First());
         return Page();
     }
 
@@ -102,7 +109,12 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     public IActionResult OnPostClose(int number, string? outcome, string? note)
     {
         if (!CanEdit) return Forbid();
-        return Done(number, store.CloseProject(number, outcome, note));
+        var result = store.CloseProject(number, outcome, note);
+        // Approved means money is about to be committed, so the next step - recording it on the contracts register - is
+        // offered straight away (the panel at the top of the project).
+        if (result.Ok && store.FindProject(number) is { Outcome: ProjectOutcomes.Approved } closed && CanAddContracts && closed.Items.Any(x => x.Chosen is not null))
+            result = (true, result.Message + " Add its chosen quotes to the contracts register from the panel below.");
+        return Done(number, result);
     }
 
     public IActionResult OnPostNote(int number, string? text, bool isInternal)
@@ -207,7 +219,7 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     }
 
     // The slide-in panel to open again after the page reloads (its element id), so adding a price or a sub-item doesn't
-    // mean finding the panel again. wwwroot/js/pages/project.js opens it.
+    // mean finding the panel again. wwwroot/js/actions.js opens it.
     [TempData] public string? Reopen { get; set; }
     public static string QuoteKey(Guid itemId, Guid supplierId) => $"{itemId:N}-{supplierId:N}";
 

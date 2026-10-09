@@ -189,6 +189,34 @@
     </div>
 </section>
 
+@* Approved: the chosen quotes are about to become money the school is committed to, so each can go onto the contracts
+   register in one step, filled in from the quote (ContractRules.FromQuote). *@
+@if (project.Outcome == ProjectOutcomes.Approved && (Model.CanAddContracts || Model.CanOpenContracts) && project.Items.Any(x => x.Chosen is not null))
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">CONTRACTS REGISTER</p><h2>Record what was approved</h2></div></div>
+        <p class="muted">Each chosen quote can be added to the contracts register, filled in from the quote. Worth doing for anything with renewals, a subscription or a lease.</p>
+        <div class="directory-list">
+            @foreach (var item in project.Items.Where(x => x.Chosen is not null))
+            {
+                var chosen = item.Chosen!;
+                <div class="related-row">
+                    <div><strong>@item.Quantity × @item.Name</strong> <span class="muted">@SupplierName(chosen.SupplierId) · @Money(Model.Term(QuoteTotals.Of(chosen.PaymentLines))) @Model.VatLabel</span></div>
+                    @if (Model.ContractsByItem.TryGetValue(item.Id, out var onRegister))
+                    {
+                        if (Model.CanOpenContracts) { <a class="button button-secondary" asp-page="/Contract" asp-route-id="@onRegister.Id">On the register ✓</a> } else { <span class="badge badge-good">On the register</span> }
+                    }
+                    else if (Model.CanAddContracts)
+                    {
+                        <a class="button button-primary" asp-page="/Contracts/Add" asp-route-project="@project.Number" asp-route-item="@item.Id">Add to contracts register</a>
+                    }
+                    else { <span class="muted">Not on the register</span> }
+                </div>
+            }
+        </div>
+    </section>
+}
+
 <div class="ticket-tab-buttons pj-tabs" role="tablist" aria-label="Project">
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="overview">Overview</button>
     <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="items">Items &amp; quotes <span class="badge">@project.Items.Count</span></button>
@@ -797,8 +825,4 @@
             </form>
         </div>
     </div>
-}
-
-@section Scripts {
-<script src="~/js/pages/project.js" asp-append-version="true"></script>
 }

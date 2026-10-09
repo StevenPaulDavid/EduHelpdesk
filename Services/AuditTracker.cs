@@ -42,6 +42,17 @@ internal static class AuditTracker
                 ("Name", x.Name), ("Contact", x.ContactName), ("Email", x.Email), ("Phone", x.Phone), ("Address line 1", x.AddressLine1), ("Address line 2", x.AddressLine2),
                 ("City", x.City), ("State / region", x.StateRegion), ("Postal code", x.PostalCode), ("Country", x.Country), ("Website", x.Website), ("Notes", x.Notes));
         var supplierNamesById = d.Suppliers.ToDictionary(x => x.Id, x => x.Name);
+        // Every field, so the contract page's history and an auditor can see who changed a cost or a date, and when.
+        foreach (var x in d.Contracts)
+            Add(s, "Contracts", "Contract", x.Id.ToString(), x.Name, Track.All,
+                ("Name", x.Name), ("Description", x.Description), ("Contract type", x.ContractType), ("Spend category", x.SpendCategory),
+                ("Status", x.Status), ("Supplier", x.SupplierId is { } supplier ? supplierNamesById.GetValueOrDefault(supplier, "") : ""),
+                ("Supplier contact", x.SupplierContact), ("Cost", x.Cost?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? ""),
+                ("Cost period", x.CostPeriod), ("Cost notes", x.CostNotes), ("Duration", x.Duration), ("Renewal", x.RenewalType),
+                ("Start date", Day(x.StartDate)), ("End date", Day(x.EndDate)), ("Next renewal date", Day(x.NextRenewalDate)),
+                ("Notice (months)", x.NoticeMonths?.ToString() ?? ""), ("Contract owner", x.ContractOwner), ("Procurement approach", x.ProcurementApproach),
+                ("Approved app", Yn(x.ApprovedApp)), ("Processes personal data", Yn(x.ProcessesPersonalData)), ("Related party", Yn(x.RelatedParty)),
+                ("Reported to DfE on", Day(x.RelatedPartyReportedOn)), ("Notes", x.Notes));
         foreach (var x in d.Parts)
             Add(s, "Parts", "Part", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("SKU", x.Sku), ("Category", x.Category), ("Quantity on hand", x.QuantityOnHand.ToString()),
@@ -170,6 +181,10 @@ internal static class AuditTracker
         AddList(s, "Lists", "Purchasing requirement", d.PurchasingRequirements);
         AddList(s, "Lists", "Building", d.Buildings);
         AddList(s, "Lists", "Asset condition", d.AssetConditions);
+        AddList(s, "Lists", "Contract type", d.ContractTypes);
+        AddList(s, "Lists", "Spend category", d.SpendCategories);
+        AddList(s, "Lists", "Contract duration", d.ContractDurations);
+        AddList(s, "Lists", "Contract status", d.ContractStatuses);
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);
         return s;
@@ -271,4 +286,5 @@ internal static class AuditTracker
     private static string Short(string value) => value.Length <= 120 ? value : value[..117] + "...";
 
     private static string Yn(bool value) => value ? "Yes" : "No";
+    private static string Day(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "";
 }

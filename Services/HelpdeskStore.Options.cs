@@ -136,7 +136,20 @@ public sealed partial class HelpdeskStore
             if (options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
             var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
             if (index < 0) return $"{kind} was not found.";
+            if (IsProtectedContractStatus(kind, oldValue)) return ProtectedContractStatusMessage;
             options[index] = newValue;
+            for (var i = 0; i < _data.Contracts.Count; i++)
+            {
+                var contract = _data.Contracts[i];
+                _data.Contracts[i] = kind switch
+                {
+                    "Contract type" when string.Equals(contract.ContractType, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { ContractType = newValue },
+                    "Spend category" when string.Equals(contract.SpendCategory, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { SpendCategory = newValue },
+                    "Contract duration" when string.Equals(contract.Duration, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { Duration = newValue },
+                    "Contract status" when string.Equals(contract.Status, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { Status = newValue },
+                    _ => contract
+                };
+            }
             for (var i = 0; i < _data.Users.Count; i++)
                 if (kind == "Location" && string.Equals(_data.Users[i].Location, oldValue, StringComparison.OrdinalIgnoreCase))
                     _data.Users[i] = _data.Users[i] with { Location = newValue };
@@ -217,11 +230,16 @@ public sealed partial class HelpdeskStore
                 "Asset status" => _data.Assets.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
                 "Building" => _data.Assets.Any(x => string.Equals(x.Building, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset condition" => _data.Assets.Any(x => string.Equals(x.Condition, item, StringComparison.OrdinalIgnoreCase)),
+                "Contract type" => _data.Contracts.Any(x => string.Equals(x.ContractType, item, StringComparison.OrdinalIgnoreCase)),
+                "Spend category" => _data.Contracts.Any(x => string.Equals(x.SpendCategory, item, StringComparison.OrdinalIgnoreCase)),
+                "Contract duration" => _data.Contracts.Any(x => string.Equals(x.Duration, item, StringComparison.OrdinalIgnoreCase)),
+                "Contract status" => _data.Contracts.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
                 "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
                 "Part location" => _data.Parts.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
                 "Loan reason" => _data.KitLoans.Any(x => string.Equals(x.Reason, item, StringComparison.OrdinalIgnoreCase)),
                 _ => false
             };
+            if (IsProtectedContractStatus(kind, item)) return ProtectedContractStatusMessage;
             if (inUse) return $"That {kind.ToLowerInvariant()} cannot be deleted because it is in use.";
             options.RemoveAt(index);
             if (kind == "Asset model") _data.AssetModelMakes.Remove(item);
@@ -565,6 +583,9 @@ public sealed partial class HelpdeskStore
     {
         // Set by IssueKit and DisposeAsset.
         EnsureOptions(_data.AssetStatuses, ["On loan", "Disposed"]);
+        // What "ended" means on the contracts register (ContractRules.IsLive). Only once the register's lists exist, so
+        // an upgrade still gets the full starting list from EnsureComplianceDefaults rather than this one value.
+        if (_data.ComplianceVersion >= 1) EnsureOptions(_data.ContractStatuses, [ContractStatusDefaults.Expired]);
         // What "finished" means everywhere (see IsBuiltInStatus), plus at least one open status for new tickets to start in.
         EnsureOptions(_data.Statuses, [TicketInsights.ClosedStatus]);
         if (!_data.Statuses.Any(x => !IsBuiltInStatus(x))) _data.Statuses.Insert(0, "Open");
@@ -646,6 +667,10 @@ public sealed partial class HelpdeskStore
         "PurchasingRequirements" => "Purchasing requirement",
         "Buildings" => "Building",
         "AssetConditions" => "Asset condition",
+        "ContractTypes" => "Contract type",
+        "SpendCategories" => "Spend category",
+        "ContractDurations" => "Contract duration",
+        "ContractStatuses" => "Contract status",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -665,10 +690,19 @@ public sealed partial class HelpdeskStore
         "Purchasing requirement" => _data.PurchasingRequirements,
         "Building" => _data.Buildings,
         "Asset condition" => _data.AssetConditions,
+        "Contract type" => _data.ContractTypes,
+        "Spend category" => _data.SpendCategories,
+        "Contract duration" => _data.ContractDurations,
+        "Contract status" => _data.ContractStatuses,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
-        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement" or "Building" or "Asset condition";
+        NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement" or "Building" or "Asset condition"
+            or "Contract type" or "Spend category" or "Contract duration" or "Contract status";
+    // Expired is how the register knows a contract has ended (ContractRules.IsLive).
+    private static bool IsProtectedContractStatus(string kind, string value) =>
+        kind == "Contract status" && string.Equals(value.Trim(), ContractStatusDefaults.Expired, StringComparison.OrdinalIgnoreCase);
+    private const string ProtectedContractStatusMessage = "Expired is how the register knows a contract has ended, so it can't be renamed or removed.";
     private static bool IsTicketOptionKind(string kind) =>
         kind is "Category" or "Status" or "Priority";
 

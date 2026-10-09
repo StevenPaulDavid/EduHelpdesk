@@ -54,6 +54,13 @@ public static class SettingsMenu
             new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Onboarding checklists", "/Settings/Onboarding", "onboarding new starter staff checklist template tasks"),
         ]),
+        new("Compliance",
+        [
+            new("Contract types", "/Settings/ContractTypes", "contract type licence subscription lease support dfe register"),
+            new("Spend categories", "/Settings/SpendCategories", "spend category contracts register dfe"),
+            new("Contract durations", "/Settings/ContractDurations", "contract duration length yearly rolling"),
+            new("Contract statuses", "/Settings/ContractStatuses", "contract status active expired"),
+        ]),
         new("Projects",
         [
             new("Spending bands", "/Settings/SpendingBands", "spending bands quotes finance policy threshold vat ex inc excluding including amounts project page"),
