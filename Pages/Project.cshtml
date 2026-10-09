@@ -9,20 +9,72 @@
     var overdue = project.IsOverdue(Model.Today);
     var soon = project.IsDueSoon(Model.Today);
     var selectedPriority = project.Priority ?? project.SuggestedPriority;
+    // Changing items and quotes is the technician's work while the project is open; a closed project's list is its record.
+    // Everyone else - SLT, finance, a view-only role - gets the same page with no forms on it, and each quote's panel
+    // read-only (Details rather than Edit quote).
+    var canWork = Model.CanEdit && project.IsActive;
+    string SupplierName(Guid id) => Model.SupplierNames.GetValueOrDefault(id) ?? "Unknown supplier";
+    string Money(decimal amount) => HelpdeskStore.FormatMoney(amount);
+
+    var quoteRows = project.Items.SelectMany(x => x.Suppliers).ToList();
+    var received = quoteRows.Count(x => x.HasQuote);
+    var toChase = quoteRows.Count(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays);
+    var expired = quoteRows.Count(x => x.IsExpired(Model.Today));
+    // What the proposal will total: the chosen quote on each item. Items without one count as nothing yet.
+    var chosenTotals = project.ChosenTotals;
+    var itemsChosen = project.Items.Count(x => x.Chosen is not null);
+    var bandBasis = Model.BandBasis;
+    var unpriced = bandBasis.Items.Count - bandBasis.ItemsPriced;
+
+    // The status as a row of steps, and in words what the project is waiting for, so someone who only reads the
+    // summary knows where it has got to.
+    var steps = ProjectStatuses.All;
+    var stepIndex = Array.IndexOf(steps, project.Status);
+    var waiting = new List<string>();
+    if (project.Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes)
+    {
+        if (project.TechnicianId is null) waiting.Add("a technician to be assigned");
+        if (project.Items.Count == 0) waiting.Add("the request to be split into items");
+        var noSuppliers = project.Items.Count(x => x.Suppliers.Count == 0);
+        if (noSuppliers > 0) waiting.Add($"suppliers to be asked for {noSuppliers} {(noSuppliers == 1 ? "item" : "items")}");
+        string Names(IEnumerable<ItemSupplier> rows)
+        {
+            var names = rows.Select(x => SupplierName(x.SupplierId)).Distinct().ToList();
+            return names.Count <= 3 ? string.Join(", ", names) : $"{string.Join(", ", names.Take(3))} and {names.Count - 3} more";
+        }
+        var awaited = quoteRows.Where(x => x.Status == QuoteStatuses.Requested).ToList();
+        if (awaited.Count > 0) waiting.Add($"{(awaited.Count == 1 ? "a quote" : "quotes")} from {Names(awaited)}");
+        var updates = quoteRows.Where(x => x.Status == QuoteStatuses.UpdateRequested).ToList();
+        if (updates.Count > 0) waiting.Add($"{(updates.Count == 1 ? "an updated quote" : "updated quotes")} from {Names(updates)}");
+        var toChoose = project.Items.Count(x => x.Chosen is null && x.Suppliers.Any(s => s.HasQuote));
+        if (toChoose > 0) waiting.Add($"a quote to be chosen for {toChoose} {(toChoose == 1 ? "item" : "items")}");
+    }
+    string QuoteTone(string status) => status switch
+    {
+        QuoteStatuses.Received or QuoteStatuses.UpdateReceived => "badge-good",
+        QuoteStatuses.Requested => "status-waiting",
+        QuoteStatuses.UpdateRequested => "status-active",
+        QuoteStatuses.Declined => "status-closed",
+        _ => "status-new"
+    };
 }
 
 <a class="back-link" asp-page="/Projects">← Back to projects</a>
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / PROJECT</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div>
+    <div>
+        <p class="eyebrow">EDUHELPDESK / PROJECT</p>
+        <h1>@project.Title</h1>
+        <p class="hero-copy">@project.Reference · proposal needed by @project.DueDate.ToString("ddd d MMM yyyy")@if (overdue) { <span class="badge badge-warning pj-due-badge">Late</span> } else if (soon) { <span class="badge pj-due-badge">Due soon</span> }</p>
+    </div>
     <div class="heading-actions">
-        @if (Model.CanAssign && project.IsActive) { <button class="button button-primary" type="button" data-open-blade="assign-blade">@(project.TechnicianId is null ? "Assign" : "Reassign")</button> }
         <a class="button button-secondary" asp-page="/Project" asp-page-handler="Proposal" asp-route-number="@project.Number" title="Front page, contents, cost tables and every quote in one PDF">@(project.Status is ProjectStatuses.New or ProjectStatuses.GatheringQuotes ? "Draft proposal (PDF)" : "Proposal (PDF)")</a>
+        @if (Model.CanAssign && project.IsActive) { <button class="button button-secondary" type="button" data-open-blade="assign-blade">@(project.TechnicianId is null ? "Assign" : "Reassign")</button> }
         @if (Model.CanEdit && project.IsActive) { <button class="button button-secondary" type="button" data-open-blade="close-blade">Close project</button> }
-        <partial name="_RawDataLink" model='("project", project.Number.ToString())' />
         @if (Model.CanEdit && !project.IsActive)
         {
             <form method="post" asp-page-handler="Status"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="status" value="@ProjectStatuses.GatheringQuotes" /><button class="button button-secondary" type="submit">Reopen</button></form>
         }
+        <partial name="_RawDataLink" model='("project", project.Number.ToString())' />
         @if (Model.CanDelete)
         {
             <details class="nav-menu action-menu">
@@ -33,6 +85,670 @@
     </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+@* The summary: where the project has got to, what it comes to, which spending band it is in, and how many quotes are
+   in. It is what someone from SLT or finance reads first, so it says it in words as well as numbers. *@
+<section class="pj-summary" aria-label="Summary">
+    <div class="pj-cell pj-progress">
+        <p class="pj-label">Progress</p>
+        <ol class="pj-steps">
+            @for (var i = 0; i < steps.Length; i++)
+            {
+                <li class="@(i < stepIndex ? "is-done" : i == stepIndex ? "is-now" : "")" aria-current="@(i == stepIndex ? "step" : null)">@steps[i]</li>
+            }
+        </ol>
+        @if (!project.IsActive)
+        {
+            <p class="pj-note"><strong>@(project.Outcome ?? "Closed")</strong> · closed @project.ClosedAt?.ToLocalTime().ToString("d MMM yyyy")@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <text> · </text>@project.OutcomeNote }</p>
+        }
+        else if (waiting.Count > 0)
+        {
+            <p class="pj-note">Waiting on @string.Join("; ", waiting).</p>
+        }
+        else if (project.Status == ProjectStatuses.ProposalReady)
+        {
+            <p class="pj-note">The proposal is ready - waiting on a decision.</p>
+        }
+        @if (canWork)
+        {
+            <form method="post" asp-page-handler="Status" class="pj-status-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <label>Status <select name="status" data-autosubmit>@foreach (var status in steps.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select></label>
+                <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
+            </form>
+        }
+    </div>
+    <div class="pj-cell">
+        <p class="pj-label">Chosen total</p>
+        @if (project.Items.Count == 0) { <p class="pj-big muted">-</p><p class="pj-note">No items yet.</p> }
+        else
+        {
+            <p class="pj-big">@Money(Model.Term(chosenTotals))</p>
+            <p class="pj-note">@Model.VatLabel over the term · @Money(Model.FirstYear(chosenTotals)) in the first year@(Model.IncVat ? $" · {Money(chosenTotals.TermExVat)} ex. VAT" : "")</p>
+            <p class="pj-note">@itemsChosen of @project.Items.Count @(project.Items.Count == 1 ? "item has" : "items have") a chosen quote</p>
+        }
+    </div>
+    @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. The band comes
+       from the highest quote for each item, so it shows as soon as prices come in, before any is chosen. *@
+    <div class="pj-cell">
+        <p class="pj-label">Spending band</p>
+        <p class="pj-big pj-band">@(Model.CurrentBand?.Name ?? (bandBasis.AnyPriced ? "None" : "-"))@if (Model.CurrentBand is { } band) { <span class="badge">@band.QuotesNeeded @(band.QuotesNeeded == 1 ? "quote" : "quotes") each</span> }</p>
+        <details class="band-info">
+            <summary><span class="info-icon" aria-hidden="true">i</span> @(bandBasis.AnyPriced ? $"Based on {Money(bandBasis.Total)}" : "How bands work")</summary>
+            <div class="band-panel">
+                <p class="band-lead">
+                    @if (Model.Bands.Count == 0) { <text>No spending bands are set up yet.</text> }
+                    else if (!bandBasis.AnyPriced) { <text>No item has a priced quote yet, so this project isn't in a band yet. It will be as soon as one has.</text> }
+                    else
+                    {
+                        <text>Taking the highest quote for each item, this project comes to <strong>@Money(bandBasis.Total)</strong> over the whole contract, @(Model.BandsIncludeVat ? "including" : "excluding") VAT</text>
+                        @(Model.CurrentBand is { } current ? $" - that is {current.Name}." : " - no band covers that amount.")
+                        @if (unpriced > 0) { <span class="muted"> @unpriced @(unpriced == 1 ? "item has" : "items have") no priced quote yet, so it may still rise.</span> }
+                    }
+                </p>
+                @if (bandBasis.AnyPriced)
+                {
+                    <p class="muted">Highest quote for each item: @string.Join(" · ", bandBasis.Items.Select(x => x.Highest is { } quote ? $"{x.Item.Name} {Money(x.Amount)} ({SupplierName(quote.SupplierId)})" : $"{x.Item.Name} none priced yet")). Choosing a cheaper quote doesn't change the band.</p>
+                }
+                @if (Model.Bands.Count > 0)
+                {
+                    <div class="table-wrap">
+                        <table class="band-table">
+                            <thead><tr><th>Band</th><th>Spend</th><th>Quotes</th><th>Requirements</th></tr></thead>
+                            <tbody>
+                                @foreach (var row in Model.Bands)
+                                {
+                                    var isCurrent = Model.CurrentBand?.Id == row.Id;
+                                    <tr class="@(isCurrent ? "is-current" : "")"><td><strong>@row.Name</strong>@if (isCurrent) { <span class="badge chosen-badge">This project</span> }</td><td>@HelpdeskStore.DescribeRange(row)</td><td>@row.QuotesNeeded</td><td>@row.Requirements</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (Model.CurrentBand is { } needed && project.Items.Count > 0)
+                    {
+                        <p class="muted">Quotes in so far: @string.Join(" · ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.CountsAsQuote)} of {needed.QuotesNeeded}"))</p>
+                    }
+                }
+                <p class="muted">For reference - set in Settings → Spending bands.</p>
+            </div>
+        </details>
+    </div>
+    <div class="pj-cell">
+        <p class="pj-label">Quotes in</p>
+        @if (quoteRows.Count == 0) { <p class="pj-big muted">-</p><p class="pj-note">No suppliers asked yet.</p> }
+        else
+        {
+            <p class="pj-big">@received of @quoteRows.Count</p>
+            <div class="pj-meter" role="presentation"><span style="width:@(received * 100 / quoteRows.Count)%"></span></div>
+            <p class="pj-note">
+                @(quoteRows.Count == 1 ? "supplier has" : "suppliers have") quoted
+                @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }
+                @if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }
+            </p>
+        }
+    </div>
+</section>
+
+<div class="ticket-tab-buttons pj-tabs" role="tablist" aria-label="Project">
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="overview">Overview</button>
+    <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="items">Items &amp; quotes <span class="badge">@project.Items.Count</span></button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="notes">Notes <span class="badge">@project.Notes.Count</span></button>
+    <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history">History <span class="badge">@project.History.Count</span></button>
+</div>
+
+@* ---- Overview: what was asked for, and who is involved. ---- *@
+<div id="overview" class="ticket-tab-panel pj-overview" role="tabpanel" hidden>
+    <section class="panel">
+        <div class="panel-heading">
+            <div><p class="eyebrow">WHAT WAS ASKED FOR</p><h2>@project.Title</h2></div>
+            @if (Model.CanEdit) { <button class="button button-secondary" type="button" data-open-blade="details-blade">@Icons.Edit Edit details</button> }
+        </div>
+        <p class="job-description pj-asked">@project.ItemsWanted</p>
+        <dl class="pj-facts">
+            <div><dt>Proposal needed by</dt><dd>@project.DueDate.ToString("dddd d MMMM yyyy")@if (overdue) { <span class="badge badge-warning">Late</span> } else if (soon) { <span class="badge">Due soon</span> }</dd></div>
+            <div>
+                <dt>Purchasing requirements</dt>
+                <dd>
+                    @if (project.PurchasingRequirements.Count == 0 && string.IsNullOrWhiteSpace(project.PurchasingOther)) { <span class="muted">None given</span> }
+                    else
+                    {
+                        <ul class="plain-list">
+                            @foreach (var requirement in project.PurchasingRequirements) { <li>@requirement</li> }
+                            @if (!string.IsNullOrWhiteSpace(project.PurchasingOther)) { <li><span class="muted">Other:</span> @project.PurchasingOther</li> }
+                        </ul>
+                    }
+                </dd>
+            </div>
+        </dl>
+    </section>
+    <aside class="panel">
+        <dl class="pj-facts pj-facts-stack">
+            <div><dt>Requested by</dt><dd><strong>@(Model.Requester?.Name ?? "Unknown")</strong>@if (Model.Requester is { } requester) { <span class="pj-sub">@(requester.Email + (string.IsNullOrWhiteSpace(requester.Department) ? "" : " · " + requester.Department))</span> }</dd></div>
+            <div><dt>Technician</dt><dd><strong>@(Model.Technician?.Name ?? (project.TechnicianId is null ? "Unassigned" : "Unknown"))</strong>@if (project.TechnicianId is null && project.IsActive) { <span class="pj-sub">Waiting for the project lead to assign it from the staff portal.</span> }</dd></div>
+            <div><dt>Priority</dt><dd><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span><span class="pj-sub">@(project.Priority is null ? "Suggested by the requester; not confirmed yet." : project.Priority == project.SuggestedPriority ? "Confirmed as suggested." : $"Confirmed. The requester suggested {ProjectPriorities.Label(project.SuggestedPriority)}.")</span></dd></div>
+            <div><dt>Raised</dt><dd>@project.CreatedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")<span class="pj-sub">Last updated @project.LastModifiedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")</span></dd></div>
+            <div id="tickets">
+                <dt>Linked tickets</dt>
+                <dd>
+                    @if (Model.LinkedTickets.Count == 0) { <span class="muted">Not linked to a ticket.</span> }
+                    @foreach (var ticket in Model.LinkedTickets)
+                    {
+                        <div class="related-row">
+                            <div>
+                                @if (Model.CanOpenTickets) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
+                                <span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span>
+                            </div>
+                            @if (Model.CanEdit)
+                            {
+                                <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@ticket.Number" aria-label="Remove link to #@ticket.Number">@Icons.Close</button></form>
+                            }
+                        </div>
+                    }
+                    @if (Model.CanEdit)
+                    {
+                        <form method="post" asp-page-handler="LinkTicket" class="related-form">
+                            <input type="hidden" name="number" value="@project.Number" />
+                            <label class="visually-hidden" for="link-ticket">Ticket number</label>
+                            <input id="link-ticket" name="ticket" type="number" min="1" step="1" placeholder="Ticket number" required />
+                            <button class="button button-secondary" type="submit">Link</button>
+                        </form>
+                    }
+                </dd>
+            </div>
+        </dl>
+    </aside>
+</div>
+
+@* ---- Items & quotes: one card per item, with its suppliers' quotes side by side. ---- *@
+<div id="items" class="ticket-tab-panel active pj-items" role="tabpanel">
+    @if (project.Items.Count == 0)
+    {
+        <section class="panel pj-empty">
+            <h2>No items yet</h2>
+            <p class="muted">@(canWork ? "Split what was asked for into the main things being bought. Each gets its own suppliers and quotes, compared side by side." : "The technician hasn't split the request into items yet. What was asked for is under Overview.")</p>
+            @if (canWork)
+            {
+                <div class="heading-actions">
+                    @if (!string.IsNullOrWhiteSpace(project.ItemsWanted))
+                    {
+                        <form method="post" asp-page-handler="ItemsFromRequest"><input type="hidden" name="number" value="@project.Number" /><button class="button button-primary" type="submit" title="One item per line of what was asked for, reading quantities like &quot;30 iPads&quot;. They can be changed afterwards.">Create items from the request</button></form>
+                    }
+                    <button class="button button-secondary" type="button" data-open-blade="add-item-blade">@Icons.Plus Add an item</button>
+                </div>
+            }
+        </section>
+    }
+    @foreach (var item in project.Items)
+    {
+        var itemKey = item.Id.ToString("N");
+        // Cheapest is only worth saying when there is more than one price to compare.
+        var priced = item.Suppliers.Where(s => s.IsPriced).Select(s => (Row: s, Total: Model.Term(QuoteTotals.Of(s.PaymentLines)))).ToList();
+        Guid? cheapestId = priced.Count >= 2 ? priced.MinBy(x => x.Total).Row.SupplierId : null;
+        // The one-click choice: the cheapest quote that is actually in (a quote has to be received to be chosen).
+        var choosable = item.Suppliers.Where(s => s.HasQuote && s.PaymentLines.Count > 0).Select(s => (Row: s, Total: Model.Term(QuoteTotals.Of(s.PaymentLines)))).ToList();
+        var suggest = item.Chosen is null && choosable.Count > 0 ? choosable.MinBy(x => x.Total).Row : null;
+        <section class="pj-item" id="item-@itemKey">
+            <header class="pj-item-head">
+                <div>
+                    <h2><span class="pj-qty">@item.Quantity ×</span> @item.Name</h2>
+                    <p class="muted">@(item.SubItems.Count == 0 ? "Nothing else listed" : "Comes with " + string.Join(", ", item.SubItems.Select(s => $"{s.Quantity} × {s.Name}")))</p>
+                </div>
+                @if (canWork)
+                {
+                    <div class="pj-item-actions">
+                        <button class="button button-secondary" type="button" data-open-blade="supplier-blade-@itemKey">@Icons.Plus Add supplier</button>
+                        <button class="icon-button" type="button" data-open-blade="item-blade-@itemKey" title="Edit item" aria-label="Edit @item.Name">@Icons.Edit</button>
+                    </div>
+                }
+            </header>
+            @if (item.Suppliers.Count == 0)
+            {
+                <p class="pj-item-empty muted">No suppliers asked yet.@if (canWork) { <text> Add one to start collecting quotes.</text> }</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="pj-quotes stack-table">
+                        <thead><tr><th data-stack="head">Supplier</th><th>Quote</th><th class="num">Over the term</th><th class="num">First year</th><th>Valid until</th><th>Files</th><th aria-label="Actions"></th></tr></thead>
+                        <tbody>
+                            @foreach (var row in item.Suppliers)
+                            {
+                                var key = ProjectModel.QuoteKey(item.Id, row.SupplierId);
+                                var totals = QuoteTotals.Of(row.PaymentLines);
+                                var days = row.DaysAwaited(Model.Now);
+                                var chase = days >= QuoteStatuses.ChaseAfterDays;
+                                var isExpired = row.IsExpired(Model.Today);
+                                var isChosen = item.ChosenSupplierId == row.SupplierId;
+                                var hasAnything = row.Documents.Count > 0 || row.PaymentLines.Count > 0 || row.PreviousVersions.Count > 0;
+                                <tr id="quote-@key" class="@(isChosen ? "is-chosen" : "")">
+                                    <td>
+                                        <a class="pj-supplier" asp-page="/Supplier" asp-route-id="@row.SupplierId">@SupplierName(row.SupplierId)</a>
+                                        @if (isChosen) { <span class="badge chosen-badge">@Icons.Check Chosen</span> }
+                                        @if (cheapestId == row.SupplierId) { <span class="badge badge-good">Cheapest</span> }
+                                    </td>
+                                    <td>
+                                        <span class="status @QuoteTone(row.Status)">@row.Status</span>
+                                        <span class="pj-sub">
+                                            @if (row.Reference.Length > 0) { <text>Ref @row.Reference · </text> }
+                                            @if (days is { } waited) { <text>awaited @waited @(waited == 1 ? "day" : "days")</text> }
+                                            else if (row.StatusSince is { } since) { <text>since @since.ToLocalTime().ToString("d MMM")</text> }
+                                            @if (chase) { <span class="badge badge-warning">Chase</span> }
+                                        </span>
+                                    </td>
+                                    <td class="num">@if (row.PaymentLines.Count > 0) { <strong>@Money(Model.Term(totals))</strong> } else { <span class="muted">-</span> }</td>
+                                    <td class="num">@if (row.PaymentLines.Count > 0) { <text>@Money(Model.FirstYear(totals))</text> } else { <span class="muted">-</span> }</td>
+                                    <td>@if (row.ValidUntil is { } until) { <text>@until.ToString("d MMM yyyy")</text> } else { <span class="muted">-</span> }@if (isExpired) { <span class="badge badge-warning">Expired</span> }</td>
+                                    <td class="pj-files">
+                                        @if (row.Documents.Count == 0) { <span class="muted">-</span> }
+                                        @foreach (var document in row.Documents)
+                                        {
+                                            <a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })" title="@document.FileName · @HelpdeskStore.FormatSize(document.Size)">@Icons.File<span>@document.FileName</span></a>
+                                        }
+                                    </td>
+                                    <td class="pj-row-action">
+                                        @if (canWork || hasAnything)
+                                        {
+                                            <button class="button button-secondary" type="button" data-open-blade="quote-blade-@key">@(canWork ? (hasAnything ? "Edit quote" : "Add quote") : "Details")</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @if (item.Chosen is { } chosen)
+            {
+                <footer class="pj-item-foot"><span>Chosen: <strong>@SupplierName(chosen.SupplierId)</strong> at @Money(Model.Term(QuoteTotals.Of(chosen.PaymentLines))) @Model.VatLabel over the term</span></footer>
+            }
+            else if (item.Suppliers.Count > 0)
+            {
+                <footer class="pj-item-foot">
+                    <span class="muted">No quote chosen yet for this item.</span>
+                    @if (canWork && suggest is not null)
+                    {
+                        <form method="post" asp-page-handler="ChooseQuote">
+                            <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@suggest.SupplierId" />
+                            <button class="button button-secondary" type="submit">@(choosable.Count > 1 ? $"Choose the cheapest ({SupplierName(suggest.SupplierId)})" : $"Choose {SupplierName(suggest.SupplierId)}'s quote")</button>
+                        </form>
+                    }
+                </footer>
+            }
+        </section>
+    }
+    @if (canWork && project.Items.Count > 0)
+    {
+        <button class="button button-secondary" type="button" data-open-blade="add-item-blade">@Icons.Plus Add an item</button>
+    }
+</div>
+
+@* ---- Notes ---- *@
+<div id="notes" class="ticket-tab-panel" role="tabpanel" hidden>
+    <section class="panel">
+        @if (Model.CanEdit)
+        {
+            <form method="post" asp-page-handler="Note" class="comment-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <label for="project-note">Add a note</label>
+                <textarea id="project-note" name="text" rows="3" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="An update for the requester, or a note for the team…" required></textarea>
+                <label class="toggle-label"><input type="checkbox" name="isInternal" value="true" /> Internal note (IT team only - the requester won't see it in the portal)</label>
+                <button class="button button-primary" type="submit">Add note</button>
+            </form>
+        }
+        @if (project.Notes.Count == 0) { <p class="muted">No notes yet.</p> }
+        <div class="comment-list pj-notes">
+            @foreach (var note in project.Notes.OrderByDescending(x => x.CreatedAt))
+            {
+                <article class="comment @(note.IsInternal ? "comment-internal" : "")"><p>@note.Text</p><small>@if (note.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(note.By)</strong> · @note.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveNote(note))
+                {
+                    <form method="post" asp-page-handler="RemoveNote" class="comment-remove" data-confirm="Remove this @(note.IsInternal ? "internal note" : "note")?@(note.IsInternal ? "" : " The requester will no longer see it in the portal.") It can't be put back - the history will only record that it was removed.">
+                        <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="note" value="@HelpdeskStore.CommentKey(note.CreatedAt)" />
+                        <button class="link-button" type="submit">Remove</button>
+                    </form>
+                }</article>
+            }
+        </div>
+    </section>
+</div>
+
+@* ---- History ---- *@
+<div id="history" class="ticket-tab-panel" role="tabpanel" hidden>
+    <section class="panel">
+        <div class="history-list">
+            @foreach (var activity in project.History.OrderByDescending(x => x.CreatedAt))
+            {
+                <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+            }
+        </div>
+    </section>
+</div>
+
+@* ======== Slide-in panels. Outside the tabs, so one can open whichever tab is showing. ======== *@
+
+@foreach (var item in project.Items)
+{
+    var itemKey = item.Id.ToString("N");
+    var itemIndex = project.Items.IndexOf(item);
+    foreach (var row in item.Suppliers)
+    {
+        var key = ProjectModel.QuoteKey(item.Id, row.SupplierId);
+        var bladeId = $"quote-blade-{key}";
+        var supplierName = SupplierName(row.SupplierId);
+        var totals = QuoteTotals.Of(row.PaymentLines);
+        var updating = row.Status == QuoteStatuses.UpdateRequested;
+        var isChosen = item.ChosenSupplierId == row.SupplierId;
+        var days = row.DaysAwaited(Model.Now);
+        var trail = string.Join(" → ", row.StatusHistory.Select(c => $"{c.Status} {c.At.ToLocalTime():d MMM}"));
+        if (!canWork && row.Documents.Count == 0 && row.PaymentLines.Count == 0 && row.PreviousVersions.Count == 0) { continue; }
+        <div id="@bladeId" class="blade-backdrop" data-reopen="@(Model.Reopen == bladeId ? "true" : null)">
+            <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="@bladeId-title">
+                <div class="blade-head">
+                    <div><h2 id="@bladeId-title">@supplierName</h2><p class="pj-blade-sub">Quote for @item.Quantity × @item.Name</p></div>
+                    <button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button>
+                </div>
+                <div class="pj-blade-body">
+                    <section class="pj-blade-section">
+                        <h3>Status</h3>
+                        @if (canWork)
+                        {
+                            <div class="pj-two">
+                                <form method="post" asp-page-handler="QuoteStatus">
+                                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                    <label>Status<select name="status" data-autosubmit>@foreach (var status in QuoteStatuses.All) { <option value="@status" selected="@(status == row.Status)">@status</option> }</select></label>
+                                    <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
+                                </form>
+                                @if (row.HasQuote || row.ValidUntil is not null)
+                                {
+                                    <form method="post" asp-page-handler="ValidUntil">
+                                        <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                        <label>Valid until<input name="validUntil" type="date" value="@row.ValidUntil?.ToString("yyyy-MM-dd")" data-autosubmit /></label>
+                                    </form>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p><span class="status @QuoteTone(row.Status)">@row.Status</span>@if (row.ValidUntil is { } until) { <span class="muted"> · valid until @until.ToString("d MMM yyyy")</span> }</p>
+                        }
+                        @if (trail.Length > 0) { <p class="pj-sub">@(trail + (days is { } waited ? $" · awaited {waited} {(waited == 1 ? "day" : "days")}" : ""))</p> }
+                    </section>
+
+                    <section class="pj-blade-section">
+                        <h3>Supplier's quote reference</h3>
+                        @if (canWork)
+                        {
+                            <form method="post" asp-page-handler="QuoteReference" class="inline-fields">
+                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                <label><span class="visually-hidden">Reference</span><input name="reference" value="@row.Reference" maxlength="@HelpdeskStore.MaxQuoteReferenceLength" placeholder="e.g. Q-104233" /></label>
+                                <button class="button button-secondary" type="submit">Save</button>
+                            </form>
+                        }
+                        else { <p>@(row.Reference.Length > 0 ? row.Reference : "None given")</p> }
+                    </section>
+
+                    <section class="pj-blade-section">
+                        <h3>Files</h3>
+                        @if (row.Documents.Count == 0) { <p class="muted">No files yet.</p> }
+                        @foreach (var document in row.Documents)
+                        {
+                            <div class="pj-file">
+                                <a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@Icons.File<span>@document.FileName</span></a>
+                                <span class="muted">@HelpdeskStore.FormatSize(document.Size) · @document.UploadedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+                                @if (canWork)
+                                {
+                                    <form method="post" asp-page-handler="RemoveQuoteFile" data-confirm="Remove this file from the quote?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">@Icons.Bin</button></form>
+                                }
+                            </div>
+                        }
+                        @if (canWork)
+                        {
+                            <form method="post" asp-page-handler="UploadQuote" enctype="multipart/form-data" class="pj-upload">
+                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                <label class="pj-drop">@Icons.Upload <span><strong>@(updating ? "Upload the updated quote" : row.Documents.Count == 0 ? "Upload their quote" : "Add more files")</strong> - drop files here or choose them</span><input type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
+                                @if (updating && (row.Documents.Count > 0 || row.PaymentLines.Count > 0))
+                                {
+                                    <p class="muted">An update was asked for, so these files replace the current ones and the prices are cleared for the new quote's.</p>
+                                    <label class="toggle-label"><input type="checkbox" name="keepPrevious" value="true" checked /> Keep the current files and prices under Previous versions</label>
+                                }
+                                else if (row.Status is not (QuoteStatuses.Received or QuoteStatuses.UpdateReceived or QuoteStatuses.UpdateRequested))
+                                {
+                                    <p class="muted">Uploading marks the quote as Received.</p>
+                                }
+                                <button class="button button-secondary" type="submit">@Icons.Upload Upload</button>
+                            </form>
+                        }
+                    </section>
+
+                    <section class="pj-blade-section">
+                        <h3>Prices <span class="pj-h3-note">amounts per payment, excluding VAT</span></h3>
+                        @if (row.PaymentLines.Count == 0) { <p class="muted">No prices entered yet.</p> }
+                        @foreach (var line in row.PaymentLines)
+                        {
+                            @if (canWork)
+                            {
+                                <form method="post" asp-page-handler="UpdatePaymentLine" class="pj-pay">
+                                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="lineId" value="@line.Id" />
+                                    <label class="pj-pay-wide">What for<input name="description" value="@line.Description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. Hardware" /></label>
+                                    <label>Amount (£)<input name="amount" value="@line.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" inputmode="decimal" required /></label>
+                                    <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often" selected="@(often == line.Frequency)">@often</option> }</select></label>
+                                    <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="@line.TermYears" /></label>
+                                    <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
+                                    <div class="pj-pay-foot">
+                                        <span><strong>@Money(Model.LineTerm(line))</strong> <span class="muted">@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), @Model.VatLabel</span></span>
+                                        <span class="pj-pay-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" formnovalidate title="Remove line" aria-label="Remove line">@Icons.Bin</button></span>
+                                    </div>
+                                </form>
+                            }
+                            else { <p class="pj-pay-text">@HelpdeskStore.DescribeLine(line) - <strong>@Money(Model.LineTerm(line))</strong> @Model.VatLabel</p> }
+                        }
+                        @if (canWork)
+                        {
+                            <details class="pj-add-line" open="@(row.PaymentLines.Count == 0)">
+                                <summary>@Icons.Plus Add a price line</summary>
+                                <form method="post" asp-page-handler="AddPaymentLine" class="pj-pay">
+                                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                    <label class="pj-pay-wide">What for<input name="description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. AppleCare+" /></label>
+                                    <label>Amount (£)<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
+                                    <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often">@often</option> }</select></label>
+                                    <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="1" /></label>
+                                    <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat">@vat</option> }</select></label>
+                                    <div class="pj-pay-foot"><span class="muted">Years only count for regular payments.</span><button class="button button-primary" type="submit">Add price</button></div>
+                                </form>
+                            </details>
+                        }
+                        @if (row.PaymentLines.Count > 0)
+                        {
+                            <table class="pj-totals">
+                                @if (Model.IncVat)
+                                {
+                                    <tr><th></th><th>Ex. VAT</th><th>VAT</th><th>Inc. VAT</th></tr>
+                                    <tr><th>First year</th><td>@Money(totals.FirstYearExVat)</td><td>@Money(totals.FirstYearVat)</td><td>@Money(totals.FirstYearIncVat)</td></tr>
+                                    <tr><th>Whole term</th><td>@Money(totals.TermExVat)</td><td>@Money(totals.TermVat)</td><td><strong>@Money(totals.TermIncVat)</strong></td></tr>
+                                }
+                                else
+                                {
+                                    @* Ex VAT only (Settings → Spending bands): the VAT is still worked out, for the proposal PDF. *@
+                                    <tr><th></th><th>Ex. VAT</th></tr>
+                                    <tr><th>First year</th><td>@Money(totals.FirstYearExVat)</td></tr>
+                                    <tr><th>Whole term</th><td><strong>@Money(totals.TermExVat)</strong></td></tr>
+                                }
+                            </table>
+                        }
+                    </section>
+
+                    <section class="pj-blade-section">
+                        <h3>Choice</h3>
+                        @if (canWork)
+                        {
+                            <form method="post" asp-page-handler="ChooseQuote" class="pj-choose">
+                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
+                                @if (isChosen)
+                                {
+                                    <input type="hidden" name="supplierId" value="" />
+                                    <span>This is the chosen quote for @item.Name - the proposal's totals use it.</span>
+                                    <button class="button button-secondary" type="submit">Unchoose</button>
+                                }
+                                else if (row.HasQuote)
+                                {
+                                    <input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                    <button class="button button-primary" type="submit">@Icons.Check Choose this quote</button>
+                                    @if (item.ChosenSupplierId is { } other) { <span class="muted">Replaces @SupplierName(other).</span> }
+                                }
+                                else { <span class="muted">It can be chosen once their quote is in.</span> }
+                            </form>
+                        }
+                        else { <p>@(isChosen ? $"This is the chosen quote for {item.Name}." : item.Chosen is { } chosen ? $"Not chosen - {SupplierName(chosen.SupplierId)}'s quote is." : "No quote has been chosen for this item yet.")</p> }
+                    </section>
+
+                    @if (row.PreviousVersions.Count > 0)
+                    {
+                        <section class="pj-blade-section">
+                            <h3>Previous versions</h3>
+                            @foreach (var version in row.PreviousVersions.OrderByDescending(x => x.ArchivedAt))
+                            {
+                                var old = QuoteTotals.Of(version.PaymentLines);
+                                <details class="pj-version">
+                                    <summary>Replaced @version.ArchivedAt.ToLocalTime().ToString("d MMM yyyy")@(version.Reference.Length > 0 ? $" · {version.Reference}" : "") · @version.Documents.Count @(version.Documents.Count == 1 ? "file" : "files") · @(version.PaymentLines.Count > 0 ? Money(Model.Term(old)) + " " + Model.VatLabel : "no prices")</summary>
+                                    @foreach (var document in version.Documents)
+                                    {
+                                        <div class="pj-file"><a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@Icons.File<span>@document.FileName</span></a><span class="muted">@HelpdeskStore.FormatSize(document.Size)</span></div>
+                                    }
+                                    @foreach (var line in version.PaymentLines) { <p class="pj-pay-text">@HelpdeskStore.DescribeLine(line)</p> }
+                                    @if (version.ValidUntil is { } was) { <p class="muted">Was valid until @was.ToString("d MMM yyyy")</p> }
+                                    @if (canWork)
+                                    {
+                                        <form method="post" asp-page-handler="DeleteQuoteVersion" data-confirm="Delete this previous version and its files for good?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="versionId" value="@version.Id" /><button class="button button-secondary" type="submit">Delete this version</button></form>
+                                    }
+                                </details>
+                            }
+                        </section>
+                    }
+
+                    @if (canWork)
+                    {
+                        <section class="pj-blade-section pj-danger">
+                            <form method="post" asp-page-handler="RemoveSupplier" data-confirm="Take @supplierName off this item? Their quote files, prices and status history go with it.">
+                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
+                                <button class="button button-danger" type="submit">@Icons.Bin Take @supplierName off this item</button>
+                            </form>
+                        </section>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    if (canWork)
+    {
+        var available = Model.Suppliers.Where(s => item.Suppliers.All(r => r.SupplierId != s.Id)).ToList();
+        <div id="supplier-blade-@itemKey" class="blade-backdrop">
+            <div class="blade" role="dialog" aria-modal="true" aria-labelledby="supplier-blade-@itemKey-title">
+                <div class="blade-head">
+                    <div><h2 id="supplier-blade-@itemKey-title">Add a supplier</h2><p class="pj-blade-sub">To quote for @item.Quantity × @item.Name</p></div>
+                    <button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button>
+                </div>
+                <form method="post" asp-page-handler="AddSupplier" class="blade-form">
+                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
+                    <label>From the directory<select name="supplierId"><option value="">Choose…</option>@foreach (var supplier in available) { <option value="@supplier.Id">@supplier.Name</option> }</select></label>
+                    <p class="muted pj-or">or a new supplier, added to the directory:</p>
+                    <label>Name<input name="newName" maxlength="@HelpdeskStore.MaxItemNameLength" /></label>
+                    <label>Email (optional)<input name="newEmail" type="email" /></label>
+                    @if (project.Items.Count > 1) { <label class="toggle-label"><input type="checkbox" name="everyItem" value="true" /> Add to every item on this project</label> }
+                    <div class="blade-actions"><button class="button button-primary" type="submit">Add supplier</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+                </form>
+            </div>
+        </div>
+
+        <div id="item-blade-@itemKey" class="blade-backdrop" data-reopen="@(Model.Reopen == $"item-blade-{itemKey}" ? "true" : null)">
+            <div class="blade" role="dialog" aria-modal="true" aria-labelledby="item-blade-@itemKey-title">
+                <div class="blade-head">
+                    <div><h2 id="item-blade-@itemKey-title">@item.Name</h2><p class="pj-blade-sub">Item @(itemIndex + 1) of @project.Items.Count</p></div>
+                    <button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button>
+                </div>
+                <div class="pj-blade-body">
+                    <section class="pj-blade-section">
+                        <h3>Item</h3>
+                        <form method="post" asp-page-handler="UpdateItem" class="inline-fields">
+                            <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
+                            <label>Name<input name="name" value="@item.Name" maxlength="@HelpdeskStore.MaxItemNameLength" required /></label>
+                            <label class="qty-field">Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="@item.Quantity" required /></label>
+                            <button class="button button-secondary" type="submit">Save</button>
+                        </form>
+                    </section>
+                    <section class="pj-blade-section">
+                        <h3>Comes with</h3>
+                        @if (item.SubItems.Count == 0) { <p class="muted">Nothing listed. Sub-items are a checklist of what comes with it - keyboards, cases, pencils. The item's price covers them.</p> }
+                        @foreach (var sub in item.SubItems)
+                        {
+                            <form method="post" asp-page-handler="UpdateSubItem" class="inline-fields pj-sub-item">
+                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="subItemId" value="@sub.Id" />
+                                <label><span class="visually-hidden">Name</span><input name="name" value="@sub.Name" maxlength="@HelpdeskStore.MaxItemNameLength" required /></label>
+                                <label class="qty-field"><span class="visually-hidden">Quantity</span><input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="@sub.Quantity" required /></label>
+                                <button class="button button-secondary" type="submit">Save</button>
+                                <button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeleteSubItem")" formnovalidate title="Remove" aria-label="Remove @sub.Name">@Icons.Bin</button>
+                            </form>
+                        }
+                        <form method="post" asp-page-handler="AddSubItem" class="inline-fields">
+                            <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
+                            <label>Add a sub-item<input name="name" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. Keyboard case" required /></label>
+                            <label class="qty-field">Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="@item.Quantity" required /></label>
+                            <button class="button button-secondary" type="submit">@Icons.Plus Add</button>
+                        </form>
+                    </section>
+                    @if (project.Items.Count > 1)
+                    {
+                        <section class="pj-blade-section">
+                            <h3>Order</h3>
+                            <div class="heading-actions">
+                                @if (itemIndex > 0) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="-1" /><button class="button button-secondary" type="submit">↑ Move up</button></form> }
+                                @if (itemIndex < project.Items.Count - 1) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="1" /><button class="button button-secondary" type="submit">↓ Move down</button></form> }
+                            </div>
+                        </section>
+                    }
+                    <section class="pj-blade-section pj-danger">
+                        <form method="post" asp-page-handler="DeleteItem" data-confirm="Remove @item.Name and its suppliers from the project?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="button button-danger" type="submit">@Icons.Bin Remove this item</button></form>
+                    </section>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (canWork)
+{
+    <div id="add-item-blade" class="blade-backdrop">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="add-item-blade-title">
+            <div class="blade-head"><h2 id="add-item-blade-title">Add an item</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <form method="post" asp-page-handler="AddItem" class="blade-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <p class="muted">One of the main things being bought. Its suppliers and quotes are added next.</p>
+                <label>Name<input name="name" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. iPad (10th generation)" required /></label>
+                <label>Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="1" required /></label>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Add item</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}
+
+@if (Model.CanEdit)
+{
+    <div id="details-blade" class="blade-backdrop">
+        <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="details-blade-title">
+            <div class="blade-head"><h2 id="details-blade-title">Edit details</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <form method="post" asp-page-handler="Details" class="blade-form">
+                <input type="hidden" name="number" value="@project.Number" />
+                <label>Title<input name="title" value="@project.Title" maxlength="@HelpdeskStore.MaxProjectTitleLength" required /></label>
+                <label>Proposal needed by<input name="dueDate" type="date" value="@project.DueDate.ToString("yyyy-MM-dd")" required /></label>
+                <label>Items wanted<textarea name="itemsWanted" rows="7" maxlength="@HelpdeskStore.MaxProjectTextLength" required>@project.ItemsWanted</textarea></label>
+                <fieldset class="requirement-choices"><legend>Purchasing requirements</legend>
+                    @foreach (var option in Model.RequirementOptions) { <label class="toggle-label"><input type="checkbox" name="requirements" value="@option" checked="@project.PurchasingRequirements.Contains(option, StringComparer.OrdinalIgnoreCase)" /> @option</label> }
+                    <label>Other<input name="other" value="@project.PurchasingOther" maxlength="@HelpdeskStore.MaxProjectOtherLength" /></label>
+                </fieldset>
+                <div class="blade-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}
 
 @if (Model.CanAssign && project.IsActive)
 {
@@ -82,514 +798,6 @@
         </div>
     </div>
 }
-
-<div class="job-detail-grid">
-    <section class="panel job-main">
-        <div class="panel-heading"><div><p class="eyebrow">WHAT WAS ASKED FOR</p><h2>@project.Title</h2></div>@if (Model.CanEdit) { <button class="button button-secondary" type="button" id="details-edit-button" data-show="details-form" data-hide="details-display details-edit-button">Edit details</button> }</div>
-        <div id="details-display">
-            <div class="job-detail-fields project-facts">
-                <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><strong>@project.DueDate.ToString("dddd d MMMM yyyy")</strong>@if (overdue) { <span class="badge badge-warning">Late</span> } else if (soon) { <span class="badge">Due soon</span> }</div>
-                <div class="detail-block"><p class="eyebrow">PURCHASING REQUIREMENTS</p>
-                    @if (project.PurchasingRequirements.Count == 0 && string.IsNullOrWhiteSpace(project.PurchasingOther)) { <p class="muted">None given.</p> }
-                    else
-                    {
-                        <ul class="plain-list">
-                            @foreach (var requirement in project.PurchasingRequirements) { <li>@requirement</li> }
-                            @if (!string.IsNullOrWhiteSpace(project.PurchasingOther)) { <li><span class="muted">Other:</span> @project.PurchasingOther</li> }
-                        </ul>
-                    }
-                </div>
-            </div>
-            <p class="section-heading">Items wanted</p>
-            <p class="job-description">@project.ItemsWanted</p>
-        </div>
-        @if (Model.CanEdit)
-        {
-            <form method="post" asp-page-handler="Details" class="project-details-form" id="details-form" hidden>
-                <input type="hidden" name="number" value="@project.Number" />
-                <label>Title<input name="title" value="@project.Title" maxlength="@HelpdeskStore.MaxProjectTitleLength" required /></label>
-                <label>Proposal needed by<input name="dueDate" type="date" value="@project.DueDate.ToString("yyyy-MM-dd")" required /></label>
-                <label>Items wanted<textarea name="itemsWanted" rows="7" maxlength="@HelpdeskStore.MaxProjectTextLength" required>@project.ItemsWanted</textarea></label>
-                <fieldset class="requirement-choices"><legend>Purchasing requirements</legend>
-                    @foreach (var option in Model.RequirementOptions) { <label class="toggle-label"><input type="checkbox" name="requirements" value="@option" checked="@project.PurchasingRequirements.Contains(option, StringComparer.OrdinalIgnoreCase)" /> @option</label> }
-                    <label>Other<input name="other" value="@project.PurchasingOther" maxlength="@HelpdeskStore.MaxProjectOtherLength" /></label>
-                </fieldset>
-                <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" data-show="details-display details-edit-button" data-hide="details-form">Cancel</button></div>
-            </form>
-        }
-
-        @{
-            // Changing items is the technician's work while the project is open; a closed project's list is its record.
-            var canWork = Model.CanEdit && project.IsActive;
-            var quoteRows = project.Items.SelectMany(x => x.Suppliers).ToList();
-            var received = quoteRows.Count(x => x.HasQuote);
-            var toChase = quoteRows.Count(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays);
-            var expired = quoteRows.Count(x => x.IsExpired(Model.Today));
-            // What the proposal will total: the chosen quote on each item. Items without one count as nothing yet.
-            var chosenTotals = project.ChosenTotals;
-            var itemsChosen = project.Items.Count(x => x.Chosen is not null);
-        }
-        <div class="project-items" id="items">
-            <div class="project-items-head">
-                <div><p class="section-heading">Items &amp; quotes</p>
-                    @if (project.Items.Count > 0)
-                    {
-                        <p class="project-total">Chosen quotes: <strong>@HelpdeskStore.FormatMoney(Model.Term(chosenTotals))</strong> @Model.VatLabel over the term · @HelpdeskStore.FormatMoney(Model.FirstYear(chosenTotals)) in the first year <span class="muted">@if (Model.IncVat) { <text>(@HelpdeskStore.FormatMoney(chosenTotals.TermExVat) ex. VAT) </text> }· @itemsChosen of @project.Items.Count @(project.Items.Count == 1 ? "item has" : "items have") a chosen quote</span></p>
-                    }
-                    <p class="muted">@project.Items.Count @(project.Items.Count == 1 ? "item" : "items") · @received of @quoteRows.Count @(quoteRows.Count == 1 ? "supplier" : "suppliers") have quoted @if (toChase > 0) { <span class="badge badge-warning">@toChase to chase</span> }@if (expired > 0) { <span class="badge badge-warning">@expired expired</span> }</p>
-                    @if (project.Items.Count > 1)
-                    {
-                        <p class="item-toggles"><button type="button" class="link-button" data-expand="details.project-item">Expand all</button> · <button type="button" class="link-button" data-collapse="details.project-item">Collapse all</button></p>
-                    }
-                </div>
-                @* Reference only: the finance policy's bands, with this project's highlighted. Nothing is enforced. The band
-                   comes from the highest quote for each item, so it shows as soon as prices come in, before any is chosen. *@
-                @{ var bandBasis = Model.BandBasis; var unpriced = bandBasis.Items.Count - bandBasis.ItemsPriced; }
-                <details class="band-info">
-                    <summary title="Spending bands" aria-label="Spending bands"><span class="info-icon" aria-hidden="true">i</span> @(Model.CurrentBand is { } band ? band.Name : "Spending bands")</summary>
-                    <div class="band-panel">
-                        <p class="band-lead">
-                            @if (Model.Bands.Count == 0) { <text>No spending bands are set up yet.</text> }
-                            else if (!bandBasis.AnyPriced) { <text>No item has a priced quote yet, so this project isn't in a band yet. It will be as soon as one has.</text> }
-                            else
-                            {
-                                <text>Taking the highest quote for each item, this project comes to <strong>@HelpdeskStore.FormatMoney(bandBasis.Total)</strong> over the whole contract, @(Model.BandsIncludeVat ? "including" : "excluding") VAT</text>
-                                @(Model.CurrentBand is { } current ? $" - that is {current.Name}." : " - no band covers that amount.")
-                                @if (unpriced > 0) { <span class="muted"> @unpriced @(unpriced == 1 ? "item has" : "items have") no priced quote yet, so it may still rise.</span> }
-                            }
-                        </p>
-                        @if (bandBasis.AnyPriced)
-                        {
-                            <p class="muted">Highest quote for each item: @string.Join(" · ", bandBasis.Items.Select(x => x.Highest is { } quote ? $"{x.Item.Name} {HelpdeskStore.FormatMoney(x.Amount)} ({Model.SupplierNames.GetValueOrDefault(quote.SupplierId, "Unknown supplier")})" : $"{x.Item.Name} none priced yet")). Choosing a cheaper quote doesn't change the band.</p>
-                        }
-                        @if (Model.Bands.Count > 0)
-                        {
-                            <table class="band-table">
-                                <thead><tr><th>Band</th><th>Spend</th><th>Quotes</th><th>Requirements</th></tr></thead>
-                                <tbody>
-                                    @foreach (var row in Model.Bands)
-                                    {
-                                        var isCurrent = Model.CurrentBand?.Id == row.Id;
-                                        <tr class="@(isCurrent ? "is-current" : "")"><td><strong>@row.Name</strong>@if (isCurrent) { <span class="badge chosen-badge">This project</span> }</td><td>@HelpdeskStore.DescribeRange(row)</td><td>@row.QuotesNeeded</td><td>@row.Requirements</td></tr>
-                                    }
-                                </tbody>
-                            </table>
-                            @if (Model.CurrentBand is { } needed && project.Items.Count > 0)
-                            {
-                                <p class="muted">Quotes in so far: @string.Join(" · ", project.Items.Select(x => $"{x.Name} {x.Suppliers.Count(s => s.CountsAsQuote)} of {needed.QuotesNeeded}"))</p>
-                            }
-                        }
-                        <p class="muted">For reference - set in Settings → Spending bands.</p>
-                    </div>
-                </details>
-            </div>
-            @if (project.Items.Count == 0)
-            {
-                <p class="muted">No items yet. Split what was asked for into the main things being bought - each gets its own suppliers and quotes.</p>
-                @if (canWork && !string.IsNullOrWhiteSpace(project.ItemsWanted))
-                {
-                    <form method="post" asp-page-handler="ItemsFromRequest"><input type="hidden" name="number" value="@project.Number" /><button class="button button-secondary" type="submit">Create items from the request</button> <small class="muted">One item per line of "Items wanted", reading quantities like "30 iPads". You can edit them afterwards.</small></form>
-                }
-            }
-            @for (var index = 0; index < project.Items.Count; index++)
-            {
-                var item = project.Items[index];
-                var available = Model.Suppliers.Where(s => item.Suppliers.All(r => r.SupplierId != s.Id)).ToList();
-                var itemKey = item.Id.ToString("N");
-                var quoted = item.Suppliers.Count(x => x.HasQuote);
-                var itemChosen = item.Chosen;
-                @* Collapsible so a long project reads as a list; the summary line says enough to know which one to open.
-                   The item just changed opens again after the page reloads, and a lone item is always open. *@
-                <details class="project-item" id="item-@itemKey" open="@(project.Items.Count == 1 || Model.OpenItem == itemKey)">
-                    <summary class="project-item-head">
-                        <h3><span class="item-qty">@item.Quantity ×</span> @item.Name</h3>
-                        <span class="item-summary">
-                            @if (item.SubItems.Count > 0) { <span>@item.SubItems.Count @(item.SubItems.Count == 1 ? "sub-item" : "sub-items")</span> }
-                            <span>@(item.Suppliers.Count == 0 ? "no suppliers yet" : $"{quoted} of {item.Suppliers.Count} quoted")</span>
-                            @if (itemChosen is not null) { <span class="item-summary-chosen">chosen: @HelpdeskStore.FormatMoney(Model.Term(QuoteTotals.Of(itemChosen.PaymentLines))) @Model.VatLabel</span> }
-                            @if (item.Suppliers.Any(x => x.DaysAwaited(Model.Now) >= QuoteStatuses.ChaseAfterDays)) { <span class="badge badge-warning">to chase</span> }
-                            @if (item.Suppliers.Any(x => x.IsExpired(Model.Today))) { <span class="badge badge-warning">expired</span> }
-                        </span>
-                    </summary>
-                    <div class="project-item-body">
-                        @if (canWork)
-                        {
-                            <div class="item-actions">
-                                @if (index > 0) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="-1" /><button class="icon-button" type="submit" title="Move up" aria-label="Move @item.Name up">↑</button></form> }
-                                @if (index < project.Items.Count - 1) { <form method="post" asp-page-handler="MoveItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="1" /><button class="icon-button" type="submit" title="Move down" aria-label="Move @item.Name down">↓</button></form> }
-                                <form method="post" asp-page-handler="DeleteItem" data-confirm="Remove this item and its suppliers from the project?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><button class="icon-button delete-icon" type="submit" title="Remove item" aria-label="Remove @item.Name">@Icons.Bin</button></form>
-                            </div>
-                        }
-                    @if (canWork)
-                    {
-                        <details class="item-edit">
-                            <summary>Edit item</summary>
-                            <form method="post" asp-page-handler="UpdateItem" class="inline-fields">
-                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
-                                <label>Name<input name="name" value="@item.Name" maxlength="@HelpdeskStore.MaxItemNameLength" required /></label>
-                                <label class="qty-field">Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="@item.Quantity" required /></label>
-                                <button class="button button-secondary" type="submit">Save</button>
-                            </form>
-                        </details>
-                    }
-
-                    <div class="sub-items">
-                        <p class="eyebrow">COMES WITH</p>
-                        @if (item.SubItems.Count == 0) { <p class="muted">Nothing listed.</p> }
-                        <ul>
-                            @foreach (var sub in item.SubItems)
-                            {
-                                <li>
-                                    <span>@sub.Quantity × @sub.Name</span>
-                                    @if (canWork)
-                                    {
-                                        <details class="sub-edit">
-                                            <summary>Edit</summary>
-                                            <form method="post" asp-page-handler="UpdateSubItem" class="inline-fields">
-                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="subItemId" value="@sub.Id" />
-                                                <label>Name<input name="name" value="@sub.Name" maxlength="@HelpdeskStore.MaxItemNameLength" required /></label>
-                                                <label class="qty-field">Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="@sub.Quantity" required /></label>
-                                                <button class="button button-secondary" type="submit">Save</button>
-                                            </form>
-                                        </details>
-                                        <form method="post" asp-page-handler="DeleteSubItem"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="subItemId" value="@sub.Id" /><button class="icon-button delete-icon" type="submit" title="Remove" aria-label="Remove @sub.Name">@Icons.Bin</button></form>
-                                    }
-                                </li>
-                            }
-                        </ul>
-                        @if (canWork)
-                        {
-                            <form method="post" asp-page-handler="AddSubItem" class="inline-fields">
-                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
-                                <label>Add a sub-item<input name="name" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. Keyboard case" required /></label>
-                                <label class="qty-field">Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="@item.Quantity" required /></label>
-                                <button class="button button-secondary" type="submit">Add</button>
-                            </form>
-                        }
-                    </div>
-
-                    <div class="item-suppliers">
-                        <p class="eyebrow">SUPPLIERS @if (item.Chosen is { } chosenRow) { <span class="item-chosen">· chosen: @(Model.SupplierNames.GetValueOrDefault(chosenRow.SupplierId) ?? "Unknown") at @HelpdeskStore.FormatMoney(Model.Term(QuoteTotals.Of(chosenRow.PaymentLines))) @Model.VatLabel</span> }</p>
-                        @if (item.Suppliers.Count == 0) { <p class="muted">No suppliers asked yet.</p> }
-                        @foreach (var row in item.Suppliers)
-                        {
-                            var days = row.DaysAwaited(Model.Now);
-                            var chase = days >= QuoteStatuses.ChaseAfterDays;
-                            var isExpired = row.IsExpired(Model.Today);
-                            var trail = string.Join(" → ", row.StatusHistory.Select(c => $"{c.Status} {c.At.ToLocalTime():d MMM}"));
-                            var isChosen = item.ChosenSupplierId == row.SupplierId;
-                            var supplierName = Model.SupplierNames.GetValueOrDefault(row.SupplierId) ?? "Unknown supplier";
-                            var quoteKey = $"{item.Id:N}-{row.SupplierId:N}";
-                            <div class="supplier-block @(isChosen ? "is-chosen" : "")">
-                            <div class="supplier-row @(chase ? "is-chase" : "") @(isExpired ? "is-expired" : "")">
-                                <a class="supplier-name" asp-page="/Supplier" asp-route-id="@row.SupplierId">@supplierName</a>@if (isChosen) { <span class="badge chosen-badge">Chosen</span> }
-                                @if (canWork)
-                                {
-                                    <form method="post" asp-page-handler="QuoteStatus" class="quote-status-form">
-                                        <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                        <select name="status" aria-label="Quote status" data-autosubmit>@foreach (var status in QuoteStatuses.All) { <option value="@status" selected="@(status == row.Status)">@status</option> }</select>
-                                        <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
-                                    </form>
-                                }
-                                else { <span class="status">@row.Status</span> }
-                                <span class="quote-since" title="@trail">since @(row.StatusSince?.ToLocalTime().ToString("d MMM yyyy") ?? "—")@if (days is { } waited) { <span class="badge @(chase ? "badge-warning" : "")">awaited @waited @(waited == 1 ? "day" : "days")</span> }</span>
-                                @if (row.HasQuote || row.ValidUntil is not null)
-                                {
-                                    @if (canWork)
-                                    {
-                                        <form method="post" asp-page-handler="ValidUntil" class="quote-valid-form">
-                                            <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                            <label>Valid until<input name="validUntil" type="date" value="@row.ValidUntil?.ToString("yyyy-MM-dd")" data-autosubmit /></label>
-                                        </form>
-                                    }
-                                    else if (row.ValidUntil is { } until) { <span class="muted">valid until @until.ToString("d MMM yyyy")</span> }
-                                    @if (isExpired) { <span class="badge badge-warning">Expired</span> }
-                                }
-                                @if (canWork)
-                                {
-                                    <form method="post" asp-page-handler="RemoveSupplier" class="supplier-remove" data-confirm="Take this supplier off the item? Their quote files, prices and status history go with it."><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><button class="icon-button delete-icon" type="submit" title="Remove supplier" aria-label="Remove supplier">@Icons.Bin</button></form>
-                                }
-                            </div>
-                            @* Still inside the supplier-block div, which is markup, so these need their own code block. *@
-                            @{
-                                var totals = QuoteTotals.Of(row.PaymentLines);
-                                var updating = row.Status == QuoteStatuses.UpdateRequested;
-                                var hasAnything = row.Documents.Count > 0 || row.PaymentLines.Count > 0 || row.PreviousVersions.Count > 0;
-                            }
-                            @* The quote itself: files, prices, the choice, and what an update replaced. Opens again after a change to it. *@
-                            <details class="quote-panel" id="quote-@quoteKey" open="@(Model.OpenQuote == quoteKey)">
-                                <summary>
-                                    @if (!hasAnything) { <span>@(canWork ? "Add their quote" : "No quote yet")</span> }
-                                    else
-                                    {
-                                        <span>Quote@(row.Reference.Length > 0 ? $" {row.Reference}" : "") · @row.Documents.Count @(row.Documents.Count == 1 ? "file" : "files")</span>
-                                        @if (row.PaymentLines.Count > 0) { <span class="quote-total">@HelpdeskStore.FormatMoney(Model.Term(totals)) @Model.VatLabel over the term</span> } else { <span class="muted">no prices yet</span> }
-                                        @if (row.PreviousVersions.Count > 0) { <span class="muted">· @row.PreviousVersions.Count previous @(row.PreviousVersions.Count == 1 ? "version" : "versions")</span> }
-                                    }
-                                </summary>
-                                <div class="quote-body">
-                                    <div class="quote-files">
-                                        <p class="eyebrow">FILES</p>
-                                        @if (row.Documents.Count == 0) { <p class="muted">No files yet.</p> }
-                                        @foreach (var document in row.Documents)
-                                        {
-                                            <div class="quote-file">
-                                                <a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@document.FileName</a>
-                                                <span class="muted">@HelpdeskStore.FormatSize(document.Size) · @document.UploadedAt.ToLocalTime().ToString("d MMM yyyy")</span>
-                                                @if (canWork)
-                                                {
-                                                    <form method="post" asp-page-handler="RemoveQuoteFile" data-confirm="Remove this file from the quote?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="documentId" value="@document.Id" /><button class="icon-button delete-icon" type="submit" title="Remove file" aria-label="Remove @document.FileName">@Icons.Bin</button></form>
-                                                }
-                                            </div>
-                                        }
-                                        @if (canWork)
-                                        {
-                                            <form method="post" asp-page-handler="UploadQuote" enctype="multipart/form-data" class="quote-upload">
-                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                                <label>@(updating ? "Upload the updated quote" : row.Documents.Count == 0 ? "Upload their quote" : "Add more files")<input type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
-                                                @if (updating && (row.Documents.Count > 0 || row.PaymentLines.Count > 0))
-                                                {
-                                                    <p class="muted">An update was asked for, so these files replace the current ones and the prices are cleared for the new quote's.</p>
-                                                    <label class="toggle-label"><input type="checkbox" name="keepPrevious" value="true" checked /> Keep the current files and prices under Previous versions</label>
-                                                }
-                                                else if (row.Status is not (QuoteStatuses.Received or QuoteStatuses.UpdateReceived or QuoteStatuses.UpdateRequested))
-                                                {
-                                                    <p class="muted">Uploading marks the quote as Received.</p>
-                                                }
-                                                <button class="button button-secondary" type="submit">Upload</button>
-                                            </form>
-                                        }
-                                    </div>
-
-                                    <div class="quote-prices">
-                                        <p class="eyebrow">PRICE <span class="muted">· amounts per payment, excluding VAT</span></p>
-                                        @foreach (var line in row.PaymentLines)
-                                        {
-                                            @if (canWork)
-                                            {
-                                                <form method="post" asp-page-handler="UpdatePaymentLine" class="pay-line">
-                                                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="lineId" value="@line.Id" />
-                                                    <label>What for<input name="description" value="@line.Description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. Hardware" /></label>
-                                                    <label>Amount (£)<input name="amount" value="@line.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" inputmode="decimal" required /></label>
-                                                    <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often" selected="@(often == line.Frequency)">@often</option> }</select></label>
-                                                    <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="@line.TermYears" /></label>
-                                                    <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
-                                                    <span class="pay-line-total">@HelpdeskStore.FormatMoney(Model.LineTerm(line))<small>@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), @Model.VatLabel</small></span>
-                                                    <span class="pay-line-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" title="Remove line" aria-label="Remove line">@Icons.Bin</button></span>
-                                                </form>
-                                            }
-                                            else { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line) - <strong>@HelpdeskStore.FormatMoney(Model.LineTerm(line))</strong> @Model.VatLabel</p> }
-                                        }
-                                        @if (row.PaymentLines.Count == 0) { <p class="muted">No prices entered yet.</p> }
-                                        @if (canWork)
-                                        {
-                                            <form method="post" asp-page-handler="AddPaymentLine" class="pay-line pay-line-new">
-                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                                <label>What for<input name="description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. AppleCare+" /></label>
-                                                <label>Amount (£)<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
-                                                <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often">@often</option> }</select></label>
-                                                <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="1" /></label>
-                                                <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat">@vat</option> }</select></label>
-                                                <span class="pay-line-total muted"><small>Years only count for regular payments.</small></span>
-                                                <span class="pay-line-actions"><button class="button button-primary" type="submit">Add price</button></span>
-                                            </form>
-                                        }
-                                        @if (row.PaymentLines.Count > 0)
-                                        {
-                                            @if (Model.IncVat)
-                                            {
-                                                <table class="quote-totals">
-                                                    <tr><th></th><th>Ex. VAT</th><th>VAT</th><th>Inc. VAT</th></tr>
-                                                    <tr><th>First year</th><td>@HelpdeskStore.FormatMoney(totals.FirstYearExVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearVat)</td><td>@HelpdeskStore.FormatMoney(totals.FirstYearIncVat)</td></tr>
-                                                    <tr><th>Whole term</th><td>@HelpdeskStore.FormatMoney(totals.TermExVat)</td><td>@HelpdeskStore.FormatMoney(totals.TermVat)</td><td><strong>@HelpdeskStore.FormatMoney(totals.TermIncVat)</strong></td></tr>
-                                                </table>
-                                            }
-                                            else
-                                            {
-                                                @* Ex VAT only (Settings → Spending bands): the VAT is still worked out, for the proposal PDF. *@
-                                                <table class="quote-totals">
-                                                    <tr><th></th><th>Ex. VAT</th></tr>
-                                                    <tr><th>First year</th><td>@HelpdeskStore.FormatMoney(totals.FirstYearExVat)</td></tr>
-                                                    <tr><th>Whole term</th><td><strong>@HelpdeskStore.FormatMoney(totals.TermExVat)</strong></td></tr>
-                                                </table>
-                                            }
-                                        }
-                                    </div>
-
-                                    <div class="quote-meta">
-                                        @if (canWork)
-                                        {
-                                            <form method="post" asp-page-handler="QuoteReference" class="inline-fields">
-                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                                <label>Supplier's quote reference<input name="reference" value="@row.Reference" maxlength="@HelpdeskStore.MaxQuoteReferenceLength" placeholder="e.g. Q-104233" /></label>
-                                                <button class="button button-secondary" type="submit">Save</button>
-                                            </form>
-                                            <form method="post" asp-page-handler="ChooseQuote" class="choose-quote">
-                                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
-                                                @if (isChosen)
-                                                {
-                                                    <input type="hidden" name="supplierId" value="" />
-                                                    <span class="muted">This is the chosen quote for @item.Name - the proposal's totals use it.</span>
-                                                    <button class="button button-secondary" type="submit">Unchoose</button>
-                                                }
-                                                else if (row.HasQuote)
-                                                {
-                                                    <input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                                    <button class="button button-primary" type="submit">Choose this quote</button>
-                                                    @if (item.ChosenSupplierId is { } other) { <span class="muted">Replaces @(Model.SupplierNames.GetValueOrDefault(other) ?? "the current choice").</span> }
-                                                }
-                                                else { <span class="muted">It can be chosen once their quote is in.</span> }
-                                            </form>
-                                        }
-                                        else if (row.Reference.Length > 0) { <p class="muted">Supplier's reference: @row.Reference</p> }
-                                    </div>
-
-                                    @if (row.PreviousVersions.Count > 0)
-                                    {
-                                        <div class="quote-versions">
-                                            <p class="eyebrow">PREVIOUS VERSIONS</p>
-                                            @foreach (var version in row.PreviousVersions.OrderByDescending(x => x.ArchivedAt))
-                                            {
-                                                var old = QuoteTotals.Of(version.PaymentLines);
-                                                <details class="quote-version">
-                                                    <summary>Replaced @version.ArchivedAt.ToLocalTime().ToString("d MMM yyyy")@(version.Reference.Length > 0 ? $" · {version.Reference}" : "") · @version.Documents.Count @(version.Documents.Count == 1 ? "file" : "files") · @(version.PaymentLines.Count > 0 ? HelpdeskStore.FormatMoney(Model.Term(old)) + " " + Model.VatLabel : "no prices")</summary>
-                                                    @foreach (var document in version.Documents)
-                                                    {
-                                                        <div class="quote-file"><a href="@Url.Page("/Project", "QuoteFile", new { number = project.Number, itemId = item.Id, supplierId = row.SupplierId, documentId = document.Id })">@document.FileName</a><span class="muted">@HelpdeskStore.FormatSize(document.Size)</span></div>
-                                                    }
-                                                    @foreach (var line in version.PaymentLines) { <p class="pay-line-text">@HelpdeskStore.DescribeLine(line)</p> }
-                                                    @if (version.ValidUntil is { } was) { <p class="muted">Was valid until @was.ToString("d MMM yyyy")</p> }
-                                                    @if (canWork)
-                                                    {
-                                                        <form method="post" asp-page-handler="DeleteQuoteVersion" data-confirm="Delete this previous version and its files for good?"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="versionId" value="@version.Id" /><button class="button button-secondary" type="submit">Delete this version</button></form>
-                                                    }
-                                                </details>
-                                            }
-                                        </div>
-                                    }
-                                </div>
-                            </details>
-                            </div>
-                        }
-                        @if (canWork)
-                        {
-                            <details class="add-supplier">
-                                <summary>@Icons.Plus Add a supplier</summary>
-                                <form method="post" asp-page-handler="AddSupplier" class="add-supplier-form">
-                                    <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" />
-                                    <label>From the directory<select name="supplierId"><option value="">Choose…</option>@foreach (var supplier in available) { <option value="@supplier.Id">@supplier.Name</option> }</select></label>
-                                    <p class="muted add-supplier-or">or a new supplier:</p>
-                                    <label>Name<input name="newName" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="Added to the supplier directory" /></label>
-                                    <label>Email (optional)<input name="newEmail" type="email" /></label>
-                                    @if (project.Items.Count > 1) { <label class="toggle-label"><input type="checkbox" name="everyItem" value="true" /> Add to every item on this project</label> }
-                                    <button class="button button-primary" type="submit">Add supplier</button>
-                                </form>
-                            </details>
-                        }
-                    </div>
-                    </div>
-                </details>
-            }
-            @if (canWork)
-            {
-                <form method="post" asp-page-handler="AddItem" class="inline-fields add-item-form">
-                    <input type="hidden" name="number" value="@project.Number" />
-                    <label>Add an item<input name="name" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. iPad (10th generation)" required /></label>
-                    <label class="qty-field">Quantity<input name="quantity" type="number" min="1" max="@HelpdeskStore.MaxItemQuantity" value="1" required /></label>
-                    <button class="button button-primary" type="submit">Add item</button>
-                </form>
-            }
-        </div>
-
-        <div class="ticket-tabs">
-            <div class="ticket-tab-buttons" role="tablist">
-                <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="notes-tab">Notes <span class="badge">@project.Notes.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab">History <span class="badge">@project.History.Count</span></button>
-            </div>
-            <div id="notes-tab" class="ticket-tab-panel active" role="tabpanel">
-                @if (project.Notes.Count == 0) { <p class="muted">No notes yet.</p> }
-                <div class="comment-list">
-                    @foreach (var note in project.Notes.OrderByDescending(x => x.CreatedAt))
-                    {
-                        <article class="comment @(note.IsInternal ? "comment-internal" : "")"><p>@note.Text</p><small>@if (note.IsInternal) { <span class="badge">Internal note</span> } <strong>@Actor.Label(note.By)</strong> · @note.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small>@if (Model.CanRemoveNote(note))
-                        {
-                            <form method="post" asp-page-handler="RemoveNote" class="comment-remove" data-confirm="Remove this @(note.IsInternal ? "internal note" : "note")?@(note.IsInternal ? "" : " The requester will no longer see it in the portal.") It can't be put back - the history will only record that it was removed.">
-                                <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="note" value="@HelpdeskStore.CommentKey(note.CreatedAt)" />
-                                <button class="link-button" type="submit">Remove</button>
-                            </form>
-                        }</article>
-                    }
-                </div>
-                @if (Model.CanEdit)
-                {
-                    <form method="post" asp-page-handler="Note" class="comment-form">
-                        <input type="hidden" name="number" value="@project.Number" />
-                        <label for="project-note">Add a note</label>
-                        <textarea id="project-note" name="text" rows="3" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="An update for the requester, or a note for the team…" required></textarea>
-                        <label class="toggle-label"><input type="checkbox" name="isInternal" value="true" /> Internal note (IT team only - the requester won't see it in the portal)</label>
-                        <button class="button button-primary" type="submit">Add note</button>
-                    </form>
-                }
-            </div>
-            <div id="history-tab" class="ticket-tab-panel" role="tabpanel" hidden>
-                <div class="history-list">
-                    @foreach (var activity in project.History.OrderByDescending(x => x.CreatedAt))
-                    {
-                        <article class="history-entry"><strong>@activity.Action</strong><p>@activity.Details</p><small>@Actor.Label(activity.By) · @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
-                    }
-                </div>
-            </div>
-        </div>
-    </section>
-    <aside class="panel detail-sidebar">
-        <div class="detail-block"><p class="eyebrow">REQUESTED BY</p><h3>@(Model.Requester?.Name ?? "Unknown")</h3><p>@Model.Requester?.Email</p>@if (!string.IsNullOrWhiteSpace(Model.Requester?.Department)) { <p>@Model.Requester.Department</p> }</div>
-        <p class="section-heading">Progress</p>
-        <div class="detail-block">
-            <p class="eyebrow">STATUS</p>
-            @if (Model.CanEdit && project.IsActive)
-            {
-                <form method="post" asp-page-handler="Status" class="project-status-form">
-                    <input type="hidden" name="number" value="@project.Number" />
-                    <select name="status" aria-label="Status" data-autosubmit>@foreach (var status in ProjectStatuses.All.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select>
-                    <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
-                </form>
-            }
-            else { <strong class="field-value">@project.Status</strong> }
-        </div>
-        @if (!project.IsActive)
-        {
-            <div class="detail-block"><p class="eyebrow">OUTCOME</p><strong>@(project.Outcome ?? "Closed")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }<p class="muted">Closed @project.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy")</p></div>
-        }
-        <div class="detail-block"><p class="eyebrow">PRIORITY</p><span class="project-priority p@(project.EffectivePriority)">@ProjectPriorities.Label(project.EffectivePriority)</span><p class="muted">@(project.Priority is null ? $"Suggested by the requester; not confirmed yet." : project.Priority == project.SuggestedPriority ? "Confirmed as suggested." : $"Confirmed. The requester suggested {ProjectPriorities.Label(project.SuggestedPriority)}.")</p></div>
-        <div class="detail-block"><p class="eyebrow">TECHNICIAN</p><strong>@(Model.Technician?.Name ?? (project.TechnicianId is null ? "Unassigned" : "Unknown"))</strong>@if (project.TechnicianId is null && project.IsActive) { <p class="muted">Waiting for the project lead to assign it from the staff portal.</p> }</div>
-        <div class="detail-block related-block" id="tickets">
-            <p class="eyebrow">LINKED TICKETS</p>
-            @if (Model.LinkedTickets.Count == 0) { <p class="muted">Not linked to a ticket.</p> }
-            @foreach (var ticket in Model.LinkedTickets)
-            {
-                <div class="related-row">
-                    <div>
-                        @if (Model.CanOpenTickets) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
-                        <span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span>
-                    </div>
-                    @if (Model.CanEdit)
-                    {
-                        <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@ticket.Number" aria-label="Remove link to #@ticket.Number">@Icons.Bin</button></form>
-                    }
-                </div>
-            }
-            @if (Model.CanEdit)
-            {
-                <form method="post" asp-page-handler="LinkTicket" class="related-form">
-                    <input type="hidden" name="number" value="@project.Number" />
-                    <label>Link a ticket<input name="ticket" type="number" min="1" step="1" placeholder="Ticket number" required /></label>
-                    <button class="button button-secondary" type="submit">Link</button>
-                </form>
-            }
-        </div>
-        <div class="job-meta project-meta"><div><span>Raised</span><strong>@project.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last updated</span><strong>@project.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div></div>
-    </aside>
-</div>
 
 @section Scripts {
 <script src="~/js/pages/project.js" asp-append-version="true"></script>

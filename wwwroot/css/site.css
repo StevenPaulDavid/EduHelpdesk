@@ -1224,12 +1224,6 @@ h3 .csv-link { margin-left: 8px; }
 .project-priority.p2 { color: var(--amber); }
 .project-priority.p3 { color: var(--teal-strong); }
 .project-priority.p4, .project-priority.p5 { color: var(--muted); }
-.project-details-form { display: grid; gap: 12px; margin-bottom: 18px; }
-.project-details-form label { display: grid; gap: 5px; font-weight: 600; }
-.project-details-form textarea { resize: vertical; }
-.project-facts { margin-bottom: 6px; }
-.project-facts .badge { margin-left: 8px; }
-.project-status-form select { width: 100%; }
 .plain-list { margin: 4px 0 0; padding-left: 18px; }
 .plain-list li { margin: 2px 0; overflow-wrap: anywhere; }
 .requirement-choices, .priority-choices, .outcome-choices, .workload-picker {
@@ -1306,136 +1300,181 @@ h3 .csv-link { margin-left: 8px; }
    Without this, anything those classes style ignores hidden - the lead's folded assignment form stayed open. */
 [hidden] { display: none !important; }
 
-/* Project items and quotes (Pages/Project.cshtml). */
-.project-items { margin: 22px 0 8px; display: grid; gap: 14px; }
-.project-items-head .section-heading { margin-bottom: 2px; }
-.project-items-head p { margin: 0; }
-.project-items-head .badge { margin-left: 8px; }
-.project-item { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; gap: 12px; min-width: 0; }
-.project-item-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.project-item-head h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
-.item-qty { color: var(--teal-strong); }
-.item-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.item-actions form { margin: 0; }
-.item-edit>summary, .sub-edit>summary, .add-supplier>summary {
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--teal-strong);
-    width: max-content;
-    max-width: 100%;
-}
-.item-edit[open]>summary, .add-supplier[open]>summary { margin-bottom: 10px; }
+/* The project page (Pages/Project.cshtml): a summary, then tabs. It reads first, for everyone who uses it - SLT,
+   finance, the project lead - and the technician's changes happen in slide-in panels, so no form is open on the page. */
 .inline-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 0; }
 .inline-fields label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; flex: 1 1 200px; min-width: 0; }
 .inline-fields .qty-field { flex: 0 0 110px; }
-.sub-items ul { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 4px; }
-.sub-items li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; font-size: 14px; }
-.sub-items li>span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.sub-items li form { margin: 0; }
-.sub-edit[open] { flex-basis: 100%; }
-.sub-items .eyebrow, .item-suppliers .eyebrow { margin: 0 0 4px; }
-.item-suppliers { display: grid; gap: 8px; min-width: 0; }
-.supplier-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 14px;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    min-width: 0;
-}
-.supplier-row.is-chase, .supplier-row.is-expired { border-color: var(--amber); }
-.supplier-name { font-weight: 700; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
-.supplier-row form { margin: 0; }
-.quote-status-form select { min-width: 170px; }
-.quote-since { font-size: 13px; color: var(--muted); }
-.quote-since .badge { margin-left: 6px; }
-.quote-valid-form label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
-.supplier-remove { margin-left: auto; }
-.add-supplier-form { display: grid; gap: 10px; max-width: 520px; }
-.add-supplier-form label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
-.add-supplier-or { margin: 0; font-size: 13px; }
-.add-item-form { padding-top: 4px; }
 .portal-items li { margin: 6px 0; }
-.supplier-name { color: inherit; text-decoration: none; }
-.supplier-name:hover { color: var(--teal-text); text-decoration: underline; }
-
-/* Quotes on a supplier row: files, payment lines, the chosen quote and previous versions. */
-.supplier-block { display: grid; gap: 0; border-radius: 8px; }
-.supplier-block .supplier-row { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.supplier-block.is-chosen .supplier-row, .supplier-block.is-chosen .quote-panel { border-color: var(--teal); }
 .chosen-badge { background: var(--teal); color: #fff; margin-left: 8px; }
-.quote-panel { border: 1px solid var(--line); border-top: 0; border-radius: 0 0 8px 8px; padding: 6px 10px; }
-.quote-panel>summary {
-    cursor: pointer;
-    font-size: 13px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 10px;
-    align-items: baseline;
-    color: var(--teal-strong);
-    font-weight: 700;
+.chosen-badge .ico { width: 12px; height: 12px; vertical-align: -1px; }
+.pj-due-badge { margin-left: 8px; }
+
+/* The summary: progress, chosen total, spending band, quotes in. */
+.pj-summary {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0,1.6fr) repeat(3,minmax(0,1fr));
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: var(--space-5);
 }
-.quote-panel>summary .muted { font-weight: 400; }
-.quote-total { color: var(--ink); }
-.quote-panel[open]>summary { margin-bottom: 10px; }
-.quote-body { display: grid; gap: 16px; padding: 4px 0 8px; min-width: 0; }
-.quote-body .eyebrow { margin: 0 0 6px; }
-.quote-file { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 14px; margin: 4px 0; }
-.quote-file a { overflow-wrap: anywhere; }
-.quote-file form { margin: 0; }
-.quote-upload { display: grid; gap: 8px; margin-top: 8px; max-width: 560px; }
-.quote-upload label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
-.quote-upload .toggle-label { font-weight: 600; }
-.quote-upload p { margin: 0; font-size: 13px; }
-.quote-upload .button { justify-self: start; }
+.pj-cell { padding: var(--space-4) var(--space-5); border-left: 1px solid var(--line); display: grid; gap: var(--space-1); align-content: start; min-width: 0; }
+.pj-cell:first-child { border-left: 0; }
+.pj-label { margin: 0; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.pj-big { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.pj-big .badge { letter-spacing: 0; }
+.pj-band { font-size: 18px; }
+.pj-note { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.pj-note strong { color: var(--ink); }
+.pj-note .badge { margin-left: 4px; }
+.pj-steps { list-style: none; margin: 2px 0 4px; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.pj-steps li { display: inline-flex; align-items: center; gap: 6px; }
+.pj-steps li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--field-line); }
+.pj-steps li+li { padding-left: 22px; background: linear-gradient(var(--line),var(--line)) 0 50% / 16px 2px no-repeat; }
+.pj-steps li.is-done { color: var(--teal-text); }
+.pj-steps li.is-done::before { background: var(--teal); border-color: var(--teal); }
+.pj-steps li.is-now { color: var(--ink); }
+.pj-steps li.is-now::before { border-color: var(--teal); box-shadow: 0 0 0 3px var(--accent); }
+.pj-status-form { margin: 6px 0 0; }
+.pj-status-form label { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.pj-status-form select { width: auto; padding: 5px 8px; }
+.pj-meter { height: 6px; border-radius: 6px; background: var(--chip); overflow: hidden; margin: 4px 0 2px; }
+.pj-meter span { display: block; height: 100%; background: var(--teal); }
+/* The band popover opens across the whole summary, wherever its button wraps to. */
+.pj-summary .band-info { position: static; justify-self: start; }
+.pj-summary .band-panel { left: 0; right: 0; top: calc(100% + 6px); }
 
-.pay-line { display: grid; gap: 8px; align-items: end; padding: 8px 0; border-bottom: 1px solid var(--line); }
+@media(max-width:1100px) {
+    .pj-summary { grid-template-columns: 1fr 1fr; }
+    .pj-cell:nth-child(3) { border-left: 0; }
+    .pj-cell:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+@media(max-width:640px) {
+    .pj-summary { grid-template-columns: 1fr; }
+    .pj-cell { border-left: 0; }
+    .pj-cell+.pj-cell { border-top: 1px solid var(--line); }
+}
 
-.pay-line label { display: grid; gap: 4px; font-size: 11px; font-weight: 700; min-width: 0; }
-.pay-line input, .pay-line select { min-width: 0; width: 100%; }
-.pay-line-total { display: grid; font-weight: 700; font-size: 14px; padding-bottom: 6px; }
-.pay-line-total small { font-weight: 400; color: var(--muted); font-size: 11px; }
-.pay-line-actions { display: flex; gap: 6px; align-items: center; padding-bottom: 2px; }
-.pay-line-new { border-bottom: 0; }
-.pay-line-text { margin: 4px 0; font-size: 14px; }
+.pj-tabs { margin-bottom: var(--space-5); }
 
+/* Overview: what was asked for, and who is involved. */
+.pj-overview:not([hidden]) { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(0,1fr); gap: var(--space-5); align-items: start; }
+.pj-overview .panel { margin: 0; }
+.pj-asked { margin-bottom: var(--space-5); }
+.pj-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: var(--space-4) var(--space-5); margin: 0; }
+.pj-facts-stack { grid-template-columns: 1fr; }
+.pj-facts dt { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.pj-facts dd { margin: 0; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.pj-facts dd>.badge { margin-left: 8px; }
+.pj-sub { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; font-weight: 400; }
+.pj-overview .related-form input { width: 150px; flex: none; }
 @media(max-width:900px) {
-    .pay-line { grid-template-columns: 1fr 1fr; }
-    .pay-line label:first-of-type { grid-column: 1/-1; }
+    .pj-overview:not([hidden]) { grid-template-columns: 1fr; }
 }
 
-.quote-totals { border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-.quote-totals th, .quote-totals td { padding: 4px 12px 4px 0; text-align: right; border: 0; }
-.quote-totals th:first-child { text-align: left; }
-.quote-meta { display: grid; gap: 10px; }
-.choose-quote { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0; }
-.quote-version { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin: 6px 0; }
-.quote-version>summary { cursor: pointer; font-size: 13px; }
-.quote-version form { margin-top: 8px; }
-.item-chosen { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--ink); }
-.project-total { margin: 0 0 4px; font-size: 15px; }
-.project-total .muted { font-size: 13px; }
+/* Items & quotes: a card per item, its suppliers' quotes side by side in a table. */
+.pj-items:not([hidden]) { display: grid; gap: var(--space-4); }
+.pj-items>.button { justify-self: start; }
+.pj-item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; min-width: 0; }
+.pj-item-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); }
+.pj-item-head h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.pj-item-head p { margin: 2px 0 0; font-size: 13px; }
+.pj-qty { color: var(--muted); font-weight: 600; }
+.pj-item-actions { display: flex; align-items: center; gap: var(--space-2); }
+.pj-item-empty { margin: 0; padding: var(--space-4) var(--space-5); }
+.pj-quotes th { padding-top: var(--space-3); background: var(--surface-2); }
+.pj-quotes th:first-child, .pj-quotes td:first-child { padding-left: var(--space-5); }
+.pj-quotes th:last-child, .pj-quotes td:last-child { padding-right: var(--space-5); }
+.pj-quotes td { vertical-align: middle; }
+.pj-quotes .num, .pj-quotes th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pj-quotes tr.is-chosen td { background: color-mix(in srgb,var(--accent) 55%,transparent); }
+.pj-quotes tr.is-chosen td:first-child { box-shadow: inset 3px 0 0 var(--teal); }
+.pj-quotes td>.badge { margin-left: 6px; }
+.pj-quotes .pj-sub .badge { margin-left: 4px; }
+.pj-supplier { font-weight: 700; color: inherit; text-decoration: none; }
+.pj-supplier:hover { color: var(--teal-text); text-decoration: underline; }
+.pj-files a { display: flex; align-items: center; gap: 4px; max-width: 200px; color: var(--teal-text); text-decoration: none; font-size: 12.5px; }
+.pj-files a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-files a:hover span { text-decoration: underline; }
+.pj-row-action { text-align: right; white-space: nowrap; }
+.pj-row-action .button { padding: 7px 12px; }
+.pj-item-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) var(--space-5); border-top: 1px solid var(--line); background: var(--surface-2); font-size: 13px; }
+.pj-item-foot form { margin: 0; }
+.pj-empty h2 { margin: 0 0 6px; }
+.pj-empty .heading-actions { margin-top: var(--space-4); flex-wrap: wrap; }
+.pj-empty form { margin: 0; }
+@media(max-width:800px) {
+    .pj-quotes.is-labelled tr { padding-left: var(--space-4); padding-right: var(--space-4); }
+    .pj-quotes.is-labelled .num { text-align: left; }
+    .pj-row-action { text-align: left; }
+    /* A card is one block, so the chosen tint goes on the row rather than on each cell. */
+    .pj-quotes tr.is-chosen { box-shadow: inset 3px 0 0 var(--teal); background: color-mix(in srgb,var(--accent) 55%,transparent); }
+    .pj-quotes tr.is-chosen td { background: none; }
+}
 
-/* The project page's main column is narrow, so a payment line is two rows of four rather than one long row. */
-.supplier-block, .quote-panel, .quote-body>div { min-width: 0; }
-.pay-line { grid-template-columns: repeat(4,minmax(0,1fr)); }
-.pay-line>label:first-of-type { grid-column: span 2; }
-.pay-line-actions { justify-content: flex-end; }
-
+/* The panels: a quote (status, reference, files, prices, the choice, earlier versions), an item, a new supplier. */
+.pj-blade-sub { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.pj-blade-body { display: grid; padding-bottom: var(--space-5); }
+.pj-blade-section { padding: var(--space-4) 0; border-bottom: 1px solid var(--line); display: grid; gap: var(--space-2); min-width: 0; }
+.pj-blade-section:first-child { padding-top: 0; }
+.pj-blade-section:last-child { border-bottom: 0; }
+.pj-blade-section h3 { margin: 0; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.pj-h3-note { text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 6px; }
+.pj-blade-section p, .pj-blade-section form { margin: 0; }
+.pj-two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.pj-two label, .pj-pay label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; min-width: 0; }
+.pj-file { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 14px; }
+.pj-file a { display: inline-flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
+.pj-file form { margin-left: auto; }
+.pj-upload { display: grid; gap: var(--space-2); margin-top: var(--space-2) !important; }
+.pj-upload .button { justify-self: start; }
+/* The file box takes a drop as well as a click: the real file input covers it, invisibly. */
+.pj-drop {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px dashed var(--field-line);
+    border-radius: 10px;
+    padding: var(--space-4);
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+}
+.pj-drop strong { color: var(--teal-text); }
+.pj-drop .ico { width: 20px; height: 20px; color: var(--teal-text); }
+.pj-drop:hover, .pj-drop.is-over { border-color: var(--teal); background: var(--accent); }
+.pj-drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pj-drop input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.pj-pay { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: var(--space-2) var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: 10px; }
+.pj-pay+.pj-pay { margin-top: var(--space-2) !important; }
+.pj-pay-wide { grid-column: 1/-1; }
+.pj-pay input, .pj-pay select { min-width: 0; width: 100%; }
+.pj-pay-foot { grid-column: 1/-1; display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: 13px; }
+.pj-pay-actions { display: flex; gap: 6px; align-items: center; }
+.pj-pay-text { font-size: 14px; }
+.pj-add-line>summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--teal-strong); }
+.pj-add-line>summary::-webkit-details-marker { display: none; }
+.pj-add-line[open]>summary { margin-bottom: var(--space-2); }
+.pj-totals { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: var(--space-2); }
+.pj-totals th, .pj-totals td { padding: 4px 8px 4px 0; text-align: right; border: 0; text-transform: none; letter-spacing: 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pj-totals th:first-child { text-align: left; }
+.pj-choose { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.pj-version { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; display: grid; gap: 6px; }
+.pj-version>summary { cursor: pointer; font-size: 13px; }
+.pj-danger { padding-top: var(--space-5); }
+.pj-danger .button { justify-self: start; }
+.pj-sub-item+.pj-sub-item, .pj-sub-item+form { margin-top: var(--space-2) !important; }
+.pj-sub-item .icon-button { align-self: center; }
+.pj-or { margin: 0; }
 @media(max-width:600px) {
-    .pay-line { grid-template-columns: repeat(2,minmax(0,1fr)); }
-    .pay-line>label:first-of-type { grid-column: 1/-1; }
+    .pj-two { grid-template-columns: 1fr; }
+    .pj-pay { grid-template-columns: 1fr 1fr; }
 }
-
-.quote-meta .inline-fields label { flex: 1 1 160px; }
-.quote-body .eyebrow .muted { text-transform: none; letter-spacing: 0; font-weight: 500; }
-.quote-totals { width: 100%; max-width: 460px; }
 
 /* Spending bands: the reference popover on a project, and the Settings page. */
-.project-items-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 
 .band-info>summary {
     cursor: pointer;
@@ -1481,7 +1520,7 @@ h3 .csv-link { margin-left: 8px; }
 .band-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .band-table th, .band-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .band-table tr.is-current td { background: var(--accent); }
-.band-table .badge { margin-left: 6px; }
+.band-table .badge { margin-left: 6px; white-space: nowrap; display: inline-block; }
 .band-row {
     display: grid;
     grid-template-columns: minmax(0,1.2fr) repeat(3,minmax(0,.7fr));
@@ -1501,33 +1540,7 @@ h3 .csv-link { margin-left: 8px; }
     .band-row .band-notes { grid-column: 1/-1; }
 }
 
-/* Anchored to the whole Items & quotes block, not the small ⓘ button, so it opens across the block wherever the button wraps to. */
-.project-items { position: relative; }
-.band-info { position: static; }
-.band-panel { left: 0; right: 0; width: auto; top: auto; margin-top: 6px; }
 
-/* Collapsible item cards: the summary line is the card's header, and the body holds everything else. */
-.project-item { display: block; }
-.project-item>summary {
-    list-style: none;
-    cursor: pointer;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: flex-start;
-    gap: 4px 14px;
-}
-.project-item>summary::-webkit-details-marker { display: none; }
-.project-item>summary::before { content: "\25B8"; color: var(--teal-strong); display: inline-block; transition: transform .15s; }
-.project-item[open]>summary::before { transform: rotate(90deg); }
-.project-item>summary:hover h3 { color: var(--teal-text); }
-.item-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--muted); }
-.item-summary-chosen { color: var(--ink); font-weight: 700; }
-.item-summary .badge { margin-left: 0; }
-.project-item-body { display: grid; gap: 12px; margin-top: 12px; min-width: 0; }
-.project-item-body>.item-actions { justify-self: end; margin: -6px 0 -8px; }
-.item-toggles { margin: 6px 0 0; font-size: 13px; }
-.project-item>summary::before { font-size: 20px; line-height: 1; width: 14px; }
 
 /* Projects stage 6: ticket links and the projects report. */
 .start-project { margin-top: 10px; }

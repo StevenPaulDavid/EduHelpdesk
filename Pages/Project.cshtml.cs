@@ -72,16 +72,12 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         return Linked(number, store.UnlinkProjectTicket(number, ticket));
     }
 
-    private IActionResult Linked(int number, (bool Ok, string Message) result)
-    {
-        Message = result.Message;
-        return RedirectToPage(null, null, new { number }, "tickets");
-    }
+    private IActionResult Linked(int number, (bool Ok, string Message) result) => Done(number, result, "tickets");
 
     public IActionResult OnPostDetails(int number, string? title, DateOnly? dueDate, string? itemsWanted, List<string>? requirements, string? other)
     {
         if (!CanEdit) return Forbid();
-        return Done(number, store.UpdateProjectDetails(number, title, dueDate, itemsWanted, requirements, other));
+        return Done(number, store.UpdateProjectDetails(number, title, dueDate, itemsWanted, requirements, other), "overview");
     }
 
     public IActionResult OnPostAssign(int number, string? technicianId, int priority)
@@ -112,16 +108,16 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     public IActionResult OnPostNote(int number, string? text, bool isInternal)
     {
         if (!CanEdit) return Forbid();
-        return Done(number, store.AddProjectNote(number, text, isInternal));
+        return Done(number, store.AddProjectNote(number, text, isInternal), "notes");
     }
 
     public bool CanRemoveNote(ProjectNote note) => store.CanRemoveComment(User, Modules.Projects, note.By);
 
     public IActionResult OnPostRemoveNote(int number, long note)
     {
-        if (store.FindProjectNote(number, note) is not { } found) return Done(number, (false, "That note has already been removed."));
+        if (store.FindProjectNote(number, note) is not { } found) return Done(number, (false, "That note has already been removed."), "notes");
         if (!CanRemoveNote(found)) return Forbid();
-        return Done(number, store.RemoveProjectNote(number, note));
+        return Done(number, store.RemoveProjectNote(number, note), "notes");
     }
 
     public IActionResult OnPostDelete(int number)
@@ -135,29 +131,29 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     // Items, sub-items and the suppliers quoting for them. All are Projects: Edit - they are the technician's day-to-day
     // work on the project. Adding a brand-new supplier from here is included: asking a new firm for a quote is part of
     // the job, and the Supplier directory's own permissions still govern editing and deleting them afterwards.
-    // A new item opens straight away - adding its sub-items and suppliers is what comes next.
+    // A new item is scrolled to - adding its suppliers is what comes next. Changes made in an item's panel (its name,
+    // order and sub-items) open that panel again afterwards, so several changes don't mean reopening it each time.
     public IActionResult OnPostAddItem(int number, string? name, int quantity)
     {
         if (!CanEdit) return Forbid();
         var (ok, message) = store.AddProjectItem(number, name, quantity);
         Message = message;
         var added = ok ? store.FindProject(number)?.Items.LastOrDefault() : null;
-        if (added is not null) OpenItem = $"{added.Id:N}";
         return RedirectToPage(null, null, new { number }, added is null ? "items" : $"item-{added.Id:N}");
     }
     public IActionResult OnPostItemsFromRequest(int number) => Edit(number, null, () => store.AddItemsFromRequest(number));
-    public IActionResult OnPostUpdateItem(int number, Guid itemId, string? name, int quantity) => Edit(number, itemId, () => store.UpdateProjectItem(number, itemId, name, quantity));
+    public IActionResult OnPostUpdateItem(int number, Guid itemId, string? name, int quantity) => EditItemPanel(number, itemId, () => store.UpdateProjectItem(number, itemId, name, quantity));
     public IActionResult OnPostDeleteItem(int number, Guid itemId) => Edit(number, null, () => store.DeleteProjectItem(number, itemId));
-    public IActionResult OnPostMoveItem(int number, Guid itemId, int direction) => Edit(number, itemId, () => store.MoveProjectItem(number, itemId, direction));
-    public IActionResult OnPostAddSubItem(int number, Guid itemId, string? name, int quantity) => Edit(number, itemId, () => store.AddSubItem(number, itemId, name, quantity));
-    public IActionResult OnPostUpdateSubItem(int number, Guid itemId, Guid subItemId, string? name, int quantity) => Edit(number, itemId, () => store.UpdateSubItem(number, itemId, subItemId, name, quantity));
-    public IActionResult OnPostDeleteSubItem(int number, Guid itemId, Guid subItemId) => Edit(number, itemId, () => store.DeleteSubItem(number, itemId, subItemId));
+    public IActionResult OnPostMoveItem(int number, Guid itemId, int direction) => EditItemPanel(number, itemId, () => store.MoveProjectItem(number, itemId, direction));
+    public IActionResult OnPostAddSubItem(int number, Guid itemId, string? name, int quantity) => EditItemPanel(number, itemId, () => store.AddSubItem(number, itemId, name, quantity));
+    public IActionResult OnPostUpdateSubItem(int number, Guid itemId, Guid subItemId, string? name, int quantity) => EditItemPanel(number, itemId, () => store.UpdateSubItem(number, itemId, subItemId, name, quantity));
+    public IActionResult OnPostDeleteSubItem(int number, Guid itemId, Guid subItemId) => EditItemPanel(number, itemId, () => store.DeleteSubItem(number, itemId, subItemId));
     public IActionResult OnPostAddSupplier(int number, Guid itemId, string? supplierId, string? newName, string? newEmail, bool everyItem) => Edit(number, itemId, () =>
         Guid.TryParse(supplierId, out var id) ? store.AddItemSupplier(number, itemId, id, everyItem)
         : !string.IsNullOrWhiteSpace(newName) ? store.QuickAddItemSupplier(number, itemId, newName, newEmail, everyItem)
         : (false, "Choose a supplier from the list, or type a new one's name."));
-    public IActionResult OnPostQuoteStatus(int number, Guid itemId, Guid supplierId, string? status) => Edit(number, itemId, () => store.SetQuoteStatus(number, itemId, supplierId, status));
-    public IActionResult OnPostValidUntil(int number, Guid itemId, Guid supplierId, DateOnly? validUntil) => Edit(number, itemId, () => store.SetQuoteValidUntil(number, itemId, supplierId, validUntil));
+    public IActionResult OnPostQuoteStatus(int number, Guid itemId, Guid supplierId, string? status) => EditQuote(number, itemId, supplierId, () => store.SetQuoteStatus(number, itemId, supplierId, status));
+    public IActionResult OnPostValidUntil(int number, Guid itemId, Guid supplierId, DateOnly? validUntil) => EditQuote(number, itemId, supplierId, () => store.SetQuoteValidUntil(number, itemId, supplierId, validUntil));
     public IActionResult OnPostRemoveSupplier(int number, Guid itemId, Guid supplierId) => Edit(number, itemId, () => store.RemoveItemSupplier(number, itemId, supplierId));
 
     // A supplier's quote: its files, its prices, and whether it is the one the item goes with.
@@ -210,18 +206,26 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         return RedirectToPage(new { number });
     }
 
-    // Which quote panel to open again after the page reloads, so adding a price doesn't mean hunting for the panel.
-    [TempData] public string? OpenQuote { get; set; }
-    // Likewise the item card, which is collapsed by default once a project has more than one.
-    [TempData] public string? OpenItem { get; set; }
+    // The slide-in panel to open again after the page reloads (its element id), so adding a price or a sub-item doesn't
+    // mean finding the panel again. wwwroot/js/pages/project.js opens it.
+    [TempData] public string? Reopen { get; set; }
+    public static string QuoteKey(Guid itemId, Guid supplierId) => $"{itemId:N}-{supplierId:N}";
 
     private IActionResult EditQuote(int number, Guid itemId, Guid supplierId, Func<(bool Ok, string Message)> change)
     {
         if (!CanEdit) return Forbid();
         Message = change().Message;
-        OpenQuote = $"{itemId:N}-{supplierId:N}";
-        OpenItem = $"{itemId:N}";
-        return RedirectToPage(null, null, new { number }, $"quote-{OpenQuote}");
+        Reopen = $"quote-blade-{QuoteKey(itemId, supplierId)}";
+        return RedirectToPage(null, null, new { number }, $"quote-{QuoteKey(itemId, supplierId)}");
+    }
+
+    private IActionResult EditItemPanel(int number, Guid itemId, Func<(bool Ok, string Message)> change)
+    {
+        if (!CanEdit) return Forbid();
+        Message = change().Message;
+        // A refused change still reopens the panel, so the message and the form are both in front of the technician.
+        Reopen = $"item-blade-{itemId:N}";
+        return RedirectToPage(null, null, new { number }, $"item-{itemId:N}");
     }
 
     // Back to the item that was just changed, rather than the top of a long page.
@@ -229,13 +233,13 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     {
         if (!CanEdit) return Forbid();
         Message = change().Message;
-        if (itemId is { } open) OpenItem = $"{open:N}";
         return RedirectToPage(null, null, new { number }, itemId is { } id ? $"item-{id:N}" : "items");
     }
 
-    private IActionResult Done(int number, (bool Ok, string Message) result)
+    // The fragment names the tab to come back to (overview, notes, tickets); none means the default, Items & quotes.
+    private IActionResult Done(int number, (bool Ok, string Message) result, string? fragment = null)
     {
         Message = result.Message;
-        return RedirectToPage(new { number });
+        return RedirectToPage(null, null, new { number }, fragment);
     }
 }
