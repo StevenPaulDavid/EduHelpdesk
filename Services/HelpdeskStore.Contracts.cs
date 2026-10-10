@@ -24,7 +24,17 @@ public sealed partial class HelpdeskStore
     // grants nothing. Called after EnsureSeedRoles, for the reason given on EnsureOnboardingRole.
     private void EnsureComplianceDefaults()
     {
-        if (_data.ComplianceVersion >= 1 || _data.Roles.Count == 0) return;
+        if (_data.Roles.Count == 0) return;
+        if (_data.ComplianceVersion < 1) EnsureContractDefaults();
+        if (_data.ComplianceVersion < 2)
+        {
+            EnsureAccessDefaults();
+            _data.ComplianceVersion = 2;
+        }
+    }
+
+    private void EnsureContractDefaults()
+    {
         EnsureOptions(_data.ContractTypes, ContractStatusDefaults.Types);
         EnsureOptions(_data.SpendCategories, ContractStatusDefaults.SpendCategories);
         EnsureOptions(_data.ContractDurations, ContractStatusDefaults.Durations);

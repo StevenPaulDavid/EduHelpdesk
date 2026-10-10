@@ -1,0 +1,80 @@
+@page
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Access.SystemsModel
+@{
+    ViewData["Title"] = "Systems and areas"; ViewData["Wide"] = true;
+    string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    string ContractName(Guid? id) => id is { } c ? Model.Contracts.FirstOrDefault(x => x.Id == c)?.Name ?? "—" : "—";
+}
+<div class="page-heading">
+    <div><p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p><h1>Systems and areas</h1><p class="hero-copy">What access can be given to: systems, and physical areas and keys. Tick MFA required for anything reached from the cloud or from home.</p></div>
+    @if (Model.CanAdd) { <button class="button button-primary" type="button" data-open-blade="add-blade">@Icons.Plus Add a system or area</button> }
+</div>
+<partial name="_AccessTabs" model="@("/Access/Systems")" />
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<section class="panel directory-panel">
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
+        <th data-stack="head">System or area</th><th>Category</th><th>Owner / approver</th><th>MFA</th><th>Personal data</th><th class="num">Live access</th>@if (Model.CanSeeContracts) { <th>Contract</th> }<th aria-label="Actions"></th>
+    </tr></thead><tbody>
+    @foreach (var item in Model.Resources)
+    {
+        <tr class="@(item.IsRetired ? "row-muted" : null)">
+            <td><strong><a asp-page="/Access/Index" asp-route-system="@item.Id">@item.Name</a></strong>@if (item.IsRetired) { <text> </text><span class="badge">Retired</span> }<br /><span class="muted">@AccessKinds.Label(item.Kind)</span></td>
+            <td>@Text(item.Category)</td>
+            <td>@Text(item.Owner)</td>
+            <td>@(item.IsSystem ? (item.MfaRequired ? "Required" : "For administrators") : "—")</td>
+            <td>@(item.HoldsPersonalData ? "Yes" : "No")</td>
+            <td class="num">@Model.LiveCounts.GetValueOrDefault(item.Id)</td>
+            @if (Model.CanSeeContracts) { <td>@ContractName(item.ContractId)</td> }
+            <td class="asset-row-actions">@if (Model.CanEdit) { <button class="icon-button" type="button" data-open-blade="edit-blade-@item.Id" title="Edit" aria-label="Edit @item.Name">@Icons.Edit</button> }</td>
+        </tr>
+    }
+    @if (Model.Resources.Count == 0) { <tr><td colspan="8" class="empty">Nothing here yet. Start with the systems that hold personal data or that administrators use: the MIS, Microsoft 365 or Google Workspace, the finance system, the firewall. Then the server room and any master keys.</td></tr> }
+    </tbody></table></div>
+</section>
+
+@* One drawer for adding, and one per row for editing. *@
+@{
+    var drawers = new List<(string Id, string Title, AccessResource? Item)>();
+    if (Model.CanAdd) drawers.Add(("add-blade", "Add a system or area", null));
+    if (Model.CanEdit) foreach (var item in Model.Resources) drawers.Add(($"edit-blade-{item.Id}", $"Edit {item.Name}", item));
+}
+@foreach (var (bladeId, title, item) in drawers)
+{
+    var posted = Model.Reopen == bladeId;
+    var name = posted ? Model.Form.Name : item?.Name;
+    var kind = posted ? AccessKinds.Find(Model.Form.Kind) : item?.Kind ?? AccessKinds.System;
+    var category = posted ? Model.Form.Category : item?.Category;
+    IReadOnlyList<string> categories = string.IsNullOrWhiteSpace(category) || Model.Categories.Contains(category, StringComparer.OrdinalIgnoreCase) ? Model.Categories : [.. Model.Categories, category];
+    <div id="@bladeId" class="blade-backdrop" data-reopen="@(posted ? "true" : null)">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="@bladeId-title">
+            <div class="blade-head"><h2 id="@bladeId-title">@title</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            @if (posted && Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
+            <form method="post" asp-page-handler="Save" class="blade-form">
+                @if (item is not null) { <input type="hidden" name="Form.Id" value="@item.Id" /> }
+                <label>Name<input name="Form.Name" value="@name" maxlength="150" required placeholder="e.g. SIMS, Microsoft 365, Server room" /></label>
+                <label>Kind<select name="Form.Kind">@foreach (var k in AccessKinds.All) { <option value="@k" selected="@(k == kind)">@AccessKinds.Label(k)</option> }</select></label>
+                <label>Category<select name="Form.Category"><option value="">Not recorded</option>@foreach (var c in categories) { <option value="@c" selected="@string.Equals(c, category, StringComparison.OrdinalIgnoreCase)">@c</option> }</select></label>
+                <label>Owner / approver<input name="Form.Owner" value="@(posted ? Model.Form.Owner : item?.Owner)" maxlength="100" placeholder="Who signs off access, e.g. Business manager" /></label>
+                <label class="toggle-label"><input type="checkbox" name="Form.MfaRequired" value="true" checked="@(posted ? Model.Form.MfaRequired : item?.MfaRequired ?? false)" /> Cloud or remote access - MFA required for everyone <span class="muted">(systems only)</span></label>
+                <label class="toggle-label"><input type="checkbox" name="Form.HoldsPersonalData" value="true" checked="@(posted ? Model.Form.HoldsPersonalData : item?.HoldsPersonalData ?? false)" /> Holds personal data</label>
+                @if (Model.CanSeeContracts)
+                {
+                    var contractId = posted ? Model.Form.ContractId : item?.ContractId;
+                    <label>Contract<select name="Form.ContractId"><option value="">None</option>@foreach (var c in Model.Contracts) { <option value="@c.Id" selected="@(c.Id == contractId)">@c.Name</option> }</select><small class="muted">From the contracts register.</small></label>
+                }
+                else if (item?.ContractId is { } keep) { <input type="hidden" name="Form.ContractId" value="@keep" /> }
+                <label>Notes<textarea name="Form.Notes" rows="3" maxlength="4000">@(posted ? Model.Form.Notes : item?.Notes)</textarea></label>
+                @if (item is not null) { <label class="toggle-label"><input type="checkbox" name="Form.IsRetired" value="true" checked="@(posted ? Model.Form.IsRetired : item.IsRetired)" /> Retired - no new access, history kept</label> }
+                <div class="blade-actions"><button class="button button-primary" type="submit">Save</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+            </form>
+            @if (item is not null && Model.CanDelete && Model.AllCounts.GetValueOrDefault(item.Id) == 0)
+            {
+                <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" class="blade-form" data-confirm="Delete @item.Name? Nobody has ever had access to it.">
+                    <button class="link-button" type="submit">Delete it - nobody has ever had access</button>
+                </form>
+            }
+        </div>
+    </div>
+}

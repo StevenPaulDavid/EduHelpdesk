@@ -123,6 +123,7 @@ public class DetailsModel(HelpdeskStore store, TemporaryPasswords passwords) : P
         CanEdit ? Back(number, store.AddOnboardingTask(number, title, offsetDays, owner, action).Message, StageId(OnboardingStages.For(offsetDays))) : Forbid();
 
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
+    public string AccessSystemName(Guid id) => store.FindAccessResource(id)?.Name ?? "a system no longer on the register";
 
     public IActionResult OnPostRemoveTask(int number, Guid taskId)
     {

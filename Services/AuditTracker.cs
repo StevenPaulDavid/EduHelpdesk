@@ -25,7 +25,7 @@ internal static class AuditTracker
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
             AddFor(s, x, static x => Make("Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)),
                 // Shows when a temporary password was issued, and when it was swapped for their own.
-                ("Temporary password", Yn(x.RequirePasswordChange))));
+                ("Temporary password", Yn(x.RequirePasswordChange)), ("Type", x.PersonType), ("Start date", Day(x.StartDate))));
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
             Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"), ("Temporary password", Yn(x.RequirePasswordChange)));
@@ -53,6 +53,25 @@ internal static class AuditTracker
                 ("Notice (months)", x.NoticeMonths?.ToString() ?? ""), ("Contract owner", x.ContractOwner), ("Procurement approach", x.ProcurementApproach),
                 ("Approved app", Yn(x.ApprovedApp)), ("Processes personal data", Yn(x.ProcessesPersonalData)), ("Related party", Yn(x.RelatedParty)),
                 ("Reported to DfE on", Day(x.RelatedPartyReportedOn)), ("Notes", x.Notes));
+        // The access control register: every grant's whole life (granted, approved, reviewed, removed) is on the record.
+        var contractNamesById = d.Contracts.ToDictionary(x => x.Id, x => x.Name);
+        foreach (var x in d.AccessResources)
+            Add(s, "Access", "AccessResource", x.Id.ToString(), x.Name, Track.All,
+                ("Name", x.Name), ("Kind", AccessKinds.Label(x.Kind)), ("Category", x.Category), ("Owner / approver", x.Owner),
+                ("MFA required", Yn(x.MfaRequired)), ("Holds personal data", Yn(x.HoldsPersonalData)),
+                ("Contract", x.ContractId is { } contract ? contractNamesById.GetValueOrDefault(contract, "") : ""), ("Notes", x.Notes), ("Retired", Yn(x.IsRetired)));
+        var peopleById = d.Users.ToDictionary(x => x.Id, x => x.Name);
+        var resourcesById = d.AccessResources.ToDictionary(x => x.Id, x => x.Name);
+        foreach (var x in d.AccessGrants)
+            Add(s, "Access", "AccessGrant", x.Id.ToString(), $"{peopleById.GetValueOrDefault(x.PersonId, "Unknown")} – {resourcesById.GetValueOrDefault(x.ResourceId, "Unknown")}", Track.All,
+                ("Access level", x.AccessLevel), ("Account / key / fob", x.Identifier), ("Privileged", Yn(x.Privileged)), ("MFA", x.Mfa),
+                ("Granted on", Day(x.GrantedOn)), ("Granted by", x.GrantedBy), ("Approved by", x.ApprovedBy), ("Approved on", Day(x.ApprovedOn)),
+                ("Last reviewed on", Day(x.LastReviewedOn)), ("Last reviewed by", x.LastReviewedBy),
+                ("Removed on", Day(x.RevokedOn)), ("Removed by", x.RevokedBy), ("Reason for removal", x.RevokeReason), ("Notes", x.Notes));
+        foreach (var x in d.AccessReviews)
+            Add(s, "Access", "AccessReview", x.Id.ToString(), $"Access review {x.ReviewedOn:d MMM yyyy}", Track.Create | Track.Delete,
+                ("Reviewed by", x.ReviewedBy), ("Reviewed with", x.ReviewedWith), ("Scope", x.Scope), ("Confirmed", x.Confirmed.ToString()),
+                ("Removed", x.Revoked.ToString()), ("Notes", x.Notes));
         foreach (var x in d.Parts)
             Add(s, "Parts", "Part", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("SKU", x.Sku), ("Category", x.Category), ("Quantity on hand", x.QuantityOnHand.ToString()),
@@ -66,7 +85,7 @@ internal static class AuditTracker
             Add(s, "Onboarding", "Onboarding template", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name),
                 ("Welcome pack", string.Join(", ", x.DocumentIds.Select(id => packDocumentNames.GetValueOrDefault(id, "")).Where(n => n.Length > 0))),
                 ("Tasks", string.Join("; ", x.Tasks.OrderBy(t => OnboardingStages.Order(t.Stage)).ThenBy(t => t.OffsetDays)
-                    .Select(t => $"{t.Title} ({t.Stage}, {t.Owner}, day {t.OffsetDays:+0;-0;0}{(t.Action == OnboardingActions.None ? "" : "; " + OnboardingActions.Describe(t.Action, t.AssetType).ToLowerInvariant())})"))));
+                    .Select(t => $"{t.Title} ({t.Stage}, {t.Owner}, day {t.OffsetDays:+0;-0;0}{(t.Action == OnboardingActions.None ? "" : "; " + OnboardingActions.Describe(t.Action, t.Action == OnboardingActions.GrantAccess && OnboardingActions.AccessResourceId(t.Action, t.AssetType) is { } resource ? resourcesById.GetValueOrDefault(resource, "a system") : t.AssetType).ToLowerInvariant())})"))));
         foreach (var x in d.LoanKits)
             Add(s, "Loan kits", "Loan kit", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Notes", x.Notes), ("Contents", x.AssetIds.Count.ToString()), ("Retired", Yn(x.IsRetired)));
@@ -185,6 +204,10 @@ internal static class AuditTracker
         AddList(s, "Lists", "Spend category", d.SpendCategories);
         AddList(s, "Lists", "Contract duration", d.ContractDurations);
         AddList(s, "Lists", "Contract status", d.ContractStatuses);
+        AddList(s, "Lists", "Person type", d.PersonTypes);
+        AddList(s, "Lists", "System and area category", d.AccessCategories);
+        AddList(s, "Lists", "Reason for removing access", d.RevokeReasons);
+        Add(s, "Settings", "Access review", "access-review", "Access review interval", Track.Update, ("Days", d.AccessReviewDays.ToString()));
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);
         return s;

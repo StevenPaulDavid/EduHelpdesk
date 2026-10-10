@@ -1,0 +1,7 @@
+@* The access control register's three pages. The model is the active page's route. *@
+@model string
+<nav class="queue-tabs report-tabs" aria-label="Access control">
+    <a class="queue-tab @(Model == "/Access/Index" ? "active" : null)" asp-page="/Access/Index">Who has access</a>
+    <a class="queue-tab @(Model == "/Access/Systems" ? "active" : null)" asp-page="/Access/Systems">Systems and areas</a>
+    <a class="queue-tab @(Model == "/Access/Review" ? "active" : null)" asp-page="/Access/Review">Termly review</a>
+</nav>

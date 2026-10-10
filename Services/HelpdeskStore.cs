@@ -103,6 +103,7 @@ public sealed partial class HelpdeskStore
             Website = x.Website?.Trim() ?? string.Empty, Notes = x.Notes?.Trim() ?? string.Empty
         }).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
         PrepareContracts();
+        PrepareAccess();
         _data.Parts ??= [];
         var supplierIds = _data.Suppliers.Select(x => x.Id).ToHashSet();
         _data.Parts = _data.Parts.Select(x => x with

@@ -33,7 +33,16 @@ public sealed partial class HelpdeskStore
         public List<string> ContractDurations { get; set; } = [];
         public List<string> ContractStatuses { get; set; } = [];
         // 1: the contract lists' starting values and the Business manager and Governor or auditor roles are in place.
+        // 2: the access control register's lists, and the business manager able to review access.
         public int ComplianceVersion { get; set; }
+        // The access control register (HelpdeskStore.AccessRegister) and its lists.
+        public List<AccessResource> AccessResources { get; set; } = [];
+        public List<AccessGrant> AccessGrants { get; set; } = [];
+        public List<AccessReview> AccessReviews { get; set; } = [];
+        public List<string> PersonTypes { get; set; } = [];
+        public List<string> AccessCategories { get; set; } = [];
+        public List<string> RevokeReasons { get; set; } = [];
+        public int AccessReviewDays { get; set; } = AccessDefaults.ReviewDays;
         public List<LoanKit> LoanKits { get; set; } = [];
         public List<KitLoan> KitLoans { get; set; } = [];
         // A borrower with this many loans inside this many days is flagged on the loan report.

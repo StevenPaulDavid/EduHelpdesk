@@ -26,7 +26,7 @@
     </div>
     @if (!held.HoldsAnything)
     {
-        <p class="muted">No assets, loan kits, open tickets or active projects@(leaver ? " - nothing is waiting on them leaving." : ".")</p>
+        <p class="muted">No assets, loan kits, open tickets, active projects or live access@(leaver ? " - nothing is waiting on them leaving." : ".")</p>
     }
     else
     {
@@ -58,6 +58,24 @@
                 <span class="muted">Ends their loans and takes the assets off them. Anything in use or on loan goes back to stock; anything marked in repair or lost keeps that status.</span>
             </form>
         }
+        if (held.Access.Count > 0 && Model.CanSeeAccess)
+        {
+            <h3 class="leaver-heading">Access to systems and areas <span class="badge">@held.Access.Count</span></h3>
+            <ul class="leaver-list">
+                @foreach (var (grant, resource) in held.Access)
+                {
+                    <li>@if (Model.CanOpenAccess) { <a asp-page="/Access/Grant" asp-route-id="@grant.Id"><strong>@resource.Name</strong></a> } else { <strong>@resource.Name</strong> } <span class="muted">@(grant.AccessLevel.Length > 0 ? grant.AccessLevel + " · " : "")@(grant.Identifier.Length > 0 ? grant.Identifier + " · " : "")granted @(grant.GrantedOn?.ToString("d MMM yyyy"))</span>@if (grant.Privileged) { <text> </text><span class="badge badge-soon">Privileged</span> }</li>
+                }
+            </ul>
+            if (Model.CanRemoveAccess)
+            {
+                var leftOnText = Model.Person.LeftAt.HasValue ? $" ({Model.Person.LeftAt.Value.ToLocalTime():d MMM yyyy})" : "";
+                <form method="post" asp-page-handler="RemoveAccess" asp-route-id="@Model.Person.Id" class="leaver-action" data-confirm="Remove all @held.Access.Count of @Model.Person.Name's access on the access control register?">
+                    <button class="button @(leaver ? "button-primary" : "button-secondary")" type="submit">Remove all access</button>
+                    <span class="muted">@(leaver ? $"Records it as removed on the day they left{leftOnText}, for the reason Leaver. Then disable the accounts themselves in each system." : "Records it as removed today. Then disable the accounts themselves in each system.")</span>
+                </form>
+            }
+        }
         if (held.OpenTickets.Count > 0)
         {
             <h3 class="leaver-heading">Open tickets they raised <span class="badge">@held.OpenTickets.Count</span></h3>
@@ -79,6 +97,33 @@
         }
     }
 </section>
+
+@if (Model.CanSeeAccess)
+{
+    <section class="panel" id="access">
+        <div class="panel-heading">
+            <div><p class="eyebrow">ACCESS CONTROL REGISTER</p><h2>Systems and areas</h2></div>
+            <div class="heading-actions"><span class="badge">@Model.Access.Count(x => x.Grant.IsActive(EduHelpdesk.Services.AssetInsights.Today)) live</span>@if (Model.CanAddAccess && Model.Person.IsActive) { <a class="button button-secondary" asp-page="/Access/Grant" asp-route-person="@Model.Person.Id">@Icons.Plus Record access</a> }</div>
+        </div>
+        @if (Model.Access.Count == 0) { <p class="muted">Nothing recorded on the access control register.</p> }
+        else
+        {
+            <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">System or area</th><th>Access</th><th>Granted</th><th>Status</th></tr></thead><tbody>
+            @foreach (var (grant, resource) in Model.Access)
+            {
+                var live = grant.IsActive(EduHelpdesk.Services.AssetInsights.Today);
+                var issues = EduHelpdesk.Services.AccessRules.Issues(grant, Model.Person, resource, EduHelpdesk.Services.AssetInsights.Today, Model.ReviewDays);
+                <tr class="@(live ? null : "row-muted")">
+                    <td><strong>@if (Model.CanOpenAccess) { <a asp-page="/Access/Grant" asp-route-id="@grant.Id">@(resource?.Name ?? "Unknown")</a> } else { @(resource?.Name ?? "Unknown") }</strong>@if (grant.Privileged) { <text> </text><span class="badge badge-soon">Privileged</span> }</td>
+                    <td>@(grant.AccessLevel.Length > 0 ? grant.AccessLevel : "—")<br /><span class="muted">@grant.Identifier</span></td>
+                    <td>@(grant.GrantedOn?.ToString("d MMM yyyy") ?? "—")</td>
+                    <td>@if (live) { <span>Live</span> @foreach (var issue in issues) { <br /><span class="badge @issue.Tone">@issue.Text</span> } } else { <span class="muted">Removed @(grant.RevokedOn?.ToString("d MMM yyyy"))@(grant.RevokeReason.Length > 0 ? " · " + grant.RevokeReason : "")</span> }</td>
+                </tr>
+            }
+            </tbody></table></div>
+        }
+    </section>
+}
 
 @if (Model.CanEdit && Model.Person.AnonymisedAt is null)
 {
@@ -112,7 +157,10 @@
                 <label>Email<input name="email" type="email" value="@Model.Person.Email" required /></label>
                 <label>Department<select name="department"><option value="">Unassigned</option>@foreach (var department in Model.Departments) { <option value="@department" selected="@(string.Equals(department, Model.Person.Department, StringComparison.OrdinalIgnoreCase))">@department</option> }</select></label>
                 <label>Location<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, Model.Person.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
-                <label>Active account?<select name="active"><option value="true" selected="@Model.Person.IsActive">Active - can sign in to the staff portal</option><option value="false" selected="@(!Model.Person.IsActive)">Inactive - blocked from the staff portal</option></select></label>
+                <label>Type<select name="personType"><option value="">Staff (not set)</option>@foreach (var type in Model.PersonTypes.Concat(string.IsNullOrWhiteSpace(Model.Person.PersonType) || Model.PersonTypes.Contains(Model.Person.PersonType, StringComparer.OrdinalIgnoreCase) ? [] : new[] { Model.Person.PersonType })) { <option value="@type" selected="@string.Equals(type, Model.Person.PersonType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
+                <label>Start date<input name="startDate" type="date" value="@Model.Person.StartDate?.ToString("yyyy-MM-dd")" /></label>
+                <label>Active account?<select name="active"><option value="true" selected="@Model.Person.IsActive">Active - can sign in to the staff portal</option><option value="false" selected="@(!Model.Person.IsActive)">Inactive - has left, blocked from the staff portal</option></select></label>
+                <label>Left on<input name="leftOn" type="date" value="@(Model.Person.LeftAt?.ToLocalTime().ToString("yyyy-MM-dd"))" /><small class="muted">Only kept for someone marked inactive. Blank means the day they were marked inactive.</small></label>
                 <label>Set a password<input name="password" type="password" placeholder="Leave blank to keep the current password" autocomplete="new-password" maxlength="@EduHelpdesk.Services.PasswordRules.MaximumLength" /><small class="muted">For the staff portal. At least @EduHelpdesk.Services.PasswordRules.MinimumLength characters, which they keep until they choose to change it - for one they must change, use Give them a temporary password above.</small></label>
                 <label class="toggle-label"><input type="checkbox" name="canRaiseProjects" value="true" checked="@Model.Person.CanRaiseProjects" /> Can raise projects <small class="muted">For line managers and SLT: lets them ask IT to source and quote for purchases from the staff portal.</small></label>
                 <label class="toggle-label"><input type="checkbox" name="isProjectLead" value="true" checked="@Model.Person.IsProjectLead" /> Project lead <small class="muted">Confirms each project's priority and assigns the technician, from the staff portal. Can also raise projects.</small></label>

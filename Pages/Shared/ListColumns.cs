@@ -39,6 +39,12 @@ public static class ListColumns
             new("renewal", "Next renewal"), new("notice", "Notice by"), new("end", "Ends", false), new("spend", "Spend category", false),
             new("owner", "Owner", false), new("compliance", "Compliance", false),
         ],
+        ["access"] =
+        [
+            new("level", "Access level"), new("account", "Account / key"), new("mfa", "MFA"), new("granted", "Granted"),
+            new("reviewed", "Last reviewed"), new("approved", "Approved by", false), new("type", "Person type", false),
+            new("removed", "Removed", false),
+        ],
         ["parts"] =
         [
             new("sku", "SKU"), new("category", "Category"), new("location", "Location"), new("suppliers", "Suppliers"),

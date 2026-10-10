@@ -1,11 +1,15 @@
 @model EduHelpdesk.Pages.Settings.OnboardingModel.ActionField
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @* What ticking a task does besides ticking it (Models/OnboardingModels.cs, OnboardingActions). Used by the checklist
    templates and by "Add a task" on an onboarding. An asset type that has since been removed from the list is still
-   offered while a task uses it, so saving the row doesn't quietly change what it does. *@
+   offered while a task uses it, so saving the row doesn't quietly change what it does. The systems come from the access
+   control register; a retired one is only offered to the task that already uses it. *@
 @{
     var types = Model.AssetTypes.ToList();
     var (action, current) = OnboardingActions.Decode(Model.Value);
     if (action == OnboardingActions.IssueAsset && current is not null && !types.Contains(current, StringComparer.OrdinalIgnoreCase)) { types.Add(current); }
+    var currentSystem = OnboardingActions.AccessResourceId(action, current);
+    var systems = Helpdesk.AccessResources.Where(x => !x.IsRetired || x.Id == currentSystem).ToList();
 }
 <label>Does<select name="action">
     <option value="">Nothing more</option>
@@ -14,5 +18,9 @@
     {
         var value = OnboardingActions.Encode(OnboardingActions.IssueAsset, type);
         <option value="@value" selected="@(action == OnboardingActions.IssueAsset && string.Equals(current, type, StringComparison.OrdinalIgnoreCase))">Issues a @type</option>
+    }
+    @foreach (var system in systems)
+    {
+        <option value="@OnboardingActions.Encode(OnboardingActions.GrantAccess, system.Id.ToString())" selected="@(currentSystem == system.Id)">Records their access to @system.Name</option>
     }
 </select></label>

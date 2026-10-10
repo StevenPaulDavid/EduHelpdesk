@@ -262,6 +262,8 @@ public sealed partial class HelpdeskStore
         EnsureTwoFactorSchema(connection);
         EnsureRecoveryKeySchema(connection);
         EnsureOnboardingSchema(connection);
+        // After Users and the onboarding tables, which it adds columns to.
+        EnsureAccessSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)

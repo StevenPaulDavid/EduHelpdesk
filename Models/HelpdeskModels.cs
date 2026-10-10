@@ -18,6 +18,10 @@ public record UserRecord(Guid Id, string Name, string Email, string Department, 
     // Set once retention has replaced their name and contact details. The record stays so their old tickets and loans
     // still have a requester, but nothing on it identifies them any more.
     public DateTime? AnonymisedAt { get; init; }
+    // For the access control register (HelpdeskStore.Access): staff, pupil, governor, contractor, service account
+    // (Settings → Person types). Blank is read as staff. LeftAt above is the leave date.
+    public string PersonType { get; init; } = "";
+    public DateOnly? StartDate { get; init; }
 }
 public record TechnicianRecord(Guid Id, string Name, string Email, string Team, string Role = "Technician", string? PasswordHash = null, bool RequirePasswordChange = false, bool IsActive = true)
 {

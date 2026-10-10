@@ -60,6 +60,9 @@ public static class SettingsMenu
             new("Spend categories", "/Settings/SpendCategories", "spend category contracts register dfe"),
             new("Contract durations", "/Settings/ContractDurations", "contract duration length yearly rolling"),
             new("Contract statuses", "/Settings/ContractStatuses", "contract status active expired"),
+            new("Person types", "/Settings/PersonTypes", "person type staff pupil governor contractor service account access"),
+            new("System and area categories", "/Settings/AccessCategories", "access category system area mis cloud key fob"),
+            new("Reasons for removing access", "/Settings/RevokeReasons", "revoke remove access reason leaver"),
         ]),
         new("Projects",
         [

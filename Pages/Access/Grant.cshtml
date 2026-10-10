@@ -1,0 +1,133 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Access.GrantModel
+@{
+    var grant = Model.Grant;
+    ViewData["Title"] = grant is null ? "Record access" : $"{Model.Person?.Name} – {Model.Resource?.Name}";
+    var f = Model.Form;
+    string Day(DateOnly? value) => value is { } d ? d.ToString("d MMMM yyyy") : "Not recorded";
+    string Iso(DateOnly? value) => value?.ToString("yyyy-MM-dd") ?? "";
+    var isSystem = Model.Resource?.IsSystem ?? true;
+    var editable = grant is null || Model.CanEdit;
+}
+<a class="back-link" asp-page="/Access/Index">← Back to the access control register</a>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p>
+        @if (grant is null)
+        {
+            <h1>Record access</h1>
+            <p class="hero-copy">One person's access to one system or area. For privileged (administrator) access, the cyber security standard expects a member of SLT or a trustee to approve it first.</p>
+        }
+        else
+        {
+            <h1>@(Model.Person?.Name ?? "Unknown") – @(Model.Resource?.Name ?? "Unknown")</h1>
+            <p class="hero-copy asset-heading-meta">
+                <span>@(Model.Resource is { } r ? AccessKinds.Label(r.Kind) : "")@(grant.AccessLevel.Length > 0 ? " · " + grant.AccessLevel : "")</span>
+                <span class="status @(Model.IsLive ? "" : "status-closed")">@(Model.IsLive ? "Live" : "Removed")</span>
+                @if (grant.Privileged) { <span class="badge badge-soon">Privileged</span> }
+                @foreach (var issue in Model.Issues) { <span class="badge @issue.Tone">@issue.Text</span> }
+            </p>
+        }
+    </div>
+    @if (grant is not null && Model.CanDelete)
+    {
+        <div class="heading-actions">
+            <details class="nav-menu action-menu">
+                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+                <div class="nav-panel nav-panel-right"><button type="button" class="menu-danger" data-open-blade="delete-blade">Delete this record…</button></div>
+            </details>
+        </div>
+    }
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
+
+@if (grant is not null)
+{
+    <div class="contract-layout">
+        <section class="panel">
+            <dl class="pj-facts">
+                <div><dt>Person</dt><dd>@if (Model.Person is { } person && Model.CanOpenPeople) { <a asp-page="/User" asp-route-id="@person.Id"><strong>@person.Name</strong></a> } else { <strong>@(Model.Person?.Name ?? "Unknown")</strong> }<span class="pj-sub">@(Model.Person is { } who ? AccessRules.PersonType(who) + (who.IsActive ? "" : $" · left {Day(AccessRules.LeaveDate(who))}") : "")</span></dd></div>
+                <div><dt>System or area</dt><dd>@(Model.Resource?.Name ?? "Unknown")<span class="pj-sub">@(Model.Resource is { } res ? (res.Owner.Length > 0 ? "Approver: " + res.Owner : "") + (res.MfaRequired ? " · MFA required" : "") + (res.IsRetired ? " · retired" : "") : "")</span></dd></div>
+                <div><dt>Granted</dt><dd>@Day(grant.GrantedOn)<span class="pj-sub">@(grant.GrantedBy.Length > 0 ? "by " + grant.GrantedBy : "")</span></dd></div>
+                <div><dt>Approved</dt><dd>@(grant.ApprovedBy.Length > 0 ? grant.ApprovedBy : "Not recorded")<span class="pj-sub">@(grant.ApprovedOn is { } approved ? Day(approved) : "")</span></dd></div>
+                <div><dt>Last reviewed</dt><dd>@Day(AccessRules.LastReviewed(grant))<span class="pj-sub">@(grant.LastReviewedOn is null ? "Never reviewed - counted from when it was granted" : grant.LastReviewedBy.Length > 0 ? "by " + grant.LastReviewedBy : "")</span></dd></div>
+                <div><dt>Removed</dt><dd>@(grant.RevokedOn is { } off ? Day(off) : "Still live")<span class="pj-sub">@(grant.RevokedOn is null ? "" : string.Join(" · ", new[] { grant.RevokeReason, grant.RevokedBy.Length > 0 ? "by " + grant.RevokedBy : "" }.Where(x => x.Length > 0)))</span></dd></div>
+                @if (grant.OnboardingTicket is { } ticket) { <div><dt>Recorded by</dt><dd>Onboarding #@ticket</dd></div> }
+            </dl>
+        </section>
+        @if (Model.IsLive && Model.CanEdit)
+        {
+            <aside class="panel">
+                <h2>Remove access</h2>
+                <p class="muted">When they no longer need it, or have left. The record stays on the register with the date and reason.</p>
+                <form method="post" asp-page-handler="Revoke" asp-route-id="@grant.Id" class="blade-form" data-confirm="Remove this access?">
+                    <label>Removed on<input name="revokedOn" type="date" value="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
+                    <label>Reason<select name="reason">@foreach (var reason in Model.RevokeReasons) { <option value="@reason" selected="@(reason == AccessDefaults.Leaver && Model.Person is { IsActive: false })">@reason</option> }</select></label>
+                    <div class="blade-actions"><button class="button button-danger" type="submit">Remove access</button></div>
+                </form>
+            </aside>
+        }
+    </div>
+}
+
+@if (editable)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">@(grant is null ? "NEW" : "DETAILS")</p><h2>@(grant is null ? "Who and what" : "Change the details")</h2></div></div>
+        <form method="post" asp-page-handler="@(grant is null ? "Add" : "Save")" asp-route-id="@grant?.Id">
+            <div class="form-grid contract-form-grid">
+                @if (grant is null)
+                {
+                    <label>Person<select name="Form.PersonId" data-picker required><option value="">Choose a person…</option>@foreach (var person in Model.People) { <option value="@person.Id" data-search="@person.Email @person.Department" selected="@(person.Id == f.PersonId)">@person.Name</option> }</select><small class="muted">From People. Someone new? Add them there first.</small></label>
+                    <label>System or area<select name="Form.ResourceId" required><option value="">Choose…</option>@foreach (var resource in Model.Resources) { <option value="@resource.Id" selected="@(resource.Id == f.ResourceId)">@resource.Name (@AccessKinds.Label(resource.Kind).ToLowerInvariant())</option> }</select>@if (Model.Resources.Count == 0) { <small class="muted">No systems yet. <a asp-page="/Access/Systems">Add them under Systems and areas.</a></small> }</label>
+                }
+                <label>Access level<input name="Form.AccessLevel" value="@f.AccessLevel" maxlength="100" placeholder="e.g. Read only, Teacher, Global admin" /></label>
+                <label>Account, key or fob number<input name="Form.Identifier" value="@f.Identifier" maxlength="150" placeholder="Username, or key / fob number" /></label>
+                @if (isSystem)
+                {
+                    <label>MFA<select name="Form.Mfa">@foreach (var state in MfaStates.All) { <option value="@state" selected="@(state == f.Mfa)">@state</option> }</select><small class="muted">Needed for cloud or remote access and for every administrator account. Not used for physical areas and keys.</small></label>
+                }
+                <label class="toggle-label"><input type="checkbox" name="Form.Privileged" value="true" checked="@f.Privileged" /> Privileged (administrator) access</label>
+                <label>Granted on<input name="Form.GrantedOn" type="date" value="@Iso(f.GrantedOn)" required /></label>
+                <label>Granted by<input name="Form.GrantedBy" value="@f.GrantedBy" maxlength="100" /></label>
+                <label>Approved by (SLT or trustee)<input name="Form.ApprovedBy" value="@f.ApprovedBy" maxlength="100" /></label>
+                <label>Approved on<input name="Form.ApprovedOn" type="date" value="@Iso(f.ApprovedOn)" /></label>
+                <label class="span-2">Notes<textarea name="Form.Notes" rows="3" maxlength="4000">@f.Notes</textarea></label>
+            </div>
+            <div class="asset-form-actions"><button class="button button-primary" type="submit">@(grant is null ? "Record access" : "Save")</button></div>
+        </form>
+    </section>
+}
+
+@if (grant is not null)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">AUDIT TRAIL</p><h2>History</h2></div><span class="badge">@Model.History.Count</span></div>
+        @if (Model.History.Count == 0) { <p class="muted">No changes recorded yet.</p> }
+        else
+        {
+            <div class="history-list">
+                @foreach (var entry in Model.History)
+                {
+                    <article class="history-entry"><strong>@entry.Action</strong><p>@entry.Details</p><small>@Actor.Label(entry.By) · @entry.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</small></article>
+                }
+            </div>
+        }
+    </section>
+}
+
+@if (grant is not null && Model.CanDelete)
+{
+    <div id="delete-blade" class="blade-backdrop">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="delete-blade-title">
+            <div class="blade-head"><h2 id="delete-blade-title">Delete this record</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <p class="muted">Only for access recorded by mistake. Access that has ended should be removed instead, so the register still shows they had it.</p>
+            <form method="post" asp-page-handler="Delete" asp-route-id="@grant.Id" class="blade-form">
+                <div class="blade-actions"><button class="button button-danger" type="submit">Delete permanently</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+            </form>
+        </div>
+    </div>
+}

@@ -77,6 +77,8 @@ public class AuditModel(HelpdeskStore store) : PageModel
             .Concat(store.Parts.Select(x => $"Part|{x.Id}"))
             .Concat(store.Projects.Select(x => $"Project|{x.Number}"))
             .Concat(store.Contracts.Select(x => $"Contract|{x.Id}"))
+            .Concat(store.AccessGrants.Select(x => $"AccessGrant|{x.Id}"))
+            .Concat(store.AccessResources.Select(x => $"AccessResource|{x.Id}"))
             .ToHashSet();
     }
 
@@ -107,6 +109,8 @@ public class AuditModel(HelpdeskStore store) : PageModel
             "Part" => Url.Page("/Parts/Edit", new { id = entry.EntityKey }),
             "Project" => Url.Page("/Project", new { number = entry.EntityKey }),
             "Contract" => Url.Page("/Contract", new { id = entry.EntityKey }),
+            "AccessGrant" => Url.Page("/Access/Grant", new { id = entry.EntityKey }),
+            "AccessResource" => Url.Page("/Access/Index", new { system = entry.EntityKey }),
             _ => null
         };
     }

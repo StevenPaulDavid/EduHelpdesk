@@ -205,6 +205,9 @@ public sealed partial class HelpdeskStore
             assetType = _data.AssetTypes.FirstOrDefault(x => string.Equals(x, assetType, StringComparison.OrdinalIgnoreCase));
             if (assetType is null) return CheckedTask.Refused("Choose an asset type from the list.");
         }
+        if (kind == OnboardingActions.GrantAccess
+            && (OnboardingActions.AccessResourceId(kind, assetType) is not { } resourceId || _data.AccessResources.FirstOrDefault(x => x.Id == resourceId) is not { IsRetired: false }))
+            return CheckedTask.Refused("Choose a system or area from the access control register.");
         return new CheckedTask(text, OnboardingStages.For(offset), offset, validOwner, kind, assetType, null);
     }
 
@@ -326,8 +329,28 @@ public sealed partial class HelpdeskStore
         // Ticking the portal task is what makes the account (CreateOnboardingPortalAccount) - unless they have one already.
         if (done && task.Action == OnboardingActions.PortalAccount && _data.Users.FirstOrDefault(x => x.Id == record.StarterId) is { PasswordHash: null })
             return (null, "Their staff portal account hasn't been made yet.", []);
+        var detail = task.Title;
+        // An access task records the access on the register as it is ticked, and unticking takes back what it recorded -
+        // as long as nobody has reviewed or changed it since, in which case it is real and stays.
+        if (task.Action == OnboardingActions.GrantAccess && OnboardingActions.AccessResourceId(task.Action, task.AssetType) is { } resourceId)
+        {
+            var resourceName = _data.AccessResources.FirstOrDefault(x => x.Id == resourceId)?.Name ?? "the system";
+            if (done)
+            {
+                var (grant, error) = OnboardingGrant(record, task);
+                if (error is not null) return (null, error, []);
+                if (grant is not null) { _data.AccessGrants.Add(grant); detail += $": access to {resourceName} recorded on the access control register."; }
+                else detail += $": they already had access to {resourceName}.";
+            }
+            else
+            {
+                var taken = _data.AccessGrants.RemoveAll(x => x.OnboardingTicket == number && x.ResourceId == resourceId && x.PersonId == record.StarterId
+                    && x.RevokedOn is null && x.LastReviewedOn is null);
+                if (taken > 0) detail += $": the access to {resourceName} it recorded was taken off the register.";
+            }
+        }
         var updated = done ? task with { CompletedAt = DateTime.UtcNow, CompletedBy = CurrentActor() } : task with { CompletedAt = null, CompletedBy = null };
-        return (updated, done ? $"\"{task.Title}\" done." : $"\"{task.Title}\" is to do again.", [Line(done ? "Onboarding task done" : "Onboarding task reopened", task.Title)]);
+        return (updated, done ? $"\"{task.Title}\" done." : $"\"{task.Title}\" is to do again.", [Line(done ? "Onboarding task done" : "Onboarding task reopened", detail)]);
     });
 
     // The portal task: the new starter gets a temporary password (hashed by the caller, which keeps the password itself
@@ -575,7 +598,7 @@ public sealed partial class HelpdeskStore
     }
 
     private static string ReadAction(SqliteDataReader reader, int ordinal) =>
-        reader.IsDBNull(ordinal) ? OnboardingActions.None : reader.GetString(ordinal) is OnboardingActions.PortalAccount or OnboardingActions.IssueAsset ? reader.GetString(ordinal) : OnboardingActions.None;
+        reader.IsDBNull(ordinal) ? OnboardingActions.None : reader.GetString(ordinal) is OnboardingActions.PortalAccount or OnboardingActions.IssueAsset or OnboardingActions.GrantAccess ? reader.GetString(ordinal) : OnboardingActions.None;
 
     private static void ReadOnboarding(SqliteConnection connection, StoreData data)
     {

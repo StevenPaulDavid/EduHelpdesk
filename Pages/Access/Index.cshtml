@@ -1,0 +1,90 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Access.IndexModel
+@{
+    ViewData["Title"] = "Access control register"; ViewData["Wide"] = true;
+    var cols = Model.Columns;
+    string Day(DateOnly? value) => value is { } d ? AssetInsights.Format(d) : "—";
+    string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p><h1>Access control register</h1><p class="hero-copy">Who can get into which systems and areas, who approved it, and when it was last reviewed - and, for anyone who has left, when it was taken away.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanView) { <a class="button button-secondary" href="@Url.Page("/Access/Index", "Export", Model.Route())">⬇ Export CSV</a> }
+        @if (Model.CanAdd) { <a class="button button-primary" asp-page="/Access/Grant">@Icons.Plus Record access</a> }
+    </div>
+</div>
+<partial name="_AccessTabs" model="@("/Access/Index")" />
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<div class="metrics">
+    <div class="metric"><span>Live access</span><strong>@Model.LiveCount</strong><small>@Model.PeopleWithAccess @(Model.PeopleWithAccess == 1 ? "person" : "people")</small></div>
+    <div class="metric"><span>To fix</span><strong>@Model.ToFix</strong><small>Leavers, approvals, MFA, reviews</small></div>
+    <div class="metric"><span>Last review</span><strong>@(Model.LastReview is { } last ? AssetInsights.Format(last.ReviewedOn) : "-")</strong><small>@(Model.LastReview is { } r ? $"With {r.ReviewedWith}" : "No review recorded yet")</small></div>
+    <div class="metric"><span>Next review</span><strong>@(Model.NextReviewDue is { } due ? AssetInsights.Format(due) : "Due now")</strong><small>@(Model.NextReviewDue is { } next && next < Model.Today ? "Overdue" : $"Every {Model.ReviewDays} days")</small></div>
+</div>
+
+<section class="panel">
+    @{
+        var filters = new FilterBar
+        {
+            Id = "access-filters",
+            Search = Model.Search,
+            SearchPlaceholder = "Name, email, system, account, notes",
+            Title = "Filter access",
+            Chips = Model.ActiveFilters(),
+            PanelCount = Model.PanelFilterCount,
+            ClearUrl = Url.Page("/Access/Index"),
+            Fields = @<text>
+                <label>Show<select name="show"><option value="">Live access</option>@foreach (var show in EduHelpdesk.Pages.Access.IndexModel.Shows) { <option value="@show" selected="@(Model.Show == show)">@EduHelpdesk.Pages.Access.IndexModel.ShowLabel(show)</option> }</select></label>
+                <label>System or area<select name="system" data-picker><option value="">Any</option>@foreach (var item in Model.Resources) { <option value="@item.Id" selected="@(item.Id == Model.SystemId)">@item.Name@(item.IsRetired ? " (retired)" : "")</option> }</select></label>
+                <label>Kind<select name="kind"><option value="">Systems and areas</option>@foreach (var kind in AccessKinds.All) { <option value="@kind" selected="@string.Equals(kind, Model.Kind, StringComparison.OrdinalIgnoreCase)">@AccessKinds.Label(kind)</option> }</select></label>
+                <label>Person type<select name="type"><option value="">Anyone</option>@foreach (var item in Model.PersonTypes) { <option value="@item" selected="@string.Equals(item, Model.PersonType, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+            </text>
+        };
+    }
+    <partial name="_FilterBar" model="filters" />
+</section>
+
+<section class="panel directory-panel">
+    <div class="panel-heading"><div><p class="eyebrow">REGISTER</p><h2>Who has access</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.LiveCount}" : Model.LiveCount.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
+        <th data-stack="head">Person</th>
+        <th>System or area</th>
+        @if (cols.Show("level")) { <th>Access level</th> }
+        @if (cols.Show("account")) { <th>Account / key</th> }
+        @if (cols.Show("mfa")) { <th>MFA</th> }
+        @if (cols.Show("granted")) { <th>Granted</th> }
+        @if (cols.Show("reviewed")) { <th>Last reviewed</th> }
+        @if (cols.Show("approved")) { <th>Approved by</th> }
+        @if (cols.Show("type")) { <th>Person type</th> }
+        @if (cols.Show("removed")) { <th>Removed</th> }
+        <th aria-label="Actions"></th>
+    </tr></thead><tbody>
+    @foreach (var row in Model.Rows)
+    {
+        var grant = row.Grant;
+        var live = grant.IsActive(Model.Today);
+        <tr class="@(live ? null : "row-muted")">
+            <td>
+                <strong>@if (row.Person is { } person && Model.CanOpenPeople) { <a asp-page="/User" asp-route-id="@person.Id">@person.Name</a> } else { @(row.Person?.Name ?? "Unknown") }</strong>
+                @if (row.Person is { IsActive: false } gone) { <span class="badge">Left @Day(AccessRules.LeaveDate(gone))</span> }
+                @if (row.Issues.Count > 0) { <br />@foreach (var issue in row.Issues) { <span class="badge @issue.Tone">@issue.Text</span> } }
+                @if (!live) { <br /><span class="muted">Removed @Day(grant.RevokedOn)@(grant.RevokeReason.Length > 0 ? " · " + grant.RevokeReason : "")</span> }
+            </td>
+            <td>@(row.Resource?.Name ?? "Unknown")@if (grant.Privileged) { <text> </text><span class="badge badge-soon">Privileged</span> }<br /><span class="muted">@(row.Resource is { } res ? AccessKinds.Label(res.Kind) + (res.Category.Length > 0 ? " · " + res.Category : "") : "")</span></td>
+            @if (cols.Show("level")) { <td>@Text(grant.AccessLevel)</td> }
+            @if (cols.Show("account")) { <td>@Text(grant.Identifier)</td> }
+            @if (cols.Show("mfa")) { <td>@(grant.Mfa == MfaStates.NotApplicable ? "—" : grant.Mfa)</td> }
+            @if (cols.Show("granted")) { <td>@Day(grant.GrantedOn)</td> }
+            @if (cols.Show("reviewed")) { <td>@Day(grant.LastReviewedOn)</td> }
+            @if (cols.Show("approved")) { <td>@Text(grant.ApprovedBy)</td> }
+            @if (cols.Show("type")) { <td>@(row.Person is { } p ? AccessRules.PersonType(p) : "—")</td> }
+            @if (cols.Show("removed")) { <td>@Day(grant.RevokedOn)</td> }
+            <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Access/Grant" asp-route-id="@grant.Id" title="Open" aria-label="Open @(row.Person?.Name)'s access to @(row.Resource?.Name)">@Icons.Edit</a> }</td>
+        </tr>
+    }
+    @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@(Model.TotalCount == 0 ? "Nothing on the register yet. Add the systems and areas under Systems and areas, then record who has access to each." : "Nothing matches these filters.")</td></tr> }
+    </tbody></table></div>
+</section>

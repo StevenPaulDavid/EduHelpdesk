@@ -95,6 +95,13 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Contract", Policy(Modules.Contracts, ModulePermission.View));
     options.Conventions.AuthorizePage("/Contracts/Add", Policy(Modules.Contracts, ModulePermission.New));
 
+    // The access control register. The list is Pages/Access/Index (a rule for "/Access" would guard nothing). A grant's
+    // page opens to read it; recording, changing, removing and reviewing are checked in the handlers.
+    options.Conventions.AuthorizePage("/Access/Index", Policy(Modules.Access, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Access/Systems", Policy(Modules.Access, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Access/Review", Policy(Modules.Access, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Access/Grant", Policy(Modules.Access, ModulePermission.View));
+
     // People is three directories on one page, so the page itself only needs to reach one of them; each maintenance
     // page carries its own permission. /User is the requester detail page and was the one duplicating /People/User
     // without any check - it edits names, emails, portal passwords and ticket ownership.

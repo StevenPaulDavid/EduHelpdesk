@@ -134,6 +134,11 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                                     <div class="onboarding-action muted">Ticking this makes their staff portal account, with a temporary password, and opens their quick start guide to print.</div>
                                 }
                             }
+                            else if (task.AccessResourceId is { } systemId)
+                            {
+                                var systemName = Model.AccessSystemName(systemId);
+                                <div class="onboarding-action muted">@(task.IsDone ? $"Their access to {systemName} is on the access control register." : $"Ticking this records their access to {systemName} on the access control register.")</div>
+                            }
                         </div>
                         @if (Model.CanEdit && !record.IsCancelled)
                         {

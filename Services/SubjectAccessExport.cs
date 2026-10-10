@@ -65,6 +65,7 @@ public static class SubjectAccessExport
         text.AppendLine($"  - {d.Tickets.Count} ticket(s) they raised, with every update, internal note and history line, and {d.Attachments.Count} attached file(s).");
         text.AppendLine($"  - {d.Assets.Count} asset(s) they hold or have held, and {d.KitLoans.Count} loan kit loan(s).");
         text.AppendLine($"  - {d.Projects.Count} project(s) they asked for, with notes and history.");
+        text.AppendLine($"  - {d.Access.Count} line(s) on the access control register: systems and areas they have or had access to.");
         text.AppendLine($"  - {d.Mentions.Count} other ticket(s) that mention their full name or email - listed, not copied.");
         text.AppendLine($"  - {d.AuditEntries.Count} audit log line(s) about their record or their use of the staff portal.");
         text.AppendLine();
@@ -111,7 +112,26 @@ public static class SubjectAccessExport
         Row("Staff portal password", p.PasswordHash is null ? "None set" : "Set (stored scrambled, so it can't be shown)");
         Row("Can ask for projects", p.CanRaiseProjects ? "Yes" : "No");
         Row("Project lead", p.IsProjectLead ? "Yes" : "No");
+        Row("Type", AccessRules.PersonType(p));
+        Row("Start date", p.StartDate?.ToString("d MMM yyyy", CultureInfo.CurrentCulture));
         html.Append("</table>");
+
+        html.Append($"<h2>Access control register ({d.Access.Count})</h2>");
+        if (d.Access.Count == 0) html.Append("<p class=\"muted\">None.</p>");
+        else
+        {
+            html.Append("<table>");
+            foreach (var (g, resource) in d.Access)
+            {
+                static string Day(DateOnly? x) => x?.ToString("d MMM yyyy", CultureInfo.CurrentCulture) ?? "";
+                var line = $"{(g.AccessLevel.Length > 0 ? g.AccessLevel + ". " : "")}{(g.Identifier.Length > 0 ? $"Account or key: {g.Identifier}. " : "")}{(g.Privileged ? "Privileged. " : "")}"
+                    + $"Granted {Day(g.GrantedOn)}{(g.GrantedBy.Length > 0 ? " by " + g.GrantedBy : "")}. "
+                    + (g.RevokedOn is { } off ? $"Removed {Day(off)}{(g.RevokeReason.Length > 0 ? " - " + g.RevokeReason : "")}." : "Still active.")
+                    + (g.Notes.Length > 0 ? $" Notes: {g.Notes}" : "");
+                html.Append($"<tr><th>{E(resource)}</th><td>{E(line)}</td></tr>");
+            }
+            html.Append("</table>");
+        }
 
         html.Append($"<h2>Tickets they raised ({d.Tickets.Count})</h2>");
         if (d.Tickets.Count == 0) html.Append("<p class=\"muted\">None.</p>");
@@ -207,8 +227,14 @@ public static class SubjectAccessExport
             person = new
             {
                 p.Id, p.Name, p.Email, p.Department, p.Location, active = p.IsActive, leftAt = p.LeftAt,
-                portalPasswordSet = p.PasswordHash is not null, canRaiseProjects = p.CanRaiseProjects, isProjectLead = p.IsProjectLead
+                portalPasswordSet = p.PasswordHash is not null, canRaiseProjects = p.CanRaiseProjects, isProjectLead = p.IsProjectLead,
+                type = AccessRules.PersonType(p), startDate = p.StartDate
             },
+            access = d.Access.Select(a => new
+            {
+                system = a.Resource, a.Grant.AccessLevel, account = a.Grant.Identifier, a.Grant.Privileged, mfa = a.Grant.Mfa, a.Grant.GrantedOn, a.Grant.GrantedBy,
+                a.Grant.ApprovedBy, a.Grant.LastReviewedOn, removedOn = a.Grant.RevokedOn, removedReason = a.Grant.RevokeReason, a.Grant.Notes
+            }),
             tickets = d.Tickets.Select(t => new
             {
                 t.Number, t.Title, t.Description, t.Type, t.Status, t.Priority, t.Category, t.Location, t.CreatedAt, closedAt = TicketReports.ClosedTime(t),

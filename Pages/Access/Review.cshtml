@@ -1,0 +1,84 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Access.ReviewModel
+@{
+    ViewData["Title"] = "Access review"; ViewData["Wide"] = true;
+    string Day(DateOnly? value) => value is { } d ? AssetInsights.Format(d) : "—";
+    var overdue = Model.NextDue is null || Model.NextDue < Model.Today;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p><h1>Termly access review</h1><p class="hero-copy">Go through who has access with the business manager or finance team, keep what is still needed and remove what isn't. The standard asks for this every term; the record below is the evidence.</p></div>
+</div>
+<partial name="_AccessTabs" model="@("/Access/Review")" />
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
+
+<div class="metrics">
+    <div class="metric"><span>Last review</span><strong>@(Model.Reviews.FirstOrDefault() is { } last ? AssetInsights.Format(last.ReviewedOn) : "-")</strong><small>@(Model.Reviews.FirstOrDefault() is { } r ? $"{r.Confirmed} kept, {r.Revoked} removed" : "None recorded yet")</small></div>
+    <div class="metric"><span>Next review due</span><strong>@(Model.NextDue is { } due ? AssetInsights.Format(due) : "Now")</strong><small>@(overdue ? "Overdue" : $"Every {Model.ReviewDays} days")</small></div>
+    <div class="metric"><span>To review</span><strong>@Model.Rows.Count</strong><small>@(Model.SystemId is null ? "Live access, every system" : "Live access to this system")</small></div>
+    <div class="metric"><span>Already flagged</span><strong>@Model.Rows.Count(x => x.Issues.Any(i => i.Tone == "badge-warning"))</strong><small>Leavers, approvals, MFA</small></div>
+</div>
+
+<section class="panel">
+    <form method="get" class="import-row">
+        <label>Review<select name="system" data-autosubmit><option value="">Every system and area</option>@foreach (var item in Model.Resources) { <option value="@item.Id" selected="@(item.Id == Model.SystemId)">@item.Name</option> }</select></label>
+        <noscript><button class="button button-secondary" type="submit">Show</button></noscript>
+    </form>
+</section>
+
+@if (Model.CanReview)
+{
+    <form method="post" asp-route-system="@Model.SystemId">
+        <section class="panel directory-panel">
+            <div class="panel-heading"><div><p class="eyebrow">STEP 1</p><h2>Keep or remove</h2></div><span class="badge">@Model.Rows.Count</span></div>
+            <p class="muted">Everything is kept unless you tick Remove. Anything already flagged in red - a leaver, privileged access nobody approved, MFA off - is worth removing or fixing now.</p>
+            <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Person</th><th>System or area</th><th>Access</th><th>Last reviewed</th><th>Remove</th></tr></thead><tbody>
+            @foreach (var row in Model.Rows)
+            {
+                <tr>
+                    <td><input type="hidden" name="shown" value="@row.Grant.Id" /><strong>@(row.Person?.Name ?? "Unknown")</strong> <span class="muted">@(row.Person is { } p ? AccessRules.PersonType(p) : "")</span>@if (row.Issues.Count > 0) { <br />@foreach (var issue in row.Issues) { <span class="badge @issue.Tone">@issue.Text</span> } }</td>
+                    <td>@(row.Resource?.Name ?? "Unknown")@if (row.Grant.Privileged) { <text> </text><span class="badge badge-soon">Privileged</span> }</td>
+                    <td>@(row.Grant.AccessLevel.Length > 0 ? row.Grant.AccessLevel : "—")<br /><span class="muted">@row.Grant.Identifier</span></td>
+                    <td>@Day(AccessRules.LastReviewed(row.Grant))</td>
+                    <td><label class="toggle-label"><input type="checkbox" name="remove" value="@row.Grant.Id" checked="@Model.Marked.Contains(row.Grant.Id)" /> Remove</label></td>
+                </tr>
+            }
+            @if (Model.Rows.Count == 0) { <tr><td colspan="5" class="empty">No live access to review.</td></tr> }
+            </tbody></table></div>
+        </section>
+        @if (Model.Rows.Count > 0)
+        {
+            <section class="panel">
+                <div class="panel-heading"><div><p class="eyebrow">STEP 2</p><h2>Record the review</h2></div></div>
+                <div class="form-grid contract-form-grid">
+                    <label>Reviewed on<input name="reviewedOn" type="date" value="@Model.Today.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" required /></label>
+                    <label>Reviewed with<input name="reviewedWith" value="@Model.ReviewedWith" maxlength="150" required placeholder="e.g. Jane Smith, business manager" /></label>
+                    <label>Reason for anything removed<select name="reason">@foreach (var reason in Model.RevokeReasons) { <option value="@reason" selected="@(reason == AccessDefaults.RemovedAtReview)">@reason</option> }</select></label>
+                    <label class="span-2">Notes<textarea name="notes" rows="3" maxlength="4000">@Model.Notes</textarea></label>
+                </div>
+                <div class="asset-form-actions"><button class="button button-primary" type="submit">Record the review</button></div>
+            </section>
+        }
+    </form>
+}
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">EVIDENCE</p><h2>Past reviews</h2></div><span class="badge">@Model.Reviews.Count</span></div>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Reviewed</th><th>With</th><th>By</th><th>Scope</th><th class="num">Kept</th><th class="num">Removed</th><th>Notes</th></tr></thead><tbody>
+    @foreach (var review in Model.Reviews)
+    {
+        <tr><td>@AssetInsights.Format(review.ReviewedOn)</td><td>@review.ReviewedWith</td><td>@review.ReviewedBy</td><td>@review.Scope</td><td class="num">@review.Confirmed</td><td class="num">@review.Revoked</td><td>@review.Notes</td></tr>
+    }
+    @if (Model.Reviews.Count == 0) { <tr><td colspan="7" class="empty">No reviews recorded yet.</td></tr> }
+    </tbody></table></div>
+    @if (Model.CanSetInterval)
+    {
+        <form method="post" asp-page-handler="Interval" asp-route-system="@Model.SystemId" class="import-row">
+            <label>Review every (days)<input name="days" type="number" min="7" max="730" value="@Model.ReviewDays" required /></label>
+            <button class="button button-secondary" type="submit">Save</button>
+            <small class="muted">About 120 days is once a term. Grants not reviewed within this show as review overdue.</small>
+        </form>
+    }
+</section>

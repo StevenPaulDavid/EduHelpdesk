@@ -17,11 +17,12 @@ public partial class HelpdeskStore
 
     // ---- Leavers ----
 
-    // Whoever is inactive has the date they left; whoever is active has none. Keeps the existing date when an
-    // inactive person is edited, and the anonymised date always carries over (an edit form doesn't send it).
+    // Whoever is inactive has the date they left; whoever is active has none. A leave date given with the change wins
+    // (the person page's "Left on"); otherwise an inactive person being edited keeps theirs. The anonymised date always
+    // carries over (an edit form doesn't send it).
     private static UserRecord WithLeaverDates(UserRecord item, UserRecord? previous) => item with
     {
-        LeftAt = item.IsActive ? null : previous is { IsActive: false, LeftAt: { } left } ? left : item.LeftAt ?? DateTime.UtcNow,
+        LeftAt = item.IsActive ? null : item.LeftAt ?? (previous is { IsActive: false, LeftAt: { } left } ? left : DateTime.UtcNow),
         AnonymisedAt = previous?.AnonymisedAt ?? item.AnonymisedAt
     };
 
@@ -41,8 +42,10 @@ public partial class HelpdeskStore
     public sealed record LeaverHoldings(UserRecord Person, IReadOnlyList<AssetRecord> Assets, IReadOnlyList<(LoanKit Kit, KitLoan Loan)> Kits,
         IReadOnlyList<TicketRecord> OpenTickets, IReadOnlyList<ProjectRecord> ActiveProjects, bool OnlyProjectLead)
     {
+        // Their live lines on the access control register, with each system's or area's name.
+        public IReadOnlyList<(AccessGrant Grant, AccessResource Resource)> Access { get; init; } = [];
         public int EquipmentCount => Assets.Count + Kits.Count;
-        public bool HoldsAnything => EquipmentCount + OpenTickets.Count + ActiveProjects.Count > 0 || OnlyProjectLead;
+        public bool HoldsAnything => EquipmentCount + OpenTickets.Count + ActiveProjects.Count + Access.Count > 0 || OnlyProjectLead;
 
         // "2 assets and 1 kit" - blank when there is no equipment.
         public string EquipmentSummary()
@@ -70,15 +73,19 @@ public partial class HelpdeskStore
         var tickets = _data.Tickets.Where(x => x.RequesterId == user.Id && !TicketInsights.IsClosed(x)).OrderBy(x => x.Number).ToList();
         var projects = _data.Projects.Where(x => x.RequesterId == user.Id && x.IsActive).OrderBy(x => x.Number).ToList();
         var onlyLead = user.IsProjectLead && !_data.Users.Any(x => x.Id != user.Id && x.IsActive && x.IsProjectLead);
-        return new LeaverHoldings(user, assets, kits, tickets, projects, onlyLead);
+        var today = AssetInsights.Today;
+        var access = _data.AccessGrants.Where(x => x.PersonId == user.Id && x.IsActive(today))
+            .Select(x => (Grant: x, Resource: _data.AccessResources.FirstOrDefault(r => r.Id == x.ResourceId)))
+            .Where(x => x.Resource is not null).Select(x => (x.Grant, x.Resource!)).OrderBy(x => x.Item2.Name, NaturalComparer.Instance).ToList();
+        return new LeaverHoldings(user, assets, kits, tickets, projects, onlyLead) { Access = access };
     }
 
-    // People who have left but still have equipment, with how many items - the People list flags them.
+    // People who have left but still have equipment or live access, with how many - the People list flags them.
     public IReadOnlyDictionary<Guid, int> LeaversStillHolding()
     {
         lock (_sync)
-            return _data.Users.Where(x => !x.IsActive).Select(HoldingsCore).Where(x => x.EquipmentCount > 0)
-                .ToDictionary(x => x.Person.Id, x => x.EquipmentCount);
+            return _data.Users.Where(x => !x.IsActive).Select(HoldingsCore).Where(x => x.EquipmentCount + x.Access.Count > 0)
+                .ToDictionary(x => x.Person.Id, x => x.EquipmentCount + x.Access.Count);
     }
 
     // Ids of everyone inactive, for the asset review list's "held by someone who has left".
@@ -131,7 +138,11 @@ public partial class HelpdeskStore
         IReadOnlyList<SubjectAccessMention> Mentions,
         IReadOnlyList<AuditEntry> AuditEntries,
         IReadOnlyDictionary<Guid, string> TechnicianNames,
-        IReadOnlyDictionary<Guid, string> SlaNames);
+        IReadOnlyDictionary<Guid, string> SlaNames)
+    {
+        // Their lines on the access control register, with each system's or area's name.
+        public IReadOnlyList<(AccessGrant Grant, string Resource)> Access { get; init; } = [];
+    }
 
     // Everything the helpdesk holds about one requester, gathered under the lock so it is one consistent moment. The
     // export (SubjectAccessExport) turns it into a zip; recording that it was taken is the caller's job.
@@ -173,7 +184,11 @@ public partial class HelpdeskStore
 
             var audit = _audit.Where(x => AuditConcerns(x, person)).OrderBy(x => x.At).ToList();
             return new SubjectAccessData(person, DateTime.UtcNow, CurrentActor(), tickets, attachments, fields, assets, loans, projects, mentions, audit,
-                _data.Technicians.ToDictionary(x => x.Id, x => x.Name), _data.Slas.ToDictionary(x => x.Id, x => x.Name));
+                _data.Technicians.ToDictionary(x => x.Id, x => x.Name), _data.Slas.ToDictionary(x => x.Id, x => x.Name))
+            {
+                Access = _data.AccessGrants.Where(x => x.PersonId == userId).OrderBy(x => x.GrantedOn)
+                    .Select(x => (x, _data.AccessResources.FirstOrDefault(r => r.Id == x.ResourceId)?.Name ?? "Unknown")).ToList()
+            };
         }
     }
 
@@ -194,7 +209,7 @@ public partial class HelpdeskStore
     // Records that a copy was taken, with who took it. Written straight to the log, as there is nothing to save.
     public void RecordSubjectAccessExport(SubjectAccessData data) =>
         RecordEvent(new AuditEntry(DateTime.UtcNow, "Users", "User", data.Person.Id.ToString(), data.Person.Name, "Subject access export",
-            $"A copy of everything held about them was downloaded: {data.Tickets.Count} ticket(s), {data.Attachments.Count} file(s), {data.Assets.Count} asset(s), {data.KitLoans.Count} kit loan(s), {data.Projects.Count} project(s), {data.Mentions.Count} mention(s) on other tickets, {data.AuditEntries.Count} audit line(s).")
+            $"A copy of everything held about them was downloaded: {data.Tickets.Count} ticket(s), {data.Attachments.Count} file(s), {data.Assets.Count} asset(s), {data.KitLoans.Count} kit loan(s), {data.Projects.Count} project(s), {data.Access.Count} access record(s), {data.Mentions.Count} mention(s) on other tickets, {data.AuditEntries.Count} audit line(s).")
         { By = CurrentActor() });
 
     // ---- Retention ----
@@ -343,7 +358,10 @@ public partial class HelpdeskStore
     private (List<UserRecord> People, int Waiting) ExpiredLeavers(DateTime cutoff)
     {
         var due = _data.Users.Where(x => !x.IsActive && x.AnonymisedAt is null && x.LeftAt is { } left && left < cutoff).ToList();
-        var clear = due.Where(x => HoldingsCore(x) is { EquipmentCount: 0, OpenTickets.Count: 0, ActiveProjects.Count: 0 }).ToList();
+        // Live access on the access control register counts as holding something too: it needs removing, not forgetting.
+        var today = AssetInsights.Today;
+        var clear = due.Where(x => HoldingsCore(x) is { EquipmentCount: 0, OpenTickets.Count: 0, ActiveProjects.Count: 0 }
+            && !_data.AccessGrants.Any(g => g.PersonId == x.Id && g.IsActive(today))).ToList();
         return (clear, due.Count - clear.Count);
     }
 
@@ -399,6 +417,10 @@ public partial class HelpdeskStore
                 History = p.History.Select(h => h with { Details = scrub(h.Details), By = Rename(h.By) }).ToList()
             };
         }
+        // The access register keeps that the record had access and when, but not their username or anything noted about them.
+        for (var i = 0; i < _data.AccessGrants.Count; i++)
+            if (_data.AccessGrants[i].PersonId == person.Id)
+                _data.AccessGrants[i] = _data.AccessGrants[i] with { Identifier = "", Notes = scrub(_data.AccessGrants[i].Notes) };
         for (var i = 0; i < _data.KitLoans.Count; i++)
             if (_data.KitLoans[i].BorrowerUserId == person.Id)
                 _data.KitLoans[i] = _data.KitLoans[i] with { BorrowerName = AnonymisedName, Notes = scrub(_data.KitLoans[i].Notes) };
@@ -451,7 +473,7 @@ public partial class HelpdeskStore
             using (var select = connection.CreateCommand())
             {
                 select.Transaction = transaction;
-                select.CommandText = "SELECT Id, Entity, Details, Actor, EntityType = 'User' AND EntityKey = $key FROM AuditLog WHERE (EntityType = 'User' AND EntityKey = $key) OR (ActorId IS NULL AND Actor = $name) OR Details LIKE $email OR Details LIKE $namelike;";
+                select.CommandText = "SELECT Id, Entity, Details, Actor, EntityType = 'User' AND EntityKey = $key FROM AuditLog WHERE (EntityType = 'User' AND EntityKey = $key) OR (ActorId IS NULL AND Actor = $name) OR Details LIKE $email OR Details LIKE $namelike OR Entity LIKE $namelike;";
                 select.Parameters.AddWithValue("$key", id.ToString());
                 select.Parameters.AddWithValue("$name", name);
                 select.Parameters.AddWithValue("$email", email.Length > 0 ? $"%{email}%" : "\u0001");

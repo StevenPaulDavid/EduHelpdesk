@@ -138,6 +138,15 @@ public sealed partial class HelpdeskStore
             if (index < 0) return $"{kind} was not found.";
             if (IsProtectedContractStatus(kind, oldValue)) return ProtectedContractStatusMessage;
             options[index] = newValue;
+            if (kind == "Person type")
+                for (var i = 0; i < _data.Users.Count; i++)
+                    if (string.Equals(_data.Users[i].PersonType, oldValue, StringComparison.OrdinalIgnoreCase)) _data.Users[i] = _data.Users[i] with { PersonType = newValue };
+            if (kind == "Access category")
+                for (var i = 0; i < _data.AccessResources.Count; i++)
+                    if (string.Equals(_data.AccessResources[i].Category, oldValue, StringComparison.OrdinalIgnoreCase)) _data.AccessResources[i] = _data.AccessResources[i] with { Category = newValue };
+            if (kind == "Revoke reason")
+                for (var i = 0; i < _data.AccessGrants.Count; i++)
+                    if (string.Equals(_data.AccessGrants[i].RevokeReason, oldValue, StringComparison.OrdinalIgnoreCase)) _data.AccessGrants[i] = _data.AccessGrants[i] with { RevokeReason = newValue };
             for (var i = 0; i < _data.Contracts.Count; i++)
             {
                 var contract = _data.Contracts[i];
@@ -234,6 +243,9 @@ public sealed partial class HelpdeskStore
                 "Spend category" => _data.Contracts.Any(x => string.Equals(x.SpendCategory, item, StringComparison.OrdinalIgnoreCase)),
                 "Contract duration" => _data.Contracts.Any(x => string.Equals(x.Duration, item, StringComparison.OrdinalIgnoreCase)),
                 "Contract status" => _data.Contracts.Any(x => string.Equals(x.Status, item, StringComparison.OrdinalIgnoreCase)),
+                "Person type" => _data.Users.Any(x => string.Equals(x.PersonType, item, StringComparison.OrdinalIgnoreCase)),
+                "Access category" => _data.AccessResources.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
+                "Revoke reason" => _data.AccessGrants.Any(x => string.Equals(x.RevokeReason, item, StringComparison.OrdinalIgnoreCase)),
                 "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
                 "Part location" => _data.Parts.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
                 "Loan reason" => _data.KitLoans.Any(x => string.Equals(x.Reason, item, StringComparison.OrdinalIgnoreCase)),
@@ -586,6 +598,12 @@ public sealed partial class HelpdeskStore
         // What "ended" means on the contracts register (ContractRules.IsLive). Only once the register's lists exist, so
         // an upgrade still gets the full starting list from EnsureComplianceDefaults rather than this one value.
         if (_data.ComplianceVersion >= 1) EnsureOptions(_data.ContractStatuses, [ContractStatusDefaults.Expired]);
+        // The access register's: what a blank person type means, and the reasons the leaver check and the review give.
+        if (_data.ComplianceVersion >= 2)
+        {
+            EnsureOptions(_data.PersonTypes, [AccessDefaults.Staff]);
+            EnsureOptions(_data.RevokeReasons, [AccessDefaults.Leaver, AccessDefaults.RemovedAtReview]);
+        }
         // What "finished" means everywhere (see IsBuiltInStatus), plus at least one open status for new tickets to start in.
         EnsureOptions(_data.Statuses, [TicketInsights.ClosedStatus]);
         if (!_data.Statuses.Any(x => !IsBuiltInStatus(x))) _data.Statuses.Insert(0, "Open");
@@ -671,6 +689,9 @@ public sealed partial class HelpdeskStore
         "SpendCategories" => "Spend category",
         "ContractDurations" => "Contract duration",
         "ContractStatuses" => "Contract status",
+        "PersonTypes" => "Person type",
+        "AccessCategories" => "Access category",
+        "RevokeReasons" => "Revoke reason",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -694,11 +715,14 @@ public sealed partial class HelpdeskStore
         "Spend category" => _data.SpendCategories,
         "Contract duration" => _data.ContractDurations,
         "Contract status" => _data.ContractStatuses,
+        "Person type" => _data.PersonTypes,
+        "Access category" => _data.AccessCategories,
+        "Revoke reason" => _data.RevokeReasons,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
         NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement" or "Building" or "Asset condition"
-            or "Contract type" or "Spend category" or "Contract duration" or "Contract status";
+            or "Contract type" or "Spend category" or "Contract duration" or "Contract status" or "Person type" or "Access category" or "Revoke reason";
     // Expired is how the register knows a contract has ended (ContractRules.IsLive).
     private static bool IsProtectedContractStatus(string kind, string value) =>
         kind == "Contract status" && string.Equals(value.Trim(), ContractStatusDefaults.Expired, StringComparison.OrdinalIgnoreCase);

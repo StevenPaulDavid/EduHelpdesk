@@ -26,36 +26,46 @@ public static class OnboardingOwners
     public static string? Find(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
-// What ticking a task does besides ticking it. Most tasks do nothing more; these two do the job for you:
+// What ticking a task does besides ticking it. Most tasks do nothing more; these do the job for you:
 // - PortalAccount gives the new starter a temporary staff portal password and prints their quick start guide;
-// - IssueAsset picks a free device of AssetType from the asset register and assigns it to them.
+// - IssueAsset picks a free device of AssetType from the asset register and assigns it to them;
+// - GrantAccess records their access to a system or area on the access control register. The system's id is kept in
+//   the task's AssetType field, which is the action's target ("Laptop" for a device task) - see AccessResourceId.
 public static class OnboardingActions
 {
     public const string None = "";
     public const string PortalAccount = "PortalAccount";
     public const string IssueAsset = "IssueAsset";
+    public const string GrantAccess = "GrantAccess";
 
-    // As one form value: "", "portal", or "asset:Laptop".
-    public static string Encode(string action, string? assetType) => action switch
+    // As one form value: "", "portal", "asset:Laptop" or "access:{system id}".
+    public static string Encode(string action, string? target) => action switch
     {
         PortalAccount => "portal",
-        IssueAsset => $"asset:{assetType}",
+        IssueAsset => $"asset:{target}",
+        GrantAccess => $"access:{target}",
         _ => ""
     };
 
-    public static (string Action, string? AssetType) Decode(string? value) => value?.Trim() switch
+    public static (string Action, string? Target) Decode(string? value) => value?.Trim() switch
     {
         "portal" => (PortalAccount, null),
         { } text when text.StartsWith("asset:", StringComparison.Ordinal) && text.Length > 6 => (IssueAsset, text[6..].Trim()),
+        { } text when text.StartsWith("access:", StringComparison.Ordinal) && Guid.TryParse(text[7..], out var id) => (GrantAccess, id.ToString()),
         _ => (None, null)
     };
 
-    public static string Describe(string action, string? assetType) => action switch
+    // targetName: the asset type, or for an access task the system's name.
+    public static string Describe(string action, string? targetName) => action switch
     {
         PortalAccount => "Makes their staff portal account",
-        IssueAsset => $"Issues a {assetType} from the register",
+        IssueAsset => $"Issues a {targetName} from the register",
+        GrantAccess => $"Records their access to {targetName}",
         _ => ""
     };
+
+    public static Guid? AccessResourceId(string action, string? target) =>
+        action == GrantAccess && Guid.TryParse(target, out var id) ? id : null;
 }
 
 // A checklist for one kind of new starter - Teacher, Support staff, Supply/cover - edited in Settings → Onboarding.
@@ -116,6 +126,7 @@ public record OnboardingTask(Guid Id, string Title, string Stage, int OffsetDays
     public Actor? CompletedBy { get; init; }
     public string Action { get; init; } = OnboardingActions.None;
     public string? AssetType { get; init; }
+    public Guid? AccessResourceId => OnboardingActions.AccessResourceId(Action, AssetType);
     // The device an IssueAsset task handed over, while it is done.
     public Guid? AssetId { get; init; }
     public bool IsDone => CompletedAt is not null;

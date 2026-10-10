@@ -161,7 +161,7 @@ public class PeopleModel(HelpdeskStore store, TemporaryPasswords passwords) : Pa
     {
         "active" => "Active",
         "inactive" => "Inactive",
-        "leavers" => "Left, still holding equipment",
+        "leavers" => "Left, still holding equipment or access",
         _ => status ?? ""
     };
 
