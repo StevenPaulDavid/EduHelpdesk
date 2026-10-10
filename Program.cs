@@ -94,6 +94,11 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Contracts", Policy(Modules.Contracts, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Contract", Policy(Modules.Contracts, ModulePermission.View));
     options.Conventions.AuthorizePage("/Contracts/Add", Policy(Modules.Contracts, ModulePermission.New));
+    // Importing both adds and updates, so it needs both; the page checks the pair itself.
+    options.Conventions.AuthorizePage("/Contracts/Import", Policy(Modules.Contracts, ModulePermission.New));
+    options.Conventions.AuthorizePage("/People/Import", Policy(Modules.Requesters, ModulePermission.New));
+    // The compliance summary spans three modules, so it has no one rule of its own beyond being signed in: it shows
+    // each register to whoever can reach it, and refuses anyone who can reach none of them.
 
     // The access control register. The list is Pages/Access/Index (a rule for "/Access" would guard nothing). A grant's
     // page opens to read it; recording, changing, removing and reviewing are checked in the handlers.

@@ -1,0 +1,71 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Compliance.IndexModel
+@{
+    ViewData["Title"] = "Compliance summary"; ViewData["Wide"] = true;
+    var danger = Model.All.Count(x => x.Level == ComplianceFinding.Levels.Danger);
+    var warning = Model.All.Count(x => x.Level == ComplianceFinding.Levels.Warning);
+}
+<div class="page-heading">
+    <div><p class="eyebrow">COMPLIANCE</p><h1>Compliance summary</h1><p class="hero-copy">The registers the DfE digital and technology standards ask for - assets, contracts and access control - and everything on them that needs acting on, most urgent first.</p></div>
+</div>
+
+<div class="metrics">
+    <div class="metric"><span>To act on now</span><strong>@danger</strong><small>Overdue, ended, unapproved or leavers</small></div>
+    <div class="metric"><span>Coming up</span><strong>@warning</strong><small>Due soon or ending soon</small></div>
+    @foreach (var register in Model.Registers.Take(2))
+    {
+        <div class="metric"><span>@register.Name</span><strong>@register.Records</strong><small>@register.RecordsLabel</small></div>
+    }
+</div>
+
+<div class="compliance-grid">
+    @foreach (var register in Model.Registers)
+    {
+        <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">REGISTER</p><h2><a href="@Url.Page(register.Page)">@register.Name</a></h2></div></div>
+            <p>
+                @if (register.Danger > 0) { <a class="badge badge-warning" href="@Model.FilterUrl(register.Key, "danger")">@register.Danger to act on</a> }
+                @if (register.Warning > 0) { <a class="badge badge-soon" href="@Model.FilterUrl(register.Key, "warning")">@register.Warning coming up</a> }
+                @if (register.Danger + register.Warning == 0) { <span class="badge badge-good">Nothing outstanding</span> }
+            </p>
+            <p class="muted">@register.Records @register.RecordsLabel. @register.Note</p>
+            @{
+                var canExport = register.Key switch { "assets" => Model.CanExportAssets, "contracts" => Model.CanExportContracts, _ => Model.CanExportAccess };
+            }
+            <div class="button-row">
+                @if (canExport)
+                {
+                    <a class="button button-secondary" href="@Url.Page("/Compliance/Index", "Export", new { register = register.Key })">⬇ Excel (DfE layout)</a>
+                    <a class="button button-secondary" href="@Url.Page("/Compliance/Index", "Export", new { register = register.Key, format = "csv" })">CSV</a>
+                }
+                @if (register.Key == "assets" && Model.CanImportAssets) { <a class="button button-secondary" asp-page="/Assets/Import">Import</a> }
+                @if (register.Key == "contracts" && Model.CanImportContracts) { <a class="button button-secondary" asp-page="/Contracts/Import">Import</a> }
+                @if (register.Key == "access" && Model.CanImportStaff) { <a class="button button-secondary" asp-page="/People/Import">Import a staff list</a> }
+            </div>
+        </section>
+    }
+</div>
+
+<section class="panel directory-panel">
+    <div class="panel-heading">
+        <div><p class="eyebrow">TO DO</p><h2>What needs acting on</h2></div>
+        <div class="heading-actions"><span class="badge">@Model.Shown.Count</span></div>
+    </div>
+    <nav class="queue-tabs" aria-label="Register">
+        <a class="queue-tab @(Model.Register is null ? "active" : null)" href="@Model.FilterUrl(null, Model.Level)">All registers</a>
+        @foreach (var register in Model.Registers) { <a class="queue-tab @(Model.Register == register.Key ? "active" : null)" href="@Model.FilterUrl(register.Key, Model.Level)">@register.Name</a> }
+    </nav>
+    <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Record</th><th>Issue</th><th>Detail</th><th>Register</th></tr></thead><tbody>
+    @foreach (var finding in Model.Shown)
+    {
+        <tr>
+            <td><strong><a href="@Url.Page(finding.Page, finding.Route)">@finding.Subject</a></strong></td>
+            <td><span class="badge @finding.Tone">@finding.Issue</span></td>
+            <td>@finding.Detail</td>
+            <td class="muted">@finding.Register</td>
+        </tr>
+    }
+    @if (Model.Shown.Count == 0) { <tr><td colspan="4" class="empty">Nothing needs acting on@(Model.Register is null ? "" : " in this register").</td></tr> }
+    </tbody></table></div>
+</section>

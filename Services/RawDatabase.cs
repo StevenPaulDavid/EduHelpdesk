@@ -30,6 +30,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["AssetAttributeDefinitions"] = "Custom asset attributes (Settings → Custom asset attributes).",
         ["AssetAttributeValues"] = "Each asset's answers to the custom asset attributes.",
         ["AssetComments"] = "Comments on assets.",
+        ["ComplianceReminders"] = "What the compliance reminders under the bell have already rung about, so each due item is only announced once.",
         ["AccessResources"] = "The systems and physical areas on the access control register.",
         ["AccessGrants"] = "The access control register: one row per person's access to one system or area, live or removed.",
         ["AccessReviews"] = "Each termly access review: when, with whom, and how much was kept and removed.",

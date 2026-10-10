@@ -25,6 +25,8 @@ public sealed class BackupScheduler(HelpdeskStore store, ILogger<BackupScheduler
                 }
                 // One size reading a day, for the growth figures on Settings → Database.
                 await Task.Run(() => store.RecordSizeIfDue(DateTime.Now), stoppingToken);
+                // Once a day from 7am: the bell rings for anything newly due on the DfE registers.
+                await Task.Run(() => store.SendComplianceReminders(DateTime.Now), stoppingToken);
                 // Retention runs after the backup, and only once one has worked (HelpdeskStore.RetentionDue), so nothing
                 // is deleted that no backup holds.
                 if (store.RetentionDue(DateTime.Now))

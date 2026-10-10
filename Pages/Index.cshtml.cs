@@ -67,6 +67,14 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public int StartersSoon => NewStarters.Count(x => x.Record.StartDate >= Today);
     public int OnboardingOverdueTasks => NewStarters.Sum(x => x.Record.OverdueCount(Today));
     public bool CanSeeAssetReport => store.UserHasFlag(User, Modules.Flags.ReportAssets);
+    // The contracts and access registers' due items. Assets have their own panel above, which already shows checks and
+    // end of support.
+    public bool CanSeeContracts => store.UserCan(User, Modules.Contracts, ModulePermission.Access);
+    public bool CanSeeAccess => store.UserCan(User, Modules.Access, ModulePermission.Access);
+    private IReadOnlyList<ComplianceFinding>? _compliance;
+    public IReadOnlyList<ComplianceFinding> ComplianceDue => _compliance ??=
+        ComplianceFindings.For(store, AssetInsights.Today, assets: false, contracts: CanSeeContracts, access: CanSeeAccess)
+            .Where(x => x.Level >= ComplianceFinding.Levels.Warning).ToList();
     public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
     public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
     // Slow saves or a nearly full disk (Settings → Database), for Administrators only.

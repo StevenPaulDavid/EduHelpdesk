@@ -24,6 +24,8 @@ public sealed partial class HelpdeskStore
         public const string StaffComment = "staff-comment";
         // A technician pressed On my way on the ticket: goes to that requester, naming the technician (ActorId).
         public const string OnMyWay = "on-my-way";
+        // Something on the DfE registers has fallen due (HelpdeskStore.ComplianceReminders): to each account that can see it.
+        public const string Compliance = "compliance";
     }
 
     // An Id is the time it was made, in milliseconds, or one more than the last: it only ever goes up, even after the

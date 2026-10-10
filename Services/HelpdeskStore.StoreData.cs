@@ -43,6 +43,9 @@ public sealed partial class HelpdeskStore
         public List<string> AccessCategories { get; set; } = [];
         public List<string> RevokeReasons { get; set; } = [];
         public int AccessReviewDays { get; set; } = AccessDefaults.ReviewDays;
+        // The compliance reminders (HelpdeskStore.ComplianceReminders): what the bell has already rung about, and when it last looked.
+        public HashSet<string> ComplianceReminded { get; set; } = new(StringComparer.Ordinal);
+        public DateOnly? LastComplianceReminder { get; set; }
         public List<LoanKit> LoanKits { get; set; } = [];
         public List<KitLoan> KitLoans { get; set; } = [];
         // A borrower with this many loans inside this many days is flagged on the loan report.

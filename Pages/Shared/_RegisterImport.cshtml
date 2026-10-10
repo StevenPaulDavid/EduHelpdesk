@@ -1,0 +1,51 @@
+@model EduHelpdesk.Pages.RegisterImportPage
+@using EduHelpdesk.Services
+@* The page body of both register imports (Pages/Shared/RegisterImportPage.cs): upload, then a preview with a tick per
+   row, then apply. *@
+<a class="back-link" href="@Url.Page(Model.BackPage)">← @Model.BackLabel</a>
+<div class="page-heading"><div><p class="eyebrow">IMPORT</p><h1>@Model.Title</h1><p class="hero-copy">@Model.Intro</p></div></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+@if (Model.Preview is not { } preview)
+{
+    <section class="panel">
+        <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="import-row">
+            <label class="file-drop"><input type="file" name="file" accept=".xlsx,.csv" required /><span>Choose or drop an .xlsx or .csv file</span></label>
+            <button class="button button-primary" type="submit">Preview</button>
+        </form>
+        <p class="muted">Nothing changes until you have seen the preview and pressed Apply. Rows are matched to what is already here, so importing the same file again updates rather than duplicates. Blank cells never clear anything.</p>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">PREVIEW</p><h2>@Model.FileName</h2></div>
+            <div class="heading-actions">
+                <span class="badge">@preview.Count(RegisterImportActions.Add) to add</span>
+                <span class="badge">@preview.Count(RegisterImportActions.Update) to update</span>
+                <span class="badge">@preview.Count(RegisterImportActions.NoChange) unchanged</span>
+                @if (preview.Count(RegisterImportActions.Error) > 0) { <span class="badge badge-warning">@preview.Count(RegisterImportActions.Error) with problems</span> }
+            </div>
+        </div>
+        <p class="muted">Columns used: @(string.Join(", ", preview.MatchedColumns)).@if (preview.IgnoredColumns.Count > 0) { <br /><text>Not used: @(string.Join(", ", preview.IgnoredColumns)).</text> }</p>
+        @if (preview.NewValues.Count > 0) { <p class="muted">Will also add, for the rows applied: @(string.Join("; ", preview.NewValues)).</p> }
+        <form method="post" asp-page-handler="Apply">
+            <input type="hidden" name="t" value="@Model.Token" />
+            <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th>Apply</th><th data-stack="head">Row</th><th>What happens</th><th>Details</th></tr></thead><tbody>
+            @foreach (var row in preview.Rows)
+            {
+                <tr class="@(row.CanApply ? null : "row-muted")">
+                    <td>@if (row.CanApply) { <input type="checkbox" name="rows" value="@row.Number" checked="@(row.HeldBack is null)" aria-label="Apply row @row.Number" /> }</td>
+                    <td><strong>@row.Key</strong><br /><span class="muted">Row @row.Number</span></td>
+                    <td><span class="badge @(row.Action == RegisterImportActions.Error ? "badge-warning" : row.Action == RegisterImportActions.Add ? "badge-good" : "")">@row.Action</span>@if (row.HeldBack is { } held) { <br /><span class="muted">@held - not ticked</span> }</td>
+                    <td>@row.Detail@foreach (var warning in row.Warnings) { <br /><span class="badge badge-soon">@warning</span> }</td>
+                </tr>
+            }
+            </tbody></table></div>
+            <div class="asset-form-actions">
+                <button class="button button-primary" type="submit">Apply the ticked rows</button>
+                <a class="button button-secondary" href="@Url.Page(null)">Start again</a>
+            </div>
+        </form>
+    </section>
+}

@@ -567,6 +567,8 @@ html.blade-open { overflow: hidden; }
 .contract-fieldset legend { font-weight: 700; padding: 0 6px; }
 .contract-form-grid .span-2 { grid-column: 1 / -1; }
 .row-muted td { color: var(--muted); }
+.compliance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--space-5); margin-bottom: var(--space-5); }
+.compliance-grid .panel { margin: 0; }
 @media(max-width:900px) { .contract-layout { grid-template-columns: minmax(0,1fr); } }
 @media(max-width:640px) { .contract-form-grid { grid-template-columns: minmax(0,1fr); } }
 /* Several fields for one bulk action (Record a check) sit in the bar as if they were its own. Not when [hidden]. */

@@ -78,7 +78,7 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
 
     public async Task<IActionResult> OnPostUploadAsync(IFormFile? file, string? delimiter)
     {
-        if (file is null || file.Length == 0) { Message = "Choose a CSV file first."; return RedirectToPage(); }
+        if (file is null || file.Length == 0) { Message = "Choose a CSV or Excel file first."; return RedirectToPage(); }
         if (file.Length > MaxBytes) { Message = "That file is larger than 10 MB. Split it into smaller files."; return RedirectToPage(); }
         byte[] bytes;
         using (var stream = new MemoryStream())
@@ -86,17 +86,43 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
             await file.CopyToAsync(stream);
             bytes = stream.ToArray();
         }
-        var separator = delimiter switch { "comma" => ',', "semicolon" => ';', "tab" => '\t', _ => (char?)null };
-        var csv = CsvReader.Parse(CsvReader.Decode(bytes), separator);
-        if (csv.Rows.Count < 2) { Message = "The file needs a header row and at least one row of assets."; return RedirectToPage(); }
-        if (csv.Rows.Count - 1 > MaxRows) { Message = $"That file has more than {MaxRows:N0} rows. Split it into smaller files."; return RedirectToPage(); }
+        string[] headers;
+        List<string[]> rows;
+        if (SpreadsheetReader.IsExcel(file.FileName))
+        {
+            // An Excel workbook - usually the DfE asset register template. Its header row is found wherever it sits, and
+            // the rows the template asks you to hide, and its made-up examples, are left out.
+            SheetTable table;
+            try { table = SpreadsheetReader.Read(bytes, file.FileName, RegisterExports.AssetHeaders, "Digital technology assets", "Register of current assets"); }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or DocumentFormat.OpenXml.Packaging.OpenXmlPackageException or FormatException)
+            {
+                Message = "That workbook couldn't be read. Save it again as .xlsx, or as .csv, and try again.";
+                return RedirectToPage();
+            }
+            if (table.Headers.Count == 0) { Message = "No asset column headings were found near the top of any sheet in that workbook."; return RedirectToPage(); }
+            var serial = table.Headers.FindIndex(x => SpreadsheetReader.NormaliseHeader(x) == "serial number");
+            var kept = table.Rows.Where(r => !r.Hidden && !RegisterExports.ExampleAssetSerials.Contains(r.Cell(serial), StringComparer.OrdinalIgnoreCase)).ToList();
+            var left = table.Rows.Count - kept.Count;
+            if (left > 0) TempData["ImportNote"] = $"{left} row{(left == 1 ? " was" : "s were")} left out: hidden in the workbook, or the DfE template's own examples.";
+            headers = [.. table.Headers];
+            rows = kept.Select(r => Enumerable.Range(0, headers.Length).Select(i => r.Cell(i)).ToArray()).ToList();
+            if (rows.Count == 0) { Message = "There are no asset rows to import in that workbook" + (left > 0 ? " once its hidden and example rows are left out." : "."); return RedirectToPage(); }
+        }
+        else
+        {
+            var separator = delimiter switch { "comma" => ',', "semicolon" => ';', "tab" => '\t', _ => (char?)null };
+            var csv = CsvReader.Parse(CsvReader.Decode(bytes), separator);
+            if (csv.Rows.Count < 2) { Message = "The file needs a header row and at least one row of assets."; return RedirectToPage(); }
+            headers = csv.Rows[0];
+            rows = csv.Rows.Skip(1).ToList();
+        }
+        if (rows.Count > MaxRows) { Message = $"That file has more than {MaxRows:N0} rows. Split it into smaller files."; return RedirectToPage(); }
 
-        var headers = csv.Rows[0];
         var session = new AssetImportSession
         {
             FileName = Path.GetFileName(file.FileName),
             Headers = headers,
-            Rows = csv.Rows.Skip(1).ToList(),
+            Rows = rows,
             Targets = AssetImportTargets.Suggest(headers, store.AssetAttributeDefinitions),
             Options = new AssetImportOptions("dmy", true, false, null, null)
         };

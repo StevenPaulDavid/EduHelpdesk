@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The DfE register templates, exactly as downloaded, for the import tests. -->
+    <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="EduHelpdesk.Models" />
     <Using Include="EduHelpdesk.Services" />

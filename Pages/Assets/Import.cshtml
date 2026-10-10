@@ -8,6 +8,7 @@
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 @if (!string.IsNullOrWhiteSpace(Model.Notice)) { <div class="notice">@Model.Notice</div> }
+@if (TempData.Peek("ImportNote") is string importNote && Model.Stage == "map") { <div class="notice">@importNote</div> }
 <ol class="import-steps">
     <li class="@(Model.Stage == "upload" ? "current" : "done")"><span>1</span> Choose a file</li>
     <li class="@(Model.Stage == "map" ? "current" : Model.Stage == "preview" ? "done" : "")"><span>2</span> Match the columns</li>
@@ -17,10 +18,10 @@
 @if (Model.Stage == "upload")
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">STEP 1</p><h2>Choose a CSV file</h2></div></div>
-        <p class="muted">One row per asset with a header row, saved as CSV from Excel, Google Sheets, or exported from another system. Comma, semicolon and tab separated files all work. Nothing is changed until you have reviewed the result in step 3.</p>
+        <div class="panel-heading"><div><p class="eyebrow">STEP 1</p><h2>Choose a file</h2></div></div>
+        <p class="muted">One row per asset with a header row: a CSV from Excel, Google Sheets or another system, or an Excel workbook - including the DfE digital technology asset register template, filled in. Comma, semicolon and tab separated files all work. Nothing is changed until you have reviewed the result in step 3.</p>
         <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="import-row">
-            <label>CSV file<input type="file" name="file" accept=".csv,.txt" required /></label>
+            <label>CSV or Excel file<input type="file" name="file" accept=".csv,.txt,.xlsx" required /></label>
             <label>Separator<select name="delimiter"><option value="">Detect automatically</option><option value="comma">Comma</option><option value="semicolon">Semicolon</option><option value="tab">Tab</option></select></label>
             <button class="button button-primary" type="submit">Upload and continue</button>
         </form>
@@ -29,6 +30,7 @@
             <li>The <strong>asset tag</strong> column is required. It decides whether a row updates an existing asset or adds a new one.</li>
             <li>An update only changes the columns you map. Blank cells leave the current value alone unless you choose otherwise in step 2.</li>
             <li>A new asset needs a <strong>type</strong> and a <strong>model</strong>.</li>
+            <li>The DfE template's headings are recognised, and the example rows it asks you to hide are left out. Its "Who is the asset assigned to?" column is free text, so it isn't matched to people unless you choose to.</li>
             <li>Tip: use <strong>Export to CSV</strong> on the Assets page to get every asset in a file, edit it, and import it back to update them in bulk.</li>
         </ul>
         <div class="heading-actions"><a class="button button-secondary" asp-page="/Assets/Import" asp-page-handler="Template">Download a template file</a></div>

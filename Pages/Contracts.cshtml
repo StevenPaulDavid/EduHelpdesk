@@ -11,6 +11,7 @@
     <div><p class="eyebrow">COMPLIANCE / CONTRACTS REGISTER</p><h1>Contracts register</h1><p class="hero-copy">The DfE digital technology contracts register: what the school pays for, who supplies it, and when each contract renews or needs notice.</p></div>
     <div class="heading-actions">
         @if (Model.CanView) { <a class="button button-secondary" href="@Url.Page("/Contracts", "Export", Model.Route())">⬇ Export CSV</a> }
+        @if (Model.CanAdd && Model.CanEdit) { <a class="button button-secondary" asp-page="/Contracts/Import">Import</a> }
         @if (Model.CanAdd) { <a class="button button-primary" asp-page="/Contracts/Add">@Icons.Plus Add contract</a> }
     </div>
 </div>

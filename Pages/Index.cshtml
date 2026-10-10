@@ -178,6 +178,29 @@
     </section>
 }
 
+@if (Model.CanSeeContracts || Model.CanSeeAccess)
+{
+    var complianceDue = Model.ComplianceDue;
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h2>Contracts and access</h2></div><span class="badge @(complianceDue.Any(x => x.Level == EduHelpdesk.Services.ComplianceFinding.Levels.Danger) ? "badge-warning" : "")">@complianceDue.Count</span></div>
+        <p class="muted dash-note">Renewals and notice dates coming up, contracts ending, leavers still with access, privileged access not approved, MFA off and the termly access review.</p>
+        @if (complianceDue.Count == 0) { <p class="empty">Nothing is due on the contracts or access registers.</p> }
+        else
+        {
+            <ul class="dash-list">
+                @foreach (var finding in complianceDue.Take(IndexModel.PanelSize))
+                {
+                    <li class="dash-row">
+                        <div class="dash-main"><a href="@Url.Page(finding.Page, finding.Route)"><strong>@finding.Subject</strong></a><span class="muted">@finding.Detail</span></div>
+                        <div class="dash-side"><span class="badge @finding.Tone">@finding.Issue</span></div>
+                    </li>
+                }
+            </ul>
+        }
+        <p class="muted dash-more"><a asp-page="/Compliance/Index">Open the compliance summary →</a></p>
+    </section>
+}
+
 @if (Model.CanSeeAssets || Model.CanSeeParts)
 {
     <div class="dash-grid">

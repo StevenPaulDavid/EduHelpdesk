@@ -132,6 +132,9 @@ public static class NotificationEndpoints
             // The one that names someone: the requester needs to know who to expect at the door. A technician's name
             // is no secret on a projected screen, unlike the ticket's words.
             HelpdeskStore.NotificationKinds.OnMyWay => ($"{TechnicianName(notification.ActorId, context) ?? "A technician"} is on their way", $"About your ticket #{notification.TicketNumber}. Click to open it.", ticket ?? settings),
+            // Generic like the rest: what fell due is on the summary, not in a toast on a projected screen.
+            HelpdeskStore.NotificationKinds.Compliance => ("Compliance: something is due", "A renewal, notice date, check or access review needs attention. Click to see what.",
+                links.GetPathByPage(context, "/Compliance/Index") ?? settings),
             _ => ("Helpdesk", "There is something new.", settings)
         };
         return new NotificationText(title, body, url);

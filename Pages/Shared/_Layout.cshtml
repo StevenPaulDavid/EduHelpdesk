@@ -10,7 +10,7 @@
     var onInventory = NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
     var onPeople = NavOn("/People");
     var onOnboarding = NavOn("/Onboarding");
-    var onCompliance = NavOn("/Contracts", "/Contract", "/Access");
+    var onCompliance = NavOn("/Contracts", "/Contract", "/Access", "/Compliance");
 
     // A link nobody can follow is worse than no link: people click it, get refused, and raise a ticket about it. So the
     // menu is built from what this role can actually reach. The pages enforce the same permissions themselves - this
@@ -23,6 +23,8 @@
     // The DfE registers that aren't inventory. Like HR, a menu only when there is more than one thing in it for this role;
     // the access control register and the compliance summary join the contracts register here.
     var compliance = new List<(string Page, string Label)>();
+    // The summary first: it is where the three registers meet.
+    if (Can(Modules.Contracts) || Can(Modules.Access)) compliance.Add(("/Compliance/Index", "Compliance summary"));
     if (Can(Modules.Contracts)) compliance.Add(("/Contracts", "Contracts register"));
     if (Can(Modules.Access)) { compliance.Add(("/Access/Index", "Access control")); compliance.Add(("/Access/Review", "Access review")); }
     // /Reports is the asset report, not an index, so pointing the menu at it would refuse anyone given only one of the
@@ -51,8 +53,10 @@
     }
     // The bell: a pop-up that was missed is still waiting under it. For whoever hears about new tickets and replies,
     // while the staff side of notifications is switched on in Settings - whether or not they switched pop-ups on here.
-    var bell = notifyAudience == HelpdeskStore.StaffAudience && Can(Modules.Tickets) && Helpdesk.NotificationsOpenFor(HelpdeskStore.StaffAudience)
-        ? Helpdesk.InboxFor(notifyAccount!.Value, broadcast: true, take: 15)
+    // Ticket news reaches only those who can see tickets; messages addressed to the account itself - the compliance
+    // reminders - reach anyone, so a business manager with no ticket access still has the bell.
+    var bell = notifyAudience == HelpdeskStore.StaffAudience && Helpdesk.NotificationsOpenFor(HelpdeskStore.StaffAudience)
+        ? Helpdesk.InboxFor(notifyAccount!.Value, broadcast: Can(Modules.Tickets), take: 15)
         : null;
     string BellLabel(int unread) => unread == 0 ? "Notifications, none unread" : $"Notifications, {unread} unread";
 

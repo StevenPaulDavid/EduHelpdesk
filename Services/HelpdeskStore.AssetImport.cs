@@ -341,6 +341,11 @@ public sealed partial class HelpdeskStore
         if (price is not null)
         {
             if (price.Length == 0) { if (options.BlankClears) next = next with { PurchasePrice = null }; }
+            // The DfE template: "If the asset is leased, then enter 'leased'" in the price column.
+            else if (string.Equals(price, "leased", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!column.ContainsKey("ownership")) next = next with { Ownership = AssetOwnership.Leased };
+            }
             else if (!ImportParsing.TryParsePrice(price, out var parsedPrice)) return Fail($"'{price}' is not a valid purchase price.");
             else next = next with { PurchasePrice = parsedPrice };
         }
