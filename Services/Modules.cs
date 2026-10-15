@@ -66,6 +66,7 @@ public static class Modules
     public static class Flags
     {
         public const string WorkingAs = "Tickets.WorkingAs";
+        public const string NotifyStaff = "Tickets.NotifyStaff";
         public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
@@ -82,6 +83,8 @@ public static class Modules
         public static readonly Definition[] All =
         [
             new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
+            // Puts a message on staff PCs through EduNotify (Settings → EduNotify), so it is kept apart from working tickets.
+            new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
             // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.
             new(AssignProjects, "Assign projects", "Reassign a project from the helpdesk when the project lead can't. The lead normally does this from the staff portal.", "Projects"),
             new(ReportAssets, "Asset reports", "The asset register report: review list, fleet age, warranty, problem devices.", "Reports"),

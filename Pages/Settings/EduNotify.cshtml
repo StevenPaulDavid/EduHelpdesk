@@ -1,0 +1,109 @@
+@page
+@model EduHelpdesk.Pages.Settings.EduNotifyModel
+@using EduHelpdesk.Services
+@{ ViewData["Title"] = "EduNotify"; }
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>EduNotify</h1><p class="hero-copy">Tell staff about an outage or other problem from its ticket, with a notice on their PCs through EduNotify. The notice comes down by itself when the ticket is closed.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice@(Model.Problem ? " notice-warning" : "")">@Model.Message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Connection</h2>@if (Model.Settings.Ready) { <span class="badge">On</span> } else if (Model.Settings.HasAddress && Model.Settings.HasKey) { <span class="badge">Switched off</span> } else { <span class="badge">Not set up</span> }</div>
+    @if (Model.Settings.HasKey)
+    {
+        <p class="muted">An API key is saved. For safety it is never shown again; to change it, paste a new one below.</p>
+    }
+    else
+    {
+        <p class="muted">No API key is saved yet. Make one in EduNotify (the steps are further down), then paste it here.</p>
+    }
+    <form method="post" asp-page-handler="Save" class="settings-form">
+        <label>EduNotify address<input name="address" type="text" autocomplete="off" spellcheck="false" maxlength="500" value="@Model.Settings.Address" placeholder="http://edunotify.school.local:5080" /></label>
+        <label>@(Model.Settings.HasKey ? "New API key (leave blank to keep the current one)" : "API key")<input name="apiKey" type="password" autocomplete="new-password" spellcheck="false" maxlength="200" placeholder="enk_…" /></label>
+        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Settings.Enabled" /> Let tickets send notices (the master switch - off stops sending and recalling, and keeps the key)</label>
+        <div><button class="button button-primary">Save</button></div>
+    </form>
+    @if (Model.Settings.HasKey)
+    {
+        <form method="post" asp-page-handler="RemoveKey" class="settings-form" data-confirm="Remove the API key? Tickets can't tell staff anything, or take notices down, until you paste a new one.">
+            <div><button class="button button-secondary">Remove the API key</button></div>
+        </form>
+    }
+</section>
+
+@if (Model.Settings.HasAddress && !Model.Settings.IsHttps)
+{
+    <div class="notice notice-warning">The address starts <strong>http://</strong>, so the API key crosses the school network unencrypted and anyone watching it could read the key and put messages on staff PCs. Once EduNotify has a certificate, change the address to <strong>https://</strong>.</div>
+}
+@if (!Model.Settings.Ready && Model.Notices.Count > 0)
+{
+    <div class="notice notice-warning">Sending is off, so the notices below stay on staff PCs even when their tickets are closed. Switch it back on, or recall them in EduNotify.</div>
+}
+
+<section class="panel">
+    <div class="panel-heading"><h2>Test the connection</h2></div>
+    <p class="muted">Asks EduNotify which templates the key may send and which groups of PCs there are. Nothing is shown on any PC. It works even while sending is switched off.</p>
+    @if (Model.LastAttempt is { } attempt)
+    {
+        <p class="muted">Last call to EduNotify, @attempt.At.ToLocalTime().ToString("ddd d MMM, HH:mm"): <strong>@(attempt.Ok ? "went through" : "failed")</strong> - @attempt.Message</p>
+    }
+    <form method="post" asp-page-handler="Test"><button class="button button-secondary" disabled="@(!(Model.Settings.HasAddress && Model.Settings.HasKey))">Test the connection</button></form>
+    @if (Model.Catalogue is { } catalogue)
+    {
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Template the key may send</th><th>What can be changed</th><th>Offered on tickets</th></tr></thead><tbody>
+        @foreach (var template in catalogue.Templates)
+        {
+            <tr>
+                <td>@template.Name@if (!string.IsNullOrWhiteSpace(template.Title)) { <br /><span class="muted">@template.Title</span> }</td>
+                <td>@(template.CanChangeTitle ? "Title and message" : template.CanChangeBody ? "Message only" : "Nothing - it goes as saved")</td>
+                <td>@if (template.Emergency) { <span class="badge badge-warning">No - emergency</span> } else { <span class="badge">Yes</span> }</td>
+            </tr>
+        }
+        @if (catalogue.Templates.Count == 0) { <tr><td colspan="3" class="muted">None. In EduNotify, give the key a template under Settings → Integrations.</td></tr> }
+        </tbody></table></div>
+        <p class="muted">Groups of PCs: @(catalogue.Groups.Count == 0 ? "none yet - make them in EduNotify under Devices." : string.Join(", ", catalogue.Groups.Select(x => x.Name))).
+            Checked @catalogue.FetchedAt.ToLocalTime().ToString("HH:mm"); the list refreshes every 10 minutes while sending is on.</p>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Notices showing now</h2><span class="badge">@Model.Notices.Count</span></div>
+    @if (Model.Notices.Count == 0)
+    {
+        <p class="muted">No ticket has a notice on staff PCs.</p>
+    }
+    else
+    {
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Ticket</th><th>Notice</th><th>Sent to</th><th>Sent</th><th></th></tr></thead><tbody>
+        @foreach (var notice in Model.Notices)
+        {
+            <tr>
+                <td><a asp-page="/Job" asp-route-number="@notice.TicketNumber">#@notice.TicketNumber</a></td>
+                <td>@notice.Title<br /><span class="muted">@notice.TemplateName</span></td>
+                <td>@notice.Recipients<br /><span class="muted">@notice.Online of @notice.Targeted PCs at first</span></td>
+                <td>@notice.SentAt.ToLocalTime().ToString("ddd d MMM, HH:mm")<br /><span class="muted">@notice.SentBy</span></td>
+                <td><form method="post" asp-page-handler="Recall" data-confirm="Take the notice for #@notice.TicketNumber off staff PCs now?"><input type="hidden" name="number" value="@notice.TicketNumber" /><button class="button button-secondary" disabled="@(!Model.Settings.HasKey)">Recall</button></form></td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Getting an API key from EduNotify</h2></div>
+    <ol class="muted">
+        <li>In the EduNotify console, go to <strong>Settings → Integrations → API keys</strong> and make a key named, say, <em>EduHelpdesk</em>. Its name is shown as the sender of every notice.</li>
+        <li>Tick the templates technicians may send - an <em>IT outage</em> template that lets the title and message be changed is the useful one. Leave <strong>May send emergency templates</strong> off: the helpdesk never offers them.</li>
+        <li>Optionally limit the key to this server's IP address.</li>
+        <li>EduNotify shows the key once, starting <code>enk_</code>. Paste it above with EduNotify's address (the one you open its console on), then <strong>Test the connection</strong>.</li>
+    </ol>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>How it works</h2></div>
+    <ul class="muted">
+        <li>On a ticket, <strong>Tell staff</strong> sends a notice to the groups of PCs you choose (or everyone), with the template, title and message you choose. It is sent with the ticket number as its reference, so sending again from the same ticket replaces the notice rather than adding a second.</li>
+        <li>When the ticket is closed - from its page, the ticket list, a merge, or by deleting it - the notice is recalled within a few seconds. If EduNotify can't be reached it keeps trying.</li>
+        <li>Who may send is a role permission: <strong>Tell staff through EduNotify</strong> under Tickets in Roles, on top of Tickets: Edit. Administrators always can.</li>
+        <li>Sending, updating and recalling are recorded in the ticket's history. Saving the address or key is in the audit log; the key itself never is.</li>
+        <li>If EduNotify is unavailable, the ticket says so and nothing else is held up. Failures show above and in the <a asp-page="/Settings/Log">error log</a>.</li>
+    </ul>
+</section>

@@ -52,6 +52,15 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         return events.Count == 0 ? "Posting is on, but no events are ticked." : $"Posts {string.Join(" and ", events)} to Teams.";
     }
 
+    private string EduNotifySummary()
+    {
+        var settings = store.EduNotifySettings;
+        if (!settings.HasAddress || !settings.HasKey) return "Tell staff about outages from a ticket, with a notice on their PCs through EduNotify. Not set up yet.";
+        if (!settings.Enabled) return "EduNotify is set up but sending is switched off.";
+        var showing = store.StaffNotices.Count;
+        return $"Tickets can put notices on staff PCs through EduNotify. {(showing == 0 ? "None showing now." : showing == 1 ? "1 showing now." : $"{showing} showing now.")}";
+    }
+
     private string RetentionSummary()
     {
         var rules = store.Retention;
@@ -122,6 +131,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
                 IsHttps ? "Encrypted" : "Not encrypted", Warn: !IsHttps, Good: IsHttps),
             ["/Settings/Notifications"] = new(NotificationSummary(), !store.NotificationSettings.Enabled ? "Off" : null),
             ["/Settings/TeamsChannel"] = new(TeamsSummary(), store.TeamsSettings.Ready ? "On" : null),
+            ["/Settings/EduNotify"] = new(EduNotifySummary(), store.EduNotifySettings.Ready ? "On" : null),
             ["/Settings/Retention"] = new(RetentionSummary(), store.Retention.AnyOn ? "On" : null),
             ["/Settings/Audit"] = new("Who changed what, and when, across the whole helpdesk."),
             ["/Settings/Database"] = new("How big the data is and how fast it's growing, disk space and save times - and every table exactly as it is stored, read-only.", "Read-only"),

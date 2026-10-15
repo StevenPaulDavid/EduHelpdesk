@@ -297,6 +297,9 @@ html.blade-open { overflow: hidden; }
 .blade-close .ico { width: 20px; height: 20px; vertical-align: 0; }
 .blade-form { display: grid; gap: 18px; }
 .blade-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+/* Tell staff (Job page): who to tell reads as one more field, not a boxed-off group. */
+.notice-recipients { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
+.notice-recipients legend { padding: 0; margin-bottom: 7px; font-size: 12px; font-weight: 700; }
 .blade-actions {
     position: sticky;
     bottom: 0;

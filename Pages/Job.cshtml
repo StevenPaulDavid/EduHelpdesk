@@ -379,6 +379,32 @@ else
                 }
             </div>
         }
+        @if ((Model.CanTellStaff && Model.Ticket.Status != "Closed") || Model.StaffNotice is not null)
+        {
+            @* An outage notice on staff PCs through EduNotify (Settings → EduNotify). It comes down when the ticket closes. *@
+            <div class="detail-block related-block no-print" id="staff-notice">
+                <p class="eyebrow">STAFF NOTICE</p>
+                @if (Model.StaffNotice is { } notice)
+                {
+                    <p><span class="badge">Showing</span> <strong>@notice.Title</strong></p>
+                    <p class="muted">To @notice.Recipients since @notice.SentAt.ToLocalTime().ToString("ddd d MMM, HH:mm"), by @notice.SentBy. Shown on @notice.Online of @notice.Targeted PCs at first. It is recalled when this ticket is closed.</p>
+                }
+                else
+                {
+                    <p class="muted">Tell staff about this problem with a notice on their PCs through EduNotify.</p>
+                }
+                @if (Model.CanTellStaff)
+                {
+                    <div class="sidebar-actions">
+                        <button class="button button-secondary" type="button" data-open-blade="staff-notice-blade" disabled="@(Model.Ticket.Status == "Closed")">@(Model.StaffNotice is null ? "Tell staff" : "Update notice")</button>
+                        @if (Model.StaffNotice is not null)
+                        {
+                            <form method="post" asp-page-handler="RecallStaffNotice" data-confirm="Take this notice off staff PCs now?"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-secondary" type="submit">Recall</button></form>
+                        }
+                    </div>
+                }
+            </div>
+        }
         @if (Model.TicketAttributes.Count > 0)
         {
             @* The values, read like the fields above them; changing them opens a panel rather than sitting as a form. *@
@@ -477,6 +503,52 @@ else
                 <label>Items wanted<textarea name="itemsWanted" rows="5" maxlength="@HelpdeskStore.MaxProjectTextLength" required>@Model.Ticket.Description</textarea></label>
                 <div class="blade-actions"><button class="button button-primary" type="submit">Start project</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
             </form>
+        </div>
+    </div>
+}
+@if (Model.CanTellStaff && Model.Ticket.Status != "Closed")
+{
+    var current = Model.StaffNotice;
+    var sendable = Model.NoticeCatalogue?.Sendable ?? [];
+    // An update starts from what is showing; a first notice from an outage template if the key has one.
+    var chosenTemplate = sendable.FirstOrDefault(x => x.Id == current?.TemplateId)
+        ?? sendable.FirstOrDefault(x => x.Name.Contains("outage", StringComparison.OrdinalIgnoreCase)) ?? sendable.FirstOrDefault();
+    @* Telling staff through EduNotify. Which fields show follows the template chosen (job.js): a static template goes out
+       as saved, a quick message takes a message, an editable one a title and a message. *@
+    <div id="staff-notice-blade" class="blade-backdrop no-print">
+        <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="staff-notice-blade-title">
+            <div class="blade-head"><h2 id="staff-notice-blade-title">@(current is null ? "Tell staff" : "Update the notice")</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            @if (Model.NoticeCatalogue is null)
+            {
+                <p class="muted">EduNotify hasn't said yet which templates the helpdesk may send. Try again in a moment, or use <strong>Test the connection</strong> in Settings → EduNotify.</p>
+            }
+            else if (sendable.Count == 0)
+            {
+                <p class="muted">EduNotify's key isn't allowed any templates the helpdesk can send. In EduNotify, give the key an outage template under Settings → Integrations.</p>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="TellStaff" class="blade-form" id="staff-notice-form">
+                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                    <p class="muted">@(current is null ? "A notice pops up on the PCs you choose. It is taken down when this ticket is closed, or when you recall it." : "Sending replaces the notice showing now.") Don't put pupils' or staff names in it: everyone at those PCs can read it.</p>
+                    <label>Template<select name="templateId" id="notice-template" required>@foreach (var template in sendable) { <option value="@template.Id" selected="@(template == chosenTemplate)" data-can-title="@(template.CanChangeTitle ? "true" : "false")" data-can-body="@(template.CanChangeBody ? "true" : "false")" data-title="@template.Title" data-body="@template.Body">@template.Name</option> }</select></label>
+                    <p class="muted" id="notice-static-hint" hidden>This template goes out exactly as it is saved in EduNotify.</p>
+                    <label id="notice-title-label">Title<input name="title" id="notice-title" maxlength="@EduNotify.MaxTitle" value="@(current?.Title)" placeholder="@(chosenTemplate?.Title)" /></label>
+                    <label id="notice-body-label">Message<textarea name="body" id="notice-body" rows="5" maxlength="@EduNotify.MaxBody" placeholder="@(chosenTemplate?.Body)">@(current?.Body)</textarea><small class="muted">Left blank, the template's own is used. **bold**, *italic* and - lists work.</small></label>
+                    <fieldset class="notice-recipients">
+                        <legend>Who to tell</legend>
+                        <label class="toggle-label"><input type="checkbox" name="everyone" value="true" id="notice-everyone" checked="@(current?.Everyone ?? false)" /> Everyone (every PC running EduNotify)</label>
+                        <div class="checkbox-grid" id="notice-groups">
+                            @foreach (var group in Model.NoticeCatalogue.Groups)
+                            {
+                                <label class="toggle-label"><input type="checkbox" name="groups" value="@group.Name" checked="@(current?.Groups.Contains(group.Name, StringComparer.OrdinalIgnoreCase) ?? false)" /> @group.Name</label>
+                            }
+                            @if (Model.NoticeCatalogue.Groups.Count == 0) { <p class="muted">EduNotify has no groups of PCs yet, so a notice can only go to everyone.</p> }
+                        </div>
+                    </fieldset>
+                    <div class="blade-actions"><button class="button button-primary" type="submit">@(current is null ? "Tell staff" : "Update notice")</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
+                </form>
+            }
         </div>
     </div>
 }

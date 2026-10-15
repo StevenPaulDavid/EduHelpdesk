@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class JobModel(HelpdeskStore store) : PageModel
+public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify) : PageModel
 {
     // The page opens at Tickets: View, and every POST on it changes the ticket - fifteen handlers and counting. One
     // guard here rather than fifteen identical lines means a handler added later is covered by default, which is the
@@ -459,6 +459,65 @@ public class JobModel(HelpdeskStore store) : PageModel
         Message = message;
         // Straight to the new project if it can be opened; otherwise back to the ticket, which now lists it.
         return ok && CanOpenProjects ? RedirectToPage("/Project", new { number = projectNumber }) : RedirectToPage(new { number });
+    }
+
+    // Telling staff through EduNotify (Settings → EduNotify). Offered to someone with the Tell staff permission once
+    // EduNotify is set up and switched on; a notice already showing is listed for anyone who can see the ticket.
+    public bool CanTellStaff => CanEdit && store.UserHasFlag(User, Modules.Flags.NotifyStaff) && store.EduNotifySettings.Ready;
+    public HelpdeskStore.StaffNotice? StaffNotice => Ticket is null ? null : store.StaffNoticeFor(Ticket.Number);
+    public EduNotify.Catalogue? NoticeCatalogue => store.EduNotifyCatalogue;
+
+    // Sends the notice, or replaces the one showing (EduNotify swaps a live message with the same reference). Only fields
+    // the template lets a caller change are sent; blank ones keep the template's own.
+    public async Task<IActionResult> OnPostTellStaffAsync(int number, string? templateId, bool everyone, string[]? groups, string? title, string? body, CancellationToken cancel)
+    {
+        if (!store.UserHasFlag(User, Modules.Flags.NotifyStaff)) return Forbid();
+        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
+        if (ticket is null) return NotFound();
+        if (!store.EduNotifySettings.Ready) { Message = "EduNotify isn't set up, or sending is switched off, in Settings → EduNotify."; return RedirectToPage(new { number }); }
+        if (TicketInsights.IsClosed(ticket)) { Message = "This ticket is closed, so there's nothing to tell staff about. Reopen it first."; return RedirectToPage(new { number }); }
+
+        var catalogue = store.EduNotifyCatalogue;
+        if (catalogue is null)
+        {
+            var refresh = await eduNotify.RefreshAsync(cancel);
+            catalogue = store.EduNotifyCatalogue;
+            if (catalogue is null) { Message = $"Staff weren't told. {refresh.Message}"; return RedirectToPage(new { number }); }
+        }
+        if (catalogue.Sendable.FirstOrDefault(x => x.Id == templateId) is not { } template)
+        {
+            Message = "Choose a template. If the one you want isn't listed, EduNotify's key isn't allowed it.";
+            return RedirectToPage(new { number });
+        }
+        var chosen = (groups ?? []).Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var known = chosen.Select(x => catalogue.Groups.FirstOrDefault(g => string.Equals(g.Name, x, StringComparison.OrdinalIgnoreCase))?.Name).ToList();
+        if (known.Any(x => x is null)) { Message = "One of the groups chosen no longer exists in EduNotify. Choose again."; return RedirectToPage(new { number }); }
+        if (!everyone && chosen.Count == 0) { Message = "Choose which groups of PCs to tell, or Everyone."; return RedirectToPage(new { number }); }
+
+        title = template.CanChangeTitle && !string.IsNullOrWhiteSpace(title) ? title.Trim() : null;
+        body = template.CanChangeBody && !string.IsNullOrWhiteSpace(body) ? body.Trim() : null;
+        if (title?.Length > EduNotify.MaxTitle) { Message = $"The title can be at most {EduNotify.MaxTitle} characters."; return RedirectToPage(new { number }); }
+        if (body?.Length > EduNotify.MaxBody) { Message = $"The message can be at most {EduNotify.MaxBody} characters."; return RedirectToPage(new { number }); }
+
+        List<string> groupNames = everyone ? [] : known.Select(x => x!).ToList();
+        var (outcome, sent) = await eduNotify.SendAsync(new EduNotify.Send(template.Id, everyone, groupNames, title, body, EduNotify.ReferenceFor(number)), cancel);
+        if (sent is null) { Message = $"Staff weren't told. {outcome.Message}"; return RedirectToPage(new { number }); }
+
+        var updating = store.StaffNoticeFor(number) is not null;
+        store.RecordStaffNoticeSent(new HelpdeskStore.StaffNotice(number, sent.Id, template.Id, template.Name, everyone, groupNames,
+            title ?? template.Title, body ?? template.Body, DateTime.UtcNow, store.CurrentActor().Name, sent.Online, sent.Targeted));
+        Message = $"{(updating ? "The notice was updated." : "Staff have been told.")} {outcome.Message}";
+        return RedirectToPage(new { number });
+    }
+
+    public async Task<IActionResult> OnPostRecallStaffNoticeAsync(int number, CancellationToken cancel)
+    {
+        if (!store.UserHasFlag(User, Modules.Flags.NotifyStaff)) return Forbid();
+        if (store.StaffNoticeFor(number) is null) { Message = "This ticket has no notice showing."; return RedirectToPage(new { number }); }
+        var outcome = await eduNotify.RecallAsync(number, cancel);
+        if (outcome.Ok) store.RecordStaffNoticeRecalled(number, outcome.NothingLive ? "from the ticket (it had already gone from EduNotify)" : "from the ticket");
+        Message = outcome.Ok ? "The notice was taken off staff PCs." : $"The notice couldn't be recalled. {outcome.Message}";
+        return RedirectToPage(new { number });
     }
 
     public IActionResult OnPostCreateFollowUp(int number)

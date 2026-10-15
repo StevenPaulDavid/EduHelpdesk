@@ -76,6 +76,7 @@ public static class SettingsMenu
             new("Sign-in security", "/Settings/SignIn", "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor"),
             new("Notifications", "/Settings/Notifications", "notifications pings pop-ups toast alerts banner reminder enable disable staff requesters portal sound"),
             new("Teams channel", "/Settings/TeamsChannel", "teams microsoft channel webhook post message new ticket overdue alert workflow"),
+            new("EduNotify", "/Settings/EduNotify", "edunotify notify staff pcs outage notice banner message api key tell staff recall integration"),
             new("Data retention", "/Settings/Retention", "retention gdpr delete old tickets anonymise leavers former staff audit log months data protection"),
             new("Audit log", "/Settings/Audit", "audit log history changes who", Need.AuditLog),
             new("Database", "/Settings/Database", "database raw data tables rows sql sqlite debug problem investigate health size growth disk space slow save", Need.RawDatabase, ["/Settings/DatabaseTable", "/Settings/DatabaseRecord"]),

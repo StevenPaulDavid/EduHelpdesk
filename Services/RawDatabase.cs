@@ -143,9 +143,10 @@ public sealed class RawDatabase(HelpdeskStore store)
 
     public static bool IsSecret(string table, string column) => SecretColumns.TryGetValue(table, out var columns) && columns.Contains(column);
 
-    // Settings kept in the Metadata table whose value is a secret, such as the Teams webhook address: whoever holds it can
-    // post to the channel. Their rows are masked, and left out of a search or filter, for anyone but an Administrator.
-    private static readonly string[] SecretMetadataKeys = ["TeamsWebhookUrl"];
+    // Settings kept in the Metadata table whose value is a secret, such as the Teams webhook address (whoever holds it can
+    // post to the channel) or the EduNotify API key (whoever holds it can put messages on staff PCs). Their rows are masked,
+    // and left out of a search or filter, for anyone but an Administrator.
+    private static readonly string[] SecretMetadataKeys = ["TeamsWebhookUrl", "EduNotifyApiKey"];
     public static bool IsSecretMetadata(string table, string key) =>
         string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase) && SecretMetadataKeys.Contains(key, StringComparer.OrdinalIgnoreCase);
 

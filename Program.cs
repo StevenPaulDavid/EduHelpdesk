@@ -232,6 +232,12 @@ builder.Services.AddHttpClient(TeamsPoster.ClientName, client => client.Timeout 
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddSingleton<TeamsPoster>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<TeamsPoster>());
+// Calls EduNotify (Settings → EduNotify) to put ticket notices on staff PCs and take them down. Redirects are not followed,
+// for the same reason as Teams, and so the API key is never carried on to another address.
+builder.Services.AddHttpClient(EduNotifyClient.ClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<EduNotifyClient>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<EduNotifyClient>());
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

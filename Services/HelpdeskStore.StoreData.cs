@@ -106,6 +106,12 @@ public sealed partial class HelpdeskStore
         public bool TeamsEnabled { get; set; }
         public bool TeamsNewTicket { get; set; } = true;
         public bool TeamsOverdue { get; set; } = true;
+        // Settings → EduNotify: the EduNotify server's address and API key (a secret, "" until set), whether sending is on,
+        // and the notices tickets have put on staff PCs that are still showing (HelpdeskStore.EduNotify). Off until set up.
+        public string EduNotifyAddress { get; set; } = "";
+        public string EduNotifyApiKey { get; set; } = "";
+        public bool EduNotifyEnabled { get; set; }
+        public List<StaffNotice> StaffNotices { get; set; } = [];
         // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.
         public bool ProjectPageIncludesVat { get; set; }
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in

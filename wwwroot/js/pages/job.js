@@ -53,6 +53,34 @@
         });
     }
 
+    // Tell staff (EduNotify): show only what the chosen template lets the helpdesk change, with the template's own words
+    // as the placeholders, and hide the groups while Everyone is ticked. Without script every field shows, and the
+    // server ignores what the template doesn't allow.
+    const noticeTemplate = document.getElementById("notice-template");
+    if (noticeTemplate) {
+        const titleLabel = document.getElementById("notice-title-label");
+        const bodyLabel = document.getElementById("notice-body-label");
+        const staticHint = document.getElementById("notice-static-hint");
+        const syncTemplate = () => {
+            const option = noticeTemplate.selectedOptions[0];
+            if (!option) return;
+            const canTitle = option.dataset.canTitle === "true";
+            const canBody = option.dataset.canBody === "true";
+            titleLabel.hidden = !canTitle;
+            bodyLabel.hidden = !canBody;
+            staticHint.hidden = canTitle || canBody;
+            document.getElementById("notice-title").placeholder = option.dataset.title || "";
+            document.getElementById("notice-body").placeholder = option.dataset.body || "";
+        };
+        noticeTemplate.addEventListener("change", syncTemplate);
+        syncTemplate();
+        const everyone = document.getElementById("notice-everyone");
+        const groups = document.getElementById("notice-groups");
+        const syncEveryone = () => { groups.hidden = everyone.checked; };
+        everyone.addEventListener("change", syncEveryone);
+        syncEveryone();
+    }
+
     // The reply box: Reply or Internal note, and the rest opens out once someone starts to write. The button says what
     // it will do - a reply or a note, and any status change on the way.
     const composer = document.getElementById("composer");
