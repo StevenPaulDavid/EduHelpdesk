@@ -39,6 +39,9 @@ public static class EduNotify
     // reference takes down whatever that ticket has showing.
     public static string ReferenceFor(int ticketNumber) => $"EH-{ticketNumber}";
 
+    // The technician ping's own reference, so it and the ticket's staff notice never replace or recall each other.
+    public static string PingReferenceFor(int ticketNumber) => $"EH-{ticketNumber}-ping";
+
     // http or https, a machine name or address with an optional port, and nothing after it but an optional folder (for an
     // EduNotify behind a reverse proxy). Unlike the Teams webhook, a name inside the school is expected: EduNotify runs on
     // the school's own network. Only someone with Settings: Edit can set it. Kept without the trailing slash.

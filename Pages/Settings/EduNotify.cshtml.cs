@@ -13,11 +13,34 @@ public class EduNotifyModel(HelpdeskStore store, EduNotifyClient client) : PageM
     public HelpdeskStore.EduNotifyAttempt? LastAttempt => store.EduNotifyLastAttempt;
     public EduNotify.Catalogue? Catalogue => store.EduNotifyCatalogue;
     public IReadOnlyList<HelpdeskStore.StaffNotice> Notices => store.StaffNotices;
+    public HelpdeskStore.TechnicianPingSettingsView Ping { get; private set; } = null!;
+    public IReadOnlyList<HelpdeskStore.TechnicianPing> Pings => store.TechnicianPings;
+    public IReadOnlyList<string> Priorities => store.Priorities;
+    // What EduNotify last said can be chosen, plus whatever is saved already (so the page still shows it before the list
+    // has been fetched, or after EduNotify stopped offering it).
+    public IReadOnlyList<(string Id, string Name)> PingTemplateChoices { get; private set; } = [];
+    public IReadOnlyList<string> PingGroupChoices { get; private set; } = [];
     [TempData] public string? Message { get; set; }
     // Whether Message is a problem rather than good news, for the colour of the notice.
     [TempData] public bool Problem { get; set; }
 
-    public void OnGet() { }
+    public void OnGet()
+    {
+        Ping = store.TechnicianPingSettings;
+        var templates = (Catalogue?.Sendable ?? []).Select(x => (x.Id, x.Name)).ToList();
+        if (Ping.TemplateId.Length > 0 && templates.All(x => x.Id != Ping.TemplateId)) templates.Add((Ping.TemplateId, $"{Ping.TemplateName} (not in EduNotify's latest list)"));
+        PingTemplateChoices = templates;
+        PingGroupChoices = (Catalogue?.Groups.Select(x => x.Name) ?? []).Concat(Ping.Groups).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // Unticked boxes aren't sent, so blank lists mean nothing ticked.
+    public IActionResult OnPostSavePing(bool enabled, string[]? priorities, string? templateId, string[]? groups)
+    {
+        var (ok, message) = store.SetTechnicianPingSettings(enabled, priorities, templateId, groups);
+        Message = ok && enabled && !Settings.Ready ? $"{message} Nothing is sent until EduNotify's master switch above is on." : message;
+        Problem = !ok;
+        return RedirectToPage();
+    }
 
     // An unticked box isn't sent, so enabled is simply whether it was ticked. A blank key keeps the saved one. A newly
     // saved key is tried straight away, so the page says at once whether EduNotify accepts it.

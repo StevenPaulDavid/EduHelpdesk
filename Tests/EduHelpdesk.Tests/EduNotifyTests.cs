@@ -279,6 +279,188 @@ public class EduNotifyTests
         Assert.Null(test.Store.StaffNoticeFor(number));
     }
 
+    // ---- The technician ping ----
+
+    private static readonly EduNotify.Catalogue PingCatalogue = new(DateTime.UtcNow,
+        [new("3", "IT outage", "editable", false, true, true, "IT problem", ""), new("4", "Technician ping", "editable", false, true, true, "New ticket", "")],
+        [new("1", "Block A"), new("9", "Technicians")]);
+
+    private static void SwitchPingOn(TestStore test)
+    {
+        test.Store.SetEduNotifyCatalogue(PingCatalogue);
+        var (ok, message) = test.Store.SetTechnicianPingSettings(true, ["Urgent"], "4", ["Technicians"]);
+        Assert.True(ok, message);
+    }
+
+    private static int AddUrgent(TestStore test, Guid requesterId, string title = "Ada's whiteboard is on fire") =>
+        test.Store.AddTicket(new TicketRecord(0, title, "Smoke everywhere.", requesterId, [], null, "Urgent", "Open", test.Store.Categories[0], DateTime.UtcNow, null));
+
+    private static void Change(TestStore test, int number, Func<TicketRecord, TicketRecord> change) =>
+        Assert.True(test.Store.UpdateTicket(change(test.Store.Tickets.Single(x => x.Number == number))));
+
+    private static List<(HttpMethod Method, Uri? Uri, string? Auth, string Body)> Pings(Handler handler) =>
+        handler.Requests.Where(x => x.Body.Contains("-ping") || x.Uri!.Query.Contains("-ping")).ToList();
+
+    [Fact]
+    public void The_ping_needs_a_priority_a_template_and_a_group_the_key_can_use_and_survives_a_restart()
+    {
+        using var test = new TestStore();
+        Assert.False(test.Store.TechnicianPingSettings.Active);
+        // Nothing fetched from EduNotify yet, so there's no template to choose.
+        Assert.False(test.Store.SetTechnicianPingSettings(true, ["Urgent"], "4", ["Technicians"]).Ok);
+
+        test.Store.SetEduNotifyCatalogue(PingCatalogue);
+        Assert.False(test.Store.SetTechnicianPingSettings(true, ["Urgent"], "4", []).Ok);
+        Assert.False(test.Store.SetTechnicianPingSettings(true, [], "4", ["Technicians"]).Ok);
+        Assert.False(test.Store.SetTechnicianPingSettings(true, ["Urgent"], "4", ["Nowhere"]).Ok);
+        Assert.False(test.Store.SetTechnicianPingSettings(true, ["Urgent"], "99", ["Technicians"]).Ok);
+        // A priority that isn't one of the helpdesk's is dropped; the casing comes from the list.
+        Assert.True(test.Store.SetTechnicianPingSettings(true, ["urgent", "Made up"], "4", ["technicians"]).Ok);
+        Assert.Contains(test.Store.GetAuditEntries(), x => x.Entity == "EduNotify" && x.Action == "Technician ping on");
+
+        var store = test.Reopen();
+        var settings = store.TechnicianPingSettings;
+        Assert.True(settings.Active);
+        Assert.Equal(["Urgent"], settings.Priorities);
+        Assert.Equal(("4", "Technician ping"), (settings.TemplateId, settings.TemplateName));
+        Assert.Equal(["Technicians"], settings.Groups);
+        // After a restart nothing has been fetched, but what's saved can still be saved again.
+        store.AddTicketOption("Priority", "Spare");
+        Assert.True(store.SetTechnicianPingSettings(true, ["Urgent", "Spare"], "4", ["Technicians"]).Ok);
+
+        // Renaming a priority carries the tick across; deleting one takes it away.
+        store.UpdateTicketOption("Priority", "Urgent", "Critical");
+        Assert.Equal(["Critical", "Spare"], store.TechnicianPingSettings.Priorities);
+        Assert.Equal("Priority deleted.", store.DeleteTicketOption("Priority", "Spare"));
+        Assert.Equal(["Critical"], test.Reopen().TechnicianPingSettings.Priorities);
+        Assert.Null(test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public async Task A_new_urgent_ticket_pings_the_technicians_once_with_its_own_reference_and_nothing_personal()
+    {
+        var (client, handler, test) = Build();
+        using var _ = test;
+        var requester = test.AddRequester("Ada Lovelace");
+        var waiting = AddUrgent(test, requester.Id, "Already waiting");
+        SwitchPingOn(test);
+        var normal = test.AddTicket(requester.Id, "Mouse sticky");
+
+        // Tickets already waiting when the ping went on, and tickets at other priorities, don't ping.
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Empty(handler.Requests);
+
+        var urgent = AddUrgent(test, requester.Id);
+        test.Store.RecordStaffNoticeSent(Notice(urgent));
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        await client.TechnicianPingsAsync(CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        using var json = JsonDocument.Parse(request.Body);
+        var root = json.RootElement;
+        Assert.Equal(4, root.GetProperty("template").GetInt32());
+        Assert.Equal($"EH-{urgent}-ping", root.GetProperty("reference").GetString());
+        Assert.Equal($"Urgent ticket #{urgent}", root.GetProperty("title").GetString());
+        Assert.Equal("Technicians", root.GetProperty("recipients").GetProperty("groups")[0].GetString());
+        Assert.DoesNotContain("Ada", request.Body);
+        Assert.DoesNotContain("whiteboard", request.Body);
+        Assert.Equal([urgent], test.Store.TechnicianPings.Select(x => x.TicketNumber));
+        Assert.Contains(test.Store.Tickets.Single(x => x.Number == urgent).History, x => x.Action == "Technicians pinged through EduNotify");
+        // The ticket's staff notice is a different message and stays.
+        Assert.NotNull(test.Store.StaffNoticeFor(urgent));
+
+        // Moving a ticket up to a ticked priority pings it too.
+        Change(test, normal, x => x with { Priority = "Urgent" });
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Equal($"EH-{normal}-ping", JsonDocument.Parse(handler.Requests[^1].Body).RootElement.GetProperty("reference").GetString());
+        Assert.DoesNotContain(test.Store.TechnicianPings, x => x.TicketNumber == waiting);
+
+        // A restart neither pings again nor forgets what is showing.
+        var store = test.Reopen();
+        Assert.Empty(store.PlanTechnicianPings(true).Send);
+        Assert.Equal(2, store.TechnicianPings.Count);
+        Assert.Null(store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public async Task The_ping_comes_down_when_the_ticket_is_assigned_closed_deleted_or_moved_down_and_not_before()
+    {
+        var (client, handler, test) = Build();
+        using var _ = test;
+        var technician = new TechnicianRecord(Guid.NewGuid(), "Tess Tech", "tess@test.example", test.Store.TechnicianTeams[0]);
+        test.Store.AddTechnician(technician);
+        var requester = test.AddRequester("Ada Lovelace");
+        SwitchPingOn(test);
+        var assigned = AddUrgent(test, requester.Id);
+        var closed = AddUrgent(test, requester.Id);
+        var deleted = AddUrgent(test, requester.Id);
+        var downgraded = AddUrgent(test, requester.Id);
+        var teamOnly = AddUrgent(test, requester.Id);
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Equal(5, test.Store.TechnicianPings.Count);
+        handler.Requests.Clear();
+
+        // A team without a technician is still nobody picking it up.
+        Change(test, teamOnly, x => x with { TeamName = test.Store.TechnicianTeams[0] });
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Empty(handler.Requests);
+
+        Change(test, assigned, x => x with { TechnicianId = technician.Id });
+        Change(test, closed, x => x with { Status = "Closed", ClosedAt = DateTime.UtcNow });
+        test.Store.DeleteTicket(deleted);
+        Change(test, downgraded, x => x with { Priority = "Normal" });
+        await client.TechnicianPingsAsync(CancellationToken.None);
+
+        Assert.Equal(4, handler.Requests.Count);
+        Assert.All(handler.Requests, x => Assert.StartsWith("/api/v1/messages/recall?reference=EH-", x.Uri!.PathAndQuery));
+        Assert.Contains(handler.Requests, x => x.Uri!.Query == $"?reference=EH-{assigned}-ping");
+        Assert.Equal([teamOnly], test.Store.TechnicianPings.Select(x => x.TicketNumber));
+        string Recalled(int number) => test.Store.Tickets.Single(x => x.Number == number).History.Last(x => x.Action == "Technician ping recalled").Details;
+        Assert.Contains("assigned to Tess Tech", Recalled(assigned));
+        Assert.Contains("closed", Recalled(closed));
+        Assert.Contains("priority changed to Normal", Recalled(downgraded));
+
+        // Unassigned again while still urgent, it pings again.
+        handler.Requests.Clear();
+        Change(test, assigned, x => x with { TechnicianId = null });
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Equal($"EH-{assigned}-ping", JsonDocument.Parse(Assert.Single(handler.Requests).Body).RootElement.GetProperty("reference").GetString());
+
+        // Switching the ping off takes down what is showing.
+        handler.Requests.Clear();
+        Assert.True(test.Store.SetTechnicianPingSettings(false, ["Urgent"], "4", ["Technicians"]).Ok);
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Equal(2, Pings(handler).Count);
+        Assert.Empty(test.Store.TechnicianPings);
+        Assert.Null(test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public async Task Tickets_arriving_while_sending_is_off_are_not_pinged_later_and_a_failed_ping_is_tried_again()
+    {
+        var down = false;
+        var (client, handler, test) = Build((request, body) => down ? throw new HttpRequestException("down") : Pretend(request, body));
+        using var _ = test;
+        var requester = test.AddRequester("Ada Lovelace");
+        SwitchPingOn(test);
+
+        Assert.True(test.Store.SetEduNotifySettings(Address, null, false, enabled: false).Ok);
+        var whileOff = AddUrgent(test, requester.Id);
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.True(test.Store.SetEduNotifySettings(Address, null, false, enabled: true).Ok);
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Empty(handler.Requests);
+
+        down = true;
+        var later = AddUrgent(test, requester.Id);
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Empty(test.Store.TechnicianPings);
+        down = false;
+        await client.TechnicianPingsAsync(CancellationToken.None);
+        Assert.Equal([later], test.Store.TechnicianPings.Select(x => x.TicketNumber));
+        Assert.DoesNotContain(handler.Requests, x => x.Body.Contains($"EH-{whileOff}-ping"));
+    }
+
     [Fact]
     public async Task With_nothing_set_up_nothing_is_called()
     {

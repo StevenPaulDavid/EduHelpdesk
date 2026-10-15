@@ -476,6 +476,8 @@ public sealed partial class HelpdeskStore
             {
                 var priorityIndex = _data.RequireCloseMessagePriorities.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
                 if (priorityIndex >= 0) _data.RequireCloseMessagePriorities[priorityIndex] = newValue;
+                var pingIndex = _data.TechnicianPingPriorities.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+                if (pingIndex >= 0) _data.TechnicianPingPriorities[pingIndex] = newValue;
                 for (var i = 0; i < _data.ServiceItems.Count; i++)
                     if (string.Equals(_data.ServiceItems[i].DefaultPriority, oldValue, StringComparison.OrdinalIgnoreCase))
                         _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = newValue };
@@ -543,6 +545,7 @@ public sealed partial class HelpdeskStore
                     if (string.Equals(_data.ServiceItems[i].DefaultPriority, item, StringComparison.OrdinalIgnoreCase))
                         _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = "" };
             if (kind == "Priority") _data.RequireCloseMessagePriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
+            if (kind == "Priority") _data.TechnicianPingPriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.RequireCloseMessageCategories.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.CategoryStyles.Remove(item);
             Save();

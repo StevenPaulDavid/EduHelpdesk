@@ -230,6 +230,28 @@ public class SpiceworksImportTests
 
     private static readonly Dictionary<string, string> NoChoices = [];
 
+    // Imported tickets are history, not new work: an urgent one never pings the technicians' PCs, on the first import or
+    // when an undo puts it back.
+    [Fact]
+    public void Imported_urgent_tickets_never_send_the_technician_ping()
+    {
+        using var test = new TestStore();
+        test.Store.SetEduNotifyCatalogue(new EduNotify.Catalogue(DateTime.UtcNow, [new("4", "Technician ping", "editable", false, true, true, "", "")], [new("9", "Technicians")]));
+        Assert.True(test.Store.SetTechnicianPingSettings(true, ["Urgent"], "4", ["Technicians"]).Ok);
+        var urgent = new Dictionary<string, string> { [HelpdeskStore.ChoiceKey("Priority", "1")] = "Urgent", [HelpdeskStore.ChoiceKey("Priority", "2")] = "Urgent" };
+
+        Assert.True(test.Store.ApplySpiceworksImport(Read(Sample()), urgent, "first.xlsx").Ok);
+        Assert.Contains(test.Store.Tickets, x => x.Priority == "Urgent" && x.TechnicianId is null && x.ClosedAt is null);
+        Assert.Empty(test.Store.PlanTechnicianPings(true).Send);
+
+        // Moved down and back up here by hand, it is new work and does ping.
+        var odd = NumberOf(test.Store, 14);
+        Assert.True(test.Store.UpdateTicket(test.Store.Tickets.Single(x => x.Number == odd) with { Priority = "Normal" }));
+        Assert.Empty(test.Store.PlanTechnicianPings(true).Send);
+        Assert.True(test.Store.UpdateTicket(test.Store.Tickets.Single(x => x.Number == odd) with { Priority = "Urgent" }));
+        Assert.Equal([odd], test.Store.PlanTechnicianPings(true).Send.Select(x => x.TicketNumber));
+    }
+
     [Fact]
     public void A_later_export_updates_tickets_changed_only_in_Spiceworks_and_adds_their_new_comments()
     {

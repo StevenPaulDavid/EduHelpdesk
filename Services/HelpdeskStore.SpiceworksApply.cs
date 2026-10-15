@@ -415,6 +415,7 @@ public sealed partial class HelpdeskStore
             var summary = string.Join(", ", parts) + (unchanged > 0 ? $"; {unchanged:N0} already here and unchanged" : "");
             _data.SpiceworksLinks.AddRange(newLinks);
             _data.SpiceworksUndo.AddRange(undo);
+            SkipTechnicianPings(undo.Select(x => x.TicketNumber));
             _data.SpiceworksImports.Add(new SpiceworksImportRecord(importId, now, fileName, summary) { By = me });
             _pendingAudit.Add(new AuditEntry(now, "Tickets", null, null, "Spiceworks import", "Imported from Spiceworks", $"{fileName}: {summary}. Backup taken first: {backupName}."));
             Save();
@@ -495,6 +496,7 @@ public sealed partial class HelpdeskStore
                 if (!used && _data.Users.RemoveAll(x => x.Id == id) > 0) peopleRemoved++;
             }
 
+            SkipTechnicianPings(entries.Select(x => x.TicketNumber));
             _data.SpiceworksLinks.RemoveAll(x => x.ImportId == last.Id);
             _data.SpiceworksUndo.RemoveAll(x => x.ImportId == last.Id);
             _data.SpiceworksImports.Remove(last);

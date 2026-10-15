@@ -186,6 +186,7 @@ public sealed partial class HelpdeskStore
             try { data.StaffNotices = JsonSerializer.Deserialize<List<StaffNotice>>(notices) ?? []; }
             catch (JsonException) { }
         }
+        ReadTechnicianPing(connection, data);
     }
 
     private static void WriteEduNotify(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
@@ -194,5 +195,6 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "EduNotifyApiKey", data.EduNotifyApiKey);
         SetMetadata(connection, transaction, "EduNotifyEnabled", data.EduNotifyEnabled ? "1" : "0");
         SetMetadata(connection, transaction, "EduNotifyNotices", data.StaffNotices.Count == 0 ? "" : JsonSerializer.Serialize(data.StaffNotices.OrderBy(x => x.TicketNumber)));
+        WriteTechnicianPing(connection, transaction, data);
     }
 }

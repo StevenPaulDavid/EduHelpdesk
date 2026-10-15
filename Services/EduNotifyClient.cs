@@ -5,8 +5,8 @@ using System.Text;
 namespace EduHelpdesk.Services;
 
 // Calls EduNotify's sending API (Settings → EduNotify): what the key may send and to which groups, sending a ticket's
-// notice, and recalling it. In the background it takes down the notice of any ticket that has been closed or deleted, and
-// keeps the list of templates and groups fresh for the ticket page. Every answer comes back as words the page can show,
+// notice, and recalling it. In the background it takes down the notice of any ticket that has been closed or deleted,
+// sends and takes down the technician ping, and keeps the list of templates and groups fresh for the ticket page. Every answer comes back as words the page can show,
 // with the API key kept out of them; nothing here throws except when cancelled, and the helpdesk never depends on
 // EduNotify being there.
 public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clients, ILogger<EduNotifyClient> logger, TimeSpan? recallInterval = null) : BackgroundService
@@ -38,6 +38,7 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
                     }
                 }
                 else nextCatalogue = DateTime.MinValue;
+                await TechnicianPingsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception ex)
@@ -117,15 +118,40 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
     }
 
     // Takes down whatever the ticket has showing. EduNotify finding nothing live counts as done.
-    public async Task<Outcome> RecallAsync(int ticketNumber, CancellationToken cancel)
+    public Task<Outcome> RecallAsync(int ticketNumber, CancellationToken cancel) =>
+        RecallReferenceAsync(EduNotify.ReferenceFor(ticketNumber), $"the notice for #{ticketNumber}", cancel);
+
+    // The technician ping (HelpdeskStore.TechnicianPing): pings tickets that have come in at a chosen priority with nobody
+    // assigned, and takes down the pings of tickets that have since been picked up, closed, deleted or moved down. Pings
+    // that fail are tried again next pass. Called every pass whether or not sending is on, so that while it is off the
+    // tickets arriving are only noted rather than saved up to ping later.
+    public async Task TechnicianPingsAsync(CancellationToken cancel)
     {
-        var reference = Uri.EscapeDataString(EduNotify.ReferenceFor(ticketNumber));
-        var (status, body, problem) = await CallAsync(HttpMethod.Post, $"messages/recall?reference={reference}", null, cancel);
+        var sending = store.EduNotifySettings.Ready;
+        var plan = store.PlanTechnicianPings(sending);
+        if (!sending) return;
+        foreach (var number in plan.Recall)
+        {
+            var outcome = await RecallReferenceAsync(EduNotify.PingReferenceFor(number), $"the technician ping for #{number}", cancel);
+            if (outcome.Ok) store.RecordTechnicianPingRecalled(number, outcome.NothingLive);
+            else logger.LogWarning("The EduNotify technician ping for ticket #{Number} couldn't be recalled yet: {Message}", number, outcome.Message);
+        }
+        foreach (var (number, send) in plan.Send)
+        {
+            var (outcome, sent) = await SendAsync(send, cancel);
+            if (sent is not null) store.RecordTechnicianPingSent(number, send, sent);
+            else logger.LogWarning("The EduNotify technician ping for ticket #{Number} couldn't be sent yet: {Message}", number, outcome.Message);
+        }
+    }
+
+    private async Task<Outcome> RecallReferenceAsync(string reference, string what, CancellationToken cancel)
+    {
+        var (status, body, problem) = await CallAsync(HttpMethod.Post, $"messages/recall?reference={Uri.EscapeDataString(reference)}", null, cancel);
         Outcome outcome = problem is not null ? new(false, problem)
             : status == HttpStatusCode.OK ? new(true, "Recalled.")
             : status == HttpStatusCode.NotFound ? new(true, "It had already gone from EduNotify.", NothingLive: true)
             : new(false, Refusal(status, body));
-        store.RecordEduNotifyAttempt(outcome.Ok, outcome.Ok ? $"Recalled the notice for #{ticketNumber}." : outcome.Message);
+        store.RecordEduNotifyAttempt(outcome.Ok, outcome.Ok ? $"Recalled {what}." : outcome.Message);
         return outcome;
     }
 

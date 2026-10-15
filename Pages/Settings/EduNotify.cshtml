@@ -65,6 +65,43 @@
 </section>
 
 <section class="panel">
+    <div class="panel-heading"><h2>Technician ping</h2>@if (Model.Ping.Active) { <span class="badge">On</span> } else { <span class="badge">Off</span> }</div>
+    <p class="muted">When a ticket comes in at a ticked priority with nobody assigned - or an open, unassigned ticket is moved up to one - a notice goes to the technicians' PCs. It comes down once someone is assigned, the ticket is closed, or its priority drops. It says only the priority and ticket number.</p>
+    @if (Model.Catalogue is null && !Model.Ping.Complete)
+    {
+        <p class="muted">Use <strong>Test the connection</strong> above first, so the templates and groups EduNotify has can be chosen here.</p>
+    }
+    <form method="post" asp-page-handler="SavePing" class="settings-form">
+        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Ping.Enabled" /> Ping technicians about new tickets at these priorities</label>
+        <div class="checkbox-grid">
+            <div><p class="eyebrow">Priorities that ping</p>@foreach (var priority in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@priority" checked="@Model.Ping.Priorities.Contains(priority, StringComparer.OrdinalIgnoreCase)" /> @priority</label> }</div>
+            <div><p class="eyebrow">Technicians' PCs (EduNotify groups)</p>@foreach (var group in Model.PingGroupChoices) { <label class="toggle-label"><input type="checkbox" name="groups" value="@group" checked="@Model.Ping.Groups.Contains(group, StringComparer.OrdinalIgnoreCase)" /> @group</label> }@if (Model.PingGroupChoices.Count == 0) { <p class="empty">No groups to choose from yet.</p> }</div>
+        </div>
+        <label>Template
+            <select name="templateId">
+                <option value="">Choose a template…</option>
+                @foreach (var (id, name) in Model.PingTemplateChoices) { <option value="@id" selected="@(id == Model.Ping.TemplateId)">@name</option> }
+            </select>
+        </label>
+        <small class="muted">A <em>Technician ping</em> template in EduNotify that lets the title and message be changed shows the ticket number; any other shows its own words. Emergency templates are never offered.</small>
+        <div><button class="button button-primary">Save the ping</button></div>
+    </form>
+    @if (Model.Pings.Count > 0)
+    {
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Ticket</th><th>Ping</th><th>Sent</th></tr></thead><tbody>
+        @foreach (var ping in Model.Pings)
+        {
+            <tr>
+                <td><a asp-page="/Job" asp-route-number="@ping.TicketNumber">#@ping.TicketNumber</a></td>
+                <td>@ping.Title<br /><span class="muted">to @string.Join(", ", ping.Groups), @ping.Online of @ping.Targeted PCs at first</span></td>
+                <td>@ping.SentAt.ToLocalTime().ToString("ddd d MMM, HH:mm")</td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+
+<section class="panel">
     <div class="panel-heading"><h2>Notices showing now</h2><span class="badge">@Model.Notices.Count</span></div>
     @if (Model.Notices.Count == 0)
     {
@@ -91,7 +128,7 @@
     <div class="panel-heading"><h2>Getting an API key from EduNotify</h2></div>
     <ol class="muted">
         <li>In the EduNotify console, go to <strong>Settings → Integrations → API keys</strong> and make a key named, say, <em>EduHelpdesk</em>. Its name is shown as the sender of every notice.</li>
-        <li>Tick the templates technicians may send - an <em>IT outage</em> template that lets the title and message be changed is the useful one. Leave <strong>May send emergency templates</strong> off: the helpdesk never offers them.</li>
+        <li>Tick the templates technicians may send - an <em>IT outage</em> template that lets the title and message be changed is the useful one, plus a <em>Technician ping</em> template for the technician ping. Leave <strong>May send emergency templates</strong> off: the helpdesk never offers them.</li>
         <li>Optionally limit the key to this server's IP address.</li>
         <li>EduNotify shows the key once, starting <code>enk_</code>. Paste it above with EduNotify's address (the one you open its console on), then <strong>Test the connection</strong>.</li>
     </ol>
@@ -102,6 +139,7 @@
     <ul class="muted">
         <li>On a ticket, <strong>Tell staff</strong> sends a notice to the groups of PCs you choose (or everyone), with the template, title and message you choose. It is sent with the ticket number as its reference, so sending again from the same ticket replaces the notice rather than adding a second.</li>
         <li>When the ticket is closed - from its page, the ticket list, a merge, or by deleting it - the notice is recalled within a few seconds. If EduNotify can't be reached it keeps trying.</li>
+        <li>The technician ping is sent by the helpdesk itself, within about 15 seconds of the ticket coming in or moving up, with its own reference (<code>EH-1234-ping</code>), so it never replaces or takes down the ticket's staff notice. Tickets already waiting when it is switched on, tickets brought in by a Spiceworks import, and tickets that arrive while sending is off don't ping. Sending and recalling it are in the ticket's history.</li>
         <li>Who may send is a role permission: <strong>Tell staff through EduNotify</strong> under Tickets in Roles, on top of Tickets: Edit. Administrators always can.</li>
         <li>Sending, updating and recalling are recorded in the ticket's history. Saving the address or key is in the audit log; the key itself never is.</li>
         <li>If EduNotify is unavailable, the ticket says so and nothing else is held up. Failures show above and in the <a asp-page="/Settings/Log">error log</a>.</li>

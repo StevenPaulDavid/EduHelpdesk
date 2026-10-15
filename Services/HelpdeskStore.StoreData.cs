@@ -112,6 +112,15 @@ public sealed partial class HelpdeskStore
         public string EduNotifyApiKey { get; set; } = "";
         public bool EduNotifyEnabled { get; set; }
         public List<StaffNotice> StaffNotices { get; set; } = [];
+        // The technician ping (HelpdeskStore.TechnicianPing): on/off, the priorities that send it, the template and the
+        // groups of technicians' PCs it goes to, the pings showing now, and the tickets already dealt with. Off until set up.
+        public bool TechnicianPingEnabled { get; set; }
+        public List<string> TechnicianPingPriorities { get; set; } = [];
+        public string TechnicianPingTemplateId { get; set; } = "";
+        public string TechnicianPingTemplateName { get; set; } = "";
+        public List<string> TechnicianPingGroups { get; set; } = [];
+        public List<TechnicianPing> TechnicianPings { get; set; } = [];
+        public HashSet<int> TechnicianPingSeen { get; set; } = [];
         // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.
         public bool ProjectPageIncludesVat { get; set; }
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in
