@@ -44,6 +44,8 @@
                 <button type="button" data-action="print">Ticket</button>
                 <button type="button" data-open-window="@Url.Page("/PrintLabel", new { number = Model.Ticket.Number })">Label</button>
                 <button type="button" data-open-window="@Url.Page("/PrintJobSheet", new { number = Model.Ticket.Number })">Job sheet</button>
+                <a href="@Url.Page("/Job", "Report", new { number = Model.Ticket.Number })" target="_blank" rel="noopener" title="Everything on the ticket as a PDF: details, conversation with internal notes, history and the attachments">Full report (PDF)</a>
+                <a href="@Url.Page("/Job", "Report", new { number = Model.Ticket.Number, internalNotes = false })" target="_blank" rel="noopener" title="The same report without internal notes, the change history or files kept for the IT team, to give to the requester or anyone outside the IT team">Requester copy (PDF)</a>
             </div>
         </details>
         @if (Model.CanDelete)

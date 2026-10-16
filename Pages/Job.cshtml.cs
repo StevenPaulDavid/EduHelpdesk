@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages;
 
-public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify) : PageModel
+public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<JobModel> logger) : PageModel
 {
     // The page opens at Tickets: View, and every POST on it changes the ticket - fifteen handlers and counting. One
     // guard here rather than fifteen identical lines means a handler added later is covered by default, which is the
@@ -79,6 +79,34 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify) : PageMode
         LinkedAssets = store.Assets.Where(x => Ticket.AssetIds.Contains(x.Id)).ToList();
         TemplateHtml = store.RenderPrintTemplate(Ticket, Requester, Technician, LinkedAssets);
         return Page();
+    }
+
+    // The whole ticket as a PDF to print or keep: every field, the conversation, the history and the attachments merged
+    // in (Services/TicketReportPdf). Opened in the browser rather than downloaded, so it can go straight to the printer.
+    // internalNotes=false is the copy that can be handed to the requester or someone outside the IT team: no internal
+    // notes, no change history, and no files kept for the IT team.
+    public IActionResult OnGetReport(int number, bool internalNotes = true)
+    {
+        var me = SignedInTechnicianId is { } id ? store.Technicians.FirstOrDefault(x => x.Id == id)?.Name : null;
+        if (store.TicketReportFor(number, internalNotes, me) is not { } input) return NotFound();
+        try
+        {
+            var pdf = TicketReportPdf.Build(input);
+            // The page policy's object-src 'none' stops Chrome showing a PDF in the tab; this response is no page.
+            Response.Headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+            Response.Headers.ContentDisposition = $"inline; filename=\"{TicketReportPdf.FileName(input.Ticket)}\"";
+            return File(pdf, "application/pdf");
+        }
+        catch (ProposalException ex)
+        {
+            Message = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Couldn't make the report for ticket {Number}", number);
+            Message = "The report couldn't be made. The error has been logged.";
+        }
+        return RedirectToPage(new { number });
     }
 
     public IActionResult OnPostUpdate(int number, string field, string? value)
