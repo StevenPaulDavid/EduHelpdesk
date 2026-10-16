@@ -9,7 +9,8 @@ public static class TicketCsv
     public static string FileName(DateTime now) => $"tickets-{now:yyyyMMdd-HHmm}.csv";
 
     // One row per ticket: its own fields first, then one column per custom attribute that applies to any of the exported tickets.
-    // Dates are written in local time as yyyy-MM-dd HH:mm.
+    // Dates are written in local time as yyyy-MM-dd HH:mm. With deskOf (only when there is more than one desk) each row
+    // also says its desk and its number as shown, SITE-1043; the plain number stays first for anything matching on it.
     public static string Build(
         IEnumerable<TicketRecord> tickets,
         IReadOnlyList<UserRecord> users,
@@ -17,7 +18,8 @@ public static class TicketCsv
         IReadOnlyList<AssetRecord> assets,
         IReadOnlyList<SlaDefinition> slas,
         IReadOnlyList<TicketAttributeDefinition> attributeDefinitions,
-        IReadOnlyList<TicketAttributeValue> attributeValues)
+        IReadOnlyList<TicketAttributeValue> attributeValues,
+        Func<string?, Desk>? deskOf = null)
     {
         var rows = tickets.ToList();
         var userById = users.ToDictionary(x => x.Id);
@@ -32,6 +34,7 @@ public static class TicketCsv
             "Ticket number", "Title", "Description", "Type", "Status", "Priority", "Category", "Sub-category", "Location", "Requester", "Requester email", "Department",
             "Technician", "Team", "Assets", "SLA", "Created", "Due", "Closed", "Last updated", "Comments"
         };
+        if (deskOf is not null) headers.InsertRange(1, ["Reference", "Desk"]);
         // Two attributes can share a name (they apply to different categories); keep the columns distinct.
         var attributeHeaders = new List<string>();
         foreach (var attribute in attributes)
@@ -59,6 +62,7 @@ public static class TicketCsv
                 Stamp(ticket.CreatedAt), Stamp(ticket.DueDate), Stamp(ticket.ClosedAt), Stamp(ticket.LastModifiedAt),
                 ticket.Comments.Count.ToString(CultureInfo.InvariantCulture)
             };
+            if (deskOf is not null) cells.InsertRange(1, [HelpdeskStore.RefFor(deskOf(ticket.Category), ticket.Number), deskOf(ticket.Category).Name]);
             foreach (var attribute in attributes)
                 cells.Add(attribute.AppliesTo(ticket.Category) && values is not null && values.TryGetValue(attribute.Id, out var value) ? value : "");
             AppendRow(csv, cells);

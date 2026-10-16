@@ -1,11 +1,12 @@
 @page
 @model PrintJobSheetModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{ Layout = null; var ticket = Model.Ticket!; }
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Job sheet #@ticket.Number</title>
+<title>Job sheet @Helpdesk.Ref(ticket)</title>
 <style>
     @@page { size: 80mm auto; margin: 10mm; }
     * { box-sizing: border-box; }
@@ -24,7 +25,7 @@
 <script src="~/js/actions.js" asp-append-version="true" defer></script>
 </head>
 <body data-print-on-load>
-    <div class="sheet-header"><span class="sheet-number">#@ticket.Number</span><span class="sheet-priority">@ticket.Priority</span></div>
+    <div class="sheet-header"><span class="sheet-number">@Helpdesk.Ref(ticket)</span><span class="sheet-priority">@ticket.Priority</span></div>
     <p class="sheet-title">@ticket.Title</p>
     <p class="sheet-row"><span class="sheet-label">Requester</span>@(Model.Requester?.Name ?? "Unknown")</p>
     <p class="sheet-row"><span class="sheet-label">Category</span>@ticket.Category@(string.IsNullOrWhiteSpace(ticket.SubCategory) ? "" : " › " + ticket.SubCategory)</p>

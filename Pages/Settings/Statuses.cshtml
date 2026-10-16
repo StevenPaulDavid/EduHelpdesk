@@ -5,7 +5,16 @@
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 <section class="panel">
     <p class="muted">A status that <strong>stops the SLA clock</strong> is for tickets waiting on someone else - the requester, a part, a supplier. While a ticket is in it, it isn't counted as overdue or due soon. When it moves on, a due date worked out from the SLA moves on by the time it was paused (in the SLA's own time: school days or lessons for those SLAs). A due date typed by hand is left as it is. A ticket that's already overdue can't be paused.</p>
-    <form method="post" asp-page-handler="Add" class="settings-form"><label>Add status<input name="value" required /></label><button class="button button-primary">Add</button></form>
+    @if (Model.HasSeveralDesks)
+    {
+        <p class="muted">A status is used on every desk unless it's kept to one, such as <em>Awaiting contractor</em> for the Site desk. Only that desk's tickets can be put in it, and a ticket moved to another desk goes back to that desk's first status.</p>
+    }
+    <form method="post" asp-page-handler="Add" class="settings-form"><label>Add status<input name="value" required /></label>
+        @if (Model.HasSeveralDesks)
+        {
+            <label>Used on<select name="deskId"><option value="">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Id">The @desk.Name desk only</option> }</select></label>
+        }
+        <button class="button button-primary">Add</button></form>
     <div class="directory-list">
         @foreach (var status in Model.Statuses)
         {
@@ -25,6 +34,15 @@
                         </div>
                     }
                 </div>
+                @if (Model.HasSeveralDesks && !EduHelpdesk.Services.HelpdeskStore.IsBuiltInStatus(status))
+                {
+                    var placed = Model.DeskFor(status);
+                    <form method="post" asp-page-handler="Desk" class="status-pause-form">
+                        <input type="hidden" name="status" value="@status" />
+                        <label>Used on <select name="deskId" data-autosubmit><option value="" selected="@(placed is null)">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Id" selected="@(placed?.Id == desk.Id)">The @desk.Name desk only</option> }</select></label>
+                        <noscript><button class="button button-secondary" type="submit">Save</button></noscript>
+                    </form>
+                }
                 @if (!EduHelpdesk.Services.HelpdeskStore.IsBuiltInStatus(status))
                 {
                     var pauses = Model.Pauses(status);

@@ -153,6 +153,12 @@ public sealed partial class HelpdeskStore
         // Tickets logged on a schedule (HelpdeskStore.Recurring).
         public List<RecurringTicket> RecurringTickets { get; set; } = [];
         public List<ServiceItem> ServiceItems { get; set; } = [];
+        // The desks, in the order of their portal tiles and filters (HelpdeskStore.Desks), and which desk each category,
+        // team and desk-only status belongs to. A status with no entry is used on every desk.
+        public List<Desk> Desks { get; set; } = [];
+        public Dictionary<string, Guid> CategoryDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, Guid> TeamDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, Guid> StatusDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // Only categories someone has chosen a look for; the rest use PortalLook.DefaultFor.
         public Dictionary<string, CategoryStyle> CategoryStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<TicketAttachment> TicketAttachments { get; set; } = [];

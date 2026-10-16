@@ -37,6 +37,12 @@ public static class PortalLook
         new("building", "Building", "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\"/><path d=\"M9 7h.01M12 7h.01M15 7h.01M9 11h.01M12 11h.01M15 11h.01M10 21v-4h4v4\"/>"),
         new("gear", "Repairs and settings", "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1\"/>"),
         new("alert", "Something is wrong", "<path d=\"M12 3l10 18H2z\"/><path d=\"M12 10v5M12 18h.01\"/>"),
+        new("wrench", "Repairs and maintenance", "<path d=\"M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z\"/>"),
+        new("droplet", "Water and leaks", "<path d=\"M12 3c3.5 4.5 6 7.7 6 11a6 6 0 0 1-12 0c0-3.3 2.5-6.5 6-11z\"/>"),
+        new("thermometer", "Heating", "<path d=\"M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z\"/><path d=\"M12 9v7\"/>"),
+        new("bolt", "Electrical", "<path d=\"M13 2L4 14h7l-1 8 9-12h-7z\"/>"),
+        new("door", "Doors and locks", "<path d=\"M4 21h16M7 21V3h10v18\"/><path d=\"M14 12h.01\"/>"),
+        new("broom", "Cleaning", "<path d=\"M20 3l-7.5 7.5\"/><path d=\"M12.5 10.5L7 12.5 3 21l8.5-4 2-5.5z\"/><path d=\"M7 12.5l4.5 4.5\"/>"),
         new("folder", "Files and general", "<path d=\"M3 6h6l2 2h10v11H3z\"/>"),
         new("question", "Other", "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01\"/>"),
     ];
@@ -67,6 +73,20 @@ public static class PortalLook
         ["Classroom AV"] = ("projector", "pink"),
         ["Other"] = ("question", "slate"),
         ["Onboarding"] = ("newstarter", "indigo"),
+        // Desks (HelpdeskStore.Desks) use the same looks for their tiles.
+        ["IT"] = ("monitor", "blue"),
+        ["Site"] = ("wrench", "orange"),
+        ["Facilities"] = ("wrench", "orange"),
+        ["Cleaning"] = ("broom", "green"),
+        // Categories a site or cleaning desk is likely to have.
+        ["Heating"] = ("thermometer", "red"),
+        ["Water and leaks"] = ("droplet", "blue"),
+        ["Leaks"] = ("droplet", "blue"),
+        ["Electrical"] = ("bolt", "gold"),
+        ["Doors and locks"] = ("door", "slate"),
+        ["Furniture"] = ("wrench", "orange"),
+        ["Spill or urgent clean"] = ("broom", "red"),
+        ["Room not cleaned"] = ("broom", "green"),
     };
 
     public static (string Icon, string Color) DefaultFor(string category) =>

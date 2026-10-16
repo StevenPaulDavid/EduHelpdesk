@@ -58,7 +58,7 @@ public static class TicketReportPdf
                 else if (file.Image is { } image)
                     DrawPicture(pdf, input, file, image, total);
             }
-            pdf.Info.Title = Title(input.Ticket);
+            pdf.Info.Title = Title(input);
             pdf.Info.Author = input.OrganisationName;
             pdf.Info.Creator = "EduHelpdesk";
             using var output = new MemoryStream();
@@ -73,7 +73,7 @@ public static class TicketReportPdf
 
     public static string FileName(TicketRecord ticket) => $"Ticket {ticket.Number} report.pdf";
 
-    private static string Title(TicketRecord ticket) => $"Ticket #{ticket.Number} {ticket.Title} - report";
+    private static string Title(TicketReportInput input) => $"Ticket {input.ShownNumber} {input.Ticket.Title} - report";
 
     // ---- The attachments -------------------------------------------------------------------------------------------
 
@@ -159,7 +159,7 @@ public static class TicketReportPdf
         var ticket = input.Ticket;
         var brand = ParseColor(input.PrimaryColor);
         var document = new Document();
-        document.Info.Title = Title(ticket);
+        document.Info.Title = Title(input);
         document.Info.Author = input.OrganisationName;
         DefineStyles(document, brand);
 
@@ -237,7 +237,7 @@ public static class TicketReportPdf
             image.LockAspectRatio = true;
         }
         section.AddParagraph($"{input.OrganisationName.ToUpperInvariant()} · TICKET REPORT", "Eyebrow").Format.SpaceBefore = Unit.FromPoint(8);
-        section.AddParagraph($"#{ticket.Number}  {ticket.Title}", "ReportTitle");
+        section.AddParagraph($"{input.ShownNumber}  {ticket.Title}", "ReportTitle");
         var line = section.AddParagraph();
         line.Style = "Muted";
         line.AddFormattedText(ticket.Status, TextFormat.Bold).Color = brand;
@@ -461,7 +461,7 @@ public static class TicketReportPdf
     private static string FooterText(TicketReportInput input)
     {
         var title = input.Ticket.Title.Length > 60 ? input.Ticket.Title[..57].TrimEnd() + "…" : input.Ticket.Title;
-        return $"Ticket #{input.Ticket.Number} · {title}" + (input.IncludeInternal ? " · Staff copy" : "");
+        return $"Ticket {input.ShownNumber} · {title}" + (input.IncludeInternal ? " · Staff copy" : "");
     }
 
     private static string Moment(DateTime value) => value.ToString("d MMM yyyy, HH:mm", Uk);

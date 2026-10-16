@@ -266,6 +266,7 @@ public sealed partial class HelpdeskStore
         EnsureAccessSchema(connection);
         EnsureComplianceReminderSchema(connection);
         EnsureRecurringTicketSchema(connection);
+        EnsureDeskSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)

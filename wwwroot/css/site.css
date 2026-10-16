@@ -2423,6 +2423,14 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .option-rename { display: flex; align-items: center; gap: var(--space-2); flex: 1; margin: 0; }
 .option-rename input { flex: 1; min-width: 0; max-width: 420px; }
 .option-empty { margin: 0 0 var(--space-3); }
+/* The desks a staff account works on (Pages/People/Technician.cshtml). */
+.desk-choices { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); border: 0; margin: 0; padding: 0; }
+.desk-choices legend { font-weight: 600; margin-bottom: var(--space-1); }
+.desk-choices small { flex-basis: 100%; }
+/* Categories and teams with more than one desk: which desk each is on, changed in place. */
+.option-desk { margin: 0 0 0 auto; flex: none; }
+.option-add select { flex: 0 0 auto; width: auto; }
+.option-desk select { min-width: 9rem; }
 
 /* The Columns menu above a list (Pages/Shared/_ColumnPicker.cshtml), kept per account. */
 .column-picker>summary.button { display: inline-flex; align-items: center; gap: 6px; }

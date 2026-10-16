@@ -32,7 +32,16 @@ public record TechnicianRecord(Guid Id, string Name, string Email, string Team, 
     // HelpdeskStore.RecoveryKeys.cs). Null until the technician makes one, and again once it has been used. Owned by the
     // store, like TwoFactor.
     public RecoveryKeySetup? RecoveryKey { get; init; }
+    // The desks this account works on (HelpdeskStore.Desks): at least one, and always the desk of their team. Edit forms
+    // that leave it empty keep what the account already had.
+    public IReadOnlyList<Guid> DeskIds { get; init; } = [];
 }
+
+// One part of the school the helpdesk serves - IT, Site, Cleaning - with its own categories, teams and statuses. A
+// ticket is on the desk its category belongs to, so moving it to another desk is giving it one of that desk's
+// categories. Prefix goes in front of ticket numbers (SITE-1043); blank shows them as #1043. Icon and Color are keys
+// into PortalLook for the desk's tile in the staff portal, blank for the built-in look.
+public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", string Icon = "", string Color = "", bool ShowInPortal = true);
 
 // Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.
 public sealed record RecoveryKeySetup(string Hash, DateTime CreatedAt);

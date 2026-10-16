@@ -73,6 +73,11 @@
             ClearUrl = Model.ClearUrl(),
             Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset)],
             Fields = @<text>
+                @if (Model.HasSeveralDesks)
+                {
+                    @* The blank one says a desk choice was made, so ticking none shows every desk rather than your own. *@
+                    <fieldset class="filter-group"><legend>Desk</legend><input type="hidden" name="desk" value="" />@foreach (var desk in Model.Desks) { <label class="toggle-label"><input type="checkbox" name="desk" value="@desk.Name" checked="@Model.ShownDesks.Any(x => x.Id == desk.Id)" /> @desk.Name</label> }<small class="muted">None ticked shows every desk.</small></fieldset>
+                }
                 <label>Technician<select name="tech"><option value="">Anyone</option><option value="me" selected="@(Model.Technician == "me")">Me@(currentTechnician is null ? " (set Working as)" : "")</option><option value="none" selected="@(Model.Technician == "none")">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id.ToString() == Model.Technician)">@tech.Name</option> }</select></label>
                 <label>Team<select name="team"><option value="">Any team</option><option value="@TicketListQuery.None" selected="@(Model.Team == TicketListQuery.None)">(No team)</option>@foreach (var item in Model.Teams) { <option value="@item" selected="@string.Equals(item, Model.Team, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Requester<select name="requester" data-picker><option value="">Anyone</option>@foreach (var user in Model.Users.OrderBy(x => x.Name)) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id.ToString() == Model.Requester)">@user.Name</option> }</select></label>
@@ -117,7 +122,7 @@
             var rowUrl = onboarding is null ? Url.Page("/Job", new { number = ticket.Number }) : Url.Page("/Onboarding/Details", new { number = ticket.Number });
             <tr class="clickable-row @(due == DueState.Overdue ? "row-overdue" : due == DueState.Soon ? "row-soon" : "") @(urgent ? "row-urgent" : "")" data-href="@rowUrl">
                 <td><input class="ticket-select" type="checkbox" name="ids" value="@ticket.Number" aria-label="Select ticket @ticket.Number" /></td>
-                <td><strong><a href="@rowUrl">#@ticket.Number</a></strong>
+                <td><strong><a href="@rowUrl">@Model.Ref(ticket)</a></strong>
                     @if (onboarding is not null)
                     {
                         var itTasks = onboarding.ItTasks.ToList();

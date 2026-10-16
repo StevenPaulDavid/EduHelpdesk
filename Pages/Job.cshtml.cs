@@ -27,12 +27,19 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IReadOnlyList<AssetRecord> Assets => store.Assets
         .Where(x => !HelpdeskStore.IsDisposed(x) || (Ticket?.AssetIds.Contains(x.Id) ?? false)).ToList();
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
-    public IReadOnlyList<TechnicianRecord> TeamTechnicians => Ticket is null ? [] : store.GetTechniciansForTeam(Ticket.TeamName);
-    public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
-    public IReadOnlyList<string> Statuses => store.Statuses;
+    // Everything offered on the ticket belongs to its desk (HelpdeskStore.Desks): its teams, its people, its statuses
+    // and its categories. Another desk's categories are offered separately, as moving the ticket.
+    public Desk? Desk => Ticket is null ? null : store.DeskOf(Ticket);
+    public string Reference => Ticket is null ? "" : HelpdeskStore.RefFor(Desk, Ticket.Number);
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<TechnicianRecord> TeamTechnicians => Ticket is null || Desk is null ? [] : store.GetTechniciansForTeam(Ticket.TeamName).Where(x => HelpdeskStore.TechnicianOnDesk(x, Desk.Id)).ToList();
+    public IReadOnlyList<string> TechnicianTeams => Desk is null ? store.TechnicianTeams : store.TeamsFor(Desk.Id);
+    public IReadOnlyList<string> Statuses => Desk is null ? store.Statuses : store.StatusesFor(Desk.Id);
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
     public IReadOnlyList<string> Priorities => store.Priorities;
-    public IReadOnlyList<string> Categories => store.Categories;
+    public IReadOnlyList<string> Categories => Desk is null ? store.Categories : store.CategoriesFor(Desk.Id);
+    public IReadOnlyList<(Desk Desk, IReadOnlyList<string> Categories)> OtherDesks => Desk is null ? []
+        : store.Desks.Where(x => x.Id != Desk.Id).Select(x => (x, store.CategoriesFor(x.Id))).Where(x => x.Item2.Count > 0).ToList();
     public IReadOnlyList<string> Locations => store.Locations;
     public bool RequiresCloseMessage => Ticket is not null && store.RequiresCloseMessage(Ticket);
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
@@ -114,7 +121,15 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (ticket is null) return NotFound();
         string? successMessage = null;
-        if (field is "status" or "priority" or "category")
+        // A category on another desk moves the ticket there, and the store says what came off it on the way.
+        if (field == "category")
+        {
+            var (_, moved) = store.ChangeTicketCategory(number, value);
+            Message = moved;
+            return RedirectToPage(new { number });
+        }
+        var desk = store.DeskOf(ticket);
+        if (field is "status" or "priority")
         {
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -124,9 +139,8 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
             var allowed = field switch
             {
-                "status" => store.Statuses,
-                "priority" => store.Priorities,
-                _ => store.Categories
+                "status" => store.StatusesFor(desk.Id),
+                _ => store.Priorities
             };
             if (!allowed.Contains(value, StringComparer.OrdinalIgnoreCase))
             {
@@ -137,8 +151,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             ticket = field switch
             {
                 "status" => ticket with { Status = value, ClosedAt = value == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null },
-                "priority" => store.WithPriority(ticket, value),
-                _ => store.WithCategory(ticket, value)
+                _ => store.WithPriority(ticket, value)
             };
         }
         else if (field == "type")
@@ -164,12 +177,18 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
                 Message = $"Select a technician from the {ticket.TeamName} team.";
                 return RedirectToPage(new { number });
             }
+            if (technicianId.HasValue && store.Technicians.FirstOrDefault(x => x.Id == technicianId.Value) is { } onDesk && !HelpdeskStore.TechnicianOnDesk(onDesk, desk.Id))
+            {
+                Message = $"{onDesk.Name} isn't on the {desk.Name} desk. Add them to it on their staff account, or move the ticket first.";
+                return RedirectToPage(new { number });
+            }
             ticket = ticket with { TechnicianId = technicianId };
         }
         else if (field == "team")
         {
             var team = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             if (team is not null && !store.TechnicianTeams.Contains(team, StringComparer.OrdinalIgnoreCase)) { Message = "Select a valid team."; return RedirectToPage(new { number }); }
+            if (team is not null && store.DeskForTeam(team) is { } teamDesk && teamDesk.Id != desk.Id) { Message = $"The {team} team is on the {teamDesk.Name} desk. Move the ticket there first."; return RedirectToPage(new { number }); }
             var keepTechnician = ticket.TechnicianId is not { } currentTechnicianId || store.Technicians.FirstOrDefault(x => x.Id == currentTechnicianId) is not { } currentTechnician || HelpdeskStore.TechnicianInTeam(currentTechnician, team);
             ticket = ticket with { TeamName = team, TechnicianId = keepTechnician ? ticket.TechnicianId : null };
             if (!keepTechnician) successMessage = "Team updated. The technician was unassigned because they are not in that team.";
@@ -230,6 +249,10 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         {
             Message = $"This ticket belongs to the {ticket.TeamName} team, which you're not in. Change the team first if you're taking it on.";
             return RedirectToPage(new { number });
+        }        if (store.DeskOf(ticket) is var ticketDesk && !HelpdeskStore.TechnicianOnDesk(technician, ticketDesk.Id))
+        {
+            Message = $"This ticket is on the {ticketDesk.Name} desk, which you're not on. Move it to your desk first if you're taking it on.";
+            return RedirectToPage(new { number });
         }
         store.UpdateTicket(ticket with { TechnicianId = me });
         Message = "Assigned to you.";
@@ -260,6 +283,10 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         if (!HelpdeskStore.TechnicianInTeam(technician, ticket.TeamName))
         {
             Message = $"This ticket belongs to the {ticket.TeamName} team, which you're not in. Change the team first if you're taking it on.";
+            return RedirectToPage(new { number });
+        }        if (store.DeskOf(ticket) is var ticketDesk && !HelpdeskStore.TechnicianOnDesk(technician, ticketDesk.Id))
+        {
+            Message = $"This ticket is on the {ticketDesk.Name} desk, which you're not on. Move it to your desk first if you're taking it on.";
             return RedirectToPage(new { number });
         }
         var assigned = ticket.TechnicianId != me;
@@ -339,7 +366,9 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         string? newStatus = null;
         if (!string.IsNullOrWhiteSpace(status))
         {
-            newStatus = store.Statuses.FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase));
+            newStatus = store.Tickets.FirstOrDefault(x => x.Number == number) is { } current
+                ? store.StatusesFor(store.DeskOf(current).Id).FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase))
+                : null;
             if (newStatus is null)
             {
                 Message = "Select a valid status.";

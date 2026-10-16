@@ -14,8 +14,17 @@
         <input type="hidden" name="kind" value="@Model.Kind" />
         <label class="visually-hidden" for="option-new">Add to @title.ToLowerInvariant()</label>
         <input id="option-new" name="value" required placeholder="Add a new one…" autocomplete="off" />
+        @if (Model.PlacedOnDesks)
+        {
+            <label class="visually-hidden" for="option-new-desk">Desk</label>
+            <select id="option-new-desk" name="deskId">@foreach (var desk in Model.Desks) { <option value="@desk.Id">@desk.Name desk</option> }</select>
+        }
         <button class="button button-primary" type="submit">@Icons.Plus Add</button>
     </form>
+    @if (Model.PlacedOnDesks)
+    {
+        <p class="muted">Each @(Model.Kind == "Teams" ? "team works on one desk, and everyone in it is on that desk" : "category belongs to one desk, and its tickets are on that desk"). Choosing another desk moves it@(Model.Kind == "Teams" ? "" : " with its open tickets, which lose a team, technician or status that belongs to the old desk").</p>
+    }
     @if (Model.Values.Count == 0) { <p class="muted option-empty">Nothing in the list yet.</p> }
     <ul class="option-list">
         @for (var i = 0; i < Model.Values.Count; i++)
@@ -24,8 +33,17 @@
             @* Rename swaps the row's name and buttons for its own small form, and Cancel swaps them back (actions.js). *@
             <li class="option-row">
                 <span class="option-name" id="option-name-@i">@value</span>
+                @if (Model.PlacedOnDesks && Model.DeskFor(value) is { } placed)
+                {
+                    <form method="post" asp-page-handler="Desk" class="option-desk" id="option-deskform-@i">
+                        <input type="hidden" name="kind" value="@Model.Kind" /><input type="hidden" name="value" value="@value" />
+                        <label class="visually-hidden" for="option-desk-@i">Desk for @value</label>
+                        <select id="option-desk-@i" name="deskId" data-autosubmit>@foreach (var desk in Model.Desks) { <option value="@desk.Id" selected="@(desk.Id == placed.Id)">@desk.Name desk</option> }</select>
+                        <noscript><button class="button button-secondary" type="submit">Move</button></noscript>
+                    </form>
+                }
                 <span class="option-actions" id="option-actions-@i">
-                    <button class="icon-button" type="button" data-show="option-rename-@i" data-hide="option-name-@i option-actions-@i" title="Rename" aria-label="Rename @value">@Icons.Edit</button>
+                    <button class="icon-button" type="button" data-show="option-rename-@i" data-hide="option-name-@i option-actions-@i@(Model.PlacedOnDesks ? $" option-deskform-{i}" : "")" title="Rename" aria-label="Rename @value">@Icons.Edit</button>
                     <form method="post" asp-page-handler="Delete" data-confirm="Take “@value” off the list?">
                         <input type="hidden" name="kind" value="@Model.Kind" /><input type="hidden" name="value" value="@value" />
                         <button class="icon-button delete-icon" type="submit" title="Remove" aria-label="Remove @value">@Icons.Bin</button>
@@ -36,7 +54,7 @@
                     <label class="visually-hidden" for="option-value-@i">New name for @value</label>
                     <input id="option-value-@i" name="value" value="@value" required />
                     <button class="button button-primary" type="submit">Save</button>
-                    <button class="button button-secondary" type="button" data-show="option-name-@i option-actions-@i" data-hide="option-rename-@i">Cancel</button>
+                    <button class="button button-secondary" type="button" data-show="option-name-@i option-actions-@i@(Model.PlacedOnDesks ? $" option-deskform-{i}" : "")" data-hide="option-rename-@i">Cancel</button>
                 </form>
             </li>
         }

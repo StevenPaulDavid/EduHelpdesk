@@ -12,7 +12,7 @@
         if (showTechnician) { who += " · " + (ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned"); }
         <li class="dash-row @(due == DueState.Overdue ? "is-overdue" : due == DueState.Soon ? "is-soon" : "")">
             <div class="dash-main">
-                @if (Model.CanOpenTicket) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
+                @if (Model.CanOpenTicket) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>@Model.Ref(ticket)</strong> @ticket.Title</a> } else { <span><strong>@Model.Ref(ticket)</strong> @ticket.Title</span> }
                 <span class="muted">@who · <span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span>@if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply">Reply</span> }</span>
             </div>
             <div class="dash-side">

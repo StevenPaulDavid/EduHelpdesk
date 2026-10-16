@@ -5,7 +5,8 @@ namespace EduHelpdesk.Services;
 // The option lists and small settings behind Settings: teams, departments, locations, categories, statuses, asset types and models, and the rules that keep them consistent.
 public sealed partial class HelpdeskStore
 {
-    public string AddTechnicianTeam(string team)
+    // deskId is the desk the new team works on (HelpdeskStore.Desks); none, or one that doesn't exist, is the first desk.
+    public string AddTechnicianTeam(string team, Guid? deskId = null)
     {
         lock (_sync)
         {
@@ -14,6 +15,7 @@ public sealed partial class HelpdeskStore
             if (_data.TechnicianTeams.Contains(value, StringComparer.OrdinalIgnoreCase))
                 return "That team already exists.";
             _data.TechnicianTeams.Add(value);
+            _data.TeamDesks[value] = _data.Desks.FirstOrDefault(x => x.Id == deskId)?.Id ?? _data.Desks[0].Id;
             Save();
             return "Technician team added.";
         }
@@ -32,6 +34,7 @@ public sealed partial class HelpdeskStore
             var index = _data.TechnicianTeams.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
             if (index < 0) return "Technician team was not found.";
             _data.TechnicianTeams[index] = newValue;
+            RenameKey(_data.TeamDesks, oldValue, newValue);
             for (var i = 0; i < _data.Technicians.Count; i++)
             {
                 if (string.Equals(_data.Technicians[i].Team, oldValue, StringComparison.OrdinalIgnoreCase))
@@ -57,6 +60,7 @@ public sealed partial class HelpdeskStore
             if (index < 0) return "Technician team was not found.";
             if (_data.Technicians.Any(x => string.Equals(x.Team, value, StringComparison.OrdinalIgnoreCase))) return "That team cannot be deleted because technicians use it.";
             _data.TechnicianTeams.RemoveAt(index);
+            _data.TeamDesks.Remove(value);
             Save();
             return "Technician team deleted.";
         }
@@ -108,12 +112,15 @@ public sealed partial class HelpdeskStore
             return "Department deleted.";
         }
     }
-    public string AddManagedOption(string kind, string value)
+    // deskId places a new team on a desk (HelpdeskStore.Desks); every other list ignores it.
+    public string AddManagedOption(string kind, string value, Guid? deskId = null)
     {
         lock (_sync)
         {
             kind = NormalizeManagedOptionKind(kind);
             if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
+            // Teams have their own rules (the accounts and tickets that carry the name, and the desk).
+            if (kind == "Team") return AddTechnicianTeam(value, deskId);
             var options = GetManagedOptions(kind);
             var item = value.Trim();
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
@@ -129,6 +136,8 @@ public sealed partial class HelpdeskStore
         {
             kind = NormalizeManagedOptionKind(kind);
             if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
+            // Renaming a team here used to change only the list, leaving its technicians and tickets on the old name.
+            if (kind == "Team") return UpdateTechnicianTeam(currentValue, value);
             var options = GetManagedOptions(kind);
             var oldValue = currentValue.Trim();
             var newValue = value.Trim();
@@ -227,6 +236,7 @@ public sealed partial class HelpdeskStore
         {
             kind = NormalizeManagedOptionKind(kind);
             if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
+            if (kind == "Team") return DeleteTechnicianTeam(value);
             var item = (value ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
             var options = GetManagedOptions(kind);
@@ -442,7 +452,8 @@ public sealed partial class HelpdeskStore
             return (imported, linked, skipped);
         }
     }
-    public string AddTicketOption(string kind, string value)
+    // deskId places a new category on a desk, or keeps a new status to one desk (none: every desk) - HelpdeskStore.Desks.
+    public string AddTicketOption(string kind, string value, Guid? deskId = null)
     {
         lock (_sync)
         {
@@ -451,6 +462,9 @@ public sealed partial class HelpdeskStore
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
             if (options.Contains(item, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
             options.Add(item);
+            var desk = _data.Desks.FirstOrDefault(x => x.Id == deskId);
+            if (kind == "Category") _data.CategoryDesks[item] = desk?.Id ?? _data.Desks[0].Id;
+            if (kind == "Status" && desk is not null && !IsBuiltInStatus(item)) _data.StatusDesks[item] = desk.Id;
             Save();
             return $"{kind} added.";
         }
@@ -470,6 +484,8 @@ public sealed partial class HelpdeskStore
             var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
             if (index < 0) return $"{kind} was not found.";
             options[index] = newValue;
+            if (kind == "Category") RenameKey(_data.CategoryDesks, oldValue, newValue);
+            if (kind == "Status") RenameKey(_data.StatusDesks, oldValue, newValue);
             if (kind == "Status" && _data.StatusDescriptions.Remove(oldValue, out var existingDescription))
                 _data.StatusDescriptions[newValue] = existingDescription;
             if (kind == "Status" && _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase)) > 0)
@@ -558,6 +574,8 @@ public sealed partial class HelpdeskStore
             if (kind == "Priority") _data.TechnicianPingPriorities.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.RequireCloseMessageCategories.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));
             if (kind == "Category") _data.CategoryStyles.Remove(item);
+            if (kind == "Category") _data.CategoryDesks.Remove(item);
+            if (kind == "Status") _data.StatusDesks.Remove(item);
             Save();
             return $"{kind} deleted.";
         }
@@ -669,6 +687,8 @@ public sealed partial class HelpdeskStore
                     continue;
                 }
                 options.Add(item);
+                // Imported categories start on the first desk, placed there for good rather than until the desks are reordered.
+                if (kind == "Categories") _data.CategoryDesks[item] = _data.Desks[0].Id;
                 imported++;
             }
             if (imported > 0) Save();

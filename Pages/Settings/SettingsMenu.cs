@@ -22,6 +22,7 @@ public static class SettingsMenu
     [
         new("Tickets",
         [
+            new("Desks", "/Settings/Desks", "desk desks site facilities premises caretaker cleaning cleaners estates departments prefix ticket number portal tiles separate teams"),
             new("Ticket queues & closing", "/Settings/TicketRules", "due soon overdue window hours reopen reply closed days closing message requirement print template word docx"),
             new("Statuses", "/Settings/Statuses", "status on hold pause sla clock"),
             new("Categories", "/Settings/Categories", "category hardware software"),

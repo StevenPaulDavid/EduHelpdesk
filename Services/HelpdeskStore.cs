@@ -59,6 +59,8 @@ public sealed partial class HelpdeskStore
         EnsureOnboardingRole();
         EnsureComplianceDefaults();
         EnsureBootstrapAdministrator();
+        // Again, for the accounts the seeding just made: every account is on a desk.
+        EnsureDesks();
         SaveBaseline();
     }
 
@@ -147,6 +149,8 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.AssetModels, _data.Assets.Select(x => x.Model));
         _data.AssetModelMakes = new Dictionary<string, string>(_data.AssetModelMakes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         EnsureSystemOptions();
+        // After the lists it places on desks are complete.
+        EnsureDesks();
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
         EnsureOptions(_data.Buildings, _data.Assets.Select(x => x.Building).Where(x => !string.IsNullOrWhiteSpace(x)));
         EnsureOptions(_data.AssetConditions, _data.Assets.Select(x => x.Condition).Where(x => !string.IsNullOrWhiteSpace(x)));

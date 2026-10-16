@@ -195,14 +195,21 @@ public sealed partial class HelpdeskStore
     }
     public TicketRecord WithCategory(TicketRecord ticket, string category)
     {
-        lock (_sync)
+        lock (_sync) return WithCategoryCore(ticket, category).Ticket;
+    }
+    // A category on another desk moves the ticket there, and Dropped says what it lost on the way (HelpdeskStore.Desks).
+    private (TicketRecord Ticket, List<string> Dropped) WithCategoryCore(TicketRecord ticket, string category)
+    {
+        // A catalogue item belongs to one category, so moving the ticket to another leaves it without one.
+        var subCategory = string.Equals(ticket.Category, category, StringComparison.OrdinalIgnoreCase) ? ticket.SubCategory : "";
+        TicketRecord changed;
+        if (ticket.SlaOverridden) changed = ticket with { Category = category, SubCategory = subCategory };
+        else
         {
-            // A catalogue item belongs to one category, so moving the ticket to another leaves it without one.
-            var subCategory = string.Equals(ticket.Category, category, StringComparison.OrdinalIgnoreCase) ? ticket.SubCategory : "";
-            if (ticket.SlaOverridden) return ticket with { Category = category, SubCategory = subCategory };
             var sla = SlaFor(ticket.Priority, category);
-            return ticket with { Category = category, SubCategory = subCategory, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
+            changed = ticket with { Category = category, SubCategory = subCategory, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
         }
+        return DeskForCategoryCore(ticket.Category).Id == DeskForCategoryCore(category).Id ? (changed, []) : FitToDeskCore(changed);
     }
 
     // One change applied to many tickets. Operation is status, technician, team, priority, category, type, comment, close or merge.
@@ -272,6 +279,8 @@ public sealed partial class HelpdeskStore
                 {
                     case "status":
                         if (string.Equals(ticket.Status, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
+                        if (DeskForStatusCore(canonical) is { } statusDesk && statusDesk.Id != DeskForCategoryCore(ticket.Category).Id)
+                        { Skip($"{canonical} is only used on the {statusDesk.Name} desk."); continue; }
                         changed = ticket with { Status = canonical!, ClosedAt = string.Equals(canonical, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase) ? ticket.ClosedAt ?? DateTime.UtcNow : null };
                         break;
                     case "priority":
@@ -290,6 +299,8 @@ public sealed partial class HelpdeskStore
                     {
                         var team = change.Value == TicketListQuery.None ? null : canonical;
                         if (string.Equals(ticket.TeamName, team, StringComparison.Ordinal)) { unchanged++; continue; }
+                        if (DeskForTeamCore(team) is { } teamDesk && teamDesk.Id != DeskForCategoryCore(ticket.Category).Id)
+                        { Skip($"The {team} team is on the {teamDesk.Name} desk, and some tickets are on another."); continue; }
                         var keep = ticket.TechnicianId is not { } current || _data.Technicians.FirstOrDefault(x => x.Id == current) is not { } holder || TechnicianInTeam(holder, team);
                         changed = ticket with { TeamName = team, TechnicianId = keep ? ticket.TechnicianId : null };
                         break;
@@ -299,6 +310,8 @@ public sealed partial class HelpdeskStore
                         if (ticket.TechnicianId == change.TechnicianId) { unchanged++; continue; }
                         if (change.TechnicianId is { } technicianId && _data.Technicians.First(x => x.Id == technicianId) is { } technician && !TechnicianInTeam(technician, ticket.TeamName))
                         { Skip($"{technician.Name} is not in the team a ticket is assigned to."); continue; }
+                        if (change.TechnicianId is { } onDeskId && _data.Technicians.First(x => x.Id == onDeskId) is { } person && !TechnicianOnDesk(person, DeskForCategoryCore(ticket.Category).Id))
+                        { Skip($"{person.Name} isn't on the desk some of these tickets are on."); continue; }
                         changed = ticket with { TechnicianId = change.TechnicianId };
                         break;
                     }
@@ -646,6 +659,8 @@ public sealed partial class HelpdeskStore
         if (previous.Status != updated.Status) history.Add(new("Status changed", $"{previous.Status} -> {updated.Status}", now));
         if (previous.Priority != updated.Priority) history.Add(new("Priority changed", $"{previous.Priority} -> {updated.Priority}", now));
         if (previous.Category != updated.Category) history.Add(new("Category changed", $"{previous.Category} -> {updated.Category}", now));
+        if (DeskForCategoryCore(previous.Category) is var oldDesk && DeskForCategoryCore(updated.Category) is var newDesk && oldDesk.Id != newDesk.Id)
+            history.Add(new("Desk changed", $"{oldDesk.Name} -> {newDesk.Name}", now));
         if (previous.Type != updated.Type) history.Add(new("Type changed", $"{previous.Type} -> {updated.Type}", now));
         if (previous.RequesterId != updated.RequesterId) history.Add(new("Requester changed", "The ticket requester was updated.", now));
         if (previous.TechnicianId != updated.TechnicianId) history.Add(new("Technician changed", updated.TechnicianId.HasValue ? "A technician was assigned." : "The technician assignment was removed.", now));

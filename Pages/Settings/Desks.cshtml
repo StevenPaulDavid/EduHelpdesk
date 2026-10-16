@@ -1,0 +1,93 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.DesksModel
+@{
+    ViewData["Title"] = "Desks";
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves, such as IT, Site or Cleaning. Each has its own categories, teams and people, and its own prefix on ticket numbers. A ticket is on the desk its category belongs to, so moving a ticket to another desk is giving it one of that desk's categories. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Add a desk</h2></div>
+    <form method="post" asp-page-handler="Add" class="settings-form">
+        <div class="template-fields">
+            <label>Name<input name="name" required maxlength="@HelpdeskStore.MaxDeskNameLength" placeholder="e.g. Site" /></label>
+            <label>Ticket number prefix<input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. SITE" autocapitalize="characters" /><small class="muted">Its tickets show as SITE-1043. Leave blank for #1043.</small></label>
+            <label class="full">Helper line<input name="helperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under its portal tile, e.g. Heating, leaks, doors and furniture" /></label>
+        </div>
+        <button class="button button-primary" type="submit">@Icons.Plus Add desk</button>
+    </form>
+    <p class="muted">Then give it its categories in <a asp-page="/Settings/Categories">Categories</a> and its teams in <a asp-page="/Settings/Teams">Teams</a>, and add people to it on their staff account in People.</p>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>The desks</h2><span class="badge">@Model.Desks.Count</span></div>
+    <p class="muted">In the order of the portal's tiles and the ticket list's filter. The first desk is also where a new category starts if nobody chooses one.</p>
+    @for (var i = 0; i < Model.Desks.Count; i++)
+    {
+        var desk = Model.Desks[i];
+        var style = Model.StyleFor(desk);
+        var icon = PortalLook.FindIcon(style.Icon)!;
+        var color = PortalLook.FindColor(style.Color)!;
+        var categories = Model.CategoriesOn(desk);
+        var teams = Model.TeamsOn(desk);
+        <div class="order-row">
+            <div class="order-controls">
+                @foreach (var (direction, arrow, word, disabled) in new[] { (-1, "↑", "up", i == 0), (1, "↓", "down", i == Model.Desks.Count - 1) })
+                {
+                    <form method="post" asp-page-handler="Move">
+                        <input type="hidden" name="id" value="@desk.Id" /><input type="hidden" name="direction" value="@direction" />
+                        <button class="order-button" type="submit" disabled="@disabled" title="Move @word" aria-label="Move @desk.Name @word">@arrow</button>
+                    </form>
+                }
+            </div>
+            <details class="template-item">
+                <summary>
+                    <span class="tile-swatch" style="--tile-color:@color.Hex">@PortalLook.Svg(style.Icon)</span>
+                    <strong>@desk.Name</strong>
+                    <span class="badge">@HelpdeskStore.RefFor(desk, 1043)</span>
+                    <span class="muted">@(categories.Count == 1 ? "1 category" : $"{categories.Count} categories") · @(teams.Count == 1 ? "1 team" : $"{teams.Count} teams") · @(Model.PeopleOn(desk) == 1 ? "1 person" : $"{Model.PeopleOn(desk)} people") · @Model.OpenTicketsOn(desk) open@(desk.ShowInPortal ? "" : " · not in the portal")</span>
+                </summary>
+                <p class="muted">@(categories.Count == 0 ? "No categories yet." : "Categories: " + string.Join(", ", categories) + ".") @(teams.Count == 0 ? "" : "Teams: " + string.Join(", ", teams) + ".")</p>
+                <form method="post" asp-page-handler="Save" class="settings-form">
+                    <input type="hidden" name="id" value="@desk.Id" />
+                    <div class="template-fields">
+                        <label>Name<input name="name" value="@desk.Name" required maxlength="@HelpdeskStore.MaxDeskNameLength" /></label>
+                        <label>Ticket number prefix<input name="prefix" value="@desk.Prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" autocapitalize="characters" /><small class="muted">Changing it changes how every ticket on this desk is shown, old ones included. The numbers themselves never change.</small></label>
+                        <label class="full">Helper line<input name="helperLine" value="@desk.HelperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" /></label>
+                        <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@desk.ShowInPortal" /> Offer this desk in the staff portal<small class="muted">Untick for a desk that only takes work logged by its own staff.</small></label>
+                    </div>
+                    <button class="button button-primary" type="submit">Save desk</button>
+                </form>
+                <form method="post" asp-page-handler="Style" class="tile-style-form">
+                    <input type="hidden" name="id" value="@desk.Id" />
+                    <fieldset><legend>Portal tile icon</legend>
+                        <div class="choice-grid">
+                            @foreach (var choice in PortalLook.Icons)
+                            {
+                                <label class="icon-choice" title="@choice.Label"><input type="radio" name="icon" value="@choice.Key" checked="@(choice.Key == icon.Key)" /><span>@PortalLook.Svg(choice.Key)<span class="visually-hidden">@choice.Label</span></span></label>
+                            }
+                        </div>
+                    </fieldset>
+                    <fieldset><legend>Colour</legend>
+                        <div class="choice-grid">
+                            @foreach (var choice in PortalLook.Colors)
+                            {
+                                <label class="color-choice" title="@choice.Label"><input type="radio" name="color" value="@choice.Key" checked="@(choice.Key == color.Key)" /><span style="background:@choice.Hex"><span class="visually-hidden">@choice.Label</span></span></label>
+                            }
+                        </div>
+                    </fieldset>
+                    <button class="button button-secondary" type="submit">Save tile</button>
+                </form>
+                @if (Model.Desks.Count > 1)
+                {
+                    <form method="post" asp-page-handler="Delete" data-confirm="Delete the @desk.Name desk?">
+                        <input type="hidden" name="id" value="@desk.Id" />
+                        <button class="button button-danger" type="submit">Delete desk</button>
+                        <small class="muted">Only once its categories, teams and own statuses are on another desk.</small>
+                    </form>
+                }
+            </details>
+        </div>
+    }
+</section>

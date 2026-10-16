@@ -2,9 +2,9 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Portal.TicketModel
 @inject HelpdeskStore Helpdesk
-@{ ViewData["Title"] = $"Ticket #{Model.Ticket!.Number}"; }
+@{ ViewData["Title"] = $"Ticket {Helpdesk.Ref(Model.Ticket!)}"; }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>#@Model.Ticket.Number</h1><p class="hero-copy">@Model.Ticket.Title</p></div><a class="button button-secondary" asp-page="/Portal/MyTickets">← My tickets</a></div>
+    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@Helpdesk.Ref(Model.Ticket)</h1><p class="hero-copy">@Model.Ticket.Title</p></div><a class="button button-secondary" asp-page="/Portal/MyTickets">← My tickets</a></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     <section class="panel portal-panel">
         <div class="detail-block"><p class="eyebrow">STATUS</p><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></div>

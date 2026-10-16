@@ -4,7 +4,7 @@
 @{
     Layout = "_ReportPrint";
     ViewData["ReportTitle"] = "Ticket report";
-    ViewData["ReportSubtitle"] = $"{Model.PeriodLabel} · {Model.TypeLabel}";
+    ViewData["ReportSubtitle"] = $"{Model.PeriodLabel} · {Model.TypeLabel}" + (Model.HasSeveralDesks ? $" · {(Model.ReportDesk is { } desk ? desk.Name + " desk" : "Every desk")}" : "");
 
     // One table of on-time figures for a grouping of tickets - the print twin of the helper in Tickets.cshtml.
     async Task SlaTable(string heading, string firstColumn, IReadOnlyList<TicketReports.SlaRow> rows)
@@ -37,6 +37,7 @@
 <section>
     <h2>Meeting deadlines</h2>
     @{ await SlaTable("Overall", "All tickets", [Model.Overall]); }
+    @if (Model.ByDesk.Count > 0) { await SlaTable("By desk", "Desk", Model.ByDesk); }
     @{ await SlaTable("By type", "Type", Model.ByType); }
     @{ await SlaTable("By priority", "Priority", Model.ByPriority); }
     @{ await SlaTable("By category", "Category", Model.ByCategory); }

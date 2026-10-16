@@ -14,6 +14,12 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
     public IReadOnlyList<string> Roles => store.Roles.Select(x => x.Name)
         .Where(x => IsAdministrator || x != StaffRoles.Administrator || Technician?.Role == StaffRoles.Administrator).ToList();
     public TechnicianRecord? Technician { get; private set; }
+    // Which desks the account works on (HelpdeskStore.Desks), asked only once there is more than one. A new account
+    // starts on the first desk.
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<Desk> Desks => store.Desks;
+    public bool IsOnDesk(Desk desk) => Technician is null ? Desks.Count > 0 && Desks[0].Id == desk.Id : Technician.DeskIds.Contains(desk.Id);
+    public string TeamDesk(string team) => store.DeskForTeam(team)?.Name ?? "";
     public bool IsAdministrator => string.Equals(User.FindFirst(ClaimTypes.Role)?.Value, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase);
     public bool IsSelf => Technician is not null && Technician.Id == SignedInId;
     private Guid? SignedInId => Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
@@ -34,7 +40,7 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync(Guid? id, string name, string email, string? team, string role, string? password, bool active)
+    public async Task<IActionResult> OnPostAsync(Guid? id, string name, string email, string? team, string role, string? password, bool active, Guid[]? desks, bool desksShown)
     {
         if (!store.UserCan(User, Modules.StaffAccounts, Needed(id))) return Forbid();
         var existing = id.HasValue ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
@@ -81,6 +87,12 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
             ModelState.AddModelError("", "At least one active Administrator must remain.");
             return Page();
         }
+        // Left with nothing ticked, the store would quietly keep the old desks; better to say so.
+        if (desksShown && (desks is null || desks.Length == 0))
+        {
+            ModelState.AddModelError("", "Tick at least one desk they work on.");
+            return Page();
+        }
         var typed = !string.IsNullOrWhiteSpace(password);
         if (typed && PasswordRules.Problem(password, name, email) is { } problem)
         {
@@ -95,7 +107,8 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
         var newPassword = typed ? password! : temporary;
         var hash = newPassword is null ? existing?.PasswordHash : PasswordHasher.Hash(newPassword);
         var item = new TechnicianRecord(id ?? Guid.NewGuid(), name.Trim(), email.Trim(), (team ?? string.Empty).Trim(), normalizedRole,
-            hash, temporary is not null || (newPassword is null && (existing?.RequirePasswordChange ?? false)), active);
+            hash, temporary is not null || (newPassword is null && (existing?.RequirePasswordChange ?? false)), active)
+        { DeskIds = desks ?? [] };
         if (id.HasValue) store.UpdateTechnician(item); else store.AddTechnician(item);
         if (newPassword is not null)
         {

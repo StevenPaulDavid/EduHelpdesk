@@ -18,7 +18,9 @@ public sealed record TicketContext(
     // Onboarding tickets' checklists, by ticket number, for the Onboarding queue and for "My tickets".
     IReadOnlyDictionary<int, OnboardingRecord>? Onboardings = null,
     // Each ticket's custom attribute answers, by ticket number, so a search finds a serial number or a Spiceworks number.
-    IReadOnlyDictionary<int, IReadOnlyList<string>>? AttributeValues = null)
+    IReadOnlyDictionary<int, IReadOnlyList<string>>? AttributeValues = null,
+    // Which desk a category is on (HelpdeskStore.DeskLookup), for the desk filter and for finding SITE-1043 by its number.
+    Func<string?, Desk>? DeskOf = null)
 {
     public OnboardingRecord? OnboardingFor(TicketRecord ticket) => Onboardings?.GetValueOrDefault(ticket.Number);
 }
@@ -78,6 +80,8 @@ public sealed class TicketListQuery
     public string? Technician { get; set; }
     // A team name, or "(none)" for tickets with no team.
     public string? Team { get; set; }
+    // Desk ids; empty means every desk.
+    public List<Guid> Desks { get; set; } = [];
     public Guid? Requester { get; set; }
     public string? Department { get; set; }
     // "(none)" for tickets with no location.
@@ -111,6 +115,7 @@ public sealed class TicketListQuery
         var assets = context.Assets.ToDictionary(x => x.Id);
         IEnumerable<TicketRecord> query = tickets.Where(t => InView(t, View, context));
 
+        if (Desks.Count > 0 && context.DeskOf is { } deskOf) query = query.Where(t => Desks.Contains(deskOf(t.Category).Id));
         if (Status.Count > 0) query = query.Where(t => Status.Any(s => Same(t.Status, s)));
         if (Priority.Count > 0) query = query.Where(t => Priority.Any(s => Same(t.Priority, s)));
         if (Category.Count > 0) query = query.Where(t => Category.Any(s => Same(t.Category, s)));
@@ -147,7 +152,7 @@ public sealed class TicketListQuery
 
     private static string SearchText(TicketRecord ticket, Dictionary<Guid, UserRecord> users, Dictionary<Guid, TechnicianRecord> technicians, Dictionary<Guid, AssetRecord> assets, TicketContext context)
     {
-        var parts = new List<string> { ticket.Number.ToString(), ticket.Title, ticket.Description, ticket.Category, ticket.SubCategory, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "", ticket.Location ?? "" };
+        var parts = new List<string> { ticket.Number.ToString(), context.DeskOf is { } deskOf ? $"{HelpdeskStore.RefFor(deskOf(ticket.Category), ticket.Number)} {deskOf(ticket.Category).Name}" : "", ticket.Title, ticket.Description, ticket.Category, ticket.SubCategory, ticket.Status, ticket.Priority, ticket.Type, ticket.TeamName ?? "", ticket.Location ?? "" };
         if (users.TryGetValue(ticket.RequesterId, out var user)) { parts.Add(user.Name); parts.Add(user.Department); parts.Add(user.Email); }
         if (ticket.TechnicianId is { } techId && technicians.TryGetValue(techId, out var technician)) parts.Add(technician.Name);
         foreach (var id in ticket.AssetIds)

@@ -24,6 +24,13 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
     // Incident, Request, or blank for both.
     [BindProperty(SupportsGet = true, Name = "type")] public string? Type { get; set; }
+    // A desk's name (HelpdeskStore.Desks), or blank for every desk. Only offered with more than one desk.
+    [BindProperty(SupportsGet = true, Name = "desk")] public string? DeskName { get; set; }
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<Desk> Desks => store.Desks;
+    public Desk? ReportDesk { get; private set; }
+    public string DeskLabel => ReportDesk is { } desk ? $"the {desk.Name} desk" : "every desk";
+    public IReadOnlyList<TicketReports.SlaRow> ByDesk { get; private set; } = [];
 
     public DateTime Now { get; } = DateTime.UtcNow;
     public string PeriodKey { get; private set; } = "3m";
@@ -64,7 +71,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
             "sla" => ("ticket-sla", Csv.Table(
                 ["Grouping", "Name", "Tickets", "On time", "Late", "Open and overdue", "Open within time", "No due date", "Closed", "On-time rate %", "Average resolution (hours)", "Median resolution (hours)"],
                 new[] { ("Overall", Overall) }
-                    .Concat(ByType.Select(x => ("Type", x))).Concat(ByPriority.Select(x => ("Priority", x)))
+                    .Concat(ByDesk.Select(x => ("Desk", x))).Concat(ByType.Select(x => ("Type", x))).Concat(ByPriority.Select(x => ("Priority", x)))
                     .Concat(ByCategory.Select(x => ("Category", x))).Concat(ByTechnician.Select(x => ("Technician", x))),
                 x => [x.Item1, x.Item2.Name, x.Item2.Tickets.ToString(), x.Item2.OnTime.ToString(), x.Item2.Late.ToString(), x.Item2.OpenOverdue.ToString(),
                       x.Item2.OpenWithinTime.ToString(), x.Item2.NoDueDate.ToString(), x.Item2.Closed.ToString(), Number(x.Item2.OnTimeRate), Number(x.Item2.AverageResolutionHours), Number(x.Item2.MedianResolutionHours)])),
@@ -116,11 +123,15 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         Since = period.Days is { } days ? Now.AddDays(-days) : period.Months is { } months ? Now.AddMonths(-months) : DateTime.MinValue;
         HasPreviousPeriod = period.Key != "all";
 
-        var all = store.Tickets.Where(t => Type is null || t.Type == Type).ToList();
+        ReportDesk = store.HasSeveralDesks ? store.FindDesk(DeskName) : null;
+        DeskName = ReportDesk?.Name;
+        var deskOf = store.DeskLookup();
+        var all = store.Tickets.Where(t => (Type is null || t.Type == Type) && (ReportDesk is null || deskOf(t.Category).Id == ReportDesk.Id)).ToList();
         var cohort = all.Where(t => t.CreatedAt >= Since).ToList();
         var previous = HasPreviousPeriod ? all.Where(t => t.CreatedAt < Since && t.CreatedAt >= Since - (Now - Since)).ToList() : [];
         var users = store.Users;
-        var technicians = store.Technicians;
+        // A desk's workload is its own people's.
+        var technicians = ReportDesk is null ? store.Technicians : store.Technicians.Where(x => HelpdeskStore.TechnicianOnDesk(x, ReportDesk.Id)).ToList();
         var technicianNames = technicians.ToDictionary(x => x.Id, x => x.Name);
 
         TicketsInPeriod = cohort.Count;
@@ -130,6 +141,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         OverdueNow = open.Count(t => TicketInsights.IsOverdue(t, Now));
         OverdueOpen = open.Where(t => TicketInsights.IsOverdue(t, Now)).OrderBy(t => t.DueDate).Take(OverdueLimit).ToList();
 
+        ByDesk = store.HasSeveralDesks && ReportDesk is null ? TicketReports.SlaBy(cohort, t => deskOf(t.Category).Name, Now) : [];
         ByType = TicketReports.SlaBy(cohort, t => t.Type, Now);
         ByPriority = TicketReports.SlaBy(cohort, t => t.Priority, Now);
         ByCategory = TicketReports.SlaBy(cohort, t => t.Category, Now);

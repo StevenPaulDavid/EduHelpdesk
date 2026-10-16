@@ -206,7 +206,7 @@ public sealed partial class HelpdeskStore
             var now = DateTime.UtcNow;
             var sla = SlaFor(original.Priority, original.Category);
             var followUp = AddTicket(new TicketRecord(0, $"Follow-up: {original.Title}", $"Follow-up to #{original.Number}: {original.Title}.",
-                original.RequesterId, original.AssetIds.ToList(), original.TechnicianId, original.Priority, _data.Statuses.FirstOrDefault() ?? "Open",
+                original.RequesterId, original.AssetIds.ToList(), original.TechnicianId, original.Priority, StartingStatusCore(DeskForCategoryCore(original.Category).Id),
                 original.Category, now, null, sla, CalculateDueDate(sla, now), false, false, original.TeamName) { Type = original.Type, SubCategory = original.SubCategory });
             _data.TicketLinks.Add(new TicketLink(number, followUp, "follow-up"));
             AddLinkHistory(_data.Tickets.FindIndex(x => x.Number == number), "Follow-up created", $"Follow-up ticket #{followUp} was created.");

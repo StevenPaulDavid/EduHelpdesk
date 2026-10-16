@@ -21,6 +21,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "type")] public List<string> Type { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "tech")] public string? Technician { get; set; }
     [BindProperty(SupportsGet = true, Name = "team")] public string? Team { get; set; }
+    // Desk names (HelpdeskStore.Desks), or "all". Left out, the list opens on the desks the signed-in account is on.
+    [BindProperty(SupportsGet = true, Name = "desk")] public List<string> Desk { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "requester")] public string? Requester { get; set; }
     [BindProperty(SupportsGet = true, Name = "dept")] public string? Department { get; set; }
     [BindProperty(SupportsGet = true, Name = "loc")] public string? Location { get; set; }
@@ -40,6 +42,15 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Types => TicketTypes.All;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<Desk> Desks => store.Desks;
+    // The desks being shown, empty for all of them, and the ones the account opens on.
+    public List<Desk> ShownDesks { get; private set; } = [];
+    private List<Desk> _myDesks = [];
+    private Func<string?, Desk> _deskOf = _ => null!;
+    public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket.Number);
+    public string DeskName(TicketRecord ticket) => _deskOf(ticket.Category).Name;
+    private bool DesksAreDefault => ShownDesks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id));
     public int DueSoonHours => store.TicketDueSoonHours;
     [TempData] public string? Message { get; set; }
 
@@ -74,8 +85,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
         var context = Context();
         var all = store.Tickets;
         var matches = BuildQuery().Run(all, context);
-        TotalTickets = all.Count;
-        ViewCounts = TicketListQuery.ViewCounts(all, context);
+        // The queue tabs count within the desks shown, so a site technician's "Open" is the site's open tickets.
+        var scoped = ShownDesks.Count == 0 ? all : all.Where(t => ShownDesks.Any(d => d.Id == _deskOf(t.Category).Id)).ToList();
+        TotalTickets = scoped.Count;
+        ViewCounts = TicketListQuery.ViewCounts(scoped, context);
         MatchCount = matches.Count;
         TotalPages = Math.Max(1, (int)Math.Ceiling(MatchCount / (double)Size));
         PageNumber = Math.Clamp(PageNumber, 1, TotalPages);
@@ -104,7 +117,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         {
             var chosen = targets.ToHashSet();
             var sorted = BuildQuery().Run(store.Tickets.Where(x => chosen.Contains(x.Number)), Context());
-            var csv = TicketCsv.Build(sorted, store.Users, store.Technicians, store.Assets, store.Slas, store.TicketAttributeDefinitions, store.TicketAttributeValues);
+            var csv = TicketCsv.Build(sorted, store.Users, store.Technicians, store.Assets, store.Slas, store.TicketAttributeDefinitions, store.TicketAttributeValues, store.HasSeveralDesks ? _deskOf : null);
             var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
             return File(bytes, "text/csv; charset=utf-8", TicketCsv.FileName(DateTime.Now));
         }
@@ -179,7 +192,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     }
 
     private TicketContext Context() => new(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, Now, store.TicketDueSoonHours, CurrentTechnicianId, Onboardings,
-        string.IsNullOrWhiteSpace(Search) ? null : store.TicketAttributeAnswers());
+        string.IsNullOrWhiteSpace(Search) ? null : store.TicketAttributeAnswers(), _deskOf);
 
     // Onboarding tickets' checklists, for the Onboarding queue, "My tickets", and each row's IT progress.
     private IReadOnlyDictionary<int, OnboardingRecord>? _onboardings;
@@ -188,6 +201,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     private TicketListQuery BuildQuery() => new()
     {
         View = View, Search = Search, Status = Status, Priority = Priority, Category = Category, Type = Type, Technician = Technician, Team = Team,
+        Desks = ShownDesks.Select(x => x.Id).ToList(),
         Requester = Guid.TryParse(Requester, out var requesterId) ? requesterId : null,
         Department = Department,
         Location = Location,
@@ -208,7 +222,32 @@ public class JobsModel(HelpdeskStore store) : PageModel
         // Technician and Junior Technician are always themselves. Administrator and Senior Technician default to
         // themselves too, but can pick someone else via "Working as" (remembered in this browser's cookie).
         CurrentTechnicianId = WorkingAs.Resolve(store, User, Request);
+        PrepareDesks();
     }
+
+    // Which desks to show. Nothing asked for opens on the account's own desks; "all" is every desk. With one desk there
+    // is nothing to choose.
+    private void PrepareDesks()
+    {
+        _deskOf = store.DeskLookup();
+        if (!store.HasSeveralDesks) { ShownDesks = []; Desk = []; return; }
+        var desks = store.Desks;
+        _myDesks = store.DesksOf(User).ToList();
+        // Being on every desk is the same as no filter.
+        if (_myDesks.Count == desks.Count) _myDesks = [];
+        var asked = Request.Query.ContainsKey("desk") || (Request.HasFormContentType && Request.Form.ContainsKey("desk"));
+        if (!asked) ShownDesks = _myDesks.ToList();
+        else if (Desk.Any(x => string.Equals(x, "all", StringComparison.OrdinalIgnoreCase))) ShownDesks = [];
+        else ShownDesks = desks.Where(d => Desk.Any(x => string.Equals(x, d.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+        if (ShownDesks.Count == desks.Count) ShownDesks = [];
+        Desk = ShownDesks.Select(x => x.Name).ToList();
+    }
+
+    // The desk part of an address: nothing when it's the account's own desks, "all" for every desk.
+    private object? DeskRoute(List<Desk> desks) =>
+        !store.HasSeveralDesks || desks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id)) ? null
+        : desks.Count == 0 ? "all"
+        : desks.Select(x => x.Name).ToArray();
 
     private static List<string> Clean(List<string>? values) => (values ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -223,6 +262,11 @@ public class JobsModel(HelpdeskStore store) : PageModel
         foreach (var value in Type) yield return ("type", value);
         if (!string.IsNullOrWhiteSpace(Technician)) yield return ("tech", Technician);
         if (!string.IsNullOrWhiteSpace(Team)) yield return ("team", Team);
+        if (store.HasSeveralDesks)
+        {
+            if (ShownDesks.Count == 0) yield return ("desk", "all");
+            foreach (var desk in ShownDesks) yield return ("desk", desk.Name);
+        }
         if (!string.IsNullOrWhiteSpace(Requester)) yield return ("requester", Requester);
         if (!string.IsNullOrWhiteSpace(Department)) yield return ("dept", Department);
         if (!string.IsNullOrWhiteSpace(Location)) yield return ("loc", Location);
@@ -248,6 +292,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["priority"] = Priority.Count == 0 ? null : Priority.ToArray(),
             ["category"] = Category.Count == 0 ? null : Category.ToArray(),
             ["type"] = Type.Count == 0 ? null : Type.ToArray(),
+            ["desk"] = DeskRoute(ShownDesks),
             ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["loc"] = Blank(Location), ["asset"] = Blank(Asset),
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,
@@ -271,7 +316,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View });
 
     // Filters in the Filters panel that are switched on - the number on its button.
-    public int PanelFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count
+    public int PanelFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count + (DesksAreDefault ? 0 : 1)
         + new[] { Technician, Team, Requester, Department, Location }.Count(x => !string.IsNullOrWhiteSpace(x));
 
     // Every filter in force, each as a chip that takes just that one off. With the panel closed, this is how the list
@@ -301,6 +346,9 @@ public class JobsModel(HelpdeskStore store) : PageModel
             chips.Add(new($"Technician: {name}", Without("tech", null)));
         }
         if (!string.IsNullOrWhiteSpace(Team)) chips.Add(new($"Team: {(Team == TicketListQuery.None ? "No team" : Team)}", Without("team", null)));
+        // Shown even when it's the account's own desks, so the list says it isn't everything.
+        foreach (var desk in ShownDesks)
+            chips.Add(new($"Desk: {desk.Name}", Without("desk", DeskRoute(ShownDesks.Where(x => x.Id != desk.Id).ToList()))));
         if (!string.IsNullOrWhiteSpace(Requester))
             chips.Add(new($"Requester: {(Guid.TryParse(Requester, out var requesterId) ? Users.FirstOrDefault(x => x.Id == requesterId)?.Name ?? "Unknown" : Requester)}", Without("requester", null)));
         if (!string.IsNullOrWhiteSpace(Department)) chips.Add(new($"Department: {Department}", Without("dept", null)));

@@ -6,7 +6,7 @@ namespace EduHelpdesk.Services;
 public sealed partial class HelpdeskStore
 {
     public void AddUser(UserRecord item) { lock (_sync) { _data.Users.Add(WithLeaverDates(item, null)); Save(); } }
-    public void AddTechnician(TechnicianRecord item) { lock (_sync) { _data.Technicians.Add(item); Save(); } }
+    public void AddTechnician(TechnicianRecord item) { lock (_sync) { _data.Technicians.Add(item with { DeskIds = DesksForAccountCore(item, null) }); Save(); } }
     // Null when the email is free to use as a technician login; otherwise the reason it can't be. Email doubles as the sign-in username.
     public string? CheckTechnicianEmail(string? email, Guid? excludeTechnicianId)
     {
@@ -91,7 +91,8 @@ public sealed partial class HelpdeskStore
         lock (_sync)
         {
             var previous = _data.Technicians.FirstOrDefault(x => x.Id == item.Id);
-            return Update(previous is null ? item : item with { TwoFactor = previous.TwoFactor, RecoveryKey = previous.RecoveryKey }, _data.Technicians, x => x.Id == item.Id);
+            var kept = previous is null ? item : item with { TwoFactor = previous.TwoFactor, RecoveryKey = previous.RecoveryKey };
+            return Update(kept with { DeskIds = DesksForAccountCore(item, previous) }, _data.Technicians, x => x.Id == item.Id);
         }
     }
 

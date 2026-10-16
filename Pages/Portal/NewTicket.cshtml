@@ -2,15 +2,17 @@
 @using EduHelpdesk.Services
 @using static EduHelpdesk.Pages.Portal.NewTicketModel
 @model EduHelpdesk.Pages.Portal.NewTicketModel
+@inject HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = "Report a problem";
-    var tiles = Model.Mode is Step.Categories or Step.Choices;
+    var tiles = Model.Mode is Step.Desks or Step.Categories or Step.Choices;
     // Once a category is chosen, its colour carries through its buttons and the confirm step.
     var look = Model.Mode is Step.Choices or Step.Confirm ? Model.StyleFor(Model.Category) : null;
     var lookStyle = look is null ? "" : $"--tile-color:{PortalLook.Hex(look.Color)}";
     var heading = Model.Previous is not null ? "Report it again" : Model.Mode switch
     {
-        Step.Categories => "What do you need help with?",
+        Step.Desks => "Who do you need?",
+        Step.Categories => Model.ChosenDesk is { } chosen ? $"What do you need from {chosen.Name}?" : "What do you need help with?",
         Step.Choices => Model.Category,
         Step.Confirm => "Nearly there",
         _ => "Something else"
@@ -31,13 +33,16 @@
         @switch (Model.Mode)
         {
             case Step.Choices:
-                <a class="button button-secondary" asp-page="/Portal/NewTicket">← All categories</a>
+                <a class="button button-secondary" asp-page="/Portal/NewTicket" asp-route-desk="@Model.ChosenDesk?.Name">← All categories</a>
+                break;
+            case Step.Categories when Model.AsksForDesk:
+                <a class="button button-secondary" asp-page="/Portal/NewTicket">← Back</a>
                 break;
             case Step.Confirm when Model.Previous is null:
                 <a class="button button-secondary" asp-page="/Portal/NewTicket" asp-route-category="@Model.Category">← Choose something else</a>
                 break;
-            case Step.Describe when Model.Previous is null && Model.PortalCategories.Count > 0:
-                <a class="button button-secondary" asp-page="/Portal/NewTicket">← Back to the list</a>
+            case Step.Describe when Model.Previous is null && (Model.PortalCategories.Count > 0 || Model.AsksForDesk):
+                <a class="button button-secondary" asp-page="/Portal/NewTicket" asp-route-desk="@(Model.PortalCategories.Count > 0 ? Model.ChosenDesk?.Name : null)">← Back to the list</a>
                 break;
             default:
                 <a class="button button-secondary" asp-page="/Portal/Index">← Back</a>
@@ -46,11 +51,36 @@
     </div>
     @if (Model.Previous is { } previous)
     {
-        <div class="notice">This will be linked to ticket #@previous.Number, so the team can see what was done last time. Tell them what's happening now.</div>
+        <div class="notice">This will be linked to ticket @Helpdesk.Ref(previous), so the team can see what was done last time. Tell them what's happening now.</div>
     }
     @if (!ViewData.ModelState.IsValid) { <div asp-validation-summary="All" class="validation-summary-errors"></div> }
 
-    @if (Model.Mode == Step.Categories)
+    @if (Model.Mode == Step.Desks)
+    {
+        <p class="muted portal-lead">Tap who can help. If you're not sure, choose Something else at the end.</p>
+        <div class="portal-tiles">
+            @foreach (var desk in Model.PortalDesks)
+            {
+                var style = Model.StyleForDesk(desk);
+                var count = Model.CategoriesOn(desk);
+                <a class="portal-tile portal-tile-big" style="--tile-color:@PortalLook.Hex(style.Color)" asp-page="/Portal/NewTicket" asp-route-desk="@desk.Name">
+                    <span class="portal-tile-symbol">@PortalLook.Svg(style.Icon)</span>
+                    <span class="portal-tile-text">
+                        <span class="portal-tile-title">@desk.Name</span>
+                        <span class="portal-tile-help">@(desk.HelperLine.Length > 0 ? desk.HelperLine : count == 1 ? "1 kind of problem" : $"{count} kinds of problem")</span>
+                    </span>
+                </a>
+            }
+            <a class="portal-tile portal-tile-big portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true">
+                <span class="portal-tile-symbol">@PortalLook.Svg("question")</span>
+                <span class="portal-tile-text">
+                    <span class="portal-tile-title">Something else</span>
+                    <span class="portal-tile-help">Not sure who - I'll describe it</span>
+                </span>
+            </a>
+        </div>
+    }
+    else if (Model.Mode == Step.Categories)
     {
         <p class="muted portal-lead">Tap the kind of problem. If you can't see yours, choose Something else at the end.</p>
         <div class="portal-tiles">
@@ -65,7 +95,7 @@
                     </span>
                 </a>
             }
-            <a class="portal-tile portal-tile-big portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true">
+            <a class="portal-tile portal-tile-big portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true" asp-route-desk="@Model.ChosenDesk?.Name">
                 <span class="portal-tile-symbol">@PortalLook.Svg("question")</span>
                 <span class="portal-tile-text">
                     <span class="portal-tile-title">Something else</span>
@@ -126,7 +156,15 @@
                 @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
                 <input type="hidden" name="Other" value="true" />
                 <label>What's the problem?<input asp-for="Title" maxlength="@HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Projector has no signal" required autofocus /></label>
-                <label>What kind of problem is it?<select asp-for="Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+                @if (Model.AsksForDesk && Model.ChosenDesk is null)
+                {
+                    @* Not sure who: every desk's categories, under the desk they go to. *@
+                    <label>What kind of problem is it?<select asp-for="Category">@foreach (var (desk, categories) in Model.CategoriesByDesk) { <optgroup label="@desk.Name">@foreach (var category in categories) { <option value="@category">@category</option> }</optgroup> }</select></label>
+                }
+                else
+                {
+                    <label>What kind of problem is it?<select asp-for="Category">@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></label>
+                }
                 @{ await CommonFields(); }
                 <button class="button button-primary portal-button" type="submit">Submit</button>
             </form>

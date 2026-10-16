@@ -26,9 +26,22 @@ internal static class AuditTracker
             AddFor(s, x, static x => Make("Users", "User", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Department", x.Department), ("Location", x.Location), ("Active", x.IsActive ? "Yes" : "No"), ("Can raise projects", Yn(x.CanRaiseProjects)), ("Project lead", Yn(x.IsProjectLead)),
                 // Shows when a temporary password was issued, and when it was swapped for their own.
                 ("Temporary password", Yn(x.RequirePasswordChange)), ("Type", x.PersonType), ("Start date", Day(x.StartDate))));
+        var deskNames = d.Desks.ToDictionary(x => x.Id, x => x.Name);
+        string DeskName(Guid id) => deskNames.GetValueOrDefault(id, "");
         foreach (var x in d.Technicians)
             // PasswordHash is deliberately excluded - it would otherwise end up as human-readable diff text in the plaintext AuditLog table.
-            Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"), ("Temporary password", Yn(x.RequirePasswordChange)));
+            Add(s, "Technicians", "Technician", x.Id.ToString(), x.Name, Track.All, ("Name", x.Name), ("Email", x.Email), ("Team", x.Team), ("Desks", string.Join(", ", x.DeskIds.Select(DeskName))), ("Role", x.Role), ("Active", x.IsActive ? "Yes" : "No"), ("Temporary password", Yn(x.RequirePasswordChange)));
+        // Desks, and where each category, team and desk-only status sits (HelpdeskStore.Desks).
+        foreach (var x in d.Desks)
+            Add(s, "Settings", "Desk", x.Id.ToString(), $"Desk: {x.Name}", Track.All,
+                ("Name", x.Name), ("Prefix", x.Prefix), ("Helper line", x.HelperLine), ("Shown in the portal", Yn(x.ShowInPortal)), ("Icon", x.Icon), ("Colour", x.Color));
+        foreach (var (category, desk) in d.CategoryDesks)
+            Add(s, "Settings", "Category desk", category.ToLowerInvariant(), $"Category {category}", Track.Update, ("Desk", DeskName(desk)));
+        foreach (var (team, desk) in d.TeamDesks)
+            Add(s, "Settings", "Team desk", team.ToLowerInvariant(), $"Team {team}", Track.Update, ("Desk", DeskName(desk)));
+        foreach (var status in d.Statuses)
+            Add(s, "Settings", "Status desk", status.ToLowerInvariant(), $"Status {status}", Track.Update,
+                ("Used on", d.StatusDesks.TryGetValue(status, out var statusDesk) ? $"The {DeskName(statusDesk)} desk only" : "Every desk"));
         foreach (var x in d.Roles)
             // Projected from the module list rather than a hand-written set of labels: the previous version duplicated
             // the nine permission names here, so adding one silently dropped it out of the audit diff.

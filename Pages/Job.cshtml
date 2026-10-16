@@ -4,7 +4,7 @@
 @model JobModel
 @inject HelpdeskStore Helpdesk
 @{
-    ViewData["Title"] = $"Job #{Model.Ticket!.Number}";
+    ViewData["Title"] = $"Job {Model.Reference}";
 }
 
 @* The header keeps only the everyday actions as buttons. The three print options share one menu, and merge and delete
@@ -15,7 +15,7 @@
    so the everyday actions are always to hand however far down the comments go. *@
 <div class="page-heading ticket-bar" id="ticket-bar">
     <div class="ticket-bar-title">
-        <h1><span class="ticket-bar-number">#@Model.Ticket.Number</span> @Model.Ticket.Title</h1>
+        <h1><span class="ticket-bar-number">@Model.Reference</span> @Model.Ticket.Title</h1>
         <p class="ticket-bar-meta">
             <span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span>
             <span class="priority @Model.Ticket.Priority.ToLowerInvariant()">@Model.Ticket.Priority</span>
@@ -64,7 +64,7 @@
 {
     <div id="close-dialog-backdrop" class="blade-backdrop no-print">
         <div class="blade" role="dialog" aria-modal="true" aria-labelledby="close-dialog-title">
-            <div class="blade-head"><h2 id="close-dialog-title">Close ticket #@Model.Ticket.Number</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <div class="blade-head"><h2 id="close-dialog-title">Close ticket @Model.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
             <p class="muted">This ticket is <strong>@Model.Ticket.Priority</strong> priority in the <strong>@Model.Ticket.Category</strong> category, so a closing message is required before it can be closed.</p>
             <form method="post" asp-page-handler="Close" class="blade-form">
                 <input type="hidden" name="number" value="@Model.Ticket.Number" />
@@ -76,7 +76,7 @@
 }
 <div id="merge-dialog-backdrop" class="blade-backdrop no-print">
     <div class="blade" role="dialog" aria-modal="true" aria-labelledby="merge-dialog-title">
-        <div class="blade-head"><h2 id="merge-dialog-title">Merge ticket #@Model.Ticket.Number</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+        <div class="blade-head"><h2 id="merge-dialog-title">Merge ticket @Model.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
         <p class="muted">Choose the ticket to merge this one into. Comments, linked assets, and assigned parts will be copied across, and this ticket will be closed.</p>
         <form method="post" asp-page-handler="Merge" class="blade-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
@@ -87,7 +87,7 @@
 </div>
 <div id="delete-dialog-backdrop" class="blade-backdrop no-print">
     <div class="blade" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title">
-        <div class="blade-head"><h2 id="delete-dialog-title">Delete ticket #@Model.Ticket.Number</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+        <div class="blade-head"><h2 id="delete-dialog-title">Delete ticket @Model.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
         <p class="muted">This permanently removes the ticket, its comments, and history. Any parts assigned to it will be returned to stock. This can't be undone.</p>
         <form method="post" asp-page-handler="Delete" class="blade-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
@@ -103,7 +103,7 @@
 else
 {
     <div class="print-only print-worksheet">
-        <div class="print-header"><span class="print-job-number">#@Model.Ticket.Number</span><span class="status">@Model.Ticket.Status</span></div>
+        <div class="print-header"><span class="print-job-number">@Model.Reference</span><span class="status">@Model.Ticket.Status</span></div>
         <h1 class="print-title">@Model.Ticket.Title</h1>
         <table class="print-facts">
             <tr><th>Priority</th><td>@Model.Ticket.Priority</td><th>Type</th><td>@Model.Ticket.Type</td></tr>
@@ -338,7 +338,8 @@ else
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">STATUS</p><button id="status-edit" class="icon-button edit-icon" type="button" title="Edit status" data-edit-field="status">@Icons.Edit</button></div><strong class="field-value" id="status-value"><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></strong><form method="post" asp-page-handler="Update" class="inline-control" id="status-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="status" /><select name="value" data-describe="status-description">@foreach (var status in Model.Statuses) { <option value="@status" data-description="@Model.StatusDescriptions.GetValueOrDefault(status)" selected="@(status == Model.Ticket.Status)">@status</option> }</select><button class="icon-button save-icon" type="submit" title="Save status" aria-label="Save status">@Icons.Check</button><small id="status-description" class="status-description-hint">@(Model.StatusDescriptions.TryGetValue(Model.Ticket.Status, out var currentStatusDescription) ? currentStatusDescription : "")</small></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">PRIORITY</p><button id="priority-edit" class="icon-button edit-icon" type="button" title="Edit priority" data-edit-field="priority">@Icons.Edit</button></div><strong class="field-value priority @Model.Ticket.Priority.ToLowerInvariant()" id="priority-value">@Model.Ticket.Priority</strong><form method="post" asp-page-handler="Update" class="inline-control" id="priority-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="priority" /><select name="value">@foreach (var priority in Model.Priorities) { <option value="@priority" selected="@(priority == Model.Ticket.Priority)">@priority</option> }</select><button class="icon-button save-icon" type="submit" title="Save priority" aria-label="Save priority">@Icons.Check</button></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">TYPE</p><button id="type-edit" class="icon-button edit-icon" type="button" title="Edit type" data-edit-field="type">@Icons.Edit</button></div><strong class="field-value" id="type-value">@Model.Ticket.Type</strong><form method="post" asp-page-handler="Update" class="inline-control" id="type-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="type" /><select name="value">@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Ticket.Type)">@type</option> }</select><button class="icon-button save-icon" type="submit" title="Save type" aria-label="Save type">@Icons.Check</button></form></div>
-        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" data-edit-field="category">@Icons.Edit</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value">@foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> }</select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">@Icons.Check</button></form></div>
+        @if (Model.HasSeveralDesks && Model.Desk is { } ticketDesk) { <div class="detail-block"><p class="eyebrow">DESK</p><strong>@ticketDesk.Name</strong><small class="muted">To move it to another desk, give it one of that desk's categories.</small></div> }
+        <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">CATEGORY</p><button id="category-edit" class="icon-button edit-icon" type="button" title="Edit category" data-edit-field="category">@Icons.Edit</button></div><strong class="field-value" id="category-value">@Model.Ticket.Category</strong><form method="post" asp-page-handler="Update" class="inline-control" id="category-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="category" /><select name="value">@if (Model.OtherDesks.Count > 0) { <optgroup label="@Model.Desk!.Name desk">@foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> }</optgroup> foreach (var (otherDesk, otherCategories) in Model.OtherDesks) { <optgroup label="Move to the @otherDesk.Name desk">@foreach (var category in otherCategories) { <option value="@category">@category</option> }</optgroup> } } else { foreach (var category in Model.Categories) { <option value="@category" selected="@(category == Model.Ticket.Category)">@category</option> } }</select><button class="icon-button save-icon" type="submit" title="Save category" aria-label="Save category">@Icons.Check</button></form></div>
         <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">LOCATION</p><button id="location-edit" class="icon-button edit-icon" type="button" title="Edit location" data-edit-field="location">@Icons.Edit</button></div><strong class="field-value" id="location-value">@(Model.Ticket.Location ?? "Not specified")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="location-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="location" /><select name="value"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(location == Model.Ticket.Location)">@location</option> }</select><button class="icon-button save-icon" type="submit" title="Save location" aria-label="Save location">@Icons.Check</button></form></div>
         <div class="detail-block related-block">
             <p class="eyebrow">RELATED TICKETS</p>
@@ -470,7 +471,7 @@ else
             <label>Link an existing ticket<input name="other" type="number" min="1" step="1" placeholder="Ticket number" required /></label>
             <div><button class="button button-primary" type="submit">Link ticket</button></div>
         </form>
-        <form method="post" asp-page-handler="CreateFollowUp" class="blade-form related-follow-up" data-confirm="Create a follow-up ticket for #@Model.Ticket.Number?">
+        <form method="post" asp-page-handler="CreateFollowUp" class="blade-form related-follow-up" data-confirm="Create a follow-up ticket for @Model.Reference?">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
             <p class="muted">Or start a follow-up: a new ticket with the same requester, assets, category and priority, linked to this one.</p>
             <div><button class="button button-secondary" type="submit">Create follow-up ticket</button></div>
@@ -576,7 +577,7 @@ else
 }
 
 @* Shown while files are dragged over the page; dropping them uploads them to this ticket, not shared (job.js). *@
-<div class="drop-overlay no-print" id="drop-overlay" hidden><div>@Icons.Upload Drop to attach to #@Model.Ticket.Number</div></div>
+<div class="drop-overlay no-print" id="drop-overlay" hidden><div>@Icons.Upload Drop to attach to @Model.Reference</div></div>
 
 @section Scripts {
 <script src="~/js/pages/job.js" asp-append-version="true"></script>

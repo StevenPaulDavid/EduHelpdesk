@@ -39,7 +39,8 @@ public sealed partial class HelpdeskStore
                 files,
                 includeInternal,
                 preparedBy,
-                DateTime.Now);
+                DateTime.Now)
+            { Reference = RefFor(DeskForCategoryCore(ticket.Category), ticket.Number) };
         }
     }
 }
@@ -61,4 +62,9 @@ public sealed record TicketReportInput(
     IReadOnlyDictionary<Guid, string> FilePaths,
     bool IncludeInternal,
     string? PreparedBy,
-    DateTime PreparedAt);
+    DateTime PreparedAt)
+{
+    // The number as people see it, with its desk's prefix (HelpdeskStore.Desks): SITE-1043, or #1043.
+    public string Reference { get; init; } = "";
+    public string ShownNumber => Reference.Length > 0 ? Reference : $"#{Ticket.Number}";
+}

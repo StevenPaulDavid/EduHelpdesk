@@ -9,15 +9,34 @@ namespace EduHelpdesk.Pages.Portal;
 // (service catalogue items and portal-ticked templates, which look the same to staff), then a confirm step asking only
 // where it is, how urgent, and an optional description. "Something else" opens a plain form for anything not listed,
 // so the buttons never stop anyone reporting a problem. Type, requester and team are set server-side.
+// With more than one desk offered in the portal (HelpdeskStore.Desks) there is a step before the categories: who they
+// need - IT, Site, Cleaning - and the steps after it show only that desk's categories.
 public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageModel
 {
-    public enum Step { Categories, Choices, Confirm, Describe }
+    public enum Step { Desks, Categories, Choices, Confirm, Describe }
 
     public UserRecord? CurrentUser { get; private set; }
-    public IReadOnlyList<string> Categories => store.Categories;
+    public IReadOnlyList<Desk> PortalDesks => _portalDesks ??= store.PortalDesks();
+    private IReadOnlyList<Desk>? _portalDesks;
+    public bool AsksForDesk => PortalDesks.Count > 1;
+    // The desk chosen, or the one the chosen category is on. Null before one is chosen, and with only one desk.
+    public Desk? ChosenDesk { get; private set; }
+    [BindProperty(SupportsGet = true)] public string? Desk { get; set; }
+    public CategoryStyle StyleForDesk(Desk desk) => store.StyleForDesk(desk);
+    // Categories staff may report under: on a desk offered in the portal, and on the chosen desk once there is one.
+    public IReadOnlyList<string> Categories => store.Categories.Where(InScope).ToList();
+    public IReadOnlyList<(Desk Desk, IReadOnlyList<string> Categories)> CategoriesByDesk =>
+        PortalDesks.Select(d => (d, (IReadOnlyList<string>)store.CategoriesFor(d.Id))).Where(x => x.Item2.Count > 0).ToList();
+    private bool InScope(string category)
+    {
+        var desk = store.DeskForCategory(category);
+        return (ChosenDesk is null || desk.Id == ChosenDesk.Id) && (!AsksForDesk || PortalDesks.Any(x => x.Id == desk.Id));
+    }
     public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<string> Priorities => store.Priorities;
-    public IReadOnlyList<(string Category, int Count)> PortalCategories => store.PortalCategories();
+    public IReadOnlyList<(string Category, int Count)> PortalCategories => store.PortalCategories().Where(x => InScope(x.Category)).ToList();
+    // How many categories a desk's tile leads to, for the line under it.
+    public int CategoriesOn(Desk desk) => store.CategoriesFor(desk.Id).Count;
     public IReadOnlyList<HelpdeskStore.PortalChoice> Choices => store.PortalChoices(Category);
     // The icon and colour chosen for a category's tile in Settings, or its built-in look.
     public CategoryStyle StyleFor(string? category) => store.StyleFor(category);
@@ -110,7 +129,7 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         {
             if (string.IsNullOrWhiteSpace(Title)) ModelState.AddModelError("", "Tell us what the problem is.");
             else if (Title.Trim().Length > HelpdeskStore.MaxTicketTitleLength) ModelState.AddModelError("", $"Keep the problem to {HelpdeskStore.MaxTicketTitleLength} characters - put the rest under Tell us more.");
-            if (!store.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("", "Select a category.");
+            if (!store.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase) || !InScope(Category!)) ModelState.AddModelError("", "Select a category.");
         }
         if ((Description ?? "").Trim().Length > HelpdeskStore.MaxTicketTextLength) ModelState.AddModelError("", $"Keep the details under {HelpdeskStore.MaxTicketTextLength} characters.");
         if (string.IsNullOrWhiteSpace(Location) ? store.Locations.Count > 0 : !store.Locations.Contains(Location, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("", "Choose where the problem is.");
@@ -131,7 +150,7 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         var title = template is not null ? (string.IsNullOrWhiteSpace(template.Title) ? template.Name : template.Title) : item?.Name ?? Title!.Trim();
         var number = store.AddTicket(new TicketRecord(
             0, title, (Description ?? "").Trim(), id.Value, [], null,
-            priority!, store.Statuses.FirstOrDefault() ?? "Open", category, createdAt,
+            priority!, store.StartingStatusFor(category), category, createdAt,
             null, sla, dueDate, false, templateSla.HasValue, null, string.IsNullOrWhiteSpace(Location) ? null : Location.Trim())
         { Type = template is not null ? TicketTypes.Normalize(template.Type) : TicketTypes.Incident, SubCategory = template?.Name ?? item?.Name ?? "" });
         // Answers to custom attributes the template carries, which the staff member is never asked.
@@ -145,7 +164,7 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         // The same event, for the Teams channel if the school has one set up (Settings → Teams channel).
         store.QueueTeamsNewTicket(number, People.QuickStartModel.GuessAddress(Request));
 
-        TempData["Message"] = $"Ticket #{number} submitted - a technician will be in touch.{(problems.Length > 0 ? $" {problems}" : "")}";
+        TempData["Message"] = $"Ticket {store.Ref(number)} submitted - a technician will be in touch.{(problems.Length > 0 ? $" {problems}" : "")}";
         return RedirectToPage("/Portal/Ticket", new { number });
     }
 
@@ -165,13 +184,26 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         }
         TemplateId = null;
         SubCategory = null;
+        // A chosen category says the desk; otherwise the desk asked for, if it's one staff can report to.
+        ChosenDesk = !AsksForDesk ? null
+            : store.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase) && PortalDesks.FirstOrDefault(x => x.Id == store.DeskForCategory(Category).Id) is { } byCategory ? byCategory
+            : store.FindDesk(Desk) is { } asked && PortalDesks.Any(x => x.Id == asked.Id) ? asked
+            : null;
+        Desk = ChosenDesk?.Name;
+        // Who they need comes first, unless they've gone straight to the plain form (which then lists every desk's).
+        if (AsksForDesk && ChosenDesk is null && !Other)
+        {
+            Mode = Step.Desks;
+            Category = "";
+            return;
+        }
         var available = PortalCategories;
         // No buttons at all (nothing in the catalogue, or none shown) leaves the plain form as the only way in.
         if (Other || available.Count == 0)
         {
             Mode = Step.Describe;
             Other = true;
-            if (!store.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase)) Category = store.Categories.FirstOrDefault() ?? "";
+            if (!Categories.Contains(Category, StringComparer.OrdinalIgnoreCase)) Category = Categories.FirstOrDefault() ?? "";
             return;
         }
         var match = available.FirstOrDefault(x => string.Equals(x.Category, Category, StringComparison.OrdinalIgnoreCase));

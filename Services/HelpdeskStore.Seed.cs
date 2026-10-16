@@ -235,6 +235,8 @@ public sealed partial class HelpdeskStore
             EnsureOnboardingRole();
             EnsureComplianceDefaults();
             EnsureBootstrapAdministrator();
+            EnsureDesks();
+            SaveBaseline();
             // Deleted rows otherwise linger in the file's free pages, which defeats the point of a purge.
             using (var connection = new SqliteConnection($"Data Source={_path}"))
             {
@@ -274,6 +276,8 @@ public sealed partial class HelpdeskStore
         EnsureProjectDefaults();
         EnsureOnboardingDefaults();
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
+        // One desk, IT, holding every category and team: a single-desk helpdesk looks exactly as it did before desks.
+        EnsureDesks();
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
             "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);
         SeedServiceCatalogue();
@@ -287,6 +291,8 @@ public sealed partial class HelpdeskStore
                 new("Period 5", new(13, 55), new(14, 55)),
             ];
         SeedDemoData();
+        // The demo technician joins the desk too.
+        EnsureDesks();
         SaveBaseline();
     }
 

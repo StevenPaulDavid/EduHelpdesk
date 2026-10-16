@@ -89,6 +89,11 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
     // staff portal instead of straight to the technician login - a technician still ends up here once signed in.
+    // The desks the overview covers, empty for every desk, and each ticket's number as shown (SITE-1043).
+    public IReadOnlyList<string> ShownDesks { get; private set; } = [];
+    private Func<string?, Desk> _deskOf = _ => null!;
+    public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket.Number);
+
     public IActionResult OnGet()
     {
         if (User.Identity?.IsAuthenticated != true) return RedirectToPage("/Portal/Index");
@@ -107,7 +112,14 @@ public class IndexModel(HelpdeskStore store) : PageModel
         {
             var meId = WorkingAs.Resolve(store, User, Request);
             Me = meId is { } id ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
-            var open = store.Tickets.Where(x => !TicketInsights.IsClosed(x)).ToList();
+            // The overview is of the desks the account is on (HelpdeskStore.Desks), as the ticket list opens on them;
+            // tickets assigned to them count wherever they are.
+            _deskOf = store.DeskLookup();
+            var myDesks = store.HasSeveralDesks ? store.DesksOf(User).ToList() : [];
+            if (myDesks.Count == store.Desks.Count) myDesks = [];
+            ShownDesks = myDesks.Select(x => x.Name).ToList();
+            var open = store.Tickets.Where(x => !TicketInsights.IsClosed(x)
+                && (myDesks.Count == 0 || myDesks.Any(d => d.Id == _deskOf(x.Category).Id) || (meId is { } assigned && x.TechnicianId == assigned))).ToList();
 
             // As the ticket list's My tickets: assigned to them, or an onboarding with an IT task given to them.
             var onboardings = store.Onboardings.ToDictionary(x => x.TicketNumber);
