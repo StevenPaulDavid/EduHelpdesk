@@ -95,7 +95,7 @@ public class SaveChangesTests
         // And the app sees it all after a restart.
         var reopened = test.Reopen();
         Assert.Null(reopened.CompareDatabaseWithMemory());
-        Assert.Equal([$"(Merged from #{first}) Swapped the cable."], reopened.Tickets.Single(x => x.Number == middle).Comments.Select(x => x.Text).Where(x => x.Contains("Swapped")));
+        Assert.Equal([$"(Merged from {reopened.Ref(first)}) Swapped the cable."], reopened.Tickets.Single(x => x.Number == middle).Comments.Select(x => x.Text).Where(x => x.Contains("Swapped")));
     }
 
     [Fact]

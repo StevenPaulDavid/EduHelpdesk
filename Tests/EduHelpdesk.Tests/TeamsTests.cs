@@ -153,7 +153,7 @@ public class TeamsTests
         var fresh = AddOverdue(test, requester.Id, TimeSpan.FromMinutes(5));
         Assert.Equal(1, test.Store.AnnounceOverdue(DateTime.UtcNow));
         var post = Assert.Single(Drain(test.Store));
-        Assert.Equal($"Ticket #{fresh} is overdue", post.Heading);
+        Assert.Equal($"Ticket {test.Store.Ref(fresh)} is overdue", post.Heading);
         Assert.DoesNotContain("Projector", TeamsWebhook.Message(post));
 
         // Looking again announces nothing, and neither does the ticket that was overdue to begin with.

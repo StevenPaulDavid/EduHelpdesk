@@ -39,9 +39,10 @@ public record TechnicianRecord(Guid Id, string Name, string Email, string Team, 
 
 // One part of the school the helpdesk serves - IT, Site, Cleaning - with its own categories, teams and statuses. A
 // ticket is on the desk its category belongs to, so moving it to another desk is giving it one of that desk's
-// categories. Prefix goes in front of ticket numbers (SITE-1043); blank shows them as #1043. Icon and Color are keys
-// into PortalLook for the desk's tile in the staff portal, blank for the built-in look.
-public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", string Icon = "", string Color = "", bool ShowInPortal = true);
+// categories. Each desk numbers its own tickets: Prefix goes in front (SITE-5; blank shows #5) and NextNumber is the
+// number its next ticket gets. Icon and Color are keys into PortalLook for the desk's tile in the staff portal, blank
+// for the built-in look.
+public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", string Icon = "", string Color = "", bool ShowInPortal = true, int NextNumber = 1);
 
 // Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.
 public sealed record RecoveryKeySetup(string Hash, DateTime CreatedAt);
@@ -320,6 +321,12 @@ public record TicketRecord(
     // The service catalogue item the requester picked, kept as text so the ticket still says it after the item is
     // renamed or deleted. Blank when they described it themselves. Only meaningful inside Category.
     public string SubCategory { get; init; } = "";
+    // The number people see, counted per desk (HelpdeskStore.Desks): SITE-5 is DeskNumber 5 on the Site desk. Number
+    // stays the ticket's own key everywhere else - links, the database, other records - and is never shown. 0 until the
+    // store numbers it. A ticket moved to another desk takes that desk's next number, and FormerRefs keeps what it was
+    // called before ("IT-2298, CLN-4"), so it can still be found by the old one.
+    public int DeskNumber { get; init; }
+    public string FormerRefs { get; init; } = "";
     // Times the SLA clock was stopped (a status that pauses it, such as On Hold). The last one is open while the ticket
     // is still paused. Kept as periods rather than a running total, so a due date recalculated later - a priority
     // change, say - can still add them back in whatever units the new SLA counts. See HelpdeskStore.TicketProcess.

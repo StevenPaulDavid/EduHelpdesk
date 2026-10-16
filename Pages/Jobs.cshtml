@@ -163,7 +163,7 @@
                 <label id="bulk-type-field" hidden>New type<select name="newType" disabled>@foreach (var item in Model.Types) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-comment-field" class="bulk-wide" hidden>Comment for every selected ticket<textarea name="commentText" rows="2" disabled data-required-message="Enter a comment first."></textarea><span class="toggle-label"><input type="checkbox" name="commentInternal" value="true" disabled /> Internal note (left off printed tickets)</span></label>
                 <label id="bulk-close-field" class="bulk-wide" hidden>Closing message (required for some priorities and categories)<textarea name="closingMessage" rows="2" disabled></textarea></label>
-                <label id="bulk-merge-field" hidden>Merge into ticket number<input type="number" name="mergeTarget" min="1" step="1" disabled data-required-message="Enter the number of the ticket to merge into." /></label>
+                <label id="bulk-merge-field" hidden>Merge into ticket number<input name="mergeTarget" placeholder="e.g. IT-1042" autocomplete="off" disabled data-required-message="Enter the number of the ticket to merge into." /></label>
                 <button class="button button-primary" type="submit" id="bulk-apply">Apply to selected</button>
             </div>
             <p class="muted bulk-hint" id="bulk-hint" hidden></p>

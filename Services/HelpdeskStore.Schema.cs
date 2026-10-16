@@ -124,6 +124,9 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Tickets ADD COLUMN TicketType TEXT NOT NULL DEFAULT 'Incident';",
             "ALTER TABLE Tickets ADD COLUMN Location TEXT NULL;",
             "ALTER TABLE Tickets ADD COLUMN SubCategory TEXT NOT NULL DEFAULT '';",
+            // Per-desk numbering (HelpdeskStore.Desks). 0 is a ticket from before it, numbered on load.
+            "ALTER TABLE Tickets ADD COLUMN DeskNumber INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE Tickets ADD COLUMN FormerRefs TEXT NOT NULL DEFAULT '';",
             // ServiceItems and TicketTemplates are created further down, after this loop, so these only upgrade a database
             // that already has the tables - a new one gets the columns from its CREATE. Existing catalogue items stay
             // visible in the portal; existing templates stay hidden, as they were written for technicians.

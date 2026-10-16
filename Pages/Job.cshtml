@@ -80,7 +80,7 @@
         <p class="muted">Choose the ticket to merge this one into. Comments, linked assets, and assigned parts will be copied across, and this ticket will be closed.</p>
         <form method="post" asp-page-handler="Merge" class="blade-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
-            <label>Merge into<select name="targetNumber" required><option value="">Select a ticket…</option>@foreach (var candidate in Model.MergeCandidates) { <option value="@candidate.Number">#@candidate.Number - @candidate.Title</option> }</select></label>
+            <label>Merge into<select name="targetNumber" required><option value="">Select a ticket…</option>@foreach (var candidate in Model.MergeCandidates) { <option value="@candidate.Number">@Helpdesk.Ref(candidate) - @candidate.Title</option> }</select></label>
             <div class="blade-actions"><button class="button button-primary" type="submit">Merge ticket</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
         </form>
     </div>
@@ -128,7 +128,7 @@ else
         {
             <div class="print-section">
                 <h2>Related tickets</h2>
-                @foreach (var relation in Model.Relations) { <p>@relation.Label: #@relation.Number @relation.Title (@relation.Status)</p> }
+                @foreach (var relation in Model.Relations) { <p>@relation.Label: @relation.Reference @relation.Title (@relation.Status)</p> }
             </div>
         }
         @{ var printedAttributes = Model.TicketAttributes.Where(x => !string.IsNullOrWhiteSpace(Model.TicketAttributeValues.GetValueOrDefault(x.Id, ""))).ToList(); }
@@ -347,8 +347,8 @@ else
             @foreach (var relation in Model.Relations)
             {
                 <div class="related-row">
-                    <div><span class="muted">@relation.Label</span><br /><a asp-page="/Job" asp-route-number="@relation.Number"><strong>#@relation.Number</strong> @relation.Title</a> <span class="status status-@Helpdesk.StatusTone(relation.Status)">@relation.Status</span></div>
-                    <form method="post" asp-page-handler="UnlinkTicket" class="no-print"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="other" value="@relation.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@relation.Number" aria-label="Remove link to #@relation.Number">@Icons.Bin</button></form>
+                    <div><span class="muted">@relation.Label</span><br /><a asp-page="/Job" asp-route-number="@relation.Number"><strong>@relation.Reference</strong> @relation.Title</a> <span class="status status-@Helpdesk.StatusTone(relation.Status)">@relation.Status</span></div>
+                    <form method="post" asp-page-handler="UnlinkTicket" class="no-print"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="other" value="@relation.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to @relation.Reference" aria-label="Remove link to @relation.Reference">@Icons.Bin</button></form>
                 </div>
             }
             <div class="sidebar-actions no-print">
@@ -468,7 +468,7 @@ else
         <div class="blade-head"><h2 id="related-blade-title">Related tickets</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
         <form method="post" asp-page-handler="LinkRelated" class="blade-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
-            <label>Link an existing ticket<input name="other" type="number" min="1" step="1" placeholder="Ticket number" required /></label>
+            <label>Link an existing ticket<input name="other" placeholder="Ticket number, e.g. @Model.Reference" required autocomplete="off" /></label>
             <div><button class="button button-primary" type="submit">Link ticket</button></div>
         </form>
         <form method="post" asp-page-handler="CreateFollowUp" class="blade-form related-follow-up" data-confirm="Create a follow-up ticket for @Model.Reference?">

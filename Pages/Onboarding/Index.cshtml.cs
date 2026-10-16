@@ -121,7 +121,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
     private bool Matches(Row row)
     {
         var words = (Search ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var text = string.Join(" ", row.Starter?.Name, row.Starter?.Email, row.Record.JobTitle, row.Starter?.Department, row.Record.TemplateName, $"#{row.Record.TicketNumber}");
+        var text = string.Join(" ", row.Starter?.Name, row.Starter?.Email, row.Record.JobTitle, row.Starter?.Department, row.Record.TemplateName, store.Ref(row.Record.TicketNumber));
         return words.All(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
     }
 

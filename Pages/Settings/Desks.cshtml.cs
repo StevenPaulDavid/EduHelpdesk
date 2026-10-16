@@ -21,9 +21,15 @@ public class DesksModel(HelpdeskStore store) : PageModel
     }
     [TempData] public string? Message { get; set; }
 
-    public IActionResult OnPostAdd(string? name, string? prefix, string? helperLine)
+    public IActionResult OnPostAdd(string? name, string? prefix, string? helperLine, int? firstNumber)
     {
-        Message = store.AddDesk(name, prefix, helperLine).Message;
+        Message = store.AddDesk(name, prefix, helperLine, firstNumber ?? 1).Message;
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostNextNumber(Guid id, int? next)
+    {
+        Message = next is { } value ? store.SetDeskNextNumber(id, value).Message : "Enter the number the next ticket should get.";
         return RedirectToPage();
     }
 

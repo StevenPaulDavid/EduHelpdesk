@@ -62,7 +62,7 @@ public static class TicketCsv
                 Stamp(ticket.CreatedAt), Stamp(ticket.DueDate), Stamp(ticket.ClosedAt), Stamp(ticket.LastModifiedAt),
                 ticket.Comments.Count.ToString(CultureInfo.InvariantCulture)
             };
-            if (deskOf is not null) cells.InsertRange(1, [HelpdeskStore.RefFor(deskOf(ticket.Category), ticket.Number), deskOf(ticket.Category).Name]);
+            if (deskOf is not null) cells.InsertRange(1, [HelpdeskStore.RefFor(deskOf(ticket.Category), ticket), deskOf(ticket.Category).Name]);
             foreach (var attribute in attributes)
                 cells.Add(attribute.AppliesTo(ticket.Category) && values is not null && values.TryGetValue(attribute.Id, out var value) ? value : "");
             AppendRow(csv, cells);

@@ -75,6 +75,8 @@ public sealed partial class HelpdeskStore
     {
         // Timed from here, so the audit comparison counts too: the health check shows how long a save really takes.
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        // A ticket added without going through AddTicketCore gets its desk number here, so none is ever saved without one.
+        NumberNewTicketsCore();
         var current = AuditTracker.Take(_data);
         var entries = new List<AuditEntry>(_pendingAudit);
         if (auditChanges && _snapshot is not null) entries.AddRange(AuditTracker.Diff(_snapshot, current, DateTime.UtcNow));
@@ -226,7 +228,7 @@ public sealed partial class HelpdeskStore
             var entries = new List<AuditEntry>(_audit);
             foreach (var ticket in _data.Tickets)
             {
-                var label = $"#{ticket.Number} {ticket.Title}";
+                var label = $"{RefCore(ticket)} {ticket.Title}";
                 var key = ticket.Number.ToString();
                 entries.AddRange(ticket.History.Select(x => new AuditEntry(x.CreatedAt, "Tickets", "Ticket", key, label, x.Action, x.Details) { By = x.By }));
                 entries.AddRange(ticket.Comments.Where(x => !x.Text.StartsWith("(Merged from #", StringComparison.Ordinal))
@@ -663,7 +665,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory FROM Tickets;";
+            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs FROM Tickets;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -679,7 +681,9 @@ public sealed partial class HelpdeskStore
                 {
                     Type = TicketTypes.Normalize(NullableString(reader, 16)),
                     RequesterSeenAt = reader.IsDBNull(18) ? null : Date(reader, 18),
-                    SubCategory = NullableString(reader, 19) ?? ""
+                    SubCategory = NullableString(reader, 19) ?? "",
+                    DeskNumber = reader.GetInt32(20),
+                    FormerRefs = reader.GetString(21)
                 };
                 data.Tickets.Add(ticket);
             }
@@ -960,8 +964,8 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen,$subcategory);",
-                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null), ("$subcategory", s.Item.SubCategory ?? "")]);
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen,$subcategory,$desknumber,$formerrefs);",
+                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null), ("$subcategory", s.Item.SubCategory ?? ""), ("$desknumber", s.Item.DeskNumber), ("$formerrefs", s.Item.FormerRefs ?? "")]);
             // Most tickets have one asset or none, and those need no de-duplicating.
             foreach (var assetId in item.AssetIds.Count < 2 ? item.AssetIds : item.AssetIds.Distinct())
                 if (assetIds.Contains(assetId))

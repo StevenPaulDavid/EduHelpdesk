@@ -81,12 +81,12 @@ public class EduNotifyModel(HelpdeskStore store, EduNotifyClient client) : PageM
     {
         if (store.StaffNoticeFor(number) is null)
         {
-            Message = $"Ticket #{number} has no notice showing.";
+            Message = $"Ticket {store.Ref(number)} has no notice showing.";
             return RedirectToPage();
         }
         var outcome = await client.RecallAsync(number, cancel);
         if (outcome.Ok) store.RecordStaffNoticeRecalled(number, outcome.NothingLive ? "from Settings → EduNotify (it had already gone from EduNotify)" : "from Settings → EduNotify");
-        Message = outcome.Ok ? $"The notice for #{number} was recalled." : $"The notice for #{number} couldn't be recalled. {outcome.Message}";
+        Message = outcome.Ok ? $"The notice for {store.Ref(number)} was recalled." : $"The notice for {store.Ref(number)} couldn't be recalled. {outcome.Message}";
         Problem = !outcome.Ok;
         return RedirectToPage();
     }

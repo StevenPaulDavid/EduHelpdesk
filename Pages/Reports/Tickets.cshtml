@@ -2,6 +2,7 @@
 @using EduHelpdesk.Models
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Reports.TicketReportsModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = "Ticket reports"; ViewData["Wide"] = true;
 
@@ -67,7 +68,7 @@
     @foreach (var ticket in Model.OverdueOpen)
     {
         <tr>
-            <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">#@ticket.Number</a></strong> <span class="muted">@ticket.Title</span></td>
+            <td><strong><a asp-page="/Job" asp-route-number="@ticket.Number">@Helpdesk.Ref(ticket)</a></strong> <span class="muted">@ticket.Title</span></td>
             <td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td>
             <td>@(ticket.TechnicianId is { } techId ? Model.Workload.FirstOrDefault(w => w.TechnicianId == techId)?.Name ?? "Unassigned" : "Unassigned")</td>
             <td>@ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>

@@ -77,7 +77,7 @@ public sealed partial class HelpdeskStore
             if (number is null) return (false, result, null);
             _data.RecurringTickets[index] = item with { LastTicketNumber = number, LastRunAt = DateTime.UtcNow, LastResult = result };
             Save();
-            return (true, $"Ticket #{number} logged.", number);
+            return (true, $"Ticket {RefCore(number.Value)} logged.", number);
         }
     }
 
@@ -126,7 +126,7 @@ public sealed partial class HelpdeskStore
         var number = AddTicketCore(new TicketRecord(0, item.Title.Length > 0 ? item.Title : item.Name, item.Description, item.RequesterId, assets,
             technician?.Id, priority, StartingStatusCore(DeskForCategoryCore(category).Id), category, now, null, sla, CalculateDueDate(sla, now),
             TeamName: team, Location: location) { Type = item.Type }, $"Logged {how} by the recurring ticket \"{item.Name}\".");
-        return (number, $"Logged #{number} {how}.");
+        return (number, $"Logged {RefCore(number)} {how}.");
     }
 
     private (RecurringTicket? Item, string? Error) BuildRecurringTicket(Guid id, RecurringTicketInput input)

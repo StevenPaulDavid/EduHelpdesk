@@ -48,7 +48,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public List<Desk> ShownDesks { get; private set; } = [];
     private List<Desk> _myDesks = [];
     private Func<string?, Desk> _deskOf = _ => null!;
-    public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket.Number);
+    public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket);
     public string DeskName(TicketRecord ticket) => _deskOf(ticket.Category).Name;
     private bool DesksAreDefault => ShownDesks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id));
     public int DueSoonHours => store.TicketDueSoonHours;
@@ -98,7 +98,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         AssetsById = context.Assets.ToDictionary(x => x.Id);
     }
 
-    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newType, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, int? mergeTarget)
+    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newType, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, string? mergeTarget)
     {
         Prepare();
         // Editing in bulk is still editing, and merging in bulk is still merging - this path used to check neither,
@@ -123,6 +123,14 @@ public class JobsModel(HelpdeskStore store) : PageModel
         }
 
         Guid? technicianId = Guid.TryParse(newTechnician, out var parsedTechnician) ? parsedTechnician : null;
+        // The ticket to merge into is typed as people see it (SITE-5).
+        int? mergeNumber = null;
+        if (operation == "merge")
+        {
+            var (found, error) = store.FindTicketByRef(mergeTarget);
+            if (found is null) { Message = error; return Back(); }
+            mergeNumber = found;
+        }
         HelpdeskStore.TicketBulkChange? change = operation switch
         {
             "status" => new("status", newStatus),
@@ -133,7 +141,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             "technician" => new("technician", TechnicianId: technicianId),
             "comment" => new("comment", Text: commentText, Internal: commentInternal),
             "close" => new("close", Text: closingMessage),
-            "merge" => new("merge", TargetNumber: mergeTarget),
+            "merge" => new("merge", TargetNumber: mergeNumber),
             _ => null
         };
         if (change is null)
@@ -143,11 +151,11 @@ public class JobsModel(HelpdeskStore store) : PageModel
         }
 
         var result = store.BulkUpdateTickets(targets, change);
-        Message = result.Error ?? Describe(operation!, result, mergeTarget);
+        Message = result.Error ?? Describe(operation!, result, mergeNumber is { } into ? store.Ref(into) : "");
         return Back();
     }
 
-    private static string Describe(string operation, HelpdeskStore.TicketBulkResult result, int? mergeTarget)
+    private static string Describe(string operation, HelpdeskStore.TicketBulkResult result, string mergeTarget)
     {
         static string Tickets(int count) => $"{count} ticket{(count == 1 ? "" : "s")}";
         if (result.Updated == 0 && result.Unchanged == 0 && result.Skipped == 0) return "None of the selected tickets could be found.";
@@ -155,21 +163,21 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (result.Updated > 0)
             text.Append(operation switch
             {
-                "merge" => $"{Tickets(result.Updated)} merged into #{mergeTarget}.",
+                "merge" => $"{Tickets(result.Updated)} merged into {mergeTarget}.",
                 "comment" => $"Comment added to {Tickets(result.Updated)}.",
                 "close" => $"{Tickets(result.Updated)} closed.",
                 _ => $"{Tickets(result.Updated)} updated."
             });
         var unchangedText = operation switch
         {
-            "merge" => $"#{mergeTarget} was left as it is.",
+            "merge" => $"{mergeTarget} was left as it is.",
             "close" => $"{Tickets(result.Unchanged)} already closed.",
             _ => $"{Tickets(result.Unchanged)} already had that value."
         };
         if (result.Updated == 0 && result.Unchanged > 0)
             text.Append(operation switch
             {
-                "merge" => $"Nothing to merge: only #{mergeTarget} was selected.",
+                "merge" => $"Nothing to merge: only {mergeTarget} was selected.",
                 "close" => result.Unchanged == 1 ? "That ticket is already closed." : $"All {result.Unchanged} tickets are already closed.",
                 _ => result.Unchanged == 1 ? "No change made: that ticket already had that value." : $"No changes made: all {result.Unchanged} tickets already had that value."
             });

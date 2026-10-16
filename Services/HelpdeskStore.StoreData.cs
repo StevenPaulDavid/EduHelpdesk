@@ -159,6 +159,9 @@ public sealed partial class HelpdeskStore
         public Dictionary<string, Guid> CategoryDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> TeamDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> StatusDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        // 0: tickets from before each desk counted its own, which keep their key as their number (EnsureDesks). A brand
+        // new store starts at 1 (SeedStarterData), so its tickets are counted per desk from the start.
+        public int DeskNumberingVersion { get; set; }
         // Only categories someone has chosen a look for; the rest use PortalLook.DefaultFor.
         public Dictionary<string, CategoryStyle> CategoryStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<TicketAttachment> TicketAttachments { get; set; } = [];

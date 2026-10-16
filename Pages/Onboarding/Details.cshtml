@@ -1,6 +1,7 @@
 @page
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Onboarding.DetailsModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     var record = Model.Record;
     var ticket = Model.Ticket;
@@ -12,7 +13,7 @@
 }
 <div class="page-heading">
     <div>
-        <p class="eyebrow">ONBOARDING · TICKET #@ticket.Number</p>
+        <p class="eyebrow">ONBOARDING · TICKET @Helpdesk.Ref(ticket)</p>
         <h1>@(starter?.Name ?? "New starter")</h1>
         <p class="hero-copy">@(about.Length > 0 ? about + " · " : "")starts @record.StartDate.ToString("dddd d MMMM yyyy") (@EduHelpdesk.Pages.Onboarding.IndexModel.Starts(record.StartDate, Model.Today).ToLowerInvariant())</p>
     </div>
@@ -189,7 +190,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
                 <dt>Start date</dt><dd>@record.StartDate.ToString("ddd d MMM yyyy")</dd>
                 <dt>Line manager</dt><dd>@(Model.LineManager?.Name ?? "Not set")</dd>
                 <dt>IT lead</dt><dd>@(ticket.TechnicianId is { } lead ? Model.TechnicianNames.GetValueOrDefault(lead, "A former technician") : "Unassigned")</dd>
-                <dt>Ticket</dt><dd>#@ticket.Number · @ticket.Status</dd>
+                <dt>Ticket</dt><dd>@Helpdesk.Ref(ticket) · @ticket.Status</dd>
             </dl>
             @if (Model.CanEdit)
             {

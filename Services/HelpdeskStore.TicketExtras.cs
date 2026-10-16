@@ -142,7 +142,8 @@ public sealed partial class HelpdeskStore
     // ---- Links between tickets ----
 
     // A ticket linked to another, from the point of view of the ticket being looked at.
-    public sealed record TicketRelation(int Number, string Title, string Status, string Label);
+    // Reference is its number as shown (SITE-5); Number is its key, for links.
+    public sealed record TicketRelation(int Number, string Title, string Status, string Label, string Reference = "");
 
     public IReadOnlyList<TicketRelation> GetTicketRelations(int number)
     {
@@ -154,7 +155,7 @@ public sealed partial class HelpdeskStore
                 var otherNumber = link.TicketNumber == number ? link.LinkedNumber : link.TicketNumber;
                 if (_data.Tickets.FirstOrDefault(x => x.Number == otherNumber) is not { } other) continue;
                 var label = link.Kind == "follow-up" ? (link.TicketNumber == number ? "Follow-up" : "Follow-up to") : "Related";
-                relations.Add(new(other.Number, other.Title, other.Status, label));
+                relations.Add(new(other.Number, other.Title, other.Status, label, RefCore(other)));
             }
             // Where this ticket came from first, then related tickets, then its own follow-ups.
             return relations.OrderBy(x => x.Label == "Follow-up to" ? 0 : x.Label == "Related" ? 1 : 2).ThenBy(x => x.Number).ToList();
@@ -169,11 +170,11 @@ public sealed partial class HelpdeskStore
             var a = _data.Tickets.FindIndex(x => x.Number == number);
             var b = _data.Tickets.FindIndex(x => x.Number == otherNumber);
             if (a < 0) return "Ticket was not found.";
-            if (b < 0) return $"There is no ticket #{otherNumber}.";
-            if (AreLinked(number, otherNumber)) return $"#{number} and #{otherNumber} are already linked.";
+            if (b < 0) return $"There is no ticket {RefCore(otherNumber)}.";
+            if (AreLinked(number, otherNumber)) return $"{RefCore(number)} and {RefCore(otherNumber)} are already linked.";
             _data.TicketLinks.Add(new TicketLink(number, otherNumber, "related"));
-            AddLinkHistory(a, "Related ticket linked", $"Linked to #{otherNumber} - {_data.Tickets[b].Title}.");
-            AddLinkHistory(b, "Related ticket linked", $"Linked to #{number} - {_data.Tickets[a].Title}.");
+            AddLinkHistory(a, "Related ticket linked", $"Linked to {RefCore(otherNumber)} - {_data.Tickets[b].Title}.");
+            AddLinkHistory(b, "Related ticket linked", $"Linked to {RefCore(number)} - {_data.Tickets[a].Title}.");
             Save();
             return null;
         }
@@ -188,7 +189,7 @@ public sealed partial class HelpdeskStore
             foreach (var (ticket, other) in new[] { (number, otherNumber), (otherNumber, number) })
             {
                 var index = _data.Tickets.FindIndex(x => x.Number == ticket);
-                if (index >= 0) AddLinkHistory(index, "Ticket link removed", $"No longer linked to #{other}.");
+                if (index >= 0) AddLinkHistory(index, "Ticket link removed", $"No longer linked to {RefCore(other)}.");
             }
             Save();
             return null;
@@ -205,12 +206,12 @@ public sealed partial class HelpdeskStore
             if (original is null) return (null, "Ticket was not found.");
             var now = DateTime.UtcNow;
             var sla = SlaFor(original.Priority, original.Category);
-            var followUp = AddTicket(new TicketRecord(0, $"Follow-up: {original.Title}", $"Follow-up to #{original.Number}: {original.Title}.",
+            var followUp = AddTicket(new TicketRecord(0, $"Follow-up: {original.Title}", $"Follow-up to {RefCore(original)}: {original.Title}.",
                 original.RequesterId, original.AssetIds.ToList(), original.TechnicianId, original.Priority, StartingStatusCore(DeskForCategoryCore(original.Category).Id),
                 original.Category, now, null, sla, CalculateDueDate(sla, now), false, false, original.TeamName) { Type = original.Type, SubCategory = original.SubCategory });
             _data.TicketLinks.Add(new TicketLink(number, followUp, "follow-up"));
-            AddLinkHistory(_data.Tickets.FindIndex(x => x.Number == number), "Follow-up created", $"Follow-up ticket #{followUp} was created.");
-            AddLinkHistory(_data.Tickets.FindIndex(x => x.Number == followUp), "Follow-up", $"Created as a follow-up to #{number} - {original.Title}.");
+            AddLinkHistory(_data.Tickets.FindIndex(x => x.Number == number), "Follow-up created", $"Follow-up ticket {RefCore(followUp)} was created.");
+            AddLinkHistory(_data.Tickets.FindIndex(x => x.Number == followUp), "Follow-up", $"Created as a follow-up to {RefCore(original)} - {original.Title}.");
             Save();
             return (followUp, null);
         }

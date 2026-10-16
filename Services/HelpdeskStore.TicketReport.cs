@@ -40,7 +40,7 @@ public sealed partial class HelpdeskStore
                 includeInternal,
                 preparedBy,
                 DateTime.Now)
-            { Reference = RefFor(DeskForCategoryCore(ticket.Category), ticket.Number) };
+            { Reference = RefCore(ticket) };
         }
     }
 }

@@ -311,7 +311,7 @@ public static class TicketReportPdf
             var table = Table(section, 2, 9, 3, 3);
             Header(table, "Ticket", "Title", "Status", "Link");
             foreach (var relation in input.Relations)
-                Cells(table.AddRow(), $"#{relation.Number}", relation.Title, relation.Status, relation.Label);
+                Cells(table.AddRow(), relation.Reference.Length > 0 ? relation.Reference : $"#{relation.Number}", relation.Title, relation.Status, relation.Label);
         }
     }
 

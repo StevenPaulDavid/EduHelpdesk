@@ -146,10 +146,10 @@ public sealed partial class HelpdeskStore
     // title and message EduNotify actually takes (it keeps only what the template lets a caller change).
     private EduNotify.Send PingFor(TicketRecord ticket)
     {
-        var title = $"{ticket.Priority} ticket #{ticket.Number}";
-        if (title.Length > EduNotify.MaxTitle) title = $"Ticket #{ticket.Number}";
+        var title = $"{ticket.Priority} ticket {RefCore(ticket)}";
+        if (title.Length > EduNotify.MaxTitle) title = $"Ticket {RefCore(ticket)}";
         var link = TicketLink(ticket.Number, null);
-        var body = $"Ticket #{ticket.Number} needs a technician. Open the helpdesk to pick it up." + (link is null ? "" : $" {link}");
+        var body = $"Ticket {RefCore(ticket)} needs a technician. Open the helpdesk to pick it up." + (link is null ? "" : $" {link}");
         return new(_data.TechnicianPingTemplateId, false, _data.TechnicianPingGroups.ToList(), title, body, EduNotify.PingReferenceFor(ticket.Number));
     }
 

@@ -125,7 +125,7 @@ public sealed partial class HelpdeskStore
         string? link;
         string brand;
         lock (_sync) { link = TicketLink(number, fallbackAddress); brand = TeamsBrand; }
-        _teamsOutbox.Writer.TryWrite(new TeamsPost($"New ticket #{number}", $"Submitted in the {brand} staff portal.", link is null ? null : "Open ticket", link));
+        _teamsOutbox.Writer.TryWrite(new TeamsPost($"New ticket {Ref(number)}", $"Submitted in the {brand} staff portal.", link is null ? null : "Open ticket", link));
     }
 
     // Queues a post for every ticket that has become overdue since the last look, and returns how many tickets that was.
@@ -155,7 +155,7 @@ public sealed partial class HelpdeskStore
                 foreach (var number in fresh)
                 {
                     var link = TicketLink(number, null);
-                    _teamsOutbox.Writer.TryWrite(new TeamsPost($"Ticket #{number} is overdue", $"It has passed its due date in {brand}.", link is null ? null : "Open ticket", link));
+                    _teamsOutbox.Writer.TryWrite(new TeamsPost($"Ticket {RefCore(number)} is overdue", $"It has passed its due date in {brand}.", link is null ? null : "Open ticket", link));
                 }
             }
             return fresh.Count;

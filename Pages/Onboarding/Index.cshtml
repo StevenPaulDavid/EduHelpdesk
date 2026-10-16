@@ -1,5 +1,6 @@
 @page
 @model EduHelpdesk.Pages.Onboarding.IndexModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{ ViewData["Title"] = "Onboarding"; ViewData["Wide"] = true; }
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / ONBOARDING</p><h1>Onboarding</h1><p class="hero-copy">New staff, and everything to get ready for them. Each onboarding is a ticket, so IT's tasks show in the ticket list too.</p></div>
@@ -56,7 +57,7 @@
                         <td>@record.Done of @record.Tasks.Count done @if (overdue > 0) { <span class="badge badge-warning">@overdue overdue</span> }</td>
                         <td>@(record.IsCancelled ? "-" : itLeft.ToString())</td>
                         <td>@if (record.IsCancelled) { <span class="badge">Cancelled</span> } else if (record.AllDone) { <span class="badge chosen-badge">Complete</span> } else { <span>In progress</span> }</td>
-                        <td>#@record.TicketNumber</td>
+                        <td>@Helpdesk.Ref(record.TicketNumber)</td>
                     </tr>
                 }
                 @if (Model.Rows.Count == 0)

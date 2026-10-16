@@ -171,14 +171,14 @@ public class OnboardingReportsModel(HelpdeskStore store) : PageModel
                 ["Ticket", "Starter", "Job title", "Department", "Line manager", "Template", "Start date", "Status", "Tasks", "Done",
                  "Late or overdue", "Finished", "Days from start to finish", "Cancelled"],
                 InPeriod,
-                x => [$"#{x.Record.TicketNumber}", x.Starter, x.Record.JobTitle, x.Department, x.LineManager ?? "", x.Record.TemplateName,
+                x => [store.Ref(x.Record.TicketNumber), x.Starter, x.Record.JobTitle, x.Department, x.LineManager ?? "", x.Record.TemplateName,
                       Day(x.Record.StartDate), x.Status(Today), x.Tasks.Count.ToString(), x.Record.Done.ToString(),
                       x.Tasks.Count(t => t.DaysLate(Today) is not null).ToString(), Day(x.FinishedOn), x.DaysToFinish?.ToString() ?? "",
                       x.Record.CancelledAt is { } at ? Day(DateOnly.FromDateTime(at.ToLocalTime())) : ""])),
             "tasks" => ("onboarding-tasks", Csv.Table(
                 ["Ticket", "Starter", "Start date", "Task", "Stage", "Owner", "For", "Due", "Done", "Ticked by", "Days late", "Still overdue"],
                 PeriodTasks,
-                x => [$"#{x.Record.TicketNumber}", x.Starter, Day(x.Record.StartDate), x.Task.Title, x.Task.Stage,
+                x => [store.Ref(x.Record.TicketNumber), x.Starter, Day(x.Record.StartDate), x.Task.Title, x.Task.Stage,
                       x.Task.Owner, x.Doer, Day(x.DueOn), Day(x.DoneOn), x.Task.CompletedBy?.Name ?? "",
                       x.DaysLate(Today)?.ToString() ?? "", x.Record.IsOverdue(x.Task, Today) ? "Yes" : "No"])),
             _ => ("", "")

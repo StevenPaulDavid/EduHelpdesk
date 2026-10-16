@@ -310,7 +310,7 @@ public sealed partial class HelpdeskStore
             if (assetIndex >= 0)
             {
                 var assetHistory = _data.Assets[assetIndex].History.ToList();
-                assetHistory.Add(new("Ticket linked", $"Linked to ticket #{ticket.Number} - {ticket.Title}", DateTime.UtcNow) { By = CurrentActor() });
+                assetHistory.Add(new("Ticket linked", $"Linked to ticket {RefCore(ticket)} - {ticket.Title}", DateTime.UtcNow) { By = CurrentActor() });
                 _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
             }
             Save();
@@ -333,7 +333,7 @@ public sealed partial class HelpdeskStore
             if (assetIndex >= 0)
             {
                 var assetHistory = _data.Assets[assetIndex].History.ToList();
-                assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket #{ticket.Number} - {ticket.Title}", DateTime.UtcNow) { By = CurrentActor() });
+                assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket {RefCore(ticket)} - {ticket.Title}", DateTime.UtcNow) { By = CurrentActor() });
                 _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
             }
             Save();

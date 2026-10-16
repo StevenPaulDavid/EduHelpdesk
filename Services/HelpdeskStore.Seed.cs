@@ -19,7 +19,7 @@ public sealed partial class HelpdeskStore
         switch (record.EntityType)
         {
             case "Ticket" when int.TryParse(record.EntityKey, out var number):
-                return _data.Tickets.FirstOrDefault(x => x.Number == number) is { } ticket ? ("Ticket", $"#{ticket.Number} {ticket.Title}") : null;
+                return _data.Tickets.FirstOrDefault(x => x.Number == number) is { } ticket ? ("Ticket", $"{RefCore(ticket)} {ticket.Title}") : null;
             case "Project" when int.TryParse(record.EntityKey, out var projectNumber):
                 return _data.Projects.FirstOrDefault(x => x.Number == projectNumber) is { } project ? ("Project", $"{project.Reference} {project.Title}") : null;
             case "Asset" when Guid.TryParse(record.EntityKey, out var assetId):
@@ -87,7 +87,7 @@ public sealed partial class HelpdeskStore
             var blocking = _data.Tickets.Where(x => userIds.Contains(x.RequesterId) && !ticketNumbers.Contains(x.Number)).ToList();
             if (blocking.Count > 0)
             {
-                var names = string.Join(", ", blocking.Take(5).Select(x => $"#{x.Number}"));
+                var names = string.Join(", ", blocking.Take(5).Select(RefCore));
                 var one = blocking.Count == 1;
                 return (false, $"Nothing was changed. {(one ? "Ticket" : "Tickets")} {names}{(blocking.Count > 5 ? " and others" : "")} "
                     + $"still {(one ? "lists" : "list")} a demo requester. Change the requester on {(one ? "that ticket" : "those tickets")}, or delete "
@@ -272,6 +272,8 @@ public sealed partial class HelpdeskStore
         // so without this the database claimed the old model while holding new-model roles, and the next restart
         // "converted" them from legacy grants that are no longer written, throwing away whatever had been set up.
         _data.PermissionModelVersion = PermissionModelVersion;
+        // Likewise: a new store's tickets are counted per desk from the first one (HelpdeskStore.Desks).
+        _data.DeskNumberingVersion = 1;
         EnsureFactoryOptions();
         EnsureProjectDefaults();
         EnsureOnboardingDefaults();

@@ -112,12 +112,104 @@ public sealed partial class HelpdeskStore
                 : [];
     }
 
-    // The number as people see it: SITE-1043, or #1043 on a desk with no prefix.
+    // ---- Numbering ----
+    // Each desk counts its own tickets (SITE-1, SITE-2...) in DeskNumber. A ticket's Number is its key and never shown.
+
+    // The number as people see it: SITE-5, or #5 on a desk with no prefix.
     public static string RefFor(Desk? desk, int number) => desk is { Prefix.Length: > 0 } ? $"{desk.Prefix}-{number}" : $"#{number}";
-    public string Ref(TicketRecord ticket) => RefFor(DeskOf(ticket), ticket.Number);
+    public static string RefFor(Desk? desk, TicketRecord ticket) => RefFor(desk, ShownNumber(ticket));
+    // Only a ticket the store hasn't numbered yet falls back to its key.
+    public static int ShownNumber(TicketRecord ticket) => ticket.DeskNumber > 0 ? ticket.DeskNumber : ticket.Number;
+    public string Ref(TicketRecord ticket) => RefFor(DeskOf(ticket), ticket);
+    // By the ticket's key, for messages and links that only have that. An unknown one (deleted, say) is just #key.
     public string Ref(int number)
     {
-        lock (_sync) return _data.Tickets.FirstOrDefault(x => x.Number == number) is { } ticket ? RefFor(DeskForCategoryCore(ticket.Category), number) : $"#{number}";
+        lock (_sync) return RefCore(number);
+    }
+    private string RefCore(int number) => _data.Tickets.FirstOrDefault(x => x.Number == number) is { } ticket ? RefCore(ticket) : $"#{number}";
+    private string RefCore(TicketRecord ticket) => RefFor(DeskForCategoryCore(ticket.Category), ticket);
+
+    // A ticket number someone typed: "SITE-5", "site 5", "#5" or "5", or a number it had before it moved desk. A bare
+    // number on its own is only enough when one desk has it.
+    private static readonly Regex TypedRef = new(@"^\s*(?:([A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*)\s*-?\s*)?#?\s*(\d{1,9})\s*$", RegexOptions.Compiled);
+    public (int? Number, string? Error) FindTicketByRef(string? typed)
+    {
+        var text = (typed ?? "").Trim();
+        if (text.Length == 0) return (null, "Enter a ticket number, such as SITE-5.");
+        var match = TypedRef.Match(text);
+        if (!match.Success) return (null, $"\"{text}\" isn't a ticket number. Type one such as SITE-5.");
+        var shown = int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+        lock (_sync)
+        {
+            if (match.Groups[1].Success)
+            {
+                var prefix = match.Groups[1].Value;
+                var wanted = $"{prefix}-{shown}";
+                var current = _data.Tickets.FirstOrDefault(t => ShownNumber(t) == shown && string.Equals(DeskForCategoryCore(t.Category).Prefix, prefix, StringComparison.OrdinalIgnoreCase));
+                if (current is not null) return (current.Number, null);
+                var former = _data.Tickets.FirstOrDefault(t => FormerRefsOf(t).Contains(wanted, StringComparer.OrdinalIgnoreCase));
+                return former is not null ? (former.Number, null) : (null, $"There's no ticket {wanted.ToUpperInvariant()}.");
+            }
+            var candidates = _data.Tickets.Where(t => ShownNumber(t) == shown).ToList();
+            return candidates.Count switch
+            {
+                1 => (candidates[0].Number, null),
+                0 => (null, $"There's no ticket {shown}."),
+                _ => (null, $"More than one desk has a ticket {shown} ({string.Join(", ", candidates.Select(RefCore))}). Type it with its prefix.")
+            };
+        }
+    }
+
+    private static IEnumerable<string> FormerRefsOf(TicketRecord ticket) => ticket.FormerRefs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    // The desk's next number, moved on past any already in use there (a number typed lower in Settings, or an old one).
+    // Called with the lock held; the caller saves.
+    private int TakeDeskNumberCore(Guid deskId)
+    {
+        var index = _data.Desks.FindIndex(x => x.Id == deskId);
+        if (index < 0) index = 0;
+        var desk = _data.Desks[index];
+        var used = _data.Tickets.Where(t => t.DeskNumber > 0 && DeskForCategoryCore(t.Category).Id == desk.Id).Select(t => t.DeskNumber).ToHashSet();
+        var number = Math.Max(desk.NextNumber, 1);
+        while (used.Contains(number)) number++;
+        _data.Desks[index] = desk with { NextNumber = number + 1 };
+        return number;
+    }
+
+    // A ticket that has just moved to another desk: that desk's next number, and the old one kept in FormerRefs.
+    private TicketRecord RenumberCore(TicketRecord moved, Desk from)
+    {
+        var old = RefFor(from, moved);
+        var number = TakeDeskNumberCore(DeskForCategoryCore(moved.Category).Id);
+        return moved with { DeskNumber = number, FormerRefs = string.Join(", ", FormerRefsOf(moved).Append(old).Distinct(StringComparer.OrdinalIgnoreCase)) };
+    }
+
+    // Numbers every ticket that doesn't have a desk number yet - those made by the paths that add tickets directly
+    // (onboarding, imports, the demo). Run before every save, so nothing is ever stored unnumbered.
+    private void NumberNewTicketsCore()
+    {
+        if (_data.DeskNumberingVersion < 1 || _data.Desks.Count == 0) return;
+        for (var i = 0; i < _data.Tickets.Count; i++)
+            if (_data.Tickets[i].DeskNumber <= 0)
+                _data.Tickets[i] = _data.Tickets[i] with { DeskNumber = TakeDeskNumberCore(DeskForCategoryCore(_data.Tickets[i].Category).Id) };
+    }
+
+    // What the next ticket on a desk will be numbered. Never at or below a number already used there.
+    public (bool Ok, string Message) SetDeskNextNumber(Guid id, int next)
+    {
+        lock (_sync)
+        {
+            var index = _data.Desks.FindIndex(x => x.Id == id);
+            if (index < 0) return (false, "That desk was not found.");
+            var desk = _data.Desks[index];
+            if (next < 1 || next > 999_999_999) return (false, "Enter a whole number from 1 upwards.");
+            var highest = _data.Tickets.Where(t => DeskForCategoryCore(t.Category).Id == id).Select(ShownNumber).DefaultIfEmpty(0).Max();
+            if (next <= highest) return (false, $"{RefFor(desk, highest)} is already in use, so the next number has to be {highest + 1} or more.");
+            if (desk.NextNumber == next) return (true, $"The next {desk.Name} ticket is already {RefFor(desk, next)}.");
+            _data.Desks[index] = desk with { NextNumber = next };
+            Save();
+            return (true, $"The next {desk.Name} ticket will be {RefFor(desk, next)}.");
+        }
     }
 
     // The desks staff can report to in the portal: offered there, and with at least one category. With only one, the
@@ -188,13 +280,15 @@ public sealed partial class HelpdeskStore
 
     // ---- Managing desks (Settings → Desks) ----
 
-    public (bool Ok, string Message) AddDesk(string? name, string? prefix, string? helperLine)
+    // firstNumber is what its first ticket is numbered (SITE-1 by default).
+    public (bool Ok, string Message) AddDesk(string? name, string? prefix, string? helperLine, int firstNumber = 1)
     {
         lock (_sync)
         {
             var (cleanName, cleanPrefix, helper, error) = CheckDesk(null, name, prefix, helperLine);
             if (error is not null) return (false, error);
-            var desk = new Desk(Guid.NewGuid(), cleanName, cleanPrefix, helper);
+            if (firstNumber < 1 || firstNumber > 999_999_999) return (false, "Start the numbers at 1 or more.");
+            var desk = new Desk(Guid.NewGuid(), cleanName, cleanPrefix, helper, NextNumber: firstNumber);
             _data.Desks.Add(desk);
             Save();
             return (true, $"{desk.Name} desk added. Give it categories in Settings → Categories, and add people to it on their staff account.");
@@ -290,6 +384,8 @@ public sealed partial class HelpdeskStore
         if (_data.Desks.Any(x => x.Id != id && string.Equals(x.Name, cleanName, StringComparison.OrdinalIgnoreCase))) return ("", "", "", "There's already a desk with that name.");
         if (cleanPrefix.Length > 0 && !PrefixPattern.IsMatch(cleanPrefix)) return ("", "", "", $"A prefix is up to {MaxDeskPrefixLength} letters or numbers, such as SITE - or leave it blank.");
         if (cleanPrefix.Length > 0 && _data.Desks.Any(x => x.Id != id && string.Equals(x.Prefix, cleanPrefix, StringComparison.OrdinalIgnoreCase))) return ("", "", "", "Another desk already uses that prefix.");
+        // Each desk counts from its own start, so two without a prefix would both have a #5.
+        if (cleanPrefix.Length == 0 && _data.Desks.FirstOrDefault(x => x.Id != id && x.Prefix.Length == 0) is { } bare) return ("", "", "", $"The {bare.Name} desk already shows its numbers without a prefix. Give this one a prefix so their tickets can be told apart.");
         if (CheckHelperLine(helperLine, out var helper) is { } helperError) return ("", "", "", helperError);
         return (cleanName, cleanPrefix, helper, null);
     }
@@ -305,8 +401,20 @@ public sealed partial class HelpdeskStore
             if (name is null) return (false, "Select a valid category.");
             var desk = _data.Desks.FirstOrDefault(x => x.Id == deskId);
             if (desk is null) return (false, "Select a valid desk.");
-            if (DeskForCategoryCore(name).Id == deskId) return (true, $"{name} is already on the {desk.Name} desk.");
+            var from = DeskForCategoryCore(name);
+            if (from.Id == deskId) return (true, $"{name} is already on the {desk.Name} desk.");
             _data.CategoryDesks[name] = deskId;
+            // Every ticket in it takes the new desk's next number, closed ones too, oldest first - its old number
+            // belongs to the old desk's count.
+            foreach (var index in _data.Tickets.Select((t, i) => (t, i)).Where(x => string.Equals(x.t.Category, name, StringComparison.OrdinalIgnoreCase)).OrderBy(x => x.t.Number).Select(x => x.i).ToList())
+            {
+                var ticket = _data.Tickets[index];
+                var renumbered = RenumberCore(ticket, from);
+                var history = ticket.History.ToList();
+                history.Add(new TicketActivity("Desk changed", $"{from.Name} -> {desk.Name}, with its category, {name}.", DateTime.UtcNow) { By = CurrentActor() });
+                history.Add(new TicketActivity("Number changed", $"{RefFor(from, ticket)} -> {RefFor(desk, renumbered)}", DateTime.UtcNow) { By = CurrentActor() });
+                _data.Tickets[index] = renumbered with { History = history };
+            }
             var moved = RefitTickets(t => string.Equals(t.Category, name, StringComparison.OrdinalIgnoreCase), $"Its category, {name}, was moved to the {desk.Name} desk.");
             Save();
             return (true, $"{name} moved to the {desk.Name} desk{(moved > 0 ? $", with {Plural(moved, "open ticket", "open tickets")}" : "")}.");
@@ -403,10 +511,27 @@ public sealed partial class HelpdeskStore
     {
         _data.Desks ??= [];
         _data.Desks = _data.Desks.Where(x => !string.IsNullOrWhiteSpace(x.Name)).DistinctBy(x => x.Id).ToList();
-        if (_data.Desks.Count == 0) _data.Desks.Add(new Desk(Guid.NewGuid(), DefaultDeskName, DefaultDeskName));
+        if (_data.Desks.Count == 0) _data.Desks.Add(new Desk(Guid.NewGuid(), DefaultDeskName, DefaultDeskName, NextNumber: 0));
         var known = _data.Desks.Select(x => x.Id).ToHashSet();
         var first = _data.Desks[0].Id;
         _data.CategoryDesks = Placed(_data.CategoryDesks, _data.Categories, known, first);
+        // Before each desk counted its own tickets, every ticket was shown by its key - so that is what it keeps.
+        if (_data.DeskNumberingVersion < 1)
+        {
+            for (var i = 0; i < _data.Tickets.Count; i++)
+                if (_data.Tickets[i].DeskNumber <= 0) _data.Tickets[i] = _data.Tickets[i] with { DeskNumber = _data.Tickets[i].Number };
+            _data.DeskNumberingVersion = 1;
+        }
+        // A desk without a next number (the one made just above, or one from before numbering) carries on past its
+        // highest; the first desk also past every key handed out, so IT goes on from where the shared count was.
+        for (var i = 0; i < _data.Desks.Count; i++)
+        {
+            if (_data.Desks[i].NextNumber > 0) continue;
+            var id = _data.Desks[i].Id;
+            var highest = _data.Tickets.Where(t => DeskForCategoryCore(t.Category).Id == id).Select(ShownNumber).DefaultIfEmpty(0).Max();
+            _data.Desks[i] = _data.Desks[i] with { NextNumber = Math.Max(highest + 1, i == 0 ? _data.LastTicketNumber + 1 : 1) };
+        }
+        NumberNewTicketsCore();
         _data.TeamDesks = Placed(_data.TeamDesks, _data.TechnicianTeams, known, first);
         _data.StatusDesks = new Dictionary<string, Guid>(
             (_data.StatusDesks ?? new Dictionary<string, Guid>()).Where(x => known.Contains(x.Value) && !IsBuiltInStatus(x.Key) && _data.Statuses.Contains(x.Key, StringComparer.OrdinalIgnoreCase)),
@@ -442,23 +567,32 @@ public sealed partial class HelpdeskStore
         // No foreign keys: the placings are rewritten from the lists on every save, and a stale row is ignored on load.
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS Desks (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, Prefix TEXT NOT NULL DEFAULT '', HelperLine TEXT NOT NULL DEFAULT '',
-                Icon TEXT NOT NULL DEFAULT '', Color TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1);
+                Icon TEXT NOT NULL DEFAULT '', Color TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1, NextNumber INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS CategoryDesks (Category TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TeamDesks (Team TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS StatusDesks (Status TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TechnicianDesks (TechnicianId TEXT NOT NULL, DeskId TEXT NOT NULL, PRIMARY KEY (TechnicianId, DeskId));
             """;
         command.ExecuteNonQuery();
+        // Desks made before each desk counted its own tickets. 0 is worked out from its tickets on load (EnsureDesks).
+        try
+        {
+            using var column = connection.CreateCommand();
+            column.CommandText = "ALTER TABLE Desks ADD COLUMN NextNumber INTEGER NOT NULL DEFAULT 0;";
+            column.ExecuteNonQuery();
+        }
+        catch (SqliteException) { }
     }
 
     private static void ReadDesks(SqliteConnection connection, StoreData data)
     {
+        data.DeskNumberingVersion = int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'DeskNumberingVersion';") as string, out var version) ? version : 0;
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal FROM Desks ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber FROM Desks ORDER BY rowid;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
-                data.Desks.Add(new Desk(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetInt32(6) != 0));
+                data.Desks.Add(new Desk(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetInt32(6) != 0, reader.GetInt32(7)));
         }
         void ReadMap(string table, string column, Dictionary<string, Guid> target)
         {
@@ -490,10 +624,11 @@ public sealed partial class HelpdeskStore
 
     private static void WriteDesks(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
     {
+        SetMetadata(connection, transaction, "DeskNumberingVersion", data.DeskNumberingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var known = data.Desks.Select(x => x.Id).ToHashSet();
         foreach (var desk in data.Desks)
-            Execute(connection, transaction, "INSERT INTO Desks (Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal) VALUES ($id,$name,$prefix,$helper,$icon,$color,$portal);",
-                ("$id", desk.Id.ToString()), ("$name", desk.Name), ("$prefix", desk.Prefix), ("$helper", desk.HelperLine), ("$icon", desk.Icon), ("$color", desk.Color), ("$portal", desk.ShowInPortal ? 1 : 0));
+            Execute(connection, transaction, "INSERT INTO Desks (Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber) VALUES ($id,$name,$prefix,$helper,$icon,$color,$portal,$next);",
+                ("$id", desk.Id.ToString()), ("$name", desk.Name), ("$prefix", desk.Prefix), ("$helper", desk.HelperLine), ("$icon", desk.Icon), ("$color", desk.Color), ("$portal", desk.ShowInPortal ? 1 : 0), ("$next", desk.NextNumber));
         // Sorted, so a save that changed nothing else writes the same rows in the same order.
         foreach (var (category, id) in data.CategoryDesks.Where(x => known.Contains(x.Value) && data.Categories.Contains(x.Key, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
             Execute(connection, transaction, "INSERT INTO CategoryDesks (Category, DeskId) VALUES ($category,$desk);", ("$category", category), ("$desk", id.ToString()));

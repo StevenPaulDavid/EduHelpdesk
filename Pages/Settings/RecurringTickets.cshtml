@@ -2,6 +2,7 @@
 @using EduHelpdesk.Models
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.RecurringTicketsModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = "Recurring tickets";
     var culture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
@@ -59,7 +60,7 @@
             <summary><strong>@item.Name</strong> @if (!item.IsActive) { <span class="badge">Paused</span> } <span class="muted">@Recurrence.Describe(item.Rule) · @(next is { } due ? $"next {due.ToString("ddd d MMM yyyy, HH:mm", culture)}" : item.IsActive ? "ended" : "not running")</span></summary>
             <p class="muted">
                 @if (item.LastRunAt is { } ran) { <span>Last run @ran.ToLocalTime().ToString("d MMM yyyy, HH:mm", culture): @item.LastResult</span> } else { <span>Hasn't logged a ticket yet.</span> }
-                @if (last is not null) { <span> Last ticket <a asp-page="/Job" asp-route-number="@last.Number">#@last.Number</a> is @(TicketInsights.IsClosed(last) ? "closed" : $"still open ({last.Status}), so the next date will be skipped unless it is closed first").</span> }
+                @if (last is not null) { <span> Last ticket <a asp-page="/Job" asp-route-number="@last.Number">@Helpdesk.Ref(last)</a> is @(TicketInsights.IsClosed(last) ? "closed" : $"still open ({last.Status}), so the next date will be skipped unless it is closed first").</span> }
             </p>
             @if (editing && Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
             <form method="post" asp-page-handler="Save" asp-route-id="@item.Id" class="settings-form">

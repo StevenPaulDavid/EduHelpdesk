@@ -1,6 +1,7 @@
 @page
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.SpiceworksImportModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = "Import from Spiceworks";
     string P(int count, string one, string many) => EduHelpdesk.Pages.Settings.SpiceworksImportModel.Plural(count, one, many);
@@ -128,7 +129,7 @@ else
                     <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Ticket</th><th>What changes</th><th class="num">New comments</th><th class="num">New history</th></tr></thead><tbody>
                     @foreach (var update in automatic)
                     {
-                        <tr><td><a asp-page="/Job" asp-route-number="@update.Number">#@update.Number</a> (Spiceworks #@update.SpiceworksNumber) @update.Title</td>
+                        <tr><td><a asp-page="/Job" asp-route-number="@update.Number">@Helpdesk.Ref(update.Number)</a> (Spiceworks #@update.SpiceworksNumber) @update.Title</td>
                             <td>@(update.Changes.Count == 0 ? "-" : string.Join("; ", update.Changes.Select(x => $"{x.Field}: {x.Here} → {x.InSpiceworks}")))</td>
                             <td class="num">@update.NewComments</td><td class="num">@update.NewHistory</td></tr>
                     }
@@ -146,8 +147,8 @@ else
                     {
                         foreach (var change in update.Changes)
                         {
-                            <tr><td><a asp-page="/Job" asp-route-number="@update.Number">#@update.Number</a> @update.Title</td><td>@change.Field</td><td>@change.Here</td><td>@change.InSpiceworks</td>
-                                <td><select name="choice[@change.Key]" aria-label="@change.Field on #@update.Number"><option value="here" selected="@(!change.TakeSpiceworks)">Keep ours</option><option value="@HelpdeskStore.SpiceworksTakeTheirs" selected="@change.TakeSpiceworks">Take Spiceworks'</option></select></td></tr>
+                            <tr><td><a asp-page="/Job" asp-route-number="@update.Number">@Helpdesk.Ref(update.Number)</a> @update.Title</td><td>@change.Field</td><td>@change.Here</td><td>@change.InSpiceworks</td>
+                                <td><select name="choice[@change.Key]" aria-label="@change.Field on @Helpdesk.Ref(update.Number)"><option value="here" selected="@(!change.TakeSpiceworks)">Keep ours</option><option value="@HelpdeskStore.SpiceworksTakeTheirs" selected="@change.TakeSpiceworks">Take Spiceworks'</option></select></td></tr>
                         }
                     }
                     </tbody></table></div>

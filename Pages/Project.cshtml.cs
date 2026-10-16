@@ -67,10 +67,12 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         return Page();
     }
 
-    public IActionResult OnPostLinkTicket(int number, int? ticket)
+    // Typed as people see it - SITE-5 - and looked up (HelpdeskStore.FindTicketByRef).
+    public IActionResult OnPostLinkTicket(int number, string? ticket)
     {
         if (!CanEdit) return Forbid();
-        return Linked(number, ticket is null ? (false, "Enter the number of the ticket to link.") : store.LinkProjectTicket(number, ticket.Value));
+        var (found, error) = store.FindTicketByRef(ticket);
+        return Linked(number, found is { } ticketNumber ? store.LinkProjectTicket(number, ticketNumber) : (false, error!));
     }
 
     public IActionResult OnPostUnlinkTicket(int number, int ticket)

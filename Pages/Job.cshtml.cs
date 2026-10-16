@@ -30,7 +30,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // Everything offered on the ticket belongs to its desk (HelpdeskStore.Desks): its teams, its people, its statuses
     // and its categories. Another desk's categories are offered separately, as moving the ticket.
     public Desk? Desk => Ticket is null ? null : store.DeskOf(Ticket);
-    public string Reference => Ticket is null ? "" : HelpdeskStore.RefFor(Desk, Ticket.Number);
+    public string Reference => Ticket is null ? "" : HelpdeskStore.RefFor(Desk, Ticket);
     public bool HasSeveralDesks => store.HasSeveralDesks;
     public IReadOnlyList<TechnicianRecord> TeamTechnicians => Ticket is null || Desk is null ? [] : store.GetTechniciansForTeam(Ticket.TeamName).Where(x => HelpdeskStore.TechnicianOnDesk(x, Desk.Id)).ToList();
     public IReadOnlyList<string> TechnicianTeams => Desk is null ? store.TechnicianTeams : store.TeamsFor(Desk.Id);
@@ -472,15 +472,17 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         return PhysicalFile(found.Path, found.Attachment.ContentType, found.Attachment.FileName);
     }
 
-    public IActionResult OnPostLinkRelated(int number, int? other)
+    // Typed as people see it - SITE-5 - and looked up (HelpdeskStore.FindTicketByRef).
+    public IActionResult OnPostLinkRelated(int number, string? other)
     {
-        Message = other is null ? "Enter the number of the ticket to link." : store.LinkRelatedTickets(number, other.Value) ?? $"Linked to #{other}.";
+        var (found, error) = store.FindTicketByRef(other);
+        Message = found is { } otherNumber ? store.LinkRelatedTickets(number, otherNumber) ?? $"Linked to {store.Ref(otherNumber)}." : error;
         return RedirectToPage(new { number });
     }
 
     public IActionResult OnPostUnlinkTicket(int number, int other)
     {
-        Message = store.UnlinkTickets(number, other) ?? $"Link to #{other} removed.";
+        Message = store.UnlinkTickets(number, other) ?? $"Link to {store.Ref(other)} removed.";
         return RedirectToPage(new { number });
     }
 
@@ -585,7 +587,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             Message = error;
             return RedirectToPage(new { number });
         }
-        Message = $"Follow-up ticket #{followUp} created from #{number}. Edit its details below.";
+        Message = $"Follow-up ticket {store.Ref(followUp.Value)} created from {store.Ref(number)}. Edit its details below.";
         return RedirectToPage(new { number = followUp.Value });
     }
 
@@ -622,13 +624,15 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IActionResult OnPostDelete(int number)
     {
         if (!store.UserCan(User, Modules.Tickets, ModulePermission.Delete)) return Forbid();
+        // Worked out first: once it's gone there is nothing to look its number up from.
+        var shown = store.Ref(number);
         var message = store.DeleteTicket(number);
         if (message is not null)
         {
             Message = message;
             return RedirectToPage(new { number });
         }
-        Message = $"Ticket #{number} deleted.";
+        Message = $"Ticket {shown} deleted.";
         return RedirectToPage("/Jobs");
     }
 
@@ -641,7 +645,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             Message = message;
             return RedirectToPage(new { number });
         }
-        Message = $"Ticket #{number} was merged into ticket #{targetNumber}.";
+        Message = $"Ticket {store.Ref(number)} was merged into ticket {store.Ref(targetNumber)}.";
         return RedirectToPage(new { number = targetNumber });
     }
 }

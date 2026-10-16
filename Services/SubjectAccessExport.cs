@@ -137,7 +137,7 @@ public static class SubjectAccessExport
         if (d.Tickets.Count == 0) html.Append("<p class=\"muted\">None.</p>");
         foreach (var t in d.Tickets)
         {
-            html.Append($"<h3>#{t.Number} {E(t.Title)}</h3><table>");
+            html.Append($"<h3>{E(d.Ref(t))} {E(t.Title)}</h3><table>");
             Row("Raised", Local(t.CreatedAt)); Row("Status", t.Status); Row("Type", t.Type); Row("Priority", t.Priority); Row("Category", t.Category);
             Row("Location", t.Location); Row("Technician", Tech(t.TechnicianId)); Row("Team", t.TeamName);
             Row("SLA", t.SlaId is { } sla ? d.SlaNames.GetValueOrDefault(sla, "") : ""); Row("Due", t.DueDate is { } due ? Local(due) : "");
@@ -200,7 +200,7 @@ public static class SubjectAccessExport
         if (d.Mentions.Count > 0)
         {
             html.Append("<table>");
-            foreach (var m in d.Mentions) html.Append($"<tr><th>#{m.Ticket.Number}</th><td>{E(m.Ticket.Title)} <span class=\"muted\">- in the {E(m.Where)}, raised {E(Local(m.Ticket.CreatedAt))}</span></td></tr>");
+            foreach (var m in d.Mentions) html.Append($"<tr><th>{E(d.Ref(m.Ticket))}</th><td>{E(m.Ticket.Title)} <span class=\"muted\">- in the {E(m.Where)}, raised {E(Local(m.Ticket.CreatedAt))}</span></td></tr>");
             html.Append("</table>");
         }
 

@@ -124,7 +124,7 @@ internal static class AuditTracker
         }
 
         foreach (var x in d.Tickets)
-            AddFor(s, x, static x => Make("Tickets", "Ticket", x.Number.ToString(), $"#{x.Number} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category), ("Location", x.Location ?? "")));
+            AddFor(s, x, static x => Make("Tickets", "Ticket", x.Number.ToString(), $"#{HelpdeskStore.ShownNumber(x)} {x.Title}", Track.Delete, ("Title", x.Title), ("Status", x.Status), ("Priority", x.Priority), ("Category", x.Category), ("Location", x.Location ?? "")));
         // Like tickets, a project's own history covers everything except its deletion.
         foreach (var x in d.Projects)
             Add(s, "Projects", "Project", x.Number.ToString(), $"{x.Reference} {x.Title}", Track.Delete,

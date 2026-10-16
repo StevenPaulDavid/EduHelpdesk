@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Desks";
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves, such as IT, Site or Cleaning. Each has its own categories, teams and people, and its own prefix on ticket numbers. A ticket is on the desk its category belongs to, so moving a ticket to another desk is giving it one of that desk's categories. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves, such as IT, Site or Cleaning. Each has its own categories, teams and people, and its own ticket numbers with their own prefix (SITE-1, SITE-2…). A ticket is on the desk its category belongs to, so moving a ticket to another desk is giving it one of that desk's categories. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 
 <section class="panel">
@@ -12,7 +12,8 @@
     <form method="post" asp-page-handler="Add" class="settings-form">
         <div class="template-fields">
             <label>Name<input name="name" required maxlength="@HelpdeskStore.MaxDeskNameLength" placeholder="e.g. Site" /></label>
-            <label>Ticket number prefix<input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. SITE" autocapitalize="characters" /><small class="muted">Its tickets show as SITE-1043. Leave blank for #1043.</small></label>
+            <label>Ticket number prefix<input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. SITE" autocapitalize="characters" /><small class="muted">Its tickets show as SITE-1, SITE-2… Leave blank for #1.</small></label>
+            <label>First ticket number<input name="firstNumber" type="number" min="1" step="1" value="1" /><small class="muted">Each desk counts its own tickets. Start higher (1001, say) to keep numbers the same length.</small></label>
             <label class="full">Helper line<input name="helperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under its portal tile, e.g. Heating, leaks, doors and furniture" /></label>
         </div>
         <button class="button button-primary" type="submit">@Icons.Plus Add desk</button>
@@ -45,7 +46,7 @@
                 <summary>
                     <span class="tile-swatch" style="--tile-color:@color.Hex">@PortalLook.Svg(style.Icon)</span>
                     <strong>@desk.Name</strong>
-                    <span class="badge">@HelpdeskStore.RefFor(desk, 1043)</span>
+                    <span class="badge" title="The number its next ticket gets">Next: @HelpdeskStore.RefFor(desk, desk.NextNumber)</span>
                     <span class="muted">@(categories.Count == 1 ? "1 category" : $"{categories.Count} categories") · @(teams.Count == 1 ? "1 team" : $"{teams.Count} teams") · @(Model.PeopleOn(desk) == 1 ? "1 person" : $"{Model.PeopleOn(desk)} people") · @Model.OpenTicketsOn(desk) open@(desk.ShowInPortal ? "" : " · not in the portal")</span>
                 </summary>
                 <p class="muted">@(categories.Count == 0 ? "No categories yet." : "Categories: " + string.Join(", ", categories) + ".") @(teams.Count == 0 ? "" : "Teams: " + string.Join(", ", teams) + ".")</p>
@@ -53,11 +54,16 @@
                     <input type="hidden" name="id" value="@desk.Id" />
                     <div class="template-fields">
                         <label>Name<input name="name" value="@desk.Name" required maxlength="@HelpdeskStore.MaxDeskNameLength" /></label>
-                        <label>Ticket number prefix<input name="prefix" value="@desk.Prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" autocapitalize="characters" /><small class="muted">Changing it changes how every ticket on this desk is shown, old ones included. The numbers themselves never change.</small></label>
+                        <label>Ticket number prefix<input name="prefix" value="@desk.Prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" autocapitalize="characters" /><small class="muted">Changing it changes how every ticket on this desk is shown, old ones included.</small></label>
                         <label class="full">Helper line<input name="helperLine" value="@desk.HelperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" /></label>
                         <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@desk.ShowInPortal" /> Offer this desk in the staff portal<small class="muted">Untick for a desk that only takes work logged by its own staff.</small></label>
                     </div>
                     <button class="button button-primary" type="submit">Save desk</button>
+                </form>
+                <form method="post" asp-page-handler="NextNumber" class="settings-form">
+                    <input type="hidden" name="id" value="@desk.Id" />
+                    <label>Next ticket number<input name="next" type="number" min="1" step="1" value="@desk.NextNumber" /><small class="muted">The next @desk.Name ticket will be @HelpdeskStore.RefFor(desk, desk.NextNumber). It can be moved on, but not back below a number already used.</small></label>
+                    <button class="button button-secondary" type="submit">Save next number</button>
                 </form>
                 <form method="post" asp-page-handler="Style" class="tile-style-form">
                     <input type="hidden" name="id" value="@desk.Id" />

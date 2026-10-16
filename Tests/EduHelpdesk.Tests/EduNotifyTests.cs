@@ -360,7 +360,7 @@ public class EduNotifyTests
         var root = json.RootElement;
         Assert.Equal(4, root.GetProperty("template").GetInt32());
         Assert.Equal($"EH-{urgent}-ping", root.GetProperty("reference").GetString());
-        Assert.Equal($"Urgent ticket #{urgent}", root.GetProperty("title").GetString());
+        Assert.Equal($"Urgent ticket {test.Store.Ref(urgent)}", root.GetProperty("title").GetString());
         Assert.Equal("Technicians", root.GetProperty("recipients").GetProperty("groups")[0].GetString());
         Assert.DoesNotContain("Ada", request.Body);
         Assert.DoesNotContain("whiteboard", request.Body);

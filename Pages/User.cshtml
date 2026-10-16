@@ -1,5 +1,6 @@
 @page
 @model UserModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = $"Edit {Model.Person?.Name}";
     var linkedTickets = Model.Tickets.Where(x => x.RequesterId == Model.Person!.Id).Select(x => x.Number).ToHashSet();
@@ -172,7 +173,7 @@
             <div class="asset-job-list">
                 @foreach (var ticket in Model.Tickets)
                 {
-                    <div class="asset-job-option"><input type="checkbox" name="selectedNumbers" value="@ticket.Number" checked="@linkedTickets.Contains(ticket.Number)" /><a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a></div>
+                    <div class="asset-job-option"><input type="checkbox" name="selectedNumbers" value="@ticket.Number" checked="@linkedTickets.Contains(ticket.Number)" /><a href="/Job?number=@ticket.Number"><span><strong>@Helpdesk.Ref(ticket) - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a></div>
                 }
                 @if (Model.Tickets.Count == 0) { <p class="empty">No tickets have been logged yet.</p> }
             </div>

@@ -21,15 +21,15 @@ public sealed partial class HelpdeskStore
             var index = _data.Projects.FindIndex(x => x.Number == projectNumber);
             if (index < 0) return (false, "Project was not found.");
             var ticketIndex = _data.Tickets.FindIndex(x => x.Number == ticketNumber);
-            if (ticketIndex < 0) return (false, $"There is no ticket #{ticketNumber}.");
+            if (ticketIndex < 0) return (false, $"There is no ticket {RefCore(ticketNumber)}.");
             var project = _data.Projects[index];
-            if (project.TicketNumbers.Contains(ticketNumber)) return (false, $"{project.Reference} is already linked to #{ticketNumber}.");
+            if (project.TicketNumbers.Contains(ticketNumber)) return (false, $"{project.Reference} is already linked to {RefCore(ticketNumber)}.");
             var ticket = _data.Tickets[ticketIndex];
             _data.Projects[index] = WithHistory(project with { TicketNumbers = [.. project.TicketNumbers, ticketNumber] },
-                "Ticket linked", $"Linked to ticket #{ticketNumber} - {ticket.Title}.");
+                "Ticket linked", $"Linked to ticket {RefCore(ticketNumber)} - {ticket.Title}.");
             AddLinkHistory(ticketIndex, "Project linked", $"Linked to project {project.Reference} - {project.Title}.");
             Save();
-            return (true, $"{project.Reference} linked to ticket #{ticketNumber}.");
+            return (true, $"{project.Reference} linked to ticket {RefCore(ticketNumber)}.");
         }
     }
 
@@ -40,12 +40,12 @@ public sealed partial class HelpdeskStore
             var index = _data.Projects.FindIndex(x => x.Number == projectNumber);
             if (index < 0) return (false, "Project was not found.");
             var project = _data.Projects[index];
-            if (!project.TicketNumbers.Contains(ticketNumber)) return (false, $"{project.Reference} isn't linked to #{ticketNumber}.");
+            if (!project.TicketNumbers.Contains(ticketNumber)) return (false, $"{project.Reference} isn't linked to {RefCore(ticketNumber)}.");
             _data.Projects[index] = WithHistory(project with { TicketNumbers = project.TicketNumbers.Where(x => x != ticketNumber).ToList() },
-                "Ticket link removed", $"No longer linked to ticket #{ticketNumber}.");
+                "Ticket link removed", $"No longer linked to ticket {RefCore(ticketNumber)}.");
             AddLinkHistory(_data.Tickets.FindIndex(x => x.Number == ticketNumber), "Project link removed", $"No longer linked to project {project.Reference}.");
             Save();
-            return (true, $"Link between {project.Reference} and #{ticketNumber} removed.");
+            return (true, $"Link between {project.Reference} and {RefCore(ticketNumber)} removed.");
         }
     }
 
@@ -77,13 +77,13 @@ public sealed partial class HelpdeskStore
                 TicketNumbers = [ticketNumber],
                 History =
                 [
-                    new("Project raised", $"Started from ticket #{ticketNumber} for {requester.Name} by {actor.Name}, with a suggested priority of {ProjectPriorities.Label(suggestedPriority)}. Proposal needed by {Day(dueDate.Value)}.", now) { By = actor }
+                    new("Project raised", $"Started from ticket {RefCore(ticketNumber)} for {requester.Name} by {actor.Name}, with a suggested priority of {ProjectPriorities.Label(suggestedPriority)}. Proposal needed by {Day(dueDate.Value)}.", now) { By = actor }
                 ]
             };
             _data.Projects.Add(project);
             AddLinkHistory(ticketIndex, "Project started", $"Purchasing project {project.Reference} - {project.Title} was started from this ticket.");
             Save();
-            return (true, $"Project {project.Reference} started from ticket #{ticketNumber}. It is waiting for the project lead to assign it.", number);
+            return (true, $"Project {project.Reference} started from ticket {RefCore(ticketNumber)}. It is waiting for the project lead to assign it.", number);
         }
     }
 
@@ -93,7 +93,7 @@ public sealed partial class HelpdeskStore
         for (var i = 0; i < _data.Projects.Count; i++)
             if (_data.Projects[i].TicketNumbers.Contains(ticketNumber))
                 _data.Projects[i] = WithHistory(_data.Projects[i] with { TicketNumbers = _data.Projects[i].TicketNumbers.Where(x => x != ticketNumber).ToList() },
-                    "Ticket link removed", $"Ticket #{ticketNumber} was deleted.");
+                    "Ticket link removed", $"Ticket {RefCore(ticketNumber)} was deleted.");
     }
 
     // A ticket merged into another hands its project links to the ticket it was merged into.
@@ -104,7 +104,7 @@ public sealed partial class HelpdeskStore
             var project = _data.Projects[i];
             if (!project.TicketNumbers.Contains(sourceNumber)) continue;
             var numbers = project.TicketNumbers.Select(x => x == sourceNumber ? targetNumber : x).Distinct().ToList();
-            _data.Projects[i] = WithHistory(project with { TicketNumbers = numbers }, "Ticket link moved", $"Ticket #{sourceNumber} was merged into #{targetNumber}, so the project is now linked to #{targetNumber}.");
+            _data.Projects[i] = WithHistory(project with { TicketNumbers = numbers }, "Ticket link moved", $"Ticket {RefCore(sourceNumber)} was merged into {RefCore(targetNumber)}, so the project is now linked to {RefCore(targetNumber)}.");
         }
     }
 

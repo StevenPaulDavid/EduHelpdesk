@@ -1,6 +1,7 @@
 @page
 @using EduHelpdesk.Services
 @model AssetModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     ViewData["Title"] = $"Edit {Model.Asset?.AssetTag}";
     var asset = Model.Asset!;
@@ -259,11 +260,11 @@
         @foreach (var ticket in linkedTicketRecords)
         {
             <div class="asset-job-option">
-                <a href="/Job?number=@ticket.Number"><span><strong>#@ticket.Number - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a>
+                <a href="/Job?number=@ticket.Number"><span><strong>@Helpdesk.Ref(ticket) - @ticket.Title</strong><small>@ticket.Status - @ticket.Priority - @ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</small></span></a>
                 <form method="post" asp-page-handler="UnlinkTicket" asp-fragment="asset-tickets" class="inline-unlink-form">
                     <input type="hidden" name="id" value="@asset.Id" />
                     <input type="hidden" name="ticketNumber" value="@ticket.Number" />
-                    <button class="icon-button delete-icon" type="submit" title="Unlink ticket" aria-label="Unlink ticket #@ticket.Number">@Icons.Close</button>
+                    <button class="icon-button delete-icon" type="submit" title="Unlink ticket" aria-label="Unlink ticket @Helpdesk.Ref(ticket)">@Icons.Close</button>
                 </form>
             </div>
         }
@@ -271,7 +272,7 @@
     </div>
     <form method="post" asp-page-handler="LinkTicket" asp-fragment="asset-tickets" class="asset-link-ticket-form">
         <input type="hidden" name="id" value="@asset.Id" />
-        <label>Link a ticket<select name="ticketNumber" data-picker><option value="">Select a ticket…</option>@foreach (var ticket in unlinkedTickets) { <option value="@ticket.Number">#@ticket.Number - @ticket.Title</option> }</select></label>
+        <label>Link a ticket<select name="ticketNumber" data-picker><option value="">Select a ticket…</option>@foreach (var ticket in unlinkedTickets) { <option value="@ticket.Number">@Helpdesk.Ref(ticket) - @ticket.Title</option> }</select></label>
         <button class="button button-secondary" type="submit">Link ticket</button>
         @if (unlinkedTickets.Count == 0) { <p class="empty">Every ticket is already linked to this asset.</p> }
     </form>

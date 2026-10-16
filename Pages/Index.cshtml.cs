@@ -92,7 +92,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
     // The desks the overview covers, empty for every desk, and each ticket's number as shown (SITE-1043).
     public IReadOnlyList<string> ShownDesks { get; private set; } = [];
     private Func<string?, Desk> _deskOf = _ => null!;
-    public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket.Number);
+    public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket);
 
     public IActionResult OnGet()
     {

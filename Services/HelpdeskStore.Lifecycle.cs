@@ -142,6 +142,9 @@ public partial class HelpdeskStore
     {
         // Their lines on the access control register, with each system's or area's name.
         public IReadOnlyList<(AccessGrant Grant, string Resource)> Access { get; init; } = [];
+        // Each ticket's number as people see it (SITE-5), by its key.
+        public IReadOnlyDictionary<int, string> TicketRefs { get; init; } = new Dictionary<int, string>();
+        public string Ref(TicketRecord ticket) => TicketRefs.TryGetValue(ticket.Number, out var shown) ? shown : $"#{ticket.Number}";
     }
 
     // Everything the helpdesk holds about one requester, gathered under the lock so it is one consistent moment. The
@@ -187,7 +190,8 @@ public partial class HelpdeskStore
                 _data.Technicians.ToDictionary(x => x.Id, x => x.Name), _data.Slas.ToDictionary(x => x.Id, x => x.Name))
             {
                 Access = _data.AccessGrants.Where(x => x.PersonId == userId).OrderBy(x => x.GrantedOn)
-                    .Select(x => (x, _data.AccessResources.FirstOrDefault(r => r.Id == x.ResourceId)?.Name ?? "Unknown")).ToList()
+                    .Select(x => (x, _data.AccessResources.FirstOrDefault(r => r.Id == x.ResourceId)?.Name ?? "Unknown")).ToList(),
+                TicketRefs = tickets.Concat(mentions.Select(x => x.Ticket)).DistinctBy(x => x.Number).ToDictionary(x => x.Number, RefCore)
             };
         }
     }

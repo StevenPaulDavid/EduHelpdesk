@@ -263,12 +263,12 @@
                     {
                         <div class="related-row">
                             <div>
-                                @if (Model.CanOpenTickets) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>#@ticket.Number</strong> @ticket.Title</a> } else { <span><strong>#@ticket.Number</strong> @ticket.Title</span> }
+                                @if (Model.CanOpenTickets) { <a asp-page="/Job" asp-route-number="@ticket.Number"><strong>@Helpdesk.Ref(ticket)</strong> @ticket.Title</a> } else { <span><strong>@Helpdesk.Ref(ticket)</strong> @ticket.Title</span> }
                                 <span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span>
                             </div>
                             @if (Model.CanEdit)
                             {
-                                <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to #@ticket.Number" aria-label="Remove link to #@ticket.Number">@Icons.Close</button></form>
+                                <form method="post" asp-page-handler="UnlinkTicket"><input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="ticket" value="@ticket.Number" /><button class="icon-button delete-icon" type="submit" title="Remove link to @Helpdesk.Ref(ticket)" aria-label="Remove link to @Helpdesk.Ref(ticket)">@Icons.Close</button></form>
                             }
                         </div>
                     }
@@ -277,7 +277,7 @@
                         <form method="post" asp-page-handler="LinkTicket" class="related-form">
                             <input type="hidden" name="number" value="@project.Number" />
                             <label class="visually-hidden" for="link-ticket">Ticket number</label>
-                            <input id="link-ticket" name="ticket" type="number" min="1" step="1" placeholder="Ticket number" required />
+                            <input id="link-ticket" name="ticket" placeholder="Ticket number, e.g. IT-1042" required autocomplete="off" />
                             <button class="button button-secondary" type="submit">Link</button>
                         </form>
                     }

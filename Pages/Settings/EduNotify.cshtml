@@ -1,5 +1,6 @@
 @page
 @model EduHelpdesk.Pages.Settings.EduNotifyModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @using EduHelpdesk.Services
 @{ ViewData["Title"] = "EduNotify"; }
 <div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>EduNotify</h1><p class="hero-copy">Tell staff about an outage or other problem from its ticket, with a notice on their PCs through EduNotify. The notice comes down by itself when the ticket is closed.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
@@ -92,7 +93,7 @@
         @foreach (var ping in Model.Pings)
         {
             <tr>
-                <td><a asp-page="/Job" asp-route-number="@ping.TicketNumber">#@ping.TicketNumber</a></td>
+                <td><a asp-page="/Job" asp-route-number="@ping.TicketNumber">@Helpdesk.Ref(ping.TicketNumber)</a></td>
                 <td>@ping.Title<br /><span class="muted">to @string.Join(", ", ping.Groups), @ping.Online of @ping.Targeted PCs at first</span></td>
                 <td>@ping.SentAt.ToLocalTime().ToString("ddd d MMM, HH:mm")</td>
             </tr>
@@ -113,11 +114,11 @@
         @foreach (var notice in Model.Notices)
         {
             <tr>
-                <td><a asp-page="/Job" asp-route-number="@notice.TicketNumber">#@notice.TicketNumber</a></td>
+                <td><a asp-page="/Job" asp-route-number="@notice.TicketNumber">@Helpdesk.Ref(notice.TicketNumber)</a></td>
                 <td>@notice.Title<br /><span class="muted">@notice.TemplateName</span></td>
                 <td>@notice.Recipients<br /><span class="muted">@notice.Online of @notice.Targeted PCs at first</span></td>
                 <td>@notice.SentAt.ToLocalTime().ToString("ddd d MMM, HH:mm")<br /><span class="muted">@notice.SentBy</span></td>
-                <td><form method="post" asp-page-handler="Recall" data-confirm="Take the notice for #@notice.TicketNumber off staff PCs now?"><input type="hidden" name="number" value="@notice.TicketNumber" /><button class="button button-secondary" disabled="@(!Model.Settings.HasKey)">Recall</button></form></td>
+                <td><form method="post" asp-page-handler="Recall" data-confirm="Take the notice for @Helpdesk.Ref(notice.TicketNumber) off staff PCs now?"><input type="hidden" name="number" value="@notice.TicketNumber" /><button class="button button-secondary" disabled="@(!Model.Settings.HasKey)">Recall</button></form></td>
             </tr>
         }
         </tbody></table></div>

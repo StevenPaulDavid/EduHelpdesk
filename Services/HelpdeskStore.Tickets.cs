@@ -92,7 +92,7 @@ public sealed partial class HelpdeskStore
             new("Ticket created", details, DateTime.UtcNow) { By = CurrentActor() }
         };
         // Created straight into a status that stops the clock (unusual, but a school can set it up that way).
-        var created = WithSlaClock(item with { Number = number }, DateTime.UtcNow);
+        var created = WithSlaClock(item with { Number = number, DeskNumber = TakeDeskNumberCore(DeskForCategoryCore(item.Category).Id) }, DateTime.UtcNow);
         if (created.IsSlaPaused) history.Add(new("SLA paused", $"The SLA clock is stopped while the ticket is {created.Status}.", DateTime.UtcNow) { By = CurrentActor() });
         _data.Tickets.Add(created with { History = history });
         return number;
@@ -142,12 +142,12 @@ public sealed partial class HelpdeskStore
 
         var mergedComments = target.Comments.ToList();
         // Carried comments keep their original author, not whoever performed the merge.
-        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from #{source.Number}) {c.Text}", c.CreatedAt, c.IsInternal) { By = c.By }));
+        mergedComments.AddRange(source.Comments.Select(c => new TicketComment($"(Merged from {RefCore(source)}) {c.Text}", c.CreatedAt, c.IsInternal) { By = c.By }));
 
         var mergedAssetIds = target.AssetIds.Concat(source.AssetIds).Distinct().ToList();
 
         var targetHistory = target.History.ToList();
-        targetHistory.Add(new("Ticket merged", $"Merged ticket #{source.Number} - {source.Title} into this ticket.", now) { By = CurrentActor() });
+        targetHistory.Add(new("Ticket merged", $"Merged ticket {RefCore(source)} - {source.Title} into this ticket.", now) { By = CurrentActor() });
 
         _data.Tickets[targetIndex] = target with
         {
@@ -175,7 +175,7 @@ public sealed partial class HelpdeskStore
         MoveTicketExtras(sourceNumber, targetNumber);
 
         var sourceHistory = source.History.ToList();
-        sourceHistory.Add(new("Ticket merged", $"Merged into ticket #{target.Number} - {target.Title}.", now) { By = CurrentActor() });
+        sourceHistory.Add(new("Ticket merged", $"Merged into ticket {RefCore(target)} - {target.Title}.", now) { By = CurrentActor() });
         var closedSource = WithSlaClock(source with { Status = "Closed", ClosedAt = source.ClosedAt ?? now }, now);
         if (SlaClockActivity(source, closedSource) is { } clockLine) sourceHistory.Add(clockLine with { By = CurrentActor() });
         _data.Tickets[sourceIndex] = closedSource with { History = sourceHistory };
@@ -209,7 +209,9 @@ public sealed partial class HelpdeskStore
             var sla = SlaFor(ticket.Priority, category);
             changed = ticket with { Category = category, SubCategory = subCategory, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
         }
-        return DeskForCategoryCore(ticket.Category).Id == DeskForCategoryCore(category).Id ? (changed, []) : FitToDeskCore(changed);
+        var from = DeskForCategoryCore(ticket.Category);
+        // On another desk it takes that desk's next number before anything else is fitted to it.
+        return from.Id == DeskForCategoryCore(category).Id ? (changed, []) : FitToDeskCore(RenumberCore(changed, from));
     }
 
     // One change applied to many tickets. Operation is status, technician, team, priority, category, type, comment, close or merge.
@@ -518,7 +520,7 @@ public sealed partial class HelpdeskStore
                     var assetIndex = _data.Assets.FindIndex(x => x.Id == addedAssetId);
                     if (assetIndex < 0) continue;
                     var assetHistory = _data.Assets[assetIndex].History.ToList();
-                    assetHistory.Add(new("Ticket linked", $"Linked to ticket #{item.Number} - {item.Title}", now) { By = CurrentActor() });
+                    assetHistory.Add(new("Ticket linked", $"Linked to ticket {RefCore(item)} - {item.Title}", now) { By = CurrentActor() });
                     _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
                 }
                 foreach (var removedAssetId in previousAssetIds.Except(updatedAssetIds))
@@ -526,7 +528,7 @@ public sealed partial class HelpdeskStore
                     var assetIndex = _data.Assets.FindIndex(x => x.Id == removedAssetId);
                     if (assetIndex < 0) continue;
                     var assetHistory = _data.Assets[assetIndex].History.ToList();
-                    assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket #{item.Number} - {item.Title}", now) { By = CurrentActor() });
+                    assetHistory.Add(new("Ticket unlinked", $"Unlinked from ticket {RefCore(item)} - {item.Title}", now) { By = CurrentActor() });
                     _data.Assets[assetIndex] = _data.Assets[assetIndex] with { History = assetHistory };
                 }
             }
@@ -661,6 +663,9 @@ public sealed partial class HelpdeskStore
         if (previous.Category != updated.Category) history.Add(new("Category changed", $"{previous.Category} -> {updated.Category}", now));
         if (DeskForCategoryCore(previous.Category) is var oldDesk && DeskForCategoryCore(updated.Category) is var newDesk && oldDesk.Id != newDesk.Id)
             history.Add(new("Desk changed", $"{oldDesk.Name} -> {newDesk.Name}", now));
+        // The old number is the last one it was known by (RenumberCore keeps it in FormerRefs).
+        if (previous.DeskNumber > 0 && previous.DeskNumber != updated.DeskNumber)
+            history.Add(new("Number changed", $"{FormerRefsOf(updated).LastOrDefault() ?? $"#{previous.DeskNumber}"} -> {RefCore(updated)}", now));
         if (previous.Type != updated.Type) history.Add(new("Type changed", $"{previous.Type} -> {updated.Type}", now));
         if (previous.RequesterId != updated.RequesterId) history.Add(new("Requester changed", "The ticket requester was updated.", now));
         if (previous.TechnicianId != updated.TechnicianId) history.Add(new("Technician changed", updated.TechnicianId.HasValue ? "A technician was assigned." : "The technician assignment was removed.", now));
