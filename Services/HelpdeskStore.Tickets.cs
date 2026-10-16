@@ -78,18 +78,24 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            var number = ++_data.LastTicketNumber;
-            var history = new List<TicketActivity>
-            {
-                new("Ticket created", "The ticket was created.", DateTime.UtcNow) { By = CurrentActor() }
-            };
-            // Created straight into a status that stops the clock (unusual, but a school can set it up that way).
-            var created = WithSlaClock(item with { Number = number }, DateTime.UtcNow);
-            if (created.IsSlaPaused) history.Add(new("SLA paused", $"The SLA clock is stopped while the ticket is {created.Status}.", DateTime.UtcNow) { By = CurrentActor() });
-            _data.Tickets.Add(created with { History = history });
+            var number = AddTicketCore(item, "The ticket was created.");
             Save();
             return number;
         }
+    }
+    // Adds without saving; the details are the "Ticket created" history line.
+    private int AddTicketCore(TicketRecord item, string details)
+    {
+        var number = ++_data.LastTicketNumber;
+        var history = new List<TicketActivity>
+        {
+            new("Ticket created", details, DateTime.UtcNow) { By = CurrentActor() }
+        };
+        // Created straight into a status that stops the clock (unusual, but a school can set it up that way).
+        var created = WithSlaClock(item with { Number = number }, DateTime.UtcNow);
+        if (created.IsSlaPaused) history.Add(new("SLA paused", $"The SLA clock is stopped while the ticket is {created.Status}.", DateTime.UtcNow) { By = CurrentActor() });
+        _data.Tickets.Add(created with { History = history });
+        return number;
     }
     public string? DeleteTicket(int number)
     {

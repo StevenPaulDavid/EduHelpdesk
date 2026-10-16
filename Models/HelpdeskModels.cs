@@ -260,6 +260,24 @@ public record TicketTemplate(Guid Id, string Name, string Type, string Title, st
     // Its place among the portal buttons of its category - see ServiceItem.
     public int PortalOrder { get; init; }
 }
+// How often a recurring ticket is logged - see Services/Recurrence for the working-out. Days is for weekly. Monthly and
+// yearly fall on MonthDay (the last day of a shorter month), or for monthly with WeekOfMonth 1-4 on the first to fourth
+// WeekDay, 5 the last one. Month is only for yearly. MoveToSchoolDay moves a date on a day off to the next school day.
+public record RecurrenceRule(string Frequency, int Interval, DateOnly StartDate, DateOnly? EndDate, TimeOnly At,
+    IReadOnlyList<DayOfWeek> Days, int MonthDay, int WeekOfMonth, DayOfWeek WeekDay, int Month, bool MoveToSchoolDay);
+// A ticket logged automatically on a schedule (Settings → Recurring tickets): a weekly backup check, a termly clean of
+// the projectors. It holds its own ticket fields rather than pointing at a template, so it can be assigned.
+public record RecurringTicket(Guid Id, string Name, bool IsActive, RecurrenceRule Rule, string Title, string Description, string Type,
+    string Category, string Priority, Guid RequesterId, Guid? TechnicianId, string? TeamName, string? Location, IReadOnlyList<Guid> AssetIds)
+{
+    // School (local) time up to which every date has been dealt with. Set to the time of a run, and of a save that
+    // changes the timing, so dates missed while the helpdesk was off make one ticket, not a backlog.
+    public DateTime CountedFrom { get; init; }
+    // The ticket the schedule last logged: while it is still open, the next date is skipped rather than adding another.
+    public int? LastTicketNumber { get; init; }
+    public DateTime? LastRunAt { get; init; }
+    public string LastResult { get; init; } = "";
+}
 // One line of the service catalogue: a common problem or request, filed under a ticket category. Staff pick it in the
 // portal instead of typing a title. DefaultPriority (blank for none) is only what the portal's priority box starts on.
 // HelperLine is the short hint shown under its button; ShowInPortal says whether staff see it at all.

@@ -2449,3 +2449,8 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .attribute-values dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; white-space: pre-wrap; }
 .related-follow-up { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); }
 .related-follow-up p { margin: 0; }
+/* Recurring tickets (Settings → Recurring tickets) */
+.recurrence .short-number { width: 6em; }
+.recurrence fieldset { border: 0; padding: 0; margin: 0; }
+.recurrence legend { font-weight: 600; margin-bottom: 6px; }
+.recurrence [hidden] { display: none !important; }

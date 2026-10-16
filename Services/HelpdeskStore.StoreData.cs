@@ -150,6 +150,8 @@ public sealed partial class HelpdeskStore
         public List<PartRecord> Parts { get; set; } = [];
         public List<TicketPartAssignment> TicketParts { get; set; } = [];
         public List<TicketTemplate> TicketTemplates { get; set; } = [];
+        // Tickets logged on a schedule (HelpdeskStore.Recurring).
+        public List<RecurringTicket> RecurringTickets { get; set; } = [];
         public List<ServiceItem> ServiceItems { get; set; } = [];
         // Only categories someone has chosen a look for; the rest use PortalLook.DefaultFor.
         public Dictionary<string, CategoryStyle> CategoryStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);

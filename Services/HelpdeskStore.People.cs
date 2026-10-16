@@ -103,6 +103,8 @@ public sealed partial class HelpdeskStore
                 return "This user is linked to a ticket or asset and cannot be deleted.";
             if (_data.Projects.Any(x => x.RequesterId == id))
                 return "This user raised a project and cannot be deleted. Mark them inactive instead.";
+            if (_data.RecurringTickets.FirstOrDefault(x => x.RequesterId == id) is { } schedule)
+                return $"This user is the requester on the recurring ticket \"{schedule.Name}\" and cannot be deleted. Choose another requester there first.";
             // Deleting them would delete the record that they ever had access - which is what the register is for.
             if (_data.AccessGrants.Any(x => x.PersonId == id))
                 return "This person is on the access control register and cannot be deleted. Mark them inactive and remove their access instead, so the history is kept.";

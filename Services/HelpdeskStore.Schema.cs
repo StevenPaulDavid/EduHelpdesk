@@ -265,6 +265,7 @@ public sealed partial class HelpdeskStore
         // After Users and the onboarding tables, which it adds columns to.
         EnsureAccessSchema(connection);
         EnsureComplianceReminderSchema(connection);
+        EnsureRecurringTicketSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)

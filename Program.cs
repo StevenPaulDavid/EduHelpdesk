@@ -226,6 +226,7 @@ builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<TemporaryPasswords>();
 builder.Services.AddScoped<PortalSessionFilter>();
 builder.Services.AddHostedService<BackupScheduler>();
+builder.Services.AddHostedService<RecurringTicketScheduler>();
 // Posts to the Teams channel (Settings → Teams channel). Redirects are not followed: the address is typed in by an
 // administrator and the server posts to it, so it must not be able to bounce the request on to somewhere else.
 builder.Services.AddHttpClient(TeamsPoster.ClientName, client => client.Timeout = TimeSpan.FromSeconds(15))

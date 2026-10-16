@@ -30,6 +30,7 @@ public static class SettingsMenu
             new("School day and periods", "/Settings/SchoolDay", "school day week periods lessons timetable working hours"),
             new("Service catalogue", "/Settings/ServiceCatalogue", "service catalogue catalog sub category portal common problems"),
             new("Ticket templates", "/Settings/TicketTemplates", "template repeat job"),
+            new("Recurring tickets", "/Settings/RecurringTickets", "recurring reoccurring repeating scheduled schedule routine regular weekly monthly termly yearly checks maintenance"),
             new("Ticket custom attributes", "/Settings/TicketAttributes", "custom fields attributes extra"),
         ]),
         new("Assets & inventory",

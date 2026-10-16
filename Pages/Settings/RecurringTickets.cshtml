@@ -1,0 +1,89 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.RecurringTicketsModel
+@{
+    ViewData["Title"] = "Recurring tickets";
+    var culture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+
+    // The fields of one schedule, for adding and editing.
+    async Task Fields(EduHelpdesk.Pages.Settings.RecurringTicketsModel.FormInput f)
+    {
+        <p class="eyebrow">The ticket</p>
+        <div class="template-fields">
+            <label>Name<input name="Input.Name" value="@f.Name" maxlength="100" required placeholder="e.g. Weekly backup check" /></label>
+            <label>Type<select name="Input.Type">@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == f.Type)">@type</option> }</select></label>
+            <label>Category<select name="Input.Category">@foreach (var value in Model.Categories) { <option value="@value" selected="@string.Equals(value, f.Category, StringComparison.OrdinalIgnoreCase)">@value</option> }@if (f.Category.Length > 0 && !Model.Categories.Contains(f.Category, StringComparer.OrdinalIgnoreCase)) { <option value="" selected>@f.Category (no longer exists)</option> }</select></label>
+            <label>Priority<select name="Input.Priority">@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, f.Priority, StringComparison.OrdinalIgnoreCase)">@value</option> }@if (f.Priority.Length > 0 && !Model.Priorities.Contains(f.Priority, StringComparer.OrdinalIgnoreCase)) { <option value="" selected>@f.Priority (no longer exists)</option> }</select></label>
+            <label>Requester<select name="Input.RequesterId" required><option value="">Choose a person…</option>@foreach (var user in Model.Users.Where(x => x.IsActive || x.Id == f.RequesterId).OrderBy(x => x.Name)) { <option value="@user.Id" selected="@(user.Id == f.RequesterId)">@user.Name@(user.IsActive ? "" : " (inactive)")</option> }</select><small class="muted">Who the ticket is for - often yourself or the IT team.</small></label>
+            <label>Team<select name="Input.TeamName"><option value="">No team</option>@foreach (var team in Model.Teams) { <option value="@team" selected="@string.Equals(team, f.TeamName, StringComparison.OrdinalIgnoreCase)">@team</option> }</select></label>
+            <label>Technician<select name="Input.TechnicianId"><option value="">Unassigned</option>@foreach (var technician in Model.Technicians.Where(x => x.IsActive || x.Id == f.TechnicianId).OrderBy(x => x.Name)) { <option value="@technician.Id" selected="@(technician.Id == f.TechnicianId)">@technician.Name@(string.IsNullOrWhiteSpace(technician.Team) ? "" : $" ({technician.Team})")</option> }</select></label>
+            <label>Location<select name="Input.Location"><option value="">None</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@string.Equals(location, f.Location, StringComparison.OrdinalIgnoreCase)">@location</option> }</select></label>
+            <label>Assets<input name="Input.AssetTags" value="@f.AssetTags" list="asset-tags" placeholder="Asset tags, separated by commas" /><small class="muted">Optional - e.g. the server whose backup is checked.</small></label>
+            <label class="full">Ticket title<input name="Input.Title" value="@f.Title" maxlength="200" placeholder="Leave blank to use the name" /></label>
+            <label class="full">Description<textarea name="Input.Description" rows="4" placeholder="What to do - a checklist works well">@f.Description</textarea></label>
+        </div>
+        <p class="eyebrow">When</p>
+        <div class="template-fields recurrence" data-recurrence>
+            <label>Repeats<select name="Input.Frequency" data-frequency>@foreach (var (value, label, _) in Recurrence.Frequencies) { <option value="@value" selected="@(value == Recurrence.Normalize(f.Frequency))">@label</option> }</select></label>
+            <label>Every<span class="inline-fields"><input name="Input.Interval" type="number" min="1" max="365" value="@f.Interval" class="short-number" required />
+                @foreach (var (value, _, unit) in Recurrence.Frequencies) { <span data-for="@value">@(unit)(s)</span> }</span></label>
+            <fieldset class="full recurrence-days" data-for="@Recurrence.Weekly"><legend>On</legend>
+                <div class="choice-grid">@foreach (var day in Recurrence.Week) { <label class="toggle-label"><input type="checkbox" name="Input.Days" value="@day" checked="@f.Days.Contains(day)" /> @culture.DateTimeFormat.GetAbbreviatedDayName(day)</label> }</div>
+            </fieldset>
+            <label data-for="@Recurrence.Monthly">On<select name="Input.WeekOfMonth" data-week-of-month><option value="0" selected="@(f.WeekOfMonth == 0)">Day of the month</option>@foreach (var (value, label) in Recurrence.WeeksOfMonth) { <option value="@value" selected="@(f.WeekOfMonth == value)">The @label…</option> }</select></label>
+            <label data-for="@Recurrence.Monthly" data-week-day>Day of the week<select name="Input.WeekDay">@foreach (var day in Recurrence.Week) { <option value="@day" selected="@(f.WeekDay == day)">@culture.DateTimeFormat.GetDayName(day)</option> }</select></label>
+            <label data-for="@Recurrence.Yearly">Month<select name="Input.Month">@for (var m = 1; m <= 12; m++) { <option value="@m" selected="@(f.Month == m)">@culture.DateTimeFormat.GetMonthName(m)</option> }</select></label>
+            <label data-for="@Recurrence.Monthly @Recurrence.Yearly" data-month-day>Day<input name="Input.MonthDay" type="number" min="1" max="31" value="@f.MonthDay" class="short-number" /><small class="muted">29-31 fall on the last day of a shorter month.</small></label>
+            <label>At<input name="Input.At" type="time" value="@f.At?.ToString("HH:mm")" required /></label>
+            <label>Starts<input name="Input.StartDate" type="date" value="@f.StartDate?.ToString("yyyy-MM-dd")" required /><small class="muted">Every 2 weeks, 3 months and so on count from here.</small></label>
+            <label>Ends<input name="Input.EndDate" type="date" value="@f.EndDate?.ToString("yyyy-MM-dd")" /><small class="muted">Optional.</small></label>
+            <label class="toggle-label full"><input type="checkbox" name="Input.MoveToSchoolDay" value="true" checked="@f.MoveToSchoolDay" /> Move to the next school day when it falls on a day off<small class="muted">Uses the school days in <a asp-page="/Settings/SchoolDay">School day and periods</a>. Unticked, it is logged on the day itself, weekend or not.</small></label>
+            <label class="toggle-label full"><input type="checkbox" name="Input.IsActive" value="true" checked="@f.IsActive" /> On<small class="muted">Untick to pause it. Switching it back on starts from then - nothing missed meanwhile is logged.</small></label>
+        </div>
+    }
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Recurring tickets</h1><p class="hero-copy">Tickets logged automatically on a schedule - a weekly backup check, a termly clean of the projectors, a yearly licence renewal. While the last one a schedule logged is still open, the next date is skipped rather than adding another.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (Model.Message is { } message) { <div class="notice">@message</div> }
+
+<datalist id="asset-tags">@foreach (var asset in Model.Assets.Where(x => !HelpdeskStore.IsDisposed(x)).OrderBy(x => x.AssetTag)) { <option value="@asset.AssetTag">@asset.Make @asset.Model</option> }</datalist>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Recurring tickets</h2><span class="badge">@Model.Items.Count</span></div>
+    @foreach (var item in Model.Items)
+    {
+        var next = Model.NextDue(item);
+        var editing = Model.EditingId == item.Id;
+        Model.LastTickets.TryGetValue(item.LastTicketNumber ?? 0, out var last);
+        <details class="template-item" open="@editing" id="schedule-@item.Id">
+            <summary><strong>@item.Name</strong> @if (!item.IsActive) { <span class="badge">Paused</span> } <span class="muted">@Recurrence.Describe(item.Rule) · @(next is { } due ? $"next {due.ToString("ddd d MMM yyyy, HH:mm", culture)}" : item.IsActive ? "ended" : "not running")</span></summary>
+            <p class="muted">
+                @if (item.LastRunAt is { } ran) { <span>Last run @ran.ToLocalTime().ToString("d MMM yyyy, HH:mm", culture): @item.LastResult</span> } else { <span>Hasn't logged a ticket yet.</span> }
+                @if (last is not null) { <span> Last ticket <a asp-page="/Job" asp-route-number="@last.Number">#@last.Number</a> is @(TicketInsights.IsClosed(last) ? "closed" : $"still open ({last.Status}), so the next date will be skipped unless it is closed first").</span> }
+            </p>
+            @if (editing && Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
+            <form method="post" asp-page-handler="Save" asp-route-id="@item.Id" class="settings-form">
+                @{ await Fields(Model.FormFor(item)); }
+                <div class="heading-actions"><button class="button button-primary" type="submit">Save changes</button></div>
+            </form>
+            <div class="heading-actions">
+                <form method="post" asp-page-handler="LogNow" asp-route-id="@item.Id" data-confirm="Log a ticket from this now? The schedule carries on as it is."><button class="button button-secondary" type="submit">Log one now</button></form>
+                <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" data-confirm="Delete this recurring ticket? Tickets it already logged are not affected."><button class="button button-danger" type="submit">Delete</button></form>
+            </div>
+        </details>
+    }
+    @if (Model.Items.Count == 0) { <p class="empty">No recurring tickets yet. Add one below.</p> }
+</section>
+
+<section class="panel" id="add">
+    <div class="panel-heading"><h2>Add a recurring ticket</h2></div>
+    @if (Model.EditingId is null && Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
+    <form method="post" asp-page-handler="Save" asp-fragment="add" class="settings-form">
+        @{ await Fields(Model.NewForm()); }
+        <button class="button button-primary" type="submit">Add recurring ticket</button>
+    </form>
+</section>
+
+@section Scripts {
+<script src="~/js/pages/recurring-tickets.js" asp-append-version="true"></script>
+}

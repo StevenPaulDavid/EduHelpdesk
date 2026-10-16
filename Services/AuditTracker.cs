@@ -132,6 +132,14 @@ internal static class AuditTracker
                 ("Name", x.Name), ("Type", x.Type), ("Title", x.Title), ("Description", x.Description), ("Category", x.Category), ("Priority", x.Priority),
                 ("SLA", x.SlaId is { } sla ? d.Slas.FirstOrDefault(y => y.Id == sla)?.Name ?? "" : "Automatic"),
                 ("Attribute defaults", x.AttributeValues.Count.ToString()), ("Helper line", x.HelperLine), ("Shown in portal", Yn(x.ShowInPortal)));
+        // What each run did is shown on the page instead: a line every time one logged a ticket would bury everything else.
+        foreach (var x in d.RecurringTickets)
+            Add(s, "Recurring tickets", "Recurring ticket", x.Id.ToString(), x.Name, Track.All,
+                ("Name", x.Name), ("Active", Yn(x.IsActive)), ("Repeats", Recurrence.Describe(x.Rule)), ("Starts", Day(x.Rule.StartDate)), ("Ends", Day(x.Rule.EndDate)),
+                ("Title", x.Title), ("Description", x.Description), ("Type", x.Type), ("Category", x.Category), ("Priority", x.Priority),
+                ("Requester", peopleById.GetValueOrDefault(x.RequesterId, "")),
+                ("Technician", x.TechnicianId is { } technician ? d.Technicians.FirstOrDefault(y => y.Id == technician)?.Name ?? "" : ""),
+                ("Team", x.TeamName ?? ""), ("Location", x.Location ?? ""), ("Assets", x.AssetIds.Count.ToString()));
         foreach (var x in d.AssetAttributeDefinitions)
             Add(s, "Custom attributes", "Asset attribute", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Field type", x.FieldType), ("Choices", x.Choices), ("Asset types", x.AssetTypes.Count == 0 ? "All asset types" : Joined(x.AssetTypes)));

@@ -42,6 +42,7 @@ public sealed partial class HelpdeskStore
                 if (string.Equals(_data.Tickets[i].TeamName, oldValue, StringComparison.OrdinalIgnoreCase))
                     _data.Tickets[i] = _data.Tickets[i] with { TeamName = newValue };
             }
+            RenameInRecurringTickets("Team", oldValue, newValue);
             Save();
             return "Technician team updated.";
         }
@@ -162,6 +163,7 @@ public sealed partial class HelpdeskStore
             for (var i = 0; i < _data.Users.Count; i++)
                 if (kind == "Location" && string.Equals(_data.Users[i].Location, oldValue, StringComparison.OrdinalIgnoreCase))
                     _data.Users[i] = _data.Users[i] with { Location = newValue };
+            if (kind == "Location") RenameInRecurringTickets("Location", oldValue, newValue);
             for (var i = 0; i < _data.Assets.Count; i++)
             {
                 var asset = _data.Assets[i];
@@ -508,6 +510,7 @@ public sealed partial class HelpdeskStore
                     _ => ticket
                 };
             }
+            RenameInRecurringTickets(kind, oldValue, newValue);
             Save();
             return $"{kind} updated.";
         }
@@ -537,6 +540,13 @@ public sealed partial class HelpdeskStore
                 return "That category cannot be deleted because a ticket custom attribute uses it.";
             if (kind == "Category" && _data.ServiceItems.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)))
                 return "That category cannot be deleted because the service catalogue has items under it.";
+            if (_data.RecurringTickets.FirstOrDefault(x => kind switch
+                {
+                    "Category" => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase),
+                    "Priority" => string.Equals(x.Priority, item, StringComparison.OrdinalIgnoreCase),
+                    _ => false
+                }) is { } schedule)
+                return $"That {kind.ToLowerInvariant()} cannot be deleted because the recurring ticket \"{schedule.Name}\" uses it.";
             options.RemoveAt(index);
             if (kind == "Status") _data.StatusDescriptions.Remove(item);
             if (kind == "Status") _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase));

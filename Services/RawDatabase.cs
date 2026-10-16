@@ -93,6 +93,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["ProjectTickets"] = "Which tickets each project is linked to.",
         ["Projects"] = "Purchasing projects: one row per project.",
         ["PurchasingRequirements"] = "The list of purchasing requirements offered on new projects.",
+        ["RecurringTickets"] = "Tickets logged on a schedule (Settings → Recurring tickets). CountedFrom is the school time every date up to has been dealt with; LastTicketNumber is the one a date is skipped for while it is open.",
         ["RequireCloseMessageCategories"] = "Categories whose tickets need a closing message.",
         ["RequireCloseMessagePriorities"] = "Priorities whose tickets need a closing message.",
         ["RolePermissions"] = "What each role grants: one row per ticked box.",

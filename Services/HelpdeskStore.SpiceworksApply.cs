@@ -492,7 +492,7 @@ public sealed partial class HelpdeskStore
             {
                 if (!Guid.TryParse(link.EntityKey, out var id)) continue;
                 var used = _data.Tickets.Any(x => x.RequesterId == id) || _data.Assets.Any(x => x.AssignedUserId == id || x.Assignments.Any(a => a.UserId == id))
-                    || _data.Projects.Any(x => x.RequesterId == id) || _data.Onboardings.Any(x => x.StarterId == id || x.LineManagerId == id) || _data.KitLoans.Any(x => x.BorrowerUserId == id);
+                    || _data.Projects.Any(x => x.RequesterId == id) || _data.Onboardings.Any(x => x.StarterId == id || x.LineManagerId == id) || _data.KitLoans.Any(x => x.BorrowerUserId == id) || _data.RecurringTickets.Any(x => x.RequesterId == id);
                 if (!used && _data.Users.RemoveAll(x => x.Id == id) > 0) peopleRemoved++;
             }
 
