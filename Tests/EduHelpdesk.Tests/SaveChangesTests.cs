@@ -168,6 +168,12 @@ public class SaveChangesTests
     public void Moving_the_data_folder_keeps_changes_still_in_the_log_and_leaves_no_log_behind()
     {
         using var test = new TestStore();
+        // Held open (and outside the pool) until the copy is taken. Another test finishing clears every pool in the
+        // process, which closes the store's connection; were it the last one, SQLite would fold the log back into the
+        // database and delete it before the copy below.
+        var holder = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={test.DatabasePath};Pooling=False");
+        holder.Open();
+        using (var read = holder.CreateCommand()) { read.CommandText = "SELECT COUNT(*) FROM Metadata;"; read.ExecuteScalar(); }
         test.AddRequester("Moved Person");
         // A copy taken while the app has the database open - as a crash would leave it: the newest rows are only in
         // helpdesk.db-wal.
@@ -175,6 +181,7 @@ public class SaveChangesTests
         Directory.CreateDirectory(Path.Combine(crashed, "App_Data"));
         foreach (var file in Directory.GetFiles(Path.Combine(test.Root, "App_Data"), "helpdesk.db*"))
             File.Copy(file, Path.Combine(crashed, "App_Data", Path.GetFileName(file)));
+        holder.Dispose();
         Assert.True(File.Exists(Path.Combine(crashed, "App_Data", "helpdesk.db-wal")));
 
         var target = Path.Combine(test.Root, "moved");

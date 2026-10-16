@@ -17,7 +17,9 @@ public sealed partial class HelpdeskStore
     // an empty backup folder.
     public const int MinimumBackupsKept = 3;
     private const string BackupPrefix = "EduHelpdesk-backup-";
-    private static readonly SemaphoreSlim BackupGate = new(1, 1);
+    // One backup at a time per store - the app has one store, so one at a time. Not static: the tests run many stores
+    // side by side, each on its own folder, and a shared gate made one test's backup refuse another's.
+    private readonly SemaphoreSlim BackupGate = new(1, 1);
 
     public sealed record BackupFile(string Name, string FullPath, long Size, DateTime CreatedAt);
     public sealed record BackupSettings(bool Enabled, string Folder, bool FolderIsDefault, int KeepDays, int Hour,
