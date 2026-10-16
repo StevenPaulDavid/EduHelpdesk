@@ -2275,6 +2275,7 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 /* The reminder to switch notifications on, under the header on every page until someone does or says "Not now". */
 .notify-nudge { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; margin: 0 0 18px; padding: 12px 16px; background: var(--notice-bg); border: 1px solid var(--notice-line); border-radius: 10px; color: var(--notice-ink); font-size: 14px; }
 .notify-nudge > span:first-child { flex: 1 1 320px; }
+.notify-nudge-warning { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
 .notify-nudge-actions { display: flex; gap: 8px; }
 .notify-nudge .button { padding: 7px 14px; font-size: 13px; }
 /* The bell in the header - the notification centre (Pages/Shared/_Layout.cshtml, _NotificationItems, notifications.js).

@@ -48,6 +48,11 @@
                 : "This browser can't show desktop notifications, so you'll get a ping and a banner at the top of the page instead.";
         } else if (s.permission === "granted") {
             text = "Desktop notifications are allowed in this browser, so you'll get a pop-up in the corner of the screen.";
+        } else if (s.lost) {
+            tone = "notice notice-warning";
+            text = s.permission === "denied"
+                ? "This browser used to allow pop-ups from this site but now blocks them, so new notifications make no pop-up and, unless you've clicked on the page, no sound. Allow them again from the site settings next to the address bar (the padlock) and reload."
+                : "This browser used to allow pop-ups from this site but has taken that back - browsers sometimes do this by themselves. Press the button below to allow them again; until then you'll only get a banner at the top of the page.";
         } else if (s.permission === "denied") {
             tone = "notice notice-warning";
             text = "This browser is blocking notifications from this site. Allow them from the site settings next to the address bar (the padlock) and reload; until then you'll get a ping and a banner at the top of the page.";
@@ -59,7 +64,7 @@
         }
         mode.className = tone;
         mode.textContent = text;
-        allow.hidden = !(s.enabled && s.supported && s.secure && s.permission === "default" && !s.asked);
+        allow.hidden = !(s.enabled && s.supported && s.secure && s.permission === "default" && (!s.asked || s.lost));
         // The browser's own setting for this site, and - once it has declined to ask or been refused - how to change it.
         permissionText.textContent = !s.supported ? "not available in this browser" : !s.secure ? "not available on this address"
             : s.permission === "granted" ? "Allowed" : s.permission === "denied" ? "Blocked" : s.asked ? "Not allowed (the browser did not ask, or it was dismissed)" : "Not asked yet";

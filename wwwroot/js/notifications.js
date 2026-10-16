@@ -43,6 +43,17 @@
         return { supported, secure: window.isSecureContext === true, permission, canToast: supported && window.isSecureContext === true && permission === "granted" };
     };
 
+    // Whether this browser has ever allowed pop-ups here. Browsers take the permission back by themselves - Chrome does
+    // it to sites it decides aren't wanted - and nothing tells the page, so pop-ups and the sound with them simply
+    // stop. Remembering that it was once allowed is what lets the page say so instead of falling quiet.
+    const grantedKey = `edu.notify.granted.${audience}.${account}`;
+    const noteGranted = () => { if (capability().permission === "granted") write(grantedKey, "1"); };
+    const lostPermission = () => {
+        const s = capability();
+        return s.supported && s.secure && s.permission !== "granted" && read(grantedKey) === "1";
+    };
+    noteGranted();
+
     // ---- The ping ----
 
     let audioContext = null;
@@ -149,7 +160,7 @@
 
     const announce = () => { document.dispatchEvent(new CustomEvent("edunotify", { detail: state() })); syncNudge(); };
     const setStatus = value => { if (status !== value) { status = value; announce(); } };
-    const state = () => ({ ...capability(), enabled, prefs: { ...prefs }, status, soundBlocked, asked: askedResult });
+    const state = () => ({ ...capability(), enabled, prefs: { ...prefs }, status, soundBlocked, asked: askedResult, lost: lostPermission() });
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -214,6 +225,7 @@
         if (!capability().supported || !window.isSecureContext) return capability().permission;
         try { askedResult = await Notification.requestPermission(); } catch { askedResult = "error"; }
         writeAsked(askedResult);
+        noteGranted();
         announce();
         return capability().permission;
     };
@@ -225,6 +237,12 @@
         prefs = loadPrefs();
         if (prefs.on !== wasOn) run(); else announce();
     });
+    // The permission changed while the page was open (the site settings, or the browser taking it back).
+    try {
+        navigator.permissions?.query({ name: "notifications" }).then(status => {
+            status.onchange = () => { noteGranted(); announce(); };
+        }).catch(() => { });
+    } catch { /* an older browser without the Permissions API */ }
     // The page is going away: let the held request go rather than leave the server waiting for it.
     window.addEventListener("pagehide", () => { generation++; controller?.abort(); });
     // ...and a page brought back from the browser's back/forward cache starts asking again.
@@ -238,8 +256,15 @@
     const nudgeKey = `edu.notify.nudge.${audience}.${account}`;
     const WEEK = 7 * 24 * 60 * 60 * 1000;
     let nudgeBar = null;
+    // Pop-ups that worked here and then stopped get their own bar: whoever switched them on is counting on them, so it
+    // shows even with the reminder switched off in Settings, a "Not now" on the ordinary reminder doesn't hide it, and
+    // its own "Not now" lasts a day rather than a week.
+    const lostKey = `edu.notify.lost.${audience}.${account}`;
+    const DAY = 24 * 60 * 60 * 1000;
     const nudgeWanted = () => {
-        if (!enabled || root.dataset.prompt !== "true" || document.getElementById("notify-on")) return null;
+        if (!enabled || document.getElementById("notify-on")) return null;
+        if (prefs.on && lostPermission()) return "lost";
+        if (root.dataset.prompt !== "true") return null;
         const s = capability();
         if (!prefs.on) return "on";
         // Asked and still not granted means the browser won't show its question, so another press of the button is no use.
@@ -248,26 +273,31 @@
     };
     function syncNudge() {
         const wanted = nudgeWanted();
-        const dismissed = Number(read(nudgeKey)) > Date.now();
+        const snoozeKey = wanted === "lost" ? lostKey : nudgeKey;
+        const dismissed = Number(read(snoozeKey)) > Date.now();
         if (!wanted || dismissed) { nudgeBar?.remove(); nudgeBar = null; return; }
         if (nudgeBar?.dataset.kind === wanted) return;
         nudgeBar?.remove();
         const bar = document.createElement("div");
-        bar.className = "notify-nudge";
+        bar.className = "notify-nudge" + (wanted === "lost" ? " notify-nudge-warning" : "");
         bar.dataset.kind = wanted;
         bar.setAttribute("role", "region");
         bar.setAttribute("aria-label", "Notifications");
         const text = document.createElement("span");
         const who = audience === "portal" ? "when the IT team updates one of your tickets" : "when a ticket arrives or someone replies";
+        // Once the browser has said no, its question can't be asked again from the page, so the button explains instead.
+        const blocked = capability().permission === "denied";
         text.textContent = wanted === "on" ? `Notifications are off. Switch them on to get a ping and a pop-up on this computer ${who}.`
+            : wanted === "lost" ? "Pop-ups have stopped: this browser no longer allows them from this site, so you won't see or hear new notifications while you're in another window. Browsers sometimes take this back by themselves."
             : wanted === "allow" ? "Notifications are on, but this browser hasn't been allowed to show pop-ups yet."
             : "Notifications are on, but this browser is blocking pop-ups from this site.";
         const buttons = document.createElement("span");
         buttons.className = "notify-nudge-actions";
-        const act = wanted === "blocked" ? document.createElement("a") : document.createElement("button");
+        const asLink = wanted === "blocked" || (wanted === "lost" && blocked);
+        const act = asLink ? document.createElement("a") : document.createElement("button");
         act.className = "button button-primary";
-        act.textContent = wanted === "on" ? "Turn on" : wanted === "allow" ? "Allow pop-ups" : "How to allow them";
-        if (wanted === "blocked") act.href = root.dataset.settings;
+        act.textContent = wanted === "on" ? "Turn on" : wanted === "lost" ? (blocked ? "How to allow them again" : "Allow pop-ups again") : wanted === "allow" ? "Allow pop-ups" : "How to allow them";
+        if (asLink) act.href = root.dataset.settings;
         else {
             act.type = "button";
             act.addEventListener("click", () => {
@@ -280,7 +310,7 @@
         later.type = "button";
         later.className = "button button-secondary";
         later.textContent = "Not now";
-        later.addEventListener("click", () => { write(nudgeKey, String(Date.now() + WEEK)); syncNudge(); });
+        later.addEventListener("click", () => { write(snoozeKey, String(Date.now() + (wanted === "lost" ? DAY : WEEK))); syncNudge(); });
         buttons.append(act, later);
         bar.append(text, buttons);
         // Inside the portal's narrow column when the page has one, so the bar lines up with what is under it.
