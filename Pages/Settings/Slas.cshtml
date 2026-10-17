@@ -35,7 +35,6 @@
                     <strong>@item.Name</strong>
                     <span class="muted">@EduHelpdesk.Services.SlaUnits.Describe(item) · @(item.Priorities.Count > 0 ? string.Join(", ", item.Priorities) : "Any priority") · @(item.Categories.Count > 0 ? string.Join(", ", item.Categories) : "Any category")</span>
                 </summary>
-                @if (!string.IsNullOrWhiteSpace(item.Description)) { <p class="muted">@item.Description</p> }
                 <form method="post" asp-page-handler="Save" class="settings-form">
                     <input type="hidden" name="id" value="@item.Id" />
                     @{ await Fields(item); }
