@@ -9,12 +9,12 @@
     async Task ItemFields(CheckItem? item)
     {
         <div class="template-fields">
-            <label>Kind<select name="kind">@foreach (var (value, label) in CheckKinds.All) { <option value="@value" selected="@((item?.Kind ?? CheckKinds.PassFail) == value)">@label</option> }</select></label>
+            <label><span>Kind <help-tip key="check.kind" /></span><select name="kind">@foreach (var (value, label) in CheckKinds.All) { <option value="@value" selected="@((item?.Kind ?? CheckKinds.PassFail) == value)">@label</option> }</select></label>
             <label>What is checked<input name="label" value="@item?.Label" maxlength="@HelpdeskStore.MaxCheckLabelLength" placeholder="e.g. Hot water, hall kitchen tap" /></label>
-            <label>Lowest allowed<input name="min" inputmode="decimal" value="@item?.Min?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Readings only, e.g. 50" /></label>
+            <label><span>Lowest allowed <help-tip key="check.limits" /></span><input name="min" inputmode="decimal" value="@item?.Min?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Readings only, e.g. 50" /></label>
             <label>Highest allowed<input name="max" inputmode="decimal" value="@item?.Max?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Readings only, e.g. 20" /></label>
             <label>Unit<input name="unit" value="@item?.Unit" maxlength="20" placeholder="e.g. °C" /></label>
-            <label>Asset type<select name="assetType"><option value="">For "every asset of a type"</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@string.Equals(type, item?.AssetType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
+            <label><span>Asset type <help-tip key="check.asset-type" /></span><select name="assetType"><option value="">For "every asset of a type"</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@string.Equals(type, item?.AssetType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
         </div>
     }
 }

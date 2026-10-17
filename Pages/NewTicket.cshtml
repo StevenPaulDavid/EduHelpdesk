@@ -39,7 +39,7 @@
             {
                 <label>Desk<select id="ticket-desk-select">@foreach (var desk in Model.Desks) { <option value="@desk.Id" selected="@(desk.Id == Model.StartingDesk)">@desk.Name</option> }</select><small>Narrows the categories, teams and technicians to that desk's.</small></label>
             }
-            <label>Category<select asp-for="Ticket.Category" id="ticket-category-select">@foreach (var category in Model.Categories) { <option value="@category" data-desk="@Model.DeskOfCategory(category)">@category</option> }</select></label>
+            <label><span>Category <help-tip key="ticket.category" /></span><select asp-for="Ticket.Category" id="ticket-category-select">@foreach (var category in Model.Categories) { <option value="@category" data-desk="@Model.DeskOfCategory(category)">@category</option> }</select></label>
             <label>Location<select asp-for="Ticket.Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
             <label>Assets<select asp-for="Ticket.AssetIds" multiple size="5" data-picker data-picker-placeholder="Type an asset tag, model or serial…">@foreach (var asset in Model.Assets) { <option value="@asset.Id" data-search="@asset.Make @asset.SerialNumber">@asset.AssetTag · @asset.Type @asset.Model</option> }</select><small>Link as many as the job involves, or none for a general request.</small></label>
         </div>
@@ -48,9 +48,9 @@
         <h2>Assignment &amp; scheduling</h2>
         <div class="form-grid compact">
             <label>Assigned technician<select asp-for="Ticket.TechnicianId" id="ticket-technician-select"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" data-team="@tech.Team" data-desks="@string.Join(" ", tech.DeskIds)">@tech.Name · @tech.Team</option> }</select><span asp-validation-for="Ticket.TechnicianId" class="field-error"></span></label>
-            <label>Assigned team<select asp-for="Ticket.TeamName" id="ticket-team-select"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" data-desk="@Model.DeskOfTeam(team)">@team</option> }</select></label>
-            <label>SLA<select asp-for="Ticket.SlaId"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id">@sla.Name (@EduHelpdesk.Services.SlaUnits.Describe(sla))</option> }</select></label>
-            <label>Due date override <input asp-for="Ticket.DueDate" type="datetime-local" /><small>Leave blank to calculate from the selected SLA.</small></label>
+            <label><span>Assigned team <help-tip key="ticket.team" /></span><select asp-for="Ticket.TeamName" id="ticket-team-select"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" data-desk="@Model.DeskOfTeam(team)">@team</option> }</select></label>
+            <label><span>SLA <help-tip key="ticket.sla" /></span><select asp-for="Ticket.SlaId"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id">@sla.Name (@EduHelpdesk.Services.SlaUnits.Describe(sla))</option> }</select></label>
+            <label><span>Due date override <help-tip key="ticket.due-override" /></span><input asp-for="Ticket.DueDate" type="datetime-local" /><small>Leave blank to calculate from the selected SLA.</small></label>
         </div>
     </div>
     @if (Model.TicketAttributes.Count > 0)

@@ -3,3 +3,7 @@
 overview | / |
 tickets-list | /Jobs |
 help-tip | /Settings/Rounds | main section.panel | document.querySelectorAll('main .help-tip-mark[aria-controls]')[0].click()
+ticket-page | /Job?number=1001 |
+new-ticket | /NewTicket |
+quick-log | /QuickLog | main form.new-ticket-form
+checklist | /Job?number=1003 | #checklist

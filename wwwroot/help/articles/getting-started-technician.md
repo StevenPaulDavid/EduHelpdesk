@@ -37,7 +37,7 @@ Open **Tickets**. The tabs along the top are the queues:
 
 ![The ticket list](tickets-list.png)
 
-Use the filter bar to narrow a list by category, status, priority, team, location or requester. Your choice of columns is remembered on your account.
+Search by number, title, requester or asset tag, or use **Filters** to narrow the list by status, priority, category, team, location and more. See [The ticket list](ticket-list).
 
 > **Tip:** If the school has more than one desk (IT, Site, Cleaning), the list shows your own desks' tickets. Other desks' tickets aren't shown to you unless your role has "See all desks".
 
@@ -47,11 +47,11 @@ Click a ticket's number or title to open it. From the bar at the top you can:
 
 1. **Assign to me** - take the job, so others know it's yours.
 2. **On my way** - takes the job and tells the person who reported it that you're coming.
-3. Change the **status**, priority or category in **Edit details**.
+3. Change the **status**, priority or category with the pencil beside each in the side panel.
 4. **Add reply** - choose **Reply** to write to the person who reported it, or **Internal note** for something only the helpdesk sees. Tick **Notify the requester** if they should get a pop-up about your reply.
-5. **Close ticket** when it's done. Some categories ask for a closing message, which the requester sees.
+5. **Mark as closed** when it's done. Some tickets ask for a closing message, which the requester sees. See [Closing a ticket](close-a-ticket).
 
-The tabs under the conversation hold the ticket's **History** (every change, by whom), linked **Assets**, **Parts** used, **Costs**, and **Attachments**.
+The tabs beside **Comments** hold the ticket's **History** (every change, by whom), linked **Assets**, **Parts** used, **Costs**, and **Attachments**.
 
 ## Logging a job yourself
 

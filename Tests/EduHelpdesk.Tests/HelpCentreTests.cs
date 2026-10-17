@@ -102,6 +102,8 @@ public class HelpCentreTests
                 var slug = target.Replace("help:", "").Split('#')[0];
                 Assert.True(slugs.Contains(slug), $"{article.Slug} links to a missing article: {target}");
             }
+            // The help's Markdown has no nested lists: an indented "- " or "1." would break the list it sits in.
+            Assert.False(Regex.IsMatch(article.Body, @"(?m)^[ \t]+([-*]|\d+[.)])\s"), $"{article.Slug} has a nested list, which the help doesn't support");
             foreach (Match image in Regex.Matches(article.Body, @"!\[[^\]]*\]\(([^)\s]+)\)"))
                 Assert.True(File.Exists(Path.Combine(images, image.Groups[1].Value)), $"{article.Slug}: missing screenshot {image.Groups[1].Value}");
         }

@@ -75,19 +75,29 @@ try
         if (script.Length > 0) await cdp.Eval(script);
         await Task.Delay(400);
         object? clip = null;
+        var tall = false;
         if (selector.Length > 0)
         {
+            // Scrolled to first, below any header that sticks to the top of the window, and measured once the page has
+            // settled: a bar that becomes "stuck" on scrolling moves everything under it.
+            var find = $"document.querySelector({JsonSerializer.Serialize(selector)})";
+            await cdp.Eval($"(() => {{ const e = {find}; if (e) window.scrollTo(0, Math.max(0, e.getBoundingClientRect().top + scrollY - 160)); }})()");
+            await Task.Delay(400);
+            await cdp.Eval($"(() => {{ const e = {find}; if (e) window.scrollTo(0, Math.max(0, e.getBoundingClientRect().top + scrollY - 160)); }})()");
+            await Task.Delay(300);
             var rect = await cdp.Eval($$"""
-                (() => { const e = document.querySelector({{JsonSerializer.Serialize(selector)}}); if (!e) return ''; const r = e.getBoundingClientRect();
-                return JSON.stringify({ x: Math.max(0, r.left + scrollX - 8), y: Math.max(0, r.top + scrollY - 8), width: r.width + 16, height: r.height + 16 }); })()
+                (() => { const e = {{find}}; if (!e) return ''; const r = e.getBoundingClientRect();
+                return JSON.stringify({ x: Math.max(0, r.left + scrollX - 8), y: Math.max(0, r.top + scrollY - 8), width: r.width + 16, height: r.height + 16, tall: r.height + 176 > innerHeight }); })()
                 """);
             if (string.IsNullOrEmpty(rect)) { Console.Error.WriteLine($"{name}: {selector} isn't on {page}"); continue; }
             var r = JsonNode.Parse(rect)!;
             clip = new { x = (double)r["x"]!, y = (double)r["y"]!, width = Math.Min((double)r["width"]!, width), height = Math.Min((double)r["height"]!, 4000), scale = 1 };
+            // Capturing beyond the window resizes it, which can move things; only do it for something taller than the window.
+            tall = (bool)r["tall"]!;
         }
         var shot = clip is null
             ? await cdp.Send("Page.captureScreenshot", new { format = "png" })
-            : await cdp.Send("Page.captureScreenshot", new { format = "png", clip, captureBeyondViewport = true });
+            : await cdp.Send("Page.captureScreenshot", new { format = "png", clip, captureBeyondViewport = tall });
         var file = Path.Combine(outDir, name + ".png");
         await File.WriteAllBytesAsync(file, Convert.FromBase64String((string)shot["data"]!));
         Console.WriteLine($"{name}.png  {page}");

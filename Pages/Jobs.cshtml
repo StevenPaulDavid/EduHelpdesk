@@ -27,7 +27,7 @@
         {
             <form method="post" asp-page-handler="WhoAmI" class="whoami">
                 @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
-                <label>Working as<select name="technicianId" data-autosubmit><option value="">Not set</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.CurrentTechnicianId)">@tech.Name</option> }</select></label>
+                <label>Working as <help-tip key="tickets.working-as" /> <select name="technicianId" data-autosubmit><option value="">Not set</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id" selected="@(tech.Id == Model.CurrentTechnicianId)">@tech.Name</option> }</select></label>
                 <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
             </form>
         }
@@ -148,7 +148,7 @@
         @if (Model.Rows.Count > 0)
         {
             <div class="bulk-actions">
-                <strong>With selected tickets</strong>
+                <strong>With selected tickets <help-tip key="tickets.bulk" /></strong>
                 <span class="muted" id="selected-count">None selected</span>
                 <label>Action<select name="operation" id="bulk-operation">
                     <option value="status">Change status</option><option value="technician" data-hint="A technician who is not in a ticket's team is skipped for that ticket.">Assign technician</option><option value="team" data-hint="A technician who is not in the new team is unassigned from the ticket.">Assign team</option>

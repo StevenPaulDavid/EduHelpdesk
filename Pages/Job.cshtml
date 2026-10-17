@@ -68,7 +68,7 @@
             <p class="muted">This ticket is <strong>@Model.Ticket.Priority</strong> priority in the <strong>@Model.Ticket.Category</strong> category, so a closing message is required before it can be closed.</p>
             <form method="post" asp-page-handler="Close" class="blade-form">
                 <input type="hidden" name="number" value="@Model.Ticket.Number" />
-                <label>Closing message<textarea name="closingMessage" rows="5" required placeholder="Explain how this was resolved…"></textarea></label>
+                <label><span>Closing message <help-tip key="ticket.closing-message" /></span><textarea name="closingMessage" rows="5" required placeholder="Explain how this was resolved…"></textarea></label>
                 <div class="blade-actions"><button class="button button-primary" type="submit">Close ticket</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
             </form>
         </div>
@@ -177,7 +177,7 @@ else
                 <form method="post" asp-page-handler="SaveChecklist">
                     <input type="hidden" name="number" value="@Model.Ticket.Number" />
                     <div class="table-wrap"><table class="checklist-table">
-                        <thead><tr><th>Check</th><th>Result</th><th>Note</th></tr></thead>
+                        <thead><tr><th>Check</th><th>Result <help-tip key="check.result" /></th><th>Note</th></tr></thead>
                         <tbody>
                             @foreach (var line in Model.Checklist)
                             {
@@ -209,8 +209,8 @@ else
         <div class="job-detail-fields">
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" data-edit-field="technician">@Icons.Edit</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">@Icons.Check</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TEAM</p><button id="team-edit" class="icon-button edit-icon" type="button" title="Edit team" data-edit-field="team">@Icons.Edit</button></div><strong class="field-value" id="team-value">@(Model.Ticket.TeamName ?? "No team")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="team-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="team" /><select name="value"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" selected="@(team == Model.Ticket.TeamName)">@team</option> }</select><button class="icon-button save-icon" type="submit" title="Save team" aria-label="Save team">@Icons.Check</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA</p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" data-edit-field="sla">@Icons.Edit</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">@Icons.Check</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE</p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" data-edit-field="dueDate">@Icons.Edit</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">@Icons.Check</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA <help-tip key="ticket.sla" /></p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" data-edit-field="sla">@Icons.Edit</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">@Icons.Check</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE <help-tip key="ticket.due-date" /></p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" data-edit-field="dueDate">@Icons.Edit</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">@Icons.Check</button></form></div>
         </div>
         <div class="ticket-tabs no-print">
             <div class="ticket-tab-buttons" role="tablist">
@@ -231,13 +231,14 @@ else
                         <legend class="visually-hidden">Comment type</legend>
                         <label><input type="radio" name="internalNote" value="false" checked /><span>Reply</span></label>
                         <label><input type="radio" name="internalNote" value="true" /><span>Internal note</span></label>
+                        <help-tip key="ticket.reply-kind" />
                     </fieldset>
                     <label for="ticket-comment" class="visually-hidden">Comment</label>
                     <textarea id="ticket-comment" name="comment" rows="3" placeholder="Reply to @(Model.Requester?.Name ?? "the requester"), or record an update or next action…" data-note-placeholder="A note for the IT team only. It isn't shown to the requester or printed on the ticket."></textarea>
                     <div class="composer-options">
-                        <label class="toggle-label" id="notify-requester-label"><input type="checkbox" name="notifyRequester" value="true" /> Notify the requester <span class="muted">(a ping in their staff portal, if they've switched it on)</span></label>
+                        <label class="toggle-label" id="notify-requester-label"><input type="checkbox" name="notifyRequester" value="true" /> Notify the requester <help-tip key="ticket.notify" /></label>
                         <span class="composer-send">
-                            <label for="comment-status">Status</label>
+                            <label for="comment-status">Status</label> <help-tip key="ticket.status" />
                             <select id="comment-status" name="status" data-current="@Model.Ticket.Status">
                                 @if (!Model.Statuses.Contains(Model.Ticket.Status, StringComparer.OrdinalIgnoreCase))
                                 {
@@ -372,10 +373,10 @@ else
                             <div class="form-grid compact">
                                 <label>What it was for<input name="description" maxlength="@HelpdeskStore.MaxCostDescriptionLength" required placeholder="e.g. Plumber call-out" /></label>
                                 <label>Date<input name="date" type="date" value="@DateTime.Now.ToString("yyyy-MM-dd")" /></label>
-                                <label>Net (before VAT), £<input name="net" inputmode="decimal" required placeholder="120.00" /></label>
+                                <label><span>Net (before VAT), £ <help-tip key="cost.net" /></span><input name="net" inputmode="decimal" required placeholder="120.00" /></label>
                                 <label>VAT, £<input name="vat" inputmode="decimal" placeholder="24.00 - blank for none" /></label>
                                 <label>Supplier<select name="supplierId"><option value="">None</option>@foreach (var supplier in Model.Suppliers) { <option value="@supplier.Id">@supplier.Name</option> }</select></label>
-                                <label>Budget code<select name="budgetCode"><option value="">None</option>@foreach (var code in Model.BudgetCodes) { <option value="@code">@code</option> }</select></label>
+                                <label><span>Budget code <help-tip key="cost.budget-code" /></span><select name="budgetCode"><option value="">None</option>@foreach (var code in Model.BudgetCodes) { <option value="@code">@code</option> }</select></label>
                             </div>
                             <div><button class="button button-primary" type="submit">Add cost</button></div>
                         </form>
@@ -544,7 +545,7 @@ else
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
             <label class="file-drop">@Icons.Upload <span><strong>Choose files</strong> or drop them here</span><input id="ticket-files" type="file" name="files" multiple required accept="@HelpdeskStore.AttachmentAcceptAttribute" /></label>
             <p class="muted">Up to @HelpdeskStore.MaxAttachmentsPerUpload files at a time, each up to @(HelpdeskStore.MaxAttachmentBytes / (1024 * 1024)) MB. Pictures, PDFs, Office documents, text and email files.</p>
-            <label class="toggle-label"><input type="checkbox" name="shareWithRequester" value="true" /> Share with the requester (they'll see it in the staff portal)</label>
+            <label class="toggle-label"><input type="checkbox" name="shareWithRequester" value="true" /> Share with the requester (they'll see it in the staff portal) <help-tip key="ticket.share-file" /></label>
             <div class="blade-actions"><button class="button button-primary" type="submit">@Icons.Upload Upload</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
         </form>
     </div>
