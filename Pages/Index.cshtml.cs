@@ -7,7 +7,8 @@ namespace EduHelpdesk.Pages;
 
 // The overview: what needs doing, rather than how big the directory is. Your own open tickets, what is overdue or
 // about to be, what nobody has picked up, requesters waiting on a reply, your projects, and the asset and parts
-// review lists. Each panel only appears for a role allowed the module it summarises.
+// review lists. Each panel only appears for a role allowed the module it summarises, and - with several desks - when
+// the desks being worked on (the top bar's desk switcher) use that part of the bar (Services/DeskAreas.cs).
 public class IndexModel(HelpdeskStore store) : PageModel
 {
     // How many rows each panel shows before pointing at the full list.
@@ -38,7 +39,15 @@ public class IndexModel(HelpdeskStore store) : PageModel
     private IReadOnlyList<AssetInsights.ReviewItem>? _assetsToReview;
     // Warranty ending or replacement due within the review window (or already past), overdue loans, and DfE checks and
     // end of support coming up, most urgent first.
-    public IReadOnlyList<AssetInsights.ReviewItem> AssetsToReview => _assetsToReview ??= AssetInsights.ReviewItems(store.Assets, store.AssetTypeLifespans, store.AssetReviewDays, AssetInsights.Today, store.DepartedUserIds, store.AssetCheckSettings);
+    // Of the desks being worked on, as the asset list opens on them: plant on Site, kit on IT.
+    public IReadOnlyList<AssetInsights.ReviewItem> AssetsToReview => _assetsToReview ??= AssetsOnShownDesks(AssetInsights.ReviewItems(store.Assets, store.AssetTypeLifespans, store.AssetReviewDays, AssetInsights.Today, store.DepartedUserIds, store.AssetCheckSettings));
+    private IReadOnlyList<AssetInsights.ReviewItem> AssetsOnShownDesks(IReadOnlyList<AssetInsights.ReviewItem> items)
+    {
+        var desks = store.AssetDesksShown(User, null).Select(x => x.Id).ToHashSet();
+        if (desks.Count == 0) return items;
+        var deskOf = store.AssetDeskLookup();
+        return items.Where(x => desks.Contains(deskOf(x.Asset.Type).Id)).ToList();
+    }
     public int ReviewWindowDays => store.AssetReviewDays;
     private IReadOnlyList<PartRecord>? _partsToReview;
     // Parts at or below their reorder threshold, lowest quantity first.
@@ -48,16 +57,16 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     // The overview is open to anyone signed in, so each panel asks whether this role is allowed the module it summarises
     // - otherwise it would hand out asset tags, part names and ticket titles the role cannot reach anywhere else.
-    public bool CanSeeAssets => store.UserCan(User, Modules.Assets, ModulePermission.Access);
+    public bool CanSeeAssets => store.UserCan(User, Modules.Assets, ModulePermission.Access) && store.AreaOn(User, DeskAreas.Assets);
     public bool CanOpenAsset => store.UserCan(User, Modules.Assets, ModulePermission.View);
-    public bool CanSeeParts => store.UserCan(User, Modules.Parts, ModulePermission.Access);
+    public bool CanSeeParts => store.UserCan(User, Modules.Parts, ModulePermission.Access) && store.AreaOn(User, DeskAreas.Parts);
     public bool CanEditParts => store.UserCan(User, Modules.Parts, ModulePermission.Edit);
     public bool CanSeeTickets => store.UserCan(User, Modules.Tickets, ModulePermission.Access);
     public bool CanOpenTicket => store.UserCan(User, Modules.Tickets, ModulePermission.View);
-    public bool CanSeeProjects => store.UserCan(User, Modules.Projects, ModulePermission.Access);
+    public bool CanSeeProjects => store.UserCan(User, Modules.Projects, ModulePermission.Access) && store.AreaOn(User, DeskAreas.Projects);
     public bool CanOpenProject => store.UserCan(User, Modules.Projects, ModulePermission.View);
     // Onboarding: the officer sees it through the Onboarding module; technicians, whose IT tasks are in it, through Tickets.
-    public bool CanSeeOnboarding => store.UserCan(User, Modules.Onboarding, ModulePermission.Access) || CanSeeTickets;
+    public bool CanSeeOnboarding => (store.UserCan(User, Modules.Onboarding, ModulePermission.Access) || CanSeeTickets) && store.AreaOn(User, DeskAreas.People);
     public bool CanOpenOnboarding => store.UserCan(User, Modules.Onboarding, ModulePermission.View) || CanOpenTicket;
     public bool HasOnboardingList => store.UserCan(User, Modules.Onboarding, ModulePermission.Access);
     public const int StartersWindowDays = 14;
@@ -69,8 +78,8 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public bool CanSeeAssetReport => store.UserHasFlag(User, Modules.Flags.ReportAssets);
     // The contracts and access registers' due items. Assets have their own panel above, which already shows checks and
     // end of support.
-    public bool CanSeeContracts => store.UserCan(User, Modules.Contracts, ModulePermission.Access);
-    public bool CanSeeAccess => store.UserCan(User, Modules.Access, ModulePermission.Access);
+    public bool CanSeeContracts => store.UserCan(User, Modules.Contracts, ModulePermission.Access) && store.AreaOn(User, DeskAreas.Compliance);
+    public bool CanSeeAccess => store.UserCan(User, Modules.Access, ModulePermission.Access) && store.AreaOn(User, DeskAreas.Compliance);
     private IReadOnlyList<ComplianceFinding>? _compliance;
     public IReadOnlyList<ComplianceFinding> ComplianceDue => _compliance ??=
         ComplianceFindings.For(store, AssetInsights.Today, assets: false, contracts: CanSeeContracts, access: CanSeeAccess)
@@ -89,8 +98,15 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
     // staff portal instead of straight to the technician login - a technician still ends up here once signed in.
-    // The desks the overview covers, empty for every desk, and each ticket's number as shown (SITE-1043).
+    // The desks the overview covers (the desk switcher's), empty for every desk, and each ticket's number as shown (SITE-1043).
     public IReadOnlyList<string> ShownDesks { get; private set; } = [];
+    // "The IT and Site desks, as chosen in the top bar." Null for every desk.
+    public string? DeskSummary => ShownDesks.Count switch
+    {
+        0 => null,
+        1 => $"The {ShownDesks[0]} desk, as chosen in the top bar.",
+        _ => $"The {string.Join(", ", ShownDesks.Take(ShownDesks.Count - 1))} and {ShownDesks[^1]} desks, as chosen in the top bar."
+    };
     private Func<string?, Desk> _deskOf = _ => null!;
     public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket);
 
@@ -112,11 +128,10 @@ public class IndexModel(HelpdeskStore store) : PageModel
         {
             var meId = WorkingAs.Resolve(store, User, Request);
             Me = meId is { } id ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
-            // The overview is of the desks the account is on (HelpdeskStore.Desks), as the ticket list opens on them;
-            // tickets assigned to them count wherever they are.
+            // The overview is of the desks the top bar's desk switcher is on (HelpdeskStore.DeskSwitch), as the ticket
+            // list opens on them; tickets assigned to them count wherever they are.
             _deskOf = store.DeskLookup();
-            var myDesks = store.HasSeveralDesks ? store.DesksOf(User).ToList() : [];
-            if (myDesks.Count == store.Desks.Count) myDesks = [];
+            var myDesks = store.WorkingDesks(User);
             ShownDesks = myDesks.Select(x => x.Name).ToList();
             var open = store.TicketsFor(User).Where(x => !TicketInsights.IsClosed(x)
                 && (myDesks.Count == 0 || myDesks.Any(d => d.Id == _deskOf(x.Category).Id) || (meId is { } assigned && x.TechnicianId == assigned))).ToList();

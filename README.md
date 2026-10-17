@@ -2,8 +2,8 @@
 
 A helpdesk for schools, run on the school's own server. Technicians log and work tickets, and staff report problems through a simple portal. It also covers the jobs around the tickets:
 
-- **Desks** - IT, Site and Cleaning share one helpdesk, each with its own categories, people, hours and ticket numbers.
-- **Inventory** - assets, loan kits and loans, parts and suppliers, each linked to the tickets about it.
+- **Desks** - IT, Site and Cleaning share one helpdesk, each with its own categories, people, hours, ticket numbers and top bar. A desk switcher picks the desk you're working on.
+- **Assets** - the asset register (kit and plant), loan kits and loans, parts and suppliers, each linked to the tickets about it.
 - **Site and cleaning** - premises checks with checklists, and cleaning rounds.
 - **Projects** - purchasing requests from the portal, with supplier quotes and a printed proposal.
 - **Onboarding** - one checklist per new starter, with tasks owned by IT, HR and others.

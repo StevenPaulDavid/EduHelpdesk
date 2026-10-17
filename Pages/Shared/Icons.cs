@@ -22,5 +22,6 @@ public static class Icons
     public static readonly IHtmlContent File = Svg("<path d=\"M14 3H6v18h12V7l-4-4Z\"/><path d=\"M14 3v4h4\"/>");
     public static readonly IHtmlContent Filter = Svg("<path d=\"M3 5h18M6 12h12M10 19h4\"/>");
     public static readonly IHtmlContent Columns = Svg("<rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M9 4v16M15 4v16\"/>");
+    public static readonly IHtmlContent Gear = Svg("<circle cx=\"12\" cy=\"12\" r=\"3\"/><circle cx=\"12\" cy=\"12\" r=\"6.5\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1\"/>");
     public static readonly IHtmlContent Search = Svg("<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/>");
 }

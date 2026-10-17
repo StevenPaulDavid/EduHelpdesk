@@ -19,8 +19,9 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "location")] public string? Location { get; set; }
     [BindProperty(SupportsGet = true, Name = "holder")] public string? Holder { get; set; }
     [BindProperty(SupportsGet = true, Name = "flag")] public string? Flag { get; set; }
-    // A desk's name, "all", or blank for the person's own desks (HelpdeskStore.AssetDesksShown) - plant on Site, kit on IT.
+    // A desk's name, "all", or blank for the desk switcher's choice (HelpdeskStore.AssetDesksShown) - plant on Site, kit on IT.
     [BindProperty(SupportsGet = true, Name = "desk")] public string? Desk { get; set; }
+    public string WorkingDeskOption => store.WorkingDeskOption(User);
     public bool HasSeveralDesks => store.HasSeveralDesks;
     public IReadOnlyList<Desk> Desks => store.Desks;
     public IReadOnlyList<Desk> ShownDesks { get; private set; } = [];

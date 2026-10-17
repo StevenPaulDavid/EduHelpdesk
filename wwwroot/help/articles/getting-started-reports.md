@@ -12,7 +12,7 @@ If your role is about oversight rather than fixing things, you'll mostly use **R
 
 ## Reports
 
-Open **Reports** from the top menu. The tabs across the top are the reports your role can read, for example:
+Open **Reports** in the top bar and choose a report. The tabs across the top are the reports your role can read, for example:
 
 | Report | What it answers |
 | --- | --- |
@@ -27,7 +27,7 @@ With the *Export and print reports* tick, each report can be downloaded as a spr
 
 ## The audit log
 
-**Settings → Audit log** (or **Audit log** in the top menu, if that's all you have) lists every change: who, when, and what it was before and after. Filter it by area, action, who made the change, or dates.
+**Settings → Audit log** (the **Settings** gear opens it straight away if that's all you have) lists every change: who, when, and what it was before and after. Filter it by area, action, who made the change, or dates.
 
 ## Personal data
 

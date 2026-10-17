@@ -8,7 +8,7 @@ needs: Contracts
 keywords: contracts register subscription licence support broadband lease renewal notice period cost supplier dpia related party dfe
 order: 2
 ---
-The **contracts register** is the DfE's register of what the school pays suppliers for: subscriptions, licences, support, broadband, leases - anything with dates to keep an eye on. Open it from **Compliance → Contracts register**.
+The **contracts register** is the DfE's register of what the school pays suppliers for: subscriptions, licences, support, broadband, leases - anything with dates to keep an eye on. Open it from **Reports → Contracts register**.
 
 ## The list
 

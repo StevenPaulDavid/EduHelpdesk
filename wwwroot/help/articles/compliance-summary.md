@@ -8,7 +8,7 @@ needs: Assets, Contracts, Access
 keywords: compliance dfe digital technology standards registers summary export excel import reminders bell overdue
 order: 1
 ---
-The DfE digital and technology standards ask schools to keep three registers: **assets**, **contracts** and **access control**. **Compliance → Compliance summary** shows all three, and lists everything on them that needs acting on, most urgent first.
+The DfE digital and technology standards ask schools to keep three registers: **assets**, **contracts** and **access control**. **Reports → Compliance summary** shows all three, and lists everything on them that needs acting on, most urgent first.
 
 ![The compliance summary](compliance-summary.png)
 

@@ -16,8 +16,9 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Locations => store.Locations;
     public IReadOnlyList<SlaDefinition> Slas => store.Slas;
-    // With several desks (HelpdeskStore.Desks) the form starts on the logger's first desk, and the desk box narrows the
-    // categories, teams and technicians to that desk's. The category is what decides the desk; the box only filters.
+    // With several desks (HelpdeskStore.Desks) the form starts on the desk asked for (?desk=, from Log a ticket in the top
+    // bar), else the one the desk switcher is on, else the logger's first desk, and the desk box narrows the categories,
+    // teams and technicians to that desk's. The category is what decides the desk; the box only filters.
     public bool HasSeveralDesks => store.HasSeveralDesks;
     public IReadOnlyList<Desk> Desks => store.Desks;
     public Guid DeskOfCategory(string category) => store.DeskForCategory(category).Id;
@@ -31,7 +32,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     [BindProperty] public TicketInput Ticket { get; set; } = new();
     [TempData] public string? Message { get; set; }
 
-    public void OnGet(Guid? template)
+    public void OnGet(Guid? template, string? desk)
     {
         if (template is { } templateId && store.GetTicketTemplate(templateId) is { } chosen)
         {
@@ -44,8 +45,10 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
             Ticket.SlaId = chosen.SlaId is { } sla && store.Slas.Any(x => x.Id == sla) ? sla : null;
             TemplateAttributeValues = chosen.AttributeValues;
         }
-        if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase))
-            Ticket.Category = (store.DesksOf(User).FirstOrDefault() is { } mine ? store.CategoriesFor(mine.Id).FirstOrDefault() : null)
+        // With several desks, the starting desk's first category unless a template chose one. (Checking only that the
+        // category is valid let the form's own default, Hardware, win every time.) With one desk the default stays.
+        if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase) || (AppliedTemplate is null && store.HasSeveralDesks))
+            Ticket.Category = (store.StartingDeskFor(User, desk) is { } starting ? store.CategoriesFor(starting.Id).FirstOrDefault() : null)
                 ?? store.Categories.FirstOrDefault() ?? Ticket.Category;
         if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase))
             Ticket.Priority = store.Priorities.FirstOrDefault() ?? Ticket.Priority;

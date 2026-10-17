@@ -80,6 +80,21 @@
                     <label>Times it works<input name="windows" value="@HelpdeskStore.DescribeWindows(desk.WorkWindows)" placeholder="e.g. 06:00-09:00, 15:00-18:00" autocomplete="off" /><small class="muted">With its own hours, minute and hour SLAs count only inside these times, so a spill reported at 17:55 with a 30-minute SLA is due by 06:25 the next working morning. Work-day SLAs use these days, and period SLAs count these times as its periods. Tickets already logged keep their due dates.</small></label>
                     <button class="button button-secondary" type="submit">Save working hours</button>
                 </form>
+                @* With one desk the whole bar is that desk's, so there is nothing to choose. *@
+                @if (Model.Desks.Count > 1)
+                {
+                    <form method="post" asp-page-handler="Areas" class="settings-form">
+                        <input type="hidden" name="id" value="@desk.Id" />
+                        <fieldset class="desk-choices"><legend>In the top bar <help-tip key="desk.areas" /></legend>
+                            @foreach (var area in DeskAreas.All)
+                            {
+                                <label class="toggle-label" title="@area.Description"><input type="checkbox" name="areas" value="@area.Key" checked="@HelpdeskStore.DeskUses(desk, area.Key)" /> @area.Label</label>
+                            }
+                        </fieldset>
+                        <p class="muted">What the top bar shows while someone is working on the @desk.Name desk. Tickets, Reports and Settings are always there. Nobody gets a page their role can't open, and nothing is locked away: an unticked area is only out of the bar.</p>
+                        <button class="button button-secondary" type="submit">Save top bar</button>
+                    </form>
+                }
                 <form method="post" asp-page-handler="Style" class="tile-style-form">
                     <input type="hidden" name="id" value="@desk.Id" />
                     <fieldset><legend>Portal tile icon</legend>

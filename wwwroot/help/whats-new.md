@@ -7,6 +7,7 @@
 - **Site work** - each desk can have its own working hours for its SLAs, **Log a job already done** records quick fixes, a printable **daily sheet** lists open jobs by room, and jobs can have **costs** with budget codes and a **Job spend** report.
 - **Desks kept apart** - people see only their own desks' tickets unless their role has *See all desks*, and alerts go to the right desk.
 - **Ticket numbers per desk** - each desk counts its own tickets (IT-12, SITE-4).
+- **Desk switcher and a tidier top bar** - choose the desk you're working on next to the school's name: tickets, assets, the daily sheet, the overview and **Log a ticket** follow it, and each desk chooses which parts of the bar it uses. The Facilities menu is gone, Inventory is now **Assets**, **Reports** is a menu with the compliance registers in it, and Settings is the gear beside **?**. See [Desks](desks).
 
 ## 1.12
 

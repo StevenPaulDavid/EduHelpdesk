@@ -28,6 +28,7 @@
         <p class="eyebrow">@Model.Branding.DashboardEyebrow</p>
         <h1>@Model.Branding.DashboardTitle</h1>
         <p class="hero-copy">@Model.Branding.DashboardDescription</p>
+        @if (Model.DeskSummary is { } deskSummary) { <p class="muted dash-desks">@deskSummary</p> }
     </div>
 </div>
 @if (Model.BackupWarning is { } backups)

@@ -17,7 +17,7 @@
         <label>Problem devices<select name="period">@foreach (var period in ReportsModel.Periods) { <option value="@period.Key" selected="@(period.Key == Model.PeriodKey)">@period.Label</option> }</select></label>
         @if (Model.HasSeveralDesks)
         {
-            <label>Desk<select name="desk"><option value="">My desks@(Model.ShownDesks.Count > 0 && string.IsNullOrWhiteSpace(Model.Desk) ? $" ({string.Join(", ", Model.ShownDesks.Select(x => x.Name))})" : "")</option><option value="all" selected="@(string.Equals(Model.Desk, "all", StringComparison.OrdinalIgnoreCase))">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Name" selected="@string.Equals(desk.Name, Model.Desk, StringComparison.OrdinalIgnoreCase)">@desk.Name</option> }</select></label>
+            <label>Desk<select name="desk"><option value="">@Model.WorkingDeskOption</option><option value="all" selected="@(string.Equals(Model.Desk, "all", StringComparison.OrdinalIgnoreCase))">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Name" selected="@string.Equals(desk.Name, Model.Desk, StringComparison.OrdinalIgnoreCase)">@desk.Name</option> }</select></label>
         }
         <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports">Reset</a></div>
     </form>

@@ -12,7 +12,7 @@ A premises check is a **recurring ticket** with a **checklist**. The recurring t
 
 ## 1. Make the recurring ticket
 
-In **Facilities → Recurring checks** (the same page as **Settings → Recurring tickets**), add one. With **Set up facilities** but not Settings, you see and add only the schedules of your own desks.
+In **Settings → Recurring tickets** (the gear in the top bar), add one. With **Set up facilities** but not Settings, you see and add only the schedules of your own desks.
 
 1. **Name** it, such as *Monthly water temperatures*.
 2. Choose a **category** on the right desk (a Site category for a site check), the **priority**, a **requester** (often the site office), and the **team** or **technician** who does it.

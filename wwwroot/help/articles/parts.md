@@ -8,7 +8,7 @@ needs: Parts
 keywords: parts stock spares consumables toner cables quantity reorder threshold low stock delivery stocktake sku supplier bin
 order: 8
 ---
-**Inventory → Parts** lists spares and consumables in stock - toner, cables, keyboards, light fittings - where they're kept and who supplies them.
+**Assets → Parts** lists spares and consumables in stock - toner, cables, keyboards, light fittings - where they're kept and who supplies them.
 
 ## Adding a part
 

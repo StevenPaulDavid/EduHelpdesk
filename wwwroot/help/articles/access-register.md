@@ -8,7 +8,7 @@ needs: Access
 keywords: access control register permissions systems keys fobs privileged administrator approval mfa leaver remove revoke dfe cyber
 order: 3
 ---
-The **access control register** records who can get into which **systems** (the MIS, Microsoft 365, the firewall) and **physical areas and keys** (the server room, a master key), who approved it, and - for anyone who has left - when it was taken away. Open it from **Compliance → Access control**.
+The **access control register** records who can get into which **systems** (the MIS, Microsoft 365, the firewall) and **physical areas and keys** (the server room, a master key), who approved it, and - for anyone who has left - when it was taken away. Open it from **Reports → Access control**.
 
 ## The list
 

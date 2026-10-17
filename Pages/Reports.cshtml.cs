@@ -19,8 +19,9 @@ public class ReportsModel(HelpdeskStore store) : PageModel
     // -1 means "use the review window from Settings".
     [Microsoft.AspNetCore.Mvc.BindProperty(SupportsGet = true, Name = "warranty")] public int WarrantyDays { get; set; } = -1;
     [Microsoft.AspNetCore.Mvc.BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
-    // A desk's name, "all", or blank for the person's own desks (HelpdeskStore.AssetDesksShown): plant is Site's, kit IT's.
+    // A desk's name, "all", or blank for the desk switcher's choice (HelpdeskStore.AssetDesksShown): plant is Site's, kit IT's.
     [Microsoft.AspNetCore.Mvc.BindProperty(SupportsGet = true, Name = "desk")] public string? Desk { get; set; }
+    public string WorkingDeskOption => store.WorkingDeskOption(User);
     public bool HasSeveralDesks => store.HasSeveralDesks;
     public IReadOnlyList<EduHelpdesk.Models.Desk> Desks => store.Desks;
     public IReadOnlyList<EduHelpdesk.Models.Desk> ShownDesks { get; private set; } = [];

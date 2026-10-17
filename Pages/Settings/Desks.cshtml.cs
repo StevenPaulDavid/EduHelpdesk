@@ -48,6 +48,12 @@ public class DesksModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public IActionResult OnPostAreas(Guid id, string[]? areas)
+    {
+        Message = store.SetDeskAreas(id, areas).Message;
+        return RedirectToPage();
+    }
+
     public IActionResult OnPostStyle(Guid id, string? icon, string? color)
     {
         Message = store.SetDeskLook(id, icon, color);

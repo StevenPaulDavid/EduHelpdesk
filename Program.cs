@@ -171,7 +171,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddFolderApplicationModelConvention("/Settings", model =>
     {
         if (model.ViewEnginePath is "/Settings/Audit" or "/Settings/AuditPrint" or "/Settings/Database" or "/Settings/DatabaseTable" or "/Settings/DatabaseRecord") return;
-        // The facilities setup pages (the Facilities menu's Setup section) open for Settings: Edit or "Set up facilities".
+        // The facilities setup pages open for Settings: Edit or "Set up facilities" (reached from the top bar's gear).
         // The pages themselves keep someone with only the tick to their own desks' schedules and their own two lists.
         model.Filters.Add(new AuthorizeFilter(Modules.FacilitiesSetupPages.Contains(model.ViewEnginePath)
             ? PermissionRequirement.FacilitiesSetupPolicy : Policy(Modules.Settings, ModulePermission.Edit)));

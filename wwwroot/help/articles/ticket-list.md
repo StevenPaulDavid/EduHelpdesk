@@ -8,7 +8,7 @@ needs: Tickets
 keywords: tickets list queue my tickets unassigned overdue filter search sort export csv working as daily sheet
 order: 1
 ---
-**Tickets** in the top menu lists every ticket you can work on. Click any row to open the ticket.
+**Tickets** in the top bar lists the tickets of the desk you're working on (see [Desks](desks)). Click any row to open the ticket.
 
 ![The ticket list](tickets-list.png)
 
