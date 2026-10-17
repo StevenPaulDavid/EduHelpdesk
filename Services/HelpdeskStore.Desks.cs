@@ -386,9 +386,18 @@ public sealed partial class HelpdeskStore
         lock (_sync)
         {
             var index = _data.Desks.FindIndex(x => x.Id == id);
-            if (index < 0) return (false, "That desk was not found.");
+            var offIndex = _data.OffDesks.FindIndex(x => x.Desk.Id == id);
+            if (index < 0 && offIndex < 0) return (false, "That desk was not found.");
             var (cleanName, cleanPrefix, helper, error) = CheckDesk(id, name, prefix, helperLine);
             if (error is not null) return (false, error);
+            // A switched-off desk can be renamed too, ready for switching on.
+            if (index < 0)
+            {
+                var off = _data.OffDesks[offIndex];
+                _data.OffDesks[offIndex] = off with { Desk = off.Desk with { Name = cleanName, Prefix = cleanPrefix, HelperLine = helper, ShowInPortal = showInPortal } };
+                Save();
+                return (true, $"{cleanName} desk saved.");
+            }
             _data.Desks[index] = _data.Desks[index] with { Name = cleanName, Prefix = cleanPrefix, HelperLine = helper, ShowInPortal = showInPortal };
             Save();
             return (true, $"{cleanName} desk saved.");
@@ -457,6 +466,7 @@ public sealed partial class HelpdeskStore
         {
             var desk = _data.Desks.FirstOrDefault(x => x.Id == id);
             if (desk is null) return (false, "That desk was not found.");
+            if (desk.IsBuiltIn) return (false, $"The {desk.Name} desk is built in, so it can't be deleted. Switch it off instead.");
             if (_data.Desks.Count == 1) return (false, "There has to be at least one desk.");
             var categories = _data.Categories.Count(x => DeskForCategoryCore(x).Id == id);
             if (categories > 0) return (false, $"The {desk.Name} desk still has {Plural(categories, "category", "categories")}. Move them to another desk in Settings → Categories first.");
@@ -483,9 +493,11 @@ public sealed partial class HelpdeskStore
         var cleanPrefix = (prefix ?? "").Trim().ToUpperInvariant();
         if (cleanName.Length == 0) return ("", "", "", "Give the desk a name.");
         if (cleanName.Length > MaxDeskNameLength) return ("", "", "", $"Keep the name to {MaxDeskNameLength} characters.");
-        if (_data.Desks.Any(x => x.Id != id && string.Equals(x.Name, cleanName, StringComparison.OrdinalIgnoreCase))) return ("", "", "", "There's already a desk with that name.");
+        // Against the switched-off desks too, so switching one back on never clashes.
+        var others = _data.Desks.Concat(_data.OffDesks.Select(x => x.Desk)).Where(x => x.Id != id).ToList();
+        if (others.Any(x => string.Equals(x.Name, cleanName, StringComparison.OrdinalIgnoreCase))) return ("", "", "", "There's already a desk with that name.");
         if (cleanPrefix.Length > 0 && !PrefixPattern.IsMatch(cleanPrefix)) return ("", "", "", $"A prefix is up to {MaxDeskPrefixLength} letters or numbers, such as SITE - or leave it blank.");
-        if (cleanPrefix.Length > 0 && _data.Desks.Any(x => x.Id != id && string.Equals(x.Prefix, cleanPrefix, StringComparison.OrdinalIgnoreCase))) return ("", "", "", "Another desk already uses that prefix.");
+        if (cleanPrefix.Length > 0 && others.Any(x => string.Equals(x.Prefix, cleanPrefix, StringComparison.OrdinalIgnoreCase))) return ("", "", "", "Another desk already uses that prefix.");
         // Each desk counts from its own start, so two without a prefix would both have a #5.
         if (cleanPrefix.Length == 0 && _data.Desks.FirstOrDefault(x => x.Id != id && x.Prefix.Length == 0) is { } bare) return ("", "", "", $"The {bare.Name} desk already shows its numbers without a prefix. Give this one a prefix so their tickets can be told apart.");
         if (CheckHelperLine(helperLine, out var helper) is { } helperError) return ("", "", "", helperError);
@@ -528,7 +540,8 @@ public sealed partial class HelpdeskStore
     // Only the areas DeskAreas knows, in its order: one since retired is dropped.
     private static List<string> ParseAreas(string text)
     {
-        var keys = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var keys = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => x == DeskAreas.RoundsBefore ? DeskAreas.Facilities : x).ToList();
         return DeskAreas.All.Select(x => x.Key).Where(keys.Contains).ToList();
     }
 
@@ -674,7 +687,8 @@ public sealed partial class HelpdeskStore
     {
         _data.Desks ??= [];
         _data.Desks = _data.Desks.Where(x => !string.IsNullOrWhiteSpace(x.Name)).DistinctBy(x => x.Id).ToList();
-        if (_data.Desks.Count == 0) _data.Desks.Add(new Desk(Guid.NewGuid(), DefaultDeskName, DefaultDeskName, NextNumber: 0));
+        if (_data.Desks.Count == 0) _data.Desks.Add(new Desk(Guid.NewGuid(), DefaultDeskName, DefaultDeskName, NextNumber: 0) { Kind = DeskKinds.It });
+        EnsureBuiltInDesks();
         var known = _data.Desks.Select(x => x.Id).ToHashSet();
         var first = _data.Desks[0].Id;
         _data.CategoryDesks = Placed(_data.CategoryDesks, _data.Categories, known, first);
@@ -737,11 +751,14 @@ public sealed partial class HelpdeskStore
             CREATE TABLE IF NOT EXISTS TeamDesks (Team TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS StatusDesks (Status TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TechnicianDesks (TechnicianId TEXT NOT NULL, DeskId TEXT NOT NULL, PRIMARY KEY (TechnicianId, DeskId));
+            CREATE TABLE IF NOT EXISTS ParkedDeskValues (DeskId TEXT NOT NULL, Kind TEXT NOT NULL, Value TEXT NOT NULL, Position INTEGER NOT NULL);
             """;
         command.ExecuteNonQuery();
         // Columns added since desks first shipped: the next number (0 is worked out from its tickets on load, EnsureDesks),
-        // its own working hours (blank: the school day) and the top bar areas it doesn't use (blank: it uses them all).
-        foreach (var added in new[] { "NextNumber INTEGER NOT NULL DEFAULT 0", "WorkDays TEXT NOT NULL DEFAULT ''", "WorkWindows TEXT NOT NULL DEFAULT ''", "HiddenAreas TEXT NOT NULL DEFAULT ''" })
+        // its own working hours (blank: the school day), the top bar areas it doesn't use (blank: it uses them all), which
+        // built-in desk it is (blank: one the school added) and whether it is switched off.
+        foreach (var added in new[] { "NextNumber INTEGER NOT NULL DEFAULT 0", "WorkDays TEXT NOT NULL DEFAULT ''", "WorkWindows TEXT NOT NULL DEFAULT ''", "HiddenAreas TEXT NOT NULL DEFAULT ''",
+            "Kind TEXT NOT NULL DEFAULT ''", "IsOff INTEGER NOT NULL DEFAULT 0" })
             try
             {
                 using var column = connection.CreateCommand();
@@ -756,15 +773,39 @@ public sealed partial class HelpdeskStore
         data.DeskNumberingVersion = int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'DeskNumberingVersion';") as string, out var version) ? version : 0;
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber, WorkDays, WorkWindows, HiddenAreas FROM Desks ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber, WorkDays, WorkWindows, HiddenAreas, Kind, IsOff FROM Desks ORDER BY rowid;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
-                data.Desks.Add(new Desk(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetInt32(6) != 0, reader.GetInt32(7))
+            {
+                var desk = new Desk(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetInt32(6) != 0, reader.GetInt32(7))
                 {
                     WorkDays = ParseDays(reader.GetString(8)),
                     WorkWindows = ParseWindows(reader.GetString(9)).Windows ?? [],
-                    HiddenAreas = ParseAreas(reader.GetString(10))
-                });
+                    HiddenAreas = ParseAreas(reader.GetString(10)),
+                    Kind = reader.GetString(11) is DeskKinds.It or DeskKinds.Facilities ? reader.GetString(11) : ""
+                };
+                if (reader.GetInt32(12) != 0 && desk.IsBuiltIn) data.OffDesks.Add(new OffDesk(desk, [], [], [], [], []));
+                else data.Desks.Add(desk);
+            }
+        }
+        // What an off desk set aside, in its order.
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT DeskId, Kind, Value FROM ParkedDeskValues ORDER BY DeskId, Kind, Position;";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (data.OffDesks.FirstOrDefault(x => x.Desk.Id.ToString() == reader.GetString(0)) is not { } off) continue;
+                var value = reader.GetString(2);
+                switch (reader.GetString(1))
+                {
+                    case "Category": off.Categories.Add(value); break;
+                    case "Team": off.Teams.Add(value); break;
+                    case "Status": off.Statuses.Add(value); break;
+                    case "AssetType": off.AssetTypes.Add(value); break;
+                    case "Technician" when Guid.TryParse(value, out var technician): off.Technicians.Add(technician); break;
+                }
+            }
         }
         void ReadMap(string table, string column, Dictionary<string, Guid> target)
         {
@@ -798,10 +839,16 @@ public sealed partial class HelpdeskStore
     {
         SetMetadata(connection, transaction, "DeskNumberingVersion", data.DeskNumberingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var known = data.Desks.Select(x => x.Id).ToHashSet();
-        foreach (var desk in data.Desks)
-            Execute(connection, transaction, "INSERT INTO Desks (Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber, WorkDays, WorkWindows, HiddenAreas) VALUES ($id,$name,$prefix,$helper,$icon,$color,$portal,$next,$days,$windows,$hidden);",
+        foreach (var (desk, off) in data.Desks.Select(x => (x, false)).Concat(data.OffDesks.Select(x => (x.Desk, true))))
+            Execute(connection, transaction, "INSERT INTO Desks (Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber, WorkDays, WorkWindows, HiddenAreas, Kind, IsOff) VALUES ($id,$name,$prefix,$helper,$icon,$color,$portal,$next,$days,$windows,$hidden,$kind,$off);",
                 ("$id", desk.Id.ToString()), ("$name", desk.Name), ("$prefix", desk.Prefix), ("$helper", desk.HelperLine), ("$icon", desk.Icon), ("$color", desk.Color), ("$portal", desk.ShowInPortal ? 1 : 0), ("$next", desk.NextNumber),
-                ("$days", string.Join(",", desk.WorkDays.Select(x => (int)x))), ("$windows", DescribeWindows(desk.WorkWindows)), ("$hidden", string.Join(",", desk.HiddenAreas)));
+                ("$days", string.Join(",", desk.WorkDays.Select(x => (int)x))), ("$windows", DescribeWindows(desk.WorkWindows)), ("$hidden", string.Join(",", desk.HiddenAreas)),
+                ("$kind", desk.Kind), ("$off", off ? 1 : 0));
+        foreach (var off in data.OffDesks)
+            foreach (var (kind, values) in new[] { ("Category", off.Categories), ("Team", off.Teams), ("Status", off.Statuses), ("AssetType", off.AssetTypes), ("Technician", off.Technicians.Select(x => x.ToString()).ToList()) })
+                for (var i = 0; i < values.Count; i++)
+                    Execute(connection, transaction, "INSERT INTO ParkedDeskValues (DeskId, Kind, Value, Position) VALUES ($desk,$kind,$value,$position);",
+                        ("$desk", off.Desk.Id.ToString()), ("$kind", kind), ("$value", values[i]), ("$position", i));
         // Sorted, so a save that changed nothing else writes the same rows in the same order.
         foreach (var (category, id) in data.CategoryDesks.Where(x => known.Contains(x.Value) && data.Categories.Contains(x.Key, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
             Execute(connection, transaction, "INSERT INTO CategoryDesks (Category, DeskId) VALUES ($category,$desk);", ("$category", category), ("$desk", id.ToString()));

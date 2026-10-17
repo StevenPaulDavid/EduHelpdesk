@@ -51,7 +51,22 @@ public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", 
     public bool HasOwnHours => WorkWindows.Count > 0;
     // The parts of the top bar it doesn't use (Services/DeskAreas.cs). Empty: all of them.
     public IReadOnlyList<string> HiddenAreas { get; init; } = [];
+    // DeskKinds.It or DeskKinds.Facilities for the two built into every helpdesk; blank for one a school added.
+    public string Kind { get; init; } = "";
+    public bool IsBuiltIn => Kind.Length > 0;
 }
+
+// The two desks every helpdesk has. Either can be renamed or switched off (HelpdeskStore.BuiltInDesks); neither can be
+// deleted. A school can add more of its own.
+public static class DeskKinds
+{
+    public const string It = "it";
+    public const string Facilities = "facilities";
+}
+
+// A built-in desk that is switched off, and what belonged to it - its categories, teams, own statuses, the asset types
+// placed on it and the people on it - set aside until it is switched back on.
+public sealed record OffDesk(Desk Desk, List<string> Categories, List<string> Teams, List<string> Statuses, List<string> AssetTypes, List<Guid> Technicians);
 
 // Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.
 public sealed record RecoveryKeySetup(string Hash, DateTime CreatedAt);

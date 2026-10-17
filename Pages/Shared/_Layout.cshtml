@@ -32,7 +32,7 @@
     // People is one page holding requesters, technician accounts and roles, so reaching any one of them is enough.
     var canPeople = (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) && On(DeskAreas.People);
     var canOnboarding = Can(Modules.Onboarding) && On(DeskAreas.People);
-    var canRounds = Helpdesk.UserHasFlag(User, Modules.Flags.Rounds) && On(DeskAreas.Rounds);
+    var canRounds = Helpdesk.UserHasFlag(User, Modules.Flags.Rounds) && On(DeskAreas.Facilities);
     // Reports: every report this role can open (ReportMenu - /Reports is the asset report, not an index), then the DfE
     // registers that aren't inventory, the compliance summary first since it is where the three meet.
     var reportLinks = ReportMenu.For(Helpdesk, User).Select(x => (Section: "Reports", x.Page, x.Label)).ToList();

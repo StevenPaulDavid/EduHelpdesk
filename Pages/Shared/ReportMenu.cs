@@ -28,7 +28,7 @@ public static class ReportMenu
         new("/Reports/Onboarding", "Onboarding", "Onboarding", Modules.Flags.ReportOnboarding, DeskAreas.People),
         new("/Reports/Spend", "Job spend", "Job spend", Modules.Flags.ReportSpend, null),
         new("/Reports/Checks", "Premises checks", "Premises checks", Modules.Flags.ReportChecks, null),
-        new("/Reports/Rounds", "Cleaning rounds", "Cleaning rounds", Modules.Flags.ReportRounds, DeskAreas.Rounds),
+        new("/Reports/Rounds", "Cleaning rounds", "Cleaning rounds", Modules.Flags.ReportRounds, DeskAreas.Facilities),
     ];
 
     // The reports this person can open, for the areas the desks being worked on use. current - the report being looked

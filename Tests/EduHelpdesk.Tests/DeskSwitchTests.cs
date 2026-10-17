@@ -120,11 +120,11 @@ public class DeskSwitchTests
         using var s = new Setup();
         Assert.All(DeskAreas.All, area => Assert.True(HelpdeskStore.DeskUses(s.Site, area.Key)));
 
-        Assert.True(s.Store.SetDeskAreas(s.Site.Id, [DeskAreas.Assets, DeskAreas.Rounds, "no-such-area"]).Ok);
+        Assert.True(s.Store.SetDeskAreas(s.Site.Id, [DeskAreas.Assets, DeskAreas.Facilities, "no-such-area"]).Ok);
 
         var site = s.Test.Reopen().Desks.Single(x => x.Name == "Site");
         Assert.True(HelpdeskStore.DeskUses(site, DeskAreas.Assets));
-        Assert.True(HelpdeskStore.DeskUses(site, DeskAreas.Rounds));
+        Assert.True(HelpdeskStore.DeskUses(site, DeskAreas.Facilities));
         Assert.False(HelpdeskStore.DeskUses(site, DeskAreas.Projects));
         Assert.False(HelpdeskStore.DeskUses(site, DeskAreas.Kits));
         Assert.Null(s.Test.Store.CompareDatabaseWithMemory());
@@ -136,25 +136,25 @@ public class DeskSwitchTests
         using var s = new Setup();
         var admin = Principal(s.Admin);
         var caretaker = Principal(s.Caretaker);
-        Assert.True(s.Store.SetDeskAreas(s.Site.Id, [DeskAreas.Assets, DeskAreas.Rounds]).Ok);
-        Assert.True(s.Store.SetDeskAreas(s.It.Id, DeskAreas.All.Select(x => x.Key).Where(x => x != DeskAreas.Rounds)).Ok);
+        Assert.True(s.Store.SetDeskAreas(s.Site.Id, [DeskAreas.Assets, DeskAreas.Facilities]).Ok);
+        Assert.True(s.Store.SetDeskAreas(s.It.Id, DeskAreas.All.Select(x => x.Key).Where(x => x != DeskAreas.Facilities)).Ok);
 
         // The caretaker works on Site only.
         Assert.False(s.Store.AreaOn(caretaker, DeskAreas.Projects));
-        Assert.True(s.Store.AreaOn(caretaker, DeskAreas.Rounds));
+        Assert.True(s.Store.AreaOn(caretaker, DeskAreas.Facilities));
 
         // My desks is IT for the Administrator.
         Assert.True(s.Store.AreaOn(admin, DeskAreas.Projects));
-        Assert.False(s.Store.AreaOn(admin, DeskAreas.Rounds));
+        Assert.False(s.Store.AreaOn(admin, DeskAreas.Facilities));
 
         Assert.True(s.Store.ChooseWorkingDesk(admin, "Site"));
         Assert.False(s.Store.AreaOn(admin, DeskAreas.Projects));
-        Assert.True(s.Store.AreaOn(admin, DeskAreas.Rounds));
+        Assert.True(s.Store.AreaOn(admin, DeskAreas.Facilities));
 
         // All desks: what any of them uses.
         Assert.True(s.Store.ChooseWorkingDesk(admin, HelpdeskStore.AllDesksChoice));
         Assert.True(s.Store.AreaOn(admin, DeskAreas.Projects));
-        Assert.True(s.Store.AreaOn(admin, DeskAreas.Rounds));
+        Assert.True(s.Store.AreaOn(admin, DeskAreas.Facilities));
     }
 
     [Fact]

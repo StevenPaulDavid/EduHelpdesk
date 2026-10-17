@@ -17,7 +17,8 @@ public sealed partial class HelpdeskStore
             lock (_sync)
             {
                 var order = _data.Categories.Select((name, index) => (name, index)).ToDictionary(x => x.name, x => x.index, StringComparer.OrdinalIgnoreCase);
-                return _data.ServiceItems
+                // Not the buttons of a switched-off desk's categories (HelpdeskStore.BuiltInDesks): they wait with it.
+                return _data.ServiceItems.Where(x => order.ContainsKey(x.Category))
                     .OrderBy(x => order.GetValueOrDefault(x.Category, int.MaxValue))
                     .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList();

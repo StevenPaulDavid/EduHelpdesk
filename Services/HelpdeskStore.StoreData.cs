@@ -160,6 +160,8 @@ public sealed partial class HelpdeskStore
         // The desks, in the order of their portal tiles and filters (HelpdeskStore.Desks), and which desk each category,
         // team and desk-only status belongs to. A status with no entry is used on every desk.
         public List<Desk> Desks { get; set; } = [];
+        // Built-in desks that are switched off (HelpdeskStore.BuiltInDesks). Not in Desks, so nothing else sees them.
+        public List<OffDesk> OffDesks { get; set; } = [];
         public Dictionary<string, Guid> CategoryDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> TeamDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> StatusDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);

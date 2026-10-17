@@ -16,6 +16,10 @@
 {
     <div class="notice notice-warning"><strong>The data folder is inside @synced,</strong> which can corrupt a live database. <a asp-page="/Settings/Backups">See Backups &amp; data</a> for how to move it.</div>
 }
+@if (Model.CanEdit && Model.FacilitiesChoicePending)
+{
+    <div class="notice"><strong>Facilities is now built in,</strong> alongside IT: the site team's repairs, premises checks and cleaning. <a asp-page="/Settings/Desks">Choose in Desks</a> whether one of your desks is it, to add one, or not now.</div>
+}
 @if (!Model.IsHttps)
 {
     <div class="notice notice-warning"><strong>Not encrypted.</strong> This page came over plain http://, so from any other computer, passwords and tickets cross the network unencrypted. To fix it, run <code>Enable-Https.cmd</code> from the folder the helpdesk was installed from: it asks whether to make a self-signed certificate or use one you already have, then switches the helpdesk over.</div>
