@@ -115,6 +115,8 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Suppliers"] = "The supplier directory.",
         ["TechnicianTeams"] = "The list of technician teams.",
         ["Technicians"] = "Staff accounts that sign in to the helpdesk.",
+        ["CheckLines"] = "Premises checks as done on tickets: one row per checklist line, copied from the recurring ticket's checklist when the ticket was logged, with what was recorded.",
+        ["AssetTypeDesks"] = "Which desk each asset type belongs to, so plant (boilers, extinguishers) is the Site desk's and kept out of IT's lists.",
         ["TicketCosts"] = "What jobs cost: one row per line on a ticket's Costs tab - net and VAT as typed, in pounds, the supplier and the budget code.",
         ["BudgetCodes"] = "What job costs can be charged to (Settings → Budget codes).",
         ["Desks"] = "The parts of the school the helpdesk serves, such as IT, Site and Cleaning (Settings → Desks), in tile order, with their ticket number prefix and portal tile look.",

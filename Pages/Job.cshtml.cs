@@ -162,6 +162,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
                 return RedirectToPage(new { number });
             }
 
+            if (field == "status" && HelpdeskStore.IsBuiltInStatus(value) && store.CloseBlockedByChecklist(number) is { } blocked)
+            {
+                Message = blocked;
+                return RedirectToPage(new { number });
+            }
             ticket = field switch
             {
                 "status" => ticket with { Status = value, ClosedAt = value == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null },
@@ -339,6 +344,18 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         return RedirectToPage(null, null, new { number }, "parts-tab");
     }
 
+    // The premises checklist on this ticket (HelpdeskStore.Checks), if it came from a recurring ticket that has one.
+    public IReadOnlyList<CheckLine> Checklist => Ticket is null ? [] : store.ChecklistFor(Ticket.Number);
+
+    // Every line's boxes are result-<id>, reading-<id> and note-<id>, so the form is read here rather than bound.
+    public IActionResult OnPostSaveChecklist(int number)
+    {
+        var answers = store.ChecklistFor(number).ToDictionary(x => x.Id, x => new HelpdeskStore.CheckAnswer(
+            Request.Form[$"result-{x.Id}"].FirstOrDefault(), Request.Form[$"reading-{x.Id}"].FirstOrDefault(), Request.Form[$"note-{x.Id}"].FirstOrDefault()));
+        Message = store.SaveChecklist(number, answers).Message;
+        return RedirectToPage(null, null, new { number }, "checklist");
+    }
+
     public IActionResult OnPostAddCost(int number, DateOnly? date, string? description, Guid? supplierId, string? net, string? vat, string? budgetCode)
     {
         if (!CanSeeCosts) return Forbid();
@@ -404,6 +421,12 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             }
         }
 
+        // Closing with a reply still needs the checklist done; the reply isn't saved, so nothing is half done.
+        if (newStatus is not null && HelpdeskStore.IsBuiltInStatus(newStatus) && store.CloseBlockedByChecklist(number) is { } blocked)
+        {
+            Message = blocked;
+            return RedirectToPage(new { number });
+        }
         if (!store.AddTicketComment(number, comment, internalNote))
         {
             Message = "Ticket was not found.";
@@ -630,6 +653,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             return RedirectToPage(new { number });
         }
 
+        if (store.CloseBlockedByChecklist(number) is { } blocked)
+        {
+            Message = blocked;
+            return RedirectToPage(new { number });
+        }
         if (store.RequiresCloseMessage(ticket) && string.IsNullOrWhiteSpace(closingMessage))
         {
             Message = $"A closing message is required for {ticket.Priority} priority / {ticket.Category} tickets before they can be closed.";

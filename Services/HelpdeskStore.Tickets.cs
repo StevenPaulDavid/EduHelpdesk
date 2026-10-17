@@ -112,6 +112,7 @@ public sealed partial class HelpdeskStore
             _data.TicketParts.RemoveAll(x => x.TicketNumber == number);
             _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == number);
             _data.TicketCosts.RemoveAll(x => x.TicketNumber == number);
+            _data.CheckLines.RemoveAll(x => x.TicketNumber == number);
             RemoveTicketExtras(number);
             _data.Tickets.RemoveAt(index);
             Save();
@@ -136,6 +137,8 @@ public sealed partial class HelpdeskStore
         if (sourceIndex < 0 || targetIndex < 0) return "Ticket was not found.";
         // An onboarding's checklist belongs to its own ticket; merged, one of them would be orphaned.
         if (IsOnboardingTicketCore(sourceNumber) || IsOnboardingTicketCore(targetNumber)) return "Onboarding tickets can't be merged.";
+        // A premises check is a record of what was found that day; merged into something else it would be lost.
+        if (_data.CheckLines.Any(x => x.TicketNumber == sourceNumber)) return "A premises check can't be merged into another ticket - its record would be lost.";
 
         var source = _data.Tickets[sourceIndex];
         var target = _data.Tickets[targetIndex];
@@ -287,6 +290,7 @@ public sealed partial class HelpdeskStore
                         if (string.Equals(ticket.Status, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
                         if (DeskForStatusCore(canonical) is { } statusDesk && statusDesk.Id != DeskForCategoryCore(ticket.Category).Id)
                         { Skip($"{canonical} is only used on the {statusDesk.Name} desk."); continue; }
+                        if (IsBuiltInStatus(canonical) && UnansweredChecksCore(ticket.Number) > 0) { Skip("A premises check can't be closed until its checklist is filled in."); continue; }
                         changed = ticket with { Status = canonical!, ClosedAt = string.Equals(canonical, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase) ? ticket.ClosedAt ?? DateTime.UtcNow : null };
                         break;
                     case "priority":
@@ -333,6 +337,7 @@ public sealed partial class HelpdeskStore
                     {
                         if (TicketInsights.IsClosed(ticket)) { unchanged++; continue; }
                         if (text is null && RequiresCloseMessage(ticket)) { Skip("A closing message is required for some of these tickets."); continue; }
+                        if (UnansweredChecksCore(ticket.Number) > 0) { Skip("A premises check can't be closed until its checklist is filled in."); continue; }
                         var comments = ticket.Comments.ToList();
                         if (text is not null) comments.Add(new TicketComment(text, DateTime.UtcNow) { By = CurrentActor() });
                         changed = ticket with { Status = TicketInsights.ClosedStatus, ClosedAt = ticket.ClosedAt ?? DateTime.UtcNow, Comments = comments };
@@ -352,6 +357,7 @@ public sealed partial class HelpdeskStore
                 AddTicketActivities(history, ticket, changed);
                 StampActor(history, from);
                 _data.Tickets[index] = changed with { History = history };
+                if (!TicketInsights.IsClosed(ticket) && TicketInsights.IsClosed(changed)) FollowUpFailedChecksCore(number);
                 updated++;
             }
 
@@ -513,6 +519,8 @@ public sealed partial class HelpdeskStore
             AddTicketActivities(history, previous, item);
             StampActor(history, from);
             _data.Tickets[index] = item with { History = history };
+            // A premises check closed with fails raises its follow-up job (HelpdeskStore.Checks).
+            if (!TicketInsights.IsClosed(previous) && TicketInsights.IsClosed(item)) FollowUpFailedChecksCore(item.Number);
 
             var previousAssetIds = previous.AssetIds.ToHashSet();
             var updatedAssetIds = item.AssetIds.ToHashSet();

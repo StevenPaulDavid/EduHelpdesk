@@ -121,6 +121,9 @@ public sealed partial class HelpdeskStore
             if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
             // Teams have their own rules (the accounts and tickets that carry the name, and the desk).
             if (kind == "Team") return AddTechnicianTeam(value, deskId);
+            // An asset type is placed on a desk too (plant on Site); none given is the first desk.
+            if (kind == "Asset type" && !string.IsNullOrWhiteSpace(value) && !GetManagedOptions(kind).Contains(value.Trim(), StringComparer.OrdinalIgnoreCase))
+                _data.AssetTypeDesks[value.Trim()] = _data.Desks.FirstOrDefault(x => x.Id == deskId)?.Id ?? _data.Desks[0].Id;
             var options = GetManagedOptions(kind);
             var item = value.Trim();
             if (string.IsNullOrWhiteSpace(item)) return $"{kind} name is required.";
@@ -199,6 +202,14 @@ public sealed partial class HelpdeskStore
                 _data.AssetModelMakes[newValue] = linkedMake;
             if (kind == "Asset type" && _data.AssetTypeLifespans.Remove(oldValue, out var lifespan))
                 _data.AssetTypeLifespans[newValue] = lifespan;
+            if (kind == "Asset type")
+            {
+                // Its desk, and the checklists that list every asset of it (HelpdeskStore.Checks), follow the new name.
+                RenameKey(_data.AssetTypeDesks, oldValue, newValue);
+                for (var i = 0; i < _data.RecurringTickets.Count; i++)
+                    if (_data.RecurringTickets[i].Checklist.Any(x => string.Equals(x.AssetType, oldValue, StringComparison.OrdinalIgnoreCase)))
+                        _data.RecurringTickets[i] = _data.RecurringTickets[i] with { Checklist = _data.RecurringTickets[i].Checklist.Select(x => string.Equals(x.AssetType, oldValue, StringComparison.OrdinalIgnoreCase) ? x with { AssetType = newValue } : x).ToList() };
+            }
             if (kind == "Asset make")
             {
                 foreach (var model in _data.AssetModelMakes.Where(x => string.Equals(x.Value, oldValue, StringComparison.OrdinalIgnoreCase)).Select(x => x.Key).ToList())
@@ -270,9 +281,12 @@ public sealed partial class HelpdeskStore
             };
             if (IsProtectedContractStatus(kind, item)) return ProtectedContractStatusMessage;
             if (inUse) return $"That {kind.ToLowerInvariant()} cannot be deleted because it is in use.";
+            if (kind == "Asset type" && _data.RecurringTickets.FirstOrDefault(x => x.Checklist.Any(c => string.Equals(c.AssetType, item, StringComparison.OrdinalIgnoreCase))) is { } checking)
+                return $"That asset type cannot be deleted because the checklist on \"{checking.Name}\" lists every asset of it.";
             options.RemoveAt(index);
             if (kind == "Asset model") _data.AssetModelMakes.Remove(item);
             if (kind == "Asset type") _data.AssetTypeLifespans.Remove(item);
+            if (kind == "Asset type") _data.AssetTypeDesks.Remove(item);
             Save();
             return $"{kind} deleted.";
         }

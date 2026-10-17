@@ -167,6 +167,9 @@ public sealed partial class HelpdeskStore
         public Dictionary<string, Guid> StatusDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         // What jobs cost, and the budget codes they're charged to (HelpdeskStore.Costs).
         public List<TicketCost> TicketCosts { get; set; } = [];
+        // Premises checks done on tickets (HelpdeskStore.Checks), and which desk each asset type belongs to.
+        public List<CheckLine> CheckLines { get; set; } = [];
+        public Dictionary<string, Guid> AssetTypeDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> BudgetCodes { get; set; } = [];
         public bool BudgetCodesSeeded { get; set; }
         // 0: tickets from before each desk counted its own, which keep their key as their number (EnsureDesks). A brand

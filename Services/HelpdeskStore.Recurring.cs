@@ -44,6 +44,7 @@ public sealed partial class HelpdeskStore
             var recount = old is null || !Recurrence.SameTiming(old.Rule, item.Rule) || (item.IsActive && !old.IsActive);
             item = item with
             {
+                Checklist = old?.Checklist ?? [],
                 CountedFrom = recount ? localNow : old!.CountedFrom,
                 LastTicketNumber = old?.LastTicketNumber, LastRunAt = old?.LastRunAt, LastResult = old?.LastResult ?? ""
             };
@@ -126,6 +127,8 @@ public sealed partial class HelpdeskStore
         var number = AddTicketCore(new TicketRecord(0, item.Title.Length > 0 ? item.Title : item.Name, item.Description, item.RequesterId, assets,
             technician?.Id, priority, StartingStatusCore(DeskForCategoryCore(category).Id), category, now, null, sla, CalculateDueDate(sla, now, category),
             TeamName: team, Location: location) { Type = item.Type }, $"Logged {how} by the recurring ticket \"{item.Name}\".");
+        // Its own copy of the checklist (HelpdeskStore.Checks), so changing the checklist later doesn't change this record.
+        AddChecklistCore(number, item);
         return (number, $"Logged {RefCore(number)} {how}.");
     }
 
@@ -264,7 +267,7 @@ public sealed partial class HelpdeskStore
     {
         foreach (var x in data.RecurringTickets)
             // One line, as the save's row capture reads the statement (HelpdeskStore.SaveChanges).
-            Execute(connection, transaction, "INSERT INTO RecurringTickets (Id, Name, IsActive, Frequency, Interval, StartDate, EndDate, At, Days, MonthDay, WeekOfMonth, WeekDay, Month, MoveToSchoolDay, Title, Description, TicketType, Category, Priority, RequesterId, TechnicianId, TeamName, Location, AssetIds, CountedFrom, LastTicketNumber, LastRunAt, LastResult) VALUES ($id,$name,$active,$frequency,$interval,$start,$end,$at,$days,$monthday,$week,$weekday,$month,$move,$title,$description,$type,$category,$priority,$requester,$technician,$team,$location,$assets,$counted,$last,$ran,$result);",
+            Execute(connection, transaction, "INSERT INTO RecurringTickets (Id, Name, IsActive, Frequency, Interval, StartDate, EndDate, At, Days, MonthDay, WeekOfMonth, WeekDay, Month, MoveToSchoolDay, Title, Description, TicketType, Category, Priority, RequesterId, TechnicianId, TeamName, Location, AssetIds, CountedFrom, LastTicketNumber, LastRunAt, LastResult, Checklist) VALUES ($id,$name,$active,$frequency,$interval,$start,$end,$at,$days,$monthday,$week,$weekday,$month,$move,$title,$description,$type,$category,$priority,$requester,$technician,$team,$location,$assets,$counted,$last,$ran,$result,$checklist);",
                 ("$id", x.Id.ToString()), ("$name", x.Name), ("$active", x.IsActive ? 1 : 0), ("$frequency", x.Rule.Frequency), ("$interval", x.Rule.Interval),
                 ("$start", IsoDay(x.Rule.StartDate)), ("$end", IsoDay(x.Rule.EndDate)), ("$at", x.Rule.At.ToString("HH:mm", CultureInfo.InvariantCulture)),
                 ("$days", string.Join(",", x.Rule.Days.Select(d => (int)d))), ("$monthday", x.Rule.MonthDay), ("$week", x.Rule.WeekOfMonth), ("$weekday", (int)x.Rule.WeekDay),
@@ -272,6 +275,6 @@ public sealed partial class HelpdeskStore
                 ("$category", x.Category), ("$priority", x.Priority), ("$requester", x.RequesterId.ToString()), ("$technician", x.TechnicianId?.ToString()),
                 ("$team", x.TeamName), ("$location", x.Location), ("$assets", string.Join(",", x.AssetIds)),
                 ("$counted", x.CountedFrom.ToString(LocalTimeFormat, CultureInfo.InvariantCulture)), ("$last", x.LastTicketNumber),
-                ("$ran", x.LastRunAt is { } ran ? Iso(ran) : null), ("$result", x.LastResult));
+                ("$ran", x.LastRunAt is { } ran ? Iso(ran) : null), ("$result", x.LastResult), ("$checklist", ChecklistJson(x)));
     }
 }

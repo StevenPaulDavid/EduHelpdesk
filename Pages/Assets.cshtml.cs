@@ -19,6 +19,11 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "location")] public string? Location { get; set; }
     [BindProperty(SupportsGet = true, Name = "holder")] public string? Holder { get; set; }
     [BindProperty(SupportsGet = true, Name = "flag")] public string? Flag { get; set; }
+    // A desk's name, "all", or blank for the person's own desks (HelpdeskStore.AssetDesksShown) - plant on Site, kit on IT.
+    [BindProperty(SupportsGet = true, Name = "desk")] public string? Desk { get; set; }
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<Desk> Desks => store.Desks;
+    public IReadOnlyList<Desk> ShownDesks { get; private set; } = [];
     [BindProperty(SupportsGet = true, Name = "sort")] public string Sort { get; set; } = "tag";
     [BindProperty(SupportsGet = true, Name = "dir")] public string Dir { get; set; } = "asc";
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
@@ -63,7 +68,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         SupplierNames = store.Suppliers.ToDictionary(x => x.Id, x => x.Name);
         Normalize();
         var matches = Run();
-        TotalAssets = store.Assets.Count;
+        TotalAssets = Register().Count;
         MatchCount = matches.Count;
         TotalPages = Math.Max(1, (int)Math.Ceiling(MatchCount / (double)Size));
         PageNumber = Math.Clamp(PageNumber, 1, TotalPages);
@@ -138,7 +143,16 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         return Back();
     }
 
-    private List<AssetRecord> Run() => BuildQuery().Run(store.Assets, store.Users, store.AssetTypeLifespans, store.AssetReviewDays, AssetInsights.Today);
+    private List<AssetRecord> Run() => BuildQuery().Run(Register(), store.Users, store.AssetTypeLifespans, store.AssetReviewDays, AssetInsights.Today);
+
+    // The assets of the desks shown, or all of them.
+    private List<AssetRecord> Register()
+    {
+        if (ShownDesks.Count == 0) return store.Assets.ToList();
+        var deskOf = store.AssetDeskLookup();
+        var ids = ShownDesks.Select(x => x.Id).ToHashSet();
+        return store.Assets.Where(x => ids.Contains(deskOf(x.Type).Id)).ToList();
+    }
 
     private AssetListQuery BuildQuery() => new()
     {
@@ -154,6 +168,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
         Flag = AssetListQuery.Flags.Contains(Flag?.Trim().ToLowerInvariant()) ? Flag!.Trim().ToLowerInvariant() : null;
+        ShownDesks = store.AssetDesksShown(User, Desk);
     }
 
     private IActionResult Back() => RedirectToPage(RouteFor(PageNumber, Sort, Dir));
@@ -161,6 +176,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     private Dictionary<string, object?> RouteFor(int page, string sort, string dir) => new()
     {
         ["q"] = string.IsNullOrWhiteSpace(Search) ? null : Search,
+        ["desk"] = Blank(Desk),
         ["status"] = Blank(Status), ["type"] = Blank(Type), ["make"] = Blank(Make), ["building"] = Blank(Building), ["location"] = Blank(Location), ["holder"] = Blank(Holder), ["flag"] = Blank(Flag),
         ["sort"] = sort == "tag" ? null : sort,
         ["dir"] = dir == "desc" ? "desc" : null,
@@ -184,6 +200,8 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         var chips = new List<ActiveFilter>();
         string? Without(string key) { var route = RouteFor(1, Sort, Dir); route[key] = null; return Url.Page("/Assets", route); }
         if (!string.IsNullOrWhiteSpace(Search)) chips.Add(new($"Search: “{Search.Trim()}”", Without("q")));
+        // Shown even when it's the person's own desks, so the list says it isn't everything.
+        if (ShownDesks.Count > 0) { var route = RouteFor(1, Sort, Dir); route["desk"] = "all"; chips.Add(new($"Desk: {string.Join(", ", ShownDesks.Select(x => x.Name))}", Url.Page("/Assets", route))); }
         if (!string.IsNullOrWhiteSpace(Status)) chips.Add(new($"Status: {Status}", Without("status")));
         if (!string.IsNullOrWhiteSpace(Type)) chips.Add(new($"Type: {Type}", Without("type")));
         if (!string.IsNullOrWhiteSpace(Make)) chips.Add(new($"Make: {Make}", Without("make")));

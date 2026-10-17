@@ -166,6 +166,45 @@ else
             <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" data-cancel-content>Cancel</button></div>
         </form>
         <div class="job-meta"><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last modified</span><strong>@Model.Ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
+        @if (Model.Checklist.Count > 0)
+        {
+            var closed = Model.Ticket.Status == "Closed";
+            var left = Model.Checklist.Count(x => !x.Answered);
+            var fails = Model.Checklist.Count(x => x.Failed);
+            @* The premises check this ticket was logged for (HelpdeskStore.Checks): filled in here, and closing waits for it. *@
+            <section class="checklist" id="checklist">
+                <p class="section-heading">Checklist - @Model.Checklist[0].ScheduleName <span class="badge @(fails > 0 ? "badge-warning" : "")">@(left > 0 ? $"{left} to do" : fails > 0 ? $"{fails} failed" : "All passed")</span></p>
+                <form method="post" asp-page-handler="SaveChecklist">
+                    <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                    <div class="table-wrap"><table class="checklist-table">
+                        <thead><tr><th>Check</th><th>Result</th><th>Note</th></tr></thead>
+                        <tbody>
+                            @foreach (var line in Model.Checklist)
+                            {
+                                <tr class="@(line.Failed ? "checklist-failed" : "")">
+                                    <td>@line.Label@if (line.Kind == CheckKinds.Reading) { <br /><small class="muted">Should be @HelpdeskStore.DescribeLimits(line.Min, line.Max, line.Unit)</small> }@if (line.By is { } by && line.AnsweredAt is { } answered) { <br /><small class="muted">@by.Name, @answered.ToLocalTime().ToString("d MMM HH:mm")</small> }</td>
+                                    <td>
+                                        @if (line.Kind == CheckKinds.Reading)
+                                        {
+                                            <label class="visually-hidden" for="reading-@line.Id">Reading for @line.Label</label>
+                                            <input id="reading-@line.Id" name="reading-@line.Id" inputmode="decimal" value="@line.Reading?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" disabled="@closed" class="checklist-reading" />@line.Unit
+                                            @if (line.Result.Length > 0) { <span class="badge @(line.Failed ? "badge-warning" : "")">@(line.Failed ? "Fail" : "Pass")</span> }
+                                        }
+                                        else if (line.Kind != CheckKinds.Note)
+                                        {
+                                            <label class="toggle-label"><input type="radio" name="result-@line.Id" value="pass" checked="@(line.Result == "pass")" disabled="@closed" /> Pass</label>
+                                            <label class="toggle-label"><input type="radio" name="result-@line.Id" value="fail" checked="@(line.Result == "fail")" disabled="@closed" /> Fail</label>
+                                        }
+                                    </td>
+                                    <td><label class="visually-hidden" for="note-@line.Id">Note for @line.Label</label><input id="note-@line.Id" name="note-@line.Id" value="@line.Note" maxlength="@HelpdeskStore.MaxCheckNoteLength" disabled="@closed" placeholder="@(line.Kind == CheckKinds.Note ? "What was done" : "Optional")" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table></div>
+                    @if (!closed && Model.CanEdit) { <button class="button button-primary" type="submit">Save checklist</button> }
+                </form>
+            </section>
+        }
         <p class="section-heading">Assignment &amp; scheduling</p>
         <div class="job-detail-fields">
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">ASSIGNED TECHNICIAN</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" data-edit-field="technician">@Icons.Edit</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">@Icons.Check</button></form></div>

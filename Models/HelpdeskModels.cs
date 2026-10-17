@@ -294,6 +294,38 @@ public record RecurringTicket(Guid Id, string Name, bool IsActive, RecurrenceRul
     public int? LastTicketNumber { get; init; }
     public DateTime? LastRunAt { get; init; }
     public string LastResult { get; init; } = "";
+    // The readings each ticket it logs asks for (HelpdeskStore.Checks); empty for an ordinary recurring ticket.
+    public List<CheckItem> Checklist { get; init; } = [];
+}
+
+// A line on a recurring ticket's checklist. Kind is one of CheckKinds. Min and Max are a reading's limits (either may be
+// blank); Unit is what it is measured in ("°C"). An Assets line becomes one pass/fail line for every asset of AssetType.
+public record CheckItem(Guid Id, string Kind, string Label, decimal? Min = null, decimal? Max = null, string Unit = "", string AssetType = "");
+
+public static class CheckKinds
+{
+    public const string PassFail = "passfail";
+    public const string Reading = "reading";
+    public const string Note = "note";
+    public const string Assets = "assets";
+    public static readonly (string Value, string Label)[] All = [(PassFail, "Pass or fail"), (Reading, "Reading with limits"), (Assets, "Every asset of a type"), (Note, "Note")];
+    public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x.Value, value?.Trim(), StringComparison.OrdinalIgnoreCase)).Value ?? PassFail;
+}
+
+// One line of a check as it was done on a ticket: copied from the schedule's checklist when the ticket was logged, so a
+// checklist changed later doesn't rewrite what was recorded. Result is "pass", "fail" or "" (not answered yet); a
+// reading's result follows its limits. ScheduleId and ScheduleName say which recurring ticket it came from, for the log.
+public record CheckLine(Guid Id, int TicketNumber, int Position, string Kind, string Label, decimal? Min, decimal? Max, string Unit, Guid? AssetId,
+    Guid ScheduleId, string ScheduleName)
+{
+    public string Result { get; init; } = "";
+    public decimal? Reading { get; init; }
+    public string Note { get; init; } = "";
+    public DateTime? AnsweredAt { get; init; }
+    public Actor? By { get; init; }
+    // A note is never required; everything else needs a pass or fail.
+    public bool Answered => Kind == CheckKinds.Note || Result.Length > 0;
+    public bool Failed => Result == "fail";
 }
 // One line of the service catalogue: a common problem or request, filed under a ticket category. Staff pick it in the
 // portal instead of typing a title. DefaultPriority (blank for none) is only what the portal's priority box starts on.

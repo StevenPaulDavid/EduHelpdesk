@@ -25,6 +25,10 @@
             ClearUrl = Url.Page("/Assets"),
             Hidden = [("sort", Model.Sort == "tag" ? null : Model.Sort), ("dir", Model.Descending ? "desc" : null)],
             Fields = @<text>
+                @if (Model.HasSeveralDesks)
+                {
+                    <label>Desk<select name="desk"><option value="">My desks</option><option value="all" selected="@(string.Equals(Model.Desk, "all", StringComparison.OrdinalIgnoreCase))">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Name" selected="@string.Equals(desk.Name, Model.Desk, StringComparison.OrdinalIgnoreCase)">@desk.Name</option> }</select></label>
+                }
                 <label>Show<select name="flag"><option value="">All assets</option>@foreach (var flag in AssetListQuery.Flags) { <option value="@flag" selected="@(Model.Flag == flag)">@AssetsModel.FlagLabel(flag)</option> }</select></label>
                 <label>Status<select name="status"><option value="">Any status</option>@foreach (var item in Model.Statuses) { <option value="@item" selected="@string.Equals(item, Model.Status, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Type<select name="type"><option value="">Any type</option>@foreach (var item in Model.AssetTypes) { <option value="@item" selected="@string.Equals(item, Model.Type, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
@@ -45,6 +49,7 @@
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="status" value="@Model.Status" />
         <input type="hidden" name="type" value="@Model.Type" />
+        <input type="hidden" name="desk" value="@Model.Desk" />
         <input type="hidden" name="make" value="@Model.Make" />
         <input type="hidden" name="building" value="@Model.Building" />
         <input type="hidden" name="location" value="@Model.Location" />

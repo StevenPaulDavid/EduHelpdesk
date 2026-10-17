@@ -1,0 +1,53 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.ChecksReportModel
+@{
+    ViewData["Title"] = "Premises checks"; ViewData["Wide"] = true;
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Premises checks</h1><p class="hero-copy">The compliance log: every check with a checklist done in the year - fire alarm tests, water temperatures, emergency lighting - when it was done, by whom, whether on time, and what failed.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/ChecksPrint" asp-route-year="@Model.Year" target="_blank">🖨 Print / Save as PDF</a> }
+        <a class="button button-secondary" asp-page="/Index">← Overview</a>
+    </div>
+</div>
+<partial name="_ReportTabs" model="@("/Reports/Checks")" />
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Academic year<select name="year">@foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@AcademicYear.Label(y, Model.StartMonth)</option> }</select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Checks">This year</a>@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Checks" asp-page-handler="Export" asp-route-year="@Model.Year">⬇ CSV of every line</a> }</div>
+    </form>
+    <p class="muted">Academic year @Model.YearLabel, by the date each check was logged. Checklists are set on recurring tickets in Settings → Recurring tickets.</p>
+</section>
+
+@if (Model.Schedules.Count == 0)
+{
+    <section class="panel"><p class="muted">No checks with a checklist were logged this year.</p></section>
+}
+@foreach (var schedule in Model.Schedules)
+{
+    <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">CHECK</p><h2>@schedule.Name</h2></div><span class="badge @(schedule.WithFailures > 0 ? "badge-warning" : "")">@schedule.Done of @schedule.Checks.Count done · @schedule.OnTime on time@(schedule.WithFailures > 0 ? $" · {schedule.WithFailures} with failures" : "")</span></div>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Ticket</th><th>Logged</th><th>Due</th><th>Done</th><th>By</th><th>Result</th></tr></thead>
+            <tbody>
+                @foreach (var check in schedule.Checks)
+                {
+                    <tr>
+                        <td><a asp-page="/Job" asp-route-number="@check.Ticket.Number"><strong>@check.Ref</strong></a></td>
+                        <td>@check.Ticket.CreatedAt.ToLocalTime().ToString("ddd d MMM")</td>
+                        <td>@(check.Ticket.DueDate?.ToLocalTime().ToString("ddd d MMM, HH:mm") ?? "-")</td>
+                        <td>@(check.DoneAt?.ToLocalTime().ToString("ddd d MMM, HH:mm") ?? "-")@if (check.Closed && check.Late) { <span class="badge badge-warning">Late</span> }</td>
+                        <td>@check.DoneBy</td>
+                        <td>
+                            <details><summary class="@(check.Failed > 0 ? "badge badge-warning" : "")">@check.Result</summary>
+                                <ul class="muted">@foreach (var line in check.Lines) { <li><strong>@line.Label</strong>: @ChecksReportModel.Recorded(line)</li> }</ul>
+                            </details>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    </section>
+}

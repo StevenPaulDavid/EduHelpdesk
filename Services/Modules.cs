@@ -70,6 +70,7 @@ public static class Modules
         public const string AllDesks = "Tickets.AllDesks";
         public const string Costs = "Tickets.Costs";
         public const string ReportSpend = "Reports.Spend";
+        public const string ReportChecks = "Reports.Checks";
         public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
@@ -101,6 +102,7 @@ public static class Modules
             new(ReportFinance, "Finance and audit report", "Spend, orders and disposals. Shows purchase prices.", "Reports"),
             new(ReportProjects, "Project reports", "Purchasing projects: where they are, technician workload, turnaround, and spend by outcome. Shows quote values.", "Reports"),
             new(ReportOnboarding, "Onboarding report", "New staff onboardings: how many, how long they take to finish, and which tasks run late.", "Reports"),
+            new(ReportChecks, "Premises checks log", "Every check with a checklist done in the year: when, by whom, on time or not, and the readings and failures.", "Reports"),
             new(ReportSpend, "Spend report", "What jobs cost, by budget code, desk, month and supplier. Shows amounts.", "Reports"),
             new(ReportExport, "Export and print reports", "Download report CSVs and open the print views.", "Reports"),
             // Every table exactly as stored, for looking into a problem. Read-only, and each look is in the audit log.

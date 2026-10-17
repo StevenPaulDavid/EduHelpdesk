@@ -6,7 +6,18 @@ public class AssetTypesModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<string> Types => store.AssetTypes;
     public IReadOnlyDictionary<string, int> Lifespans => store.AssetTypeLifespans;
-    public IActionResult OnPost(string value, string? lifespan) => Respond(() => store.AddAssetType(value, ParseYears(lifespan, out var years) ? years : throw new FormatException()));
+    // Each type belongs to a desk (HelpdeskStore.Desks) - boilers and extinguishers to Site - once there is more than one.
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<EduHelpdesk.Models.Desk> Desks => store.Desks;
+    public EduHelpdesk.Models.Desk DeskFor(string type) => store.DeskForAssetType(type);
+
+    public IActionResult OnPost(string value, string? lifespan, Guid? deskId) => Respond(() =>
+    {
+        var message = store.AddAssetType(value, ParseYears(lifespan, out var years) ? years : throw new FormatException());
+        if (deskId is { } desk && message == "Asset type added.") store.SetAssetTypeDesk(value, desk);
+        return message;
+    });
+    public IActionResult OnPostDesk(string value, Guid deskId) { TempData["Message"] = store.SetAssetTypeDesk(value, deskId).Message; return RedirectToPage(); }
     public IActionResult OnPostSave(string currentValue, string value, string? lifespan) => Respond(() => store.UpdateAssetType(currentValue, value, ParseYears(lifespan, out var years) ? years : throw new FormatException()));
     public IActionResult OnPostDelete(string value) { TempData["Message"] = store.DeleteManagedOption("Asset type", value); return RedirectToPage(); }
 

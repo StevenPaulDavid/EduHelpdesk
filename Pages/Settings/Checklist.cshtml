@@ -1,0 +1,58 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.ChecklistModel
+@{
+    var schedule = Model.Schedule!;
+    ViewData["Title"] = $"Checklist - {schedule.Name}";
+
+    // The boxes of one line, for adding and for editing. A null item is a blank one.
+    async Task ItemFields(CheckItem? item)
+    {
+        <div class="template-fields">
+            <label>Kind<select name="kind">@foreach (var (value, label) in CheckKinds.All) { <option value="@value" selected="@((item?.Kind ?? CheckKinds.PassFail) == value)">@label</option> }</select></label>
+            <label>What is checked<input name="label" value="@item?.Label" maxlength="@HelpdeskStore.MaxCheckLabelLength" placeholder="e.g. Hot water, hall kitchen tap" /></label>
+            <label>Lowest allowed<input name="min" inputmode="decimal" value="@item?.Min?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Readings only, e.g. 50" /></label>
+            <label>Highest allowed<input name="max" inputmode="decimal" value="@item?.Max?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" placeholder="Readings only, e.g. 20" /></label>
+            <label>Unit<input name="unit" value="@item?.Unit" maxlength="20" placeholder="e.g. °C" /></label>
+            <label>Asset type<select name="assetType"><option value="">For "every asset of a type"</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@string.Equals(type, item?.AssetType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
+        </div>
+    }
+}
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / RECURRING TICKETS</p><h1>Checklist - @schedule.Name</h1><p class="hero-copy">The lines each ticket this logs asks to be filled in - the fire alarm test, the water temperatures, every extinguisher. A reading outside its limits counts as a fail. The ticket can't be closed until every line is done, and closing it with fails raises one follow-up job listing them. Everything recorded is in Reports → Premises checks.</p></div><a class="button button-secondary" asp-page="/Settings/RecurringTickets">← Recurring tickets</a></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+
+<section class="panel">
+    <div class="panel-heading"><h2>Lines</h2><span class="badge">@schedule.Checklist.Count</span></div>
+    @if (schedule.Checklist.Count == 0) { <p class="muted">No lines yet, so its tickets are ordinary ones.</p> }
+    @for (var i = 0; i < schedule.Checklist.Count; i++)
+    {
+        var item = schedule.Checklist[i];
+        var kindLabel = CheckKinds.All.First(x => x.Value == item.Kind).Label;
+        <div class="order-row">
+            <div class="order-controls">
+                @foreach (var (direction, arrow, word, disabled) in new[] { (-1, "↑", "up", i == 0), (1, "↓", "down", i == schedule.Checklist.Count - 1) })
+                {
+                    <form method="post" asp-page-handler="Move" asp-route-id="@schedule.Id"><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="direction" value="@direction" /><button class="order-button" type="submit" disabled="@disabled" title="Move @word" aria-label="Move @item.Label @word">@arrow</button></form>
+                }
+            </div>
+            <details class="template-item">
+                <summary><strong>@item.Label</strong> <span class="muted">@kindLabel@(item.Kind == CheckKinds.Reading ? " · " + HelpdeskStore.DescribeLimits(item.Min, item.Max, item.Unit) : "")@(item.Kind == CheckKinds.Assets ? $" · {Model.AssetsOfType(item.AssetType)} {item.AssetType} assets today" : "")</span></summary>
+                <form method="post" asp-page-handler="Save" asp-route-id="@schedule.Id" class="settings-form">
+                    <input type="hidden" name="itemId" value="@item.Id" />
+                    @{ await ItemFields(item); }
+                    <button class="button button-primary" type="submit">Save line</button>
+                </form>
+                <form method="post" asp-page-handler="Delete" asp-route-id="@schedule.Id" data-confirm="Remove this line? Tickets already logged keep it."><input type="hidden" name="itemId" value="@item.Id" /><button class="button button-danger" type="submit">Remove line</button></form>
+            </details>
+        </div>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Add a line</h2></div>
+    <form method="post" asp-page-handler="Save" asp-route-id="@schedule.Id" class="settings-form">
+        @{ await ItemFields(null); }
+        <p class="muted">Pass or fail: a yes/no check, such as call point 3 sounding. Reading: a number with a lowest and/or highest allowed value, such as hot water 50 °C or more. Every asset of a type: one pass/fail line for each asset of that type on the register when the ticket is logged, such as every fire extinguisher. Note: a free text box, never required.</p>
+        <button class="button button-primary" type="submit">Add line</button>
+    </form>
+</section>

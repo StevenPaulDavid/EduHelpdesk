@@ -7,6 +7,11 @@
     <form method="post" class="settings-form">
         <label>Add type<input name="value" required /></label>
         <label>Expected lifespan (years)<input name="lifespan" type="number" min="1" max="50" step="1" placeholder="Optional" /></label>
+        @if (Model.HasSeveralDesks)
+        {
+            <label>Desk<select name="deskId">@foreach (var desk in Model.Desks) { <option value="@desk.Id">@desk.Name</option> }</select></label>
+        }
+        @if (Model.HasSeveralDesks) { <small class="muted">Each type belongs to a desk: plant such as boilers and extinguishers to Site, so the asset list and asset report keep it apart from IT's kit.</small> }
         <small class="muted">The lifespan works out when an asset is due for replacement: its purchase date plus the lifespan. A replacement date typed on an asset always overrides it. Leave it blank to only use typed dates.</small>
         <button class="button button-primary">Add</button>
     </form>
@@ -17,6 +22,15 @@
             <div class="directory-row">
                 <div class="attribute-row-main"><strong>@value</strong><span class="muted">@(years.HasValue ? $"{years} year{(years == 1 ? "" : "s")}" : "No lifespan set")</span></div>
                 <div class="row-actions">
+                    @if (Model.HasSeveralDesks)
+                    {
+                        var placed = Model.DeskFor(value);
+                        <form method="post" asp-page-handler="Desk">
+                            <input type="hidden" name="value" value="@value" />
+                            <select name="deskId" data-autosubmit aria-label="Desk for @value">@foreach (var desk in Model.Desks) { <option value="@desk.Id" selected="@(desk.Id == placed.Id)">@desk.Name desk</option> }</select>
+                            <noscript><button class="button button-secondary">Move</button></noscript>
+                        </form>
+                    }
                     <form method="post" asp-page-handler="Save">
                         <input type="hidden" name="currentValue" value="@value" />
                         <input name="value" value="@value" required />

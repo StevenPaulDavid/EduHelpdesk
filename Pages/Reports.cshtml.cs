@@ -19,6 +19,11 @@ public class ReportsModel(HelpdeskStore store) : PageModel
     // -1 means "use the review window from Settings".
     [Microsoft.AspNetCore.Mvc.BindProperty(SupportsGet = true, Name = "warranty")] public int WarrantyDays { get; set; } = -1;
     [Microsoft.AspNetCore.Mvc.BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
+    // A desk's name, "all", or blank for the person's own desks (HelpdeskStore.AssetDesksShown): plant is Site's, kit IT's.
+    [Microsoft.AspNetCore.Mvc.BindProperty(SupportsGet = true, Name = "desk")] public string? Desk { get; set; }
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<EduHelpdesk.Models.Desk> Desks => store.Desks;
+    public IReadOnlyList<EduHelpdesk.Models.Desk> ShownDesks { get; private set; } = [];
 
     public sealed record CountRow(string Name, int Count);
     public sealed record AgeRow(string Type, int Count, int WithPurchaseDate, double? AverageYears, double? OldestYears, int DueOrOverdue);
@@ -50,7 +55,10 @@ public class ReportsModel(HelpdeskStore store) : PageModel
         // Disposed assets have left the estate, so they are out of every figure here - fleet age, replacement planning
         // and warranty would all be skewed by kit that no longer exists. The one exception is the "By status" table
         // below, which is built from the full register: a status breakdown that hides a status would be a lie.
-        var register = store.Assets;
+        ShownDesks = store.AssetDesksShown(User, Desk);
+        var deskOf = store.AssetDeskLookup();
+        var deskIds = ShownDesks.Select(x => x.Id).ToHashSet();
+        var register = ShownDesks.Count == 0 ? store.Assets : store.Assets.Where(x => deskIds.Contains(deskOf(x.Type).Id)).ToList();
         var assets = register.Where(x => !HelpdeskStore.IsDisposed(x)).ToList();
         var lifespans = store.AssetTypeLifespans;
         var today = Today;

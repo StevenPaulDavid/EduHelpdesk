@@ -112,6 +112,50 @@ public sealed partial class HelpdeskStore
                 : [];
     }
 
+    // ---- Plant: which desk an asset type belongs to ----
+    // Boilers and extinguishers are the Site desk's, laptops IT's: the asset list and asset report open on the desks a
+    // person is on. Unlike tickets, every asset can still be seen - the desk only filters.
+
+    public Desk DeskForAssetType(string? type)
+    {
+        lock (_sync)
+            return type is not null && _data.AssetTypeDesks.TryGetValue(type.Trim(), out var id) && _data.Desks.FirstOrDefault(x => x.Id == id) is { } desk ? desk : _data.Desks[0];
+    }
+
+    public Func<string?, Desk> AssetDeskLookup()
+    {
+        lock (_sync)
+        {
+            var first = _data.Desks[0];
+            var byId = _data.Desks.ToDictionary(x => x.Id);
+            var byType = _data.AssetTypeDesks.Where(x => byId.ContainsKey(x.Value)).ToDictionary(x => x.Key, x => byId[x.Value], StringComparer.OrdinalIgnoreCase);
+            return type => type is not null && byType.TryGetValue(type.Trim(), out var desk) ? desk : first;
+        }
+    }
+
+    public (bool Ok, string Message) SetAssetTypeDesk(string? type, Guid deskId)
+    {
+        lock (_sync)
+        {
+            var name = _data.AssetTypes.FirstOrDefault(x => string.Equals(x, type?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (name is null) return (false, "Asset type was not found.");
+            var desk = _data.Desks.FirstOrDefault(x => x.Id == deskId);
+            if (desk is null) return (false, "Select a valid desk.");
+            _data.AssetTypeDesks[name] = desk.Id;
+            Save();
+            return (true, $"{name} assets now belong to the {desk.Name} desk.");
+        }
+    }
+
+    // The desks an asset page shows: "" for the person's own (all of them for someone on every desk), "all", or one desk's name.
+    public IReadOnlyList<Desk> AssetDesksShown(ClaimsPrincipal user, string? choice)
+    {
+        if (!HasSeveralDesks || string.Equals(choice, "all", StringComparison.OrdinalIgnoreCase)) return [];
+        if (FindDesk(choice) is { } one) return [one];
+        var mine = DesksOf(user);
+        return mine.Count == 0 || mine.Count == Desks.Count ? [] : mine;
+    }
+
     // ---- Who sees which desk's tickets ----
     // Someone sees only the tickets of the desks they're on, unless their role has "See all desks" (Administrator always
     // has). Another desk's tickets are not shown anywhere - lists, counts, search, reports, a requester's history - and
@@ -621,6 +665,7 @@ public sealed partial class HelpdeskStore
         }
         NumberNewTicketsCore();
         _data.TeamDesks = Placed(_data.TeamDesks, _data.TechnicianTeams, known, first);
+        _data.AssetTypeDesks = Placed(_data.AssetTypeDesks, _data.AssetTypes, known, first);
         _data.StatusDesks = new Dictionary<string, Guid>(
             (_data.StatusDesks ?? new Dictionary<string, Guid>()).Where(x => known.Contains(x.Value) && !IsBuiltInStatus(x.Key) && _data.Statuses.Contains(x.Key, StringComparer.OrdinalIgnoreCase)),
             StringComparer.OrdinalIgnoreCase);

@@ -150,6 +150,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Reports/ProjectsPrint", Modules.Flags.ReportExport);
     options.Conventions.AuthorizePage("/Reports/Onboarding", Modules.Flags.ReportOnboarding);
     options.Conventions.AuthorizePage("/Reports/Spend", Modules.Flags.ReportSpend);
+    options.Conventions.AuthorizePage("/Reports/Checks", Modules.Flags.ReportChecks);
+    options.Conventions.AuthorizePage("/Reports/ChecksPrint", Modules.Flags.ReportChecks);
+    options.Conventions.AuthorizePage("/Reports/ChecksPrint", Modules.Flags.ReportExport);
 
     // The Settings area (branding, option lists, CSV import, factory reset). The audit log lives under /Settings in the
     // tree but is its own module, so this cannot use AuthorizeFolder: a page rule does not replace a folder rule, it is

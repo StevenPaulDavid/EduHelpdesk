@@ -1,0 +1,34 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.ChecksPrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Premises checks log";
+    ViewData["ReportSubtitle"] = $"Academic year {Model.YearLabel}";
+}
+@if (Model.Schedules.Count == 0)
+{
+    <p>No checks with a checklist were logged this year.</p>
+}
+@foreach (var schedule in Model.Schedules)
+{
+    <section>
+        <h2>@schedule.Name</h2>
+        <p class="sub">@schedule.Done of @schedule.Checks.Count done, @schedule.OnTime on time@(schedule.WithFailures > 0 ? $", {schedule.WithFailures} with failures" : "").</p>
+        <table>
+            <thead><tr><th style="width:20mm">Ticket</th><th style="width:22mm">Logged</th><th style="width:28mm">Done</th><th style="width:28mm">By</th><th>What was recorded</th></tr></thead>
+            <tbody>
+                @foreach (var check in schedule.Checks)
+                {
+                    <tr class="@(check.Failed > 0 ? "flag" : "")">
+                        <td class="count">@check.Ref</td>
+                        <td>@check.Ticket.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</td>
+                        <td>@(check.DoneAt?.ToLocalTime().ToString("d MMM yyyy, HH:mm") ?? "Not done")@if (check.Closed && check.Late) { <br /><span class="pill pill-warn">Late</span> }</td>
+                        <td>@check.DoneBy</td>
+                        <td><strong>@check.Result.</strong> @string.Join("; ", check.Lines.Select(x => $"{x.Label}: {ChecksReportModel.Recorded(x)}"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}

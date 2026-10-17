@@ -68,6 +68,7 @@
                 <div class="heading-actions"><button class="button button-primary" type="submit">Save changes</button></div>
             </form>
             <div class="heading-actions">
+                <a class="button button-secondary" asp-page="/Settings/Checklist" asp-route-id="@item.Id" title="Readings each ticket it logs asks for - for premises checks">Checklist@(item.Checklist.Count > 0 ? $" ({item.Checklist.Count})" : "")</a>
                 <form method="post" asp-page-handler="LogNow" asp-route-id="@item.Id" data-confirm="Log a ticket from this now? The schedule carries on as it is."><button class="button button-secondary" type="submit">Log one now</button></form>
                 <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" data-confirm="Delete this recurring ticket? Tickets it already logged are not affected."><button class="button button-danger" type="submit">Delete</button></form>
             </div>

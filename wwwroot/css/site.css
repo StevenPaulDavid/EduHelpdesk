@@ -2462,3 +2462,9 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .recurrence fieldset { border: 0; padding: 0; margin: 0; }
 .recurrence legend { font-weight: 600; margin-bottom: 6px; }
 .recurrence [hidden] { display: none !important; }
+/* A premises check's checklist on a ticket (Pages/Job.cshtml, HelpdeskStore.Checks). */
+.checklist { margin: var(--space-4) 0; }
+.checklist-table td { vertical-align: middle; }
+.checklist-table .toggle-label { display: inline-flex; margin-right: var(--space-3); }
+.checklist-reading { width: 6rem; margin-right: 4px; }
+.checklist-failed { background: var(--warning-soft, #fbf0e2); }
