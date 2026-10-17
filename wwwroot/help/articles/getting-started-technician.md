@@ -59,4 +59,4 @@ Use **Log a ticket** for something that still needs doing. For a job you've alre
 
 ## Getting help
 
-Every page with a guide has a **Help** link next to its title, and a **?** beside a field explains what to put in it. Search all the help from the **?** in the top bar.
+Every page with a guide has a **?** next to its title, and a **?** beside a field explains what to put in it. Search all the help from the **?** in the top bar.

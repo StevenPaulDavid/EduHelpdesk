@@ -7,14 +7,14 @@
     string Or(string? value, string blank) => string.IsNullOrWhiteSpace(value) ? blank : value;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / PARTS</p><h1>@(part?.Name ?? "Add part")</h1>@if (!string.IsNullOrWhiteSpace(part?.Sku)) { <p class="hero-copy">SKU @part.Sku</p> }</div>
+    <div><h1>@(part?.Name ?? "Add part")</h1>@if (!string.IsNullOrWhiteSpace(part?.Sku)) { <p class="hero-copy">SKU @part.Sku</p> }</div>
     <a class="button button-secondary" asp-page="/Parts">← Back to parts</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
     <div class="panel-heading">
-        <div><p class="eyebrow">DETAILS</p><h2>@(Model.Adding ? "New part" : Model.Editing ? "Editing details" : "Part details")</h2></div>
+        <div><h2>@(Model.Adding ? "New part" : Model.Editing ? "Editing details" : "Part details")</h2></div>
         @if (part is not null && !Model.Editing) { <a class="button button-secondary" asp-page="/Parts/Edit" asp-route-id="@part.Id" asp-route-edit="true">Edit details</a> }
     </div>
 
@@ -57,7 +57,7 @@
 {
     <section class="panel">
         <div class="panel-heading">
-            <div><p class="eyebrow">STOCK</p><h2>Stock</h2></div>
+            <div><h2>Stock</h2></div>
             <div class="heading-actions">
                 @if (Model.IsLow) { <span class="badge badge-warning">At or below reorder level (@Model.ReorderAt)</span> }
                 <span class="badge">@part.QuantityOnHand in stock</span>

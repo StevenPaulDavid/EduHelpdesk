@@ -181,7 +181,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
 
     <aside class="onboarding-side">
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">NEW STARTER</p><h2>Details</h2></div></div>
+            <div class="panel-heading"><div><h2>Details</h2></div></div>
             <dl class="detail-list onboarding-facts">
                 <dt>Email</dt><dd>@(string.IsNullOrWhiteSpace(starter?.Email) ? "Not yet" : starter!.Email)</dd>
                 <dt>Job title</dt><dd>@(string.IsNullOrWhiteSpace(record.JobTitle) ? "Not set" : record.JobTitle)</dd>
@@ -216,7 +216,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
         </section>
 
         <section class="panel" id="welcome-pack">
-            <div class="panel-heading"><div><p class="eyebrow">FOR THEIR FIRST DAY</p><h2>Welcome pack</h2></div></div>
+            <div class="panel-heading"><div><h2>Welcome pack</h2></div></div>
             @{ var packDocuments = Model.PackDocuments.Where(x => record.PackDocumentIds.Contains(x.Id)).ToList(); }
             <p class="muted">One PDF: how to sign in, @(Model.EquipmentCount == 0 ? "the equipment issued (none yet)" : $"the {Model.EquipmentCount} item{(Model.EquipmentCount == 1 ? "" : "s")} issued, with a signature block,") the school's IT information@(packDocuments.Count == 0 ? "" : $", then {string.Join(", ", packDocuments.Select(x => x.Name))}").</p>
             <p class="muted">@(Model.PackHasPassword ? "It includes their temporary password, while it's still to hand - for an hour after it was made." : starter?.PasswordHash is null ? "Their portal account isn't made yet, so the pack says it will be ready by their first day." : "Their password isn't in it: it was made over an hour ago, or they've changed it.")</p>
@@ -240,7 +240,7 @@ else if (record.AllDone) { <div class="notice">Every task is done, so the ticket
         @if (Model.CanEdit || Model.CanDelete)
         {
             <section class="panel">
-                <div class="panel-heading"><div><p class="eyebrow">IF PLANS CHANGE</p><h2>Cancel or delete</h2></div></div>
+                <div class="panel-heading"><div><h2>Cancel or delete</h2></div></div>
                 @if (Model.CanEdit)
                 {
                     @if (record.IsCancelled)

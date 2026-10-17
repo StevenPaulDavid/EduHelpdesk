@@ -3,7 +3,7 @@
 @* The page body of both register imports (Pages/Shared/RegisterImportPage.cs): upload, then a preview with a tick per
    row, then apply. *@
 <a class="back-link" href="@Url.Page(Model.BackPage)">← @Model.BackLabel</a>
-<div class="page-heading"><div><p class="eyebrow">IMPORT</p><h1>@Model.Title</h1><p class="hero-copy">@Model.Intro</p></div></div>
+<div class="page-heading"><div><h1>@Model.Title</h1><p class="hero-copy">@Model.Intro</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 @if (Model.Preview is not { } preview)
@@ -19,7 +19,7 @@
 else
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">PREVIEW</p><h2>@Model.FileName</h2></div>
+        <div class="panel-heading"><div><h2>@Model.FileName</h2></div>
             <div class="heading-actions">
                 <span class="badge">@preview.Count(RegisterImportActions.Add) to add</span>
                 <span class="badge">@preview.Count(RegisterImportActions.Update) to update</span>

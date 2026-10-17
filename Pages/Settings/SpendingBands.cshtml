@@ -2,11 +2,11 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.SpendingBandsModel
 @{ ViewData["Title"] = "Spending bands"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / PROJECTS</p><h1>Spending bands</h1><p class="hero-copy">Your finance policy's thresholds: how many quotes a purchase needs and what else it has to meet. Every project shows them for reference, with the band it currently falls in highlighted.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Spending bands</h1><p class="hero-copy">Your finance policy's thresholds: how many quotes a purchase needs and what else it has to meet. Every project shows them for reference, with the band it currently falls in highlighted.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">MEASURED ON</p><h2>Which total a project is banded on <help-tip key="band.basis" /></h2></div></div>
+    <div class="panel-heading"><div><h2>Which total a project is banded on <help-tip key="band.basis" /></h2></div></div>
     <p class="muted">A project is placed in a band by the highest quote for each of its items, added up over the whole contract: every payment over the full term. So the band shows as soon as prices come in, before any quote is chosen, and choosing a cheaper quote doesn't move the project into a band that needs fewer quotes. Declined quotes don't count. Most finance policies and procurement thresholds are set excluding VAT.</p>
     <form method="post" asp-page-handler="Basis" class="settings-form">
         <label class="toggle-label"><input type="radio" name="includeVat" value="false" checked="@(!Model.IncludeVat)" /> Excluding VAT</label>
@@ -16,7 +16,7 @@
 </section>
 
 <section class="panel" id="page-vat">
-    <div class="panel-heading"><div><p class="eyebrow">PROJECT PAGES</p><h2>Amounts on a project's page</h2></div></div>
+    <div class="panel-heading"><div><h2>Amounts on a project's page</h2></div></div>
     <p class="muted">Which figures a project's page shows for its quotes, payment lines and chosen totals. Only the project's page changes: the proposal PDF still shows both, with and without VAT, and the projects report is unaffected.</p>
     <form method="post" asp-page-handler="PageVat" class="settings-form">
         <label class="toggle-label"><input type="radio" name="includeVat" value="false" checked="@(!Model.PageIncludesVat)" /> Excluding VAT <small class="muted">What most schools budget on.</small></label>
@@ -26,7 +26,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">BANDS</p><h2>Spending bands</h2></div><span class="badge">@Model.Bands.Count</span></div>
+    <div class="panel-heading"><div><h2>Spending bands</h2></div><span class="badge">@Model.Bands.Count</span></div>
     <p class="muted">Amounts are in pounds and both ends count, to the penny - so one band ends at 999.99 and the next starts at 1,000. Leave "Up to" blank for the top band. Bands can't overlap; gaps are allowed.</p>
     @foreach (var band in Model.Bands)
     {

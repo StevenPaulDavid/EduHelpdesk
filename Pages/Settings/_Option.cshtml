@@ -5,8 +5,8 @@
     var title = SettingsMenu.For(Context.Request.Path.Value ?? "")?.Title ?? ViewData["Title"] as string ?? Model.Kind;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">SETTINGS</p><h1>@title</h1><p class="hero-copy">@Model.Values.Count in the list. Rename one with the pencil; the bin takes it off the list.</p></div>
-    @if (Model.CanOpenSettings) { <a class="button button-secondary" asp-page="/Settings">← Settings</a> }
+    <div><h1>@title</h1><p class="hero-copy">@Model.Values.Count in the list. Rename one with the pencil; the bin takes it off the list.</p></div>
+    @if (Model.CanOpenSettings) { }
 </div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 <section class="panel option-panel">

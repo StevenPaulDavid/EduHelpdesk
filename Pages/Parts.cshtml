@@ -5,7 +5,7 @@
     ViewData["Title"] = "Parts"; ViewData["Wide"] = true;
     var cols = Model.Columns;
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / PARTS</p><h1>Parts</h1><p class="hero-copy">Spares and consumables in stock, where they're kept and who supplies them.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Parts/Edit">@Icons.Plus Add part</a> }</div>
+<div class="page-heading"><div><h1>Parts</h1><p class="hero-copy">Spares and consumables in stock, where they're kept and who supplies them.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Parts/Edit">@Icons.Plus Add part</a> }</div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -33,7 +33,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">STOCK</p><h2>Parts inventory</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalParts}" : Model.TotalParts.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="panel-heading"><div><h2>Parts inventory</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalParts}" : Model.TotalParts.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="part" data-nouns="parts">
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="category" value="@Model.Category" />

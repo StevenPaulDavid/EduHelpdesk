@@ -93,7 +93,8 @@
     var helpdeskSignedIn = User.Identity?.IsAuthenticated == true && !NavOn("/Portal");
     var onHelp = NavOn("/Help");
     var pageHelp = helpdeskSignedIn && !onHelp ? HelpArticles.ForPage(navPath) : null;
-    var showWelcome = helpdeskSignedIn && !onHelp && !NavOn("/ChangePassword", "/LoginCode", "/TwoFactor")
+    // Only on the overview, where someone lands: on every page it pushed the work below the fold.
+    var showWelcome = helpdeskSignedIn && navPath == "/"
         && Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var welcomeAccount)
         && Helpdesk.Preference(welcomeAccount, HelpdeskStore.HelpWelcomePreference) is null;
 }
@@ -270,11 +271,11 @@
         @if (showWelcome)
         {
             <div class="help-welcome" role="region" aria-label="Welcome">
-                <p><strong>New to EduHelpdesk?</strong> Start with <a asp-page="/Help/Index">Help</a>: there's a short Getting started guide for what you do. A <span class="help-tip-mark help-tip-sample" aria-hidden="true">?</span> beside a field explains it, and the Help link by a page's title opens its guide.</p>
+                <p><strong>New to EduHelpdesk?</strong> Start with <a asp-page="/Help/Index">Help</a>: there's a short Getting started guide for what you do. A <span class="help-tip-mark help-tip-sample" aria-hidden="true">?</span> beside a field explains it, and the one by a page's title opens its guide.</p>
                 <form method="post" asp-page="/Help/Index" asp-page-handler="DismissWelcome"><input type="hidden" name="returnUrl" value="@themeReturn" /><button class="button button-secondary" type="submit">Got it</button></form>
             </div>
         }
-        @if (pageHelp is not null) { <a class="page-help-link" id="page-help-link" asp-page="/Help/Article" asp-route-slug="@pageHelp.Slug" title="Help with this page: @pageHelp.Title"><span class="help-tip-mark" aria-hidden="true">?</span> Help</a> }
+        @if (pageHelp is not null) { <a class="page-help-link" id="page-help-link" asp-page="/Help/Article" asp-route-slug="@pageHelp.Slug" title="Help with this page: @pageHelp.Title"><span class="help-tip-mark" aria-hidden="true">?</span><span class="page-help-word"> Help</span></a> }
         @RenderBody()
     </main>
     <footer class="footer@(ViewData["Wide"] is true ? " shell-wide" : null)">
@@ -296,7 +297,9 @@
     @if (notifyAccount is not null)
     {
         @* Not deferred, so window.EduNotify exists by the time a page's own script (the Notifications page) runs. *@
+        @* data-nudge-here: the pages where the "switch notifications on" bar may show (wwwroot/js/notifications.js). *@
         <div id="notify-root" hidden data-audience="@notifyAudience" data-account="@notifyAccount" data-poll="@NotificationEndpoints.PollPath"
+             data-nudge-here="@(navPath is "/" or "/Portal" or "/Portal/Index" ? "true" : "false")"
              data-enabled="@(Helpdesk.NotificationsOpenFor(notifyAudience!) ? "true" : "false")" data-prompt="@(Helpdesk.NotificationSettings.Prompt ? "true" : "false")"
              data-settings="@Url.Page(notifyAudience == HelpdeskStore.PortalAudience ? "/Portal/Notifications" : "/Notifications")"
              data-icon="@(Helpdesk.LogoVersion is { } notifyLogo ? Url.Content("~/branding/logo") + "?v=" + notifyLogo : Url.Content("~/favicon.ico"))"></div>

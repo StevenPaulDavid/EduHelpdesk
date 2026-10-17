@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.ImportsModel
 @{ ViewData["Title"] = "Imports"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Imports</h1><p class="hero-copy">Bring staff accounts and option lists in from CSV files, rather than typing them in one at a time.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Imports</h1><p class="hero-copy">Bring staff accounts and option lists in from CSV files, rather than typing them in one at a time.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

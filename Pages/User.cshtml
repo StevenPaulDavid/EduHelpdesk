@@ -7,7 +7,7 @@
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / PERSON</p><h1>Edit person</h1><p class="hero-copy">Update the person details and choose which tickets belong to them.</p></div>
+    <div><h1>Edit person</h1><p class="hero-copy">Update the person details and choose which tickets belong to them.</p></div>
     <div class="heading-actions">
         <partial name="_RawDataLink" model='("user", Model.Person!.Id.ToString())' />
         <a class="button button-secondary" asp-page="/People">&lt;- Back to people</a>
@@ -103,7 +103,7 @@
 {
     <section class="panel" id="access">
         <div class="panel-heading">
-            <div><p class="eyebrow">ACCESS CONTROL REGISTER</p><h2>Systems and areas</h2></div>
+            <div><h2>Systems and areas</h2></div>
             <div class="heading-actions"><span class="badge">@Model.Access.Count(x => x.Grant.IsActive(EduHelpdesk.Services.AssetInsights.Today)) live</span>@if (Model.CanAddAccess && Model.Person.IsActive) { <a class="button button-secondary" asp-page="/Access/Grant" asp-route-person="@Model.Person.Id">@Icons.Plus Record access</a> }</div>
         </div>
         @if (Model.Access.Count == 0) { <p class="muted">Nothing recorded on the access control register.</p> }
@@ -129,7 +129,7 @@
 @if (Model.CanEdit && Model.Person.AnonymisedAt is null)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">STAFF PORTAL</p><h2>Signing in</h2></div></div>
+        <div class="panel-heading"><div><h2>Signing in</h2></div></div>
         <p class="muted">@(Model.Person.PasswordHash is null ? "They have no portal password yet." : Model.Person.RequirePasswordChange ? "They have a temporary password, and will choose their own when they next sign in." : "They sign in with a password they have chosen or been given.") The quick start guide tells them where to go and how to report a problem; printed within an hour of setting a password, it includes it.</p>
         <div class="button-row">
             <a class="button button-secondary" asp-page="/People/QuickStart" asp-route-user="@Model.Person.Id">Print quick start guide</a>
@@ -142,7 +142,7 @@
 @if (Model.CanEdit)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">THEIR DATA</p><h2>Subject access</h2></div></div>
+        <div class="panel-heading"><div><h2>Subject access</h2></div></div>
         <p class="muted">A zip of everything the helpdesk holds about them, for a subject access request: their record, the tickets they raised with every update and internal note, attached files, assets and loans, projects, other tickets that mention their name or email, and the audit log lines about them. A README explains what to check before it is sent. Each download is recorded in the audit log.</p>
         <a class="button button-secondary" asp-page="/User" asp-page-handler="Export" asp-route-id="@Model.Person.Id">Download their data (.zip)</a>
     </section>
@@ -152,7 +152,7 @@
     <input type="hidden" name="id" value="@Model.Person!.Id" />
     <div class="grid two asset-edit-grid">
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">PERSON DETAILS</p><h2>@Model.Person.Name</h2></div></div>
+            <div class="panel-heading"><div><h2>@Model.Person.Name</h2></div></div>
             <div class="form-grid">
                 <label>Name<input name="name" value="@Model.Person.Name" required /></label>
                 <label>Email<input name="email" type="email" value="@Model.Person.Email" required /></label>
@@ -168,7 +168,7 @@
             </div>
         </section>
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">LINKED TICKETS</p><h2>Select tickets</h2></div><span class="badge">@linkedTickets.Count linked</span></div>
+            <div class="panel-heading"><div><h2>Select tickets</h2></div><span class="badge">@linkedTickets.Count linked</span></div>
             <p class="muted">Selecting a ticket makes this person its requester.</p>
             <div class="asset-job-list">
                 @foreach (var ticket in Model.Tickets)

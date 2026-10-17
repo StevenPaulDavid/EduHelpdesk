@@ -2,7 +2,7 @@
 @model EduHelpdesk.Pages.Settings.DatabaseRecordModel
 @{ ViewData["Title"] = $"{Model.Subject} · Database"; }
 <div class="page-heading">
-    <div><p class="eyebrow">SETTINGS / DATABASE</p><h1>@Model.Record.Label @Model.Key</h1><p class="hero-copy">Every row stored about it, table by table, exactly as stored.</p></div>
+    <div><h1>@Model.Record.Label @Model.Key</h1><p class="hero-copy">Every row stored about it, table by table, exactly as stored.</p></div>
     <a class="button button-secondary" asp-page="/Settings/Database">← Database</a>
 </div>
 

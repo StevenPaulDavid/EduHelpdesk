@@ -62,7 +62,6 @@
 <a class="back-link" asp-page="/Projects">← Back to projects</a>
 <div class="page-heading">
     <div>
-        <p class="eyebrow">EDUHELPDESK / PROJECT</p>
         <h1>@project.Title</h1>
         <p class="hero-copy">@project.Reference · proposal needed by @project.DueDate.ToString("ddd d MMM yyyy")@if (overdue) { <span class="badge badge-warning pj-due-badge">Late</span> } else if (soon) { <span class="badge pj-due-badge">Due soon</span> }</p>
     </div>
@@ -194,7 +193,7 @@
 @if (project.Outcome == ProjectOutcomes.Approved && (Model.CanAddContracts || Model.CanOpenContracts) && project.Items.Any(x => x.Chosen is not null))
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">CONTRACTS REGISTER</p><h2>Record what was approved</h2></div></div>
+        <div class="panel-heading"><div><h2>Record what was approved</h2></div></div>
         <p class="muted">Each chosen quote can be added to the contracts register, filled in from the quote. Worth doing for anything with renewals, a subscription or a lease.</p>
         <div class="directory-list">
             @foreach (var item in project.Items.Where(x => x.Chosen is not null))
@@ -228,7 +227,7 @@
 <div id="overview" class="ticket-tab-panel pj-overview" role="tabpanel" hidden>
     <section class="panel">
         <div class="panel-heading">
-            <div><p class="eyebrow">WHAT WAS ASKED FOR</p><h2>@project.Title</h2></div>
+            <div><h2>@project.Title</h2></div>
             @if (Model.CanEdit) { <button class="button button-secondary" type="button" data-open-blade="details-blade">@Icons.Edit Edit details</button> }
         </div>
         <p class="job-description pj-asked">@project.ItemsWanted</p>

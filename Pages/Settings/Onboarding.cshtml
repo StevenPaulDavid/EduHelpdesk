@@ -2,11 +2,11 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.OnboardingModel
 @{ ViewData["Title"] = "Onboarding checklists"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Onboarding checklists</h1><p class="hero-copy">One template for each kind of new starter. Starting an onboarding copies a template's tasks, which can then be changed for that person.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Onboarding checklists</h1><p class="hero-copy">One template for each kind of new starter. Starting an onboarding copies a template's tasks, which can then be changed for that person.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">NEW TEMPLATE</p><h2>Add a template</h2></div></div>
+    <div class="panel-heading"><div><h2>Add a template</h2></div></div>
     <p class="muted">For example Teacher, Support staff, or Supply and cover. Start from a copy of another to save typing.</p>
     <form method="post" asp-page-handler="Add" class="band-row band-new onboarding-template-new">
         <label>Name<input name="name" maxlength="100" placeholder="e.g. Support staff" required /></label>
@@ -16,7 +16,7 @@
 </section>
 
 <section class="panel" id="welcome-pack">
-    <div class="panel-heading"><div><p class="eyebrow">WELCOME PACK</p><h2>What goes in every welcome pack</h2></div></div>
+    <div class="panel-heading"><div><h2>What goes in every welcome pack</h2></div></div>
     <p class="muted">Each onboarding can print a welcome pack: their sign-in details, the equipment issued to them, a signature block, the text below, and then the PDFs each template chooses.</p>
     <form method="post" asp-page-handler="ItInfo" class="settings-form">
         <label>School IT information <small class="muted">Wi-Fi, printing, who to ask for help, where to find policies. A blank line starts a new paragraph.</small><textarea name="text" rows="6" maxlength="@HelpdeskStore.MaxOnboardingItInfoLength">@Model.ItInfo</textarea></label>
@@ -54,7 +54,7 @@
 {
     <section class="panel onboarding-template" id="template-@template.Id">
         <div class="panel-heading">
-            <div><p class="eyebrow">TEMPLATE</p><h2>@template.Name</h2></div>
+            <div><h2>@template.Name</h2></div>
             <div class="heading-actions">
                 <span class="badge">@template.Tasks.Count task@(template.Tasks.Count == 1 ? "" : "s")</span>
                 <form method="post" asp-page-handler="Delete" data-confirm="Delete the @template.Name template? Onboardings already started from it keep their checklists.">

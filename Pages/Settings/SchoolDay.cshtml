@@ -2,11 +2,11 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.SchoolDayModel
 @{ ViewData["Title"] = "School day and periods"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / TICKETS</p><h1>School day and periods</h1><p class="hero-copy">SLAs measured in work days or periods count against these, so a ticket logged on Friday afternoon isn't overdue by Sunday.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>School day and periods</h1><p class="hero-copy">SLAs measured in work days or periods count against these, so a ticket logged on Friday afternoon isn't overdue by Sunday.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">SCHOOL WEEK</p><h2>School days</h2></div></div>
+    <div class="panel-heading"><div><h2>School days</h2></div></div>
     <p class="muted">Work-day and period SLAs skip any day that isn't ticked. Holidays and INSET days aren't taken into account yet, so tickets logged just before a break will show as overdue over it.</p>
     <form method="post" asp-page-handler="Days" class="settings-form">
         <div class="school-days">
@@ -20,7 +20,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">TIMETABLE</p><h2>Periods <help-tip key="schoolday.periods" /></h2></div><span class="badge">@Model.Rows.Count(x => x.Name.Length > 0)</span></div>
+    <div class="panel-heading"><div><h2>Periods <help-tip key="schoolday.periods" /></h2></div><span class="badge">@Model.Rows.Count(x => x.Name.Length > 0)</span></div>
     <p class="muted">The same timings are used on every school day. Leave gaps for break, lunch and after school - they don't count. A period SLA starts counting from the next period to begin, so the one already under way when a ticket is logged doesn't count.</p>
     @if (Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
     <form method="post" asp-page-handler="Periods" id="periods-form">
@@ -55,7 +55,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">CHECK</p><h2>If a ticket were logged now</h2></div></div>
+    <div class="panel-heading"><div><h2>If a ticket were logged now</h2></div></div>
     <p class="muted">Logged @EduHelpdesk.Pages.Settings.SchoolDayModel.Format(Model.Now), using the saved settings above:</p>
     <dl class="detail-list">
         @foreach (var example in Model.Examples)

@@ -7,7 +7,7 @@
     string P(int count, string one, string many) => EduHelpdesk.Pages.Settings.SpiceworksImportModel.Plural(count, one, many);
 }
 <div class="page-heading">
-    <div><p class="eyebrow">SETTINGS / IMPORTS</p><h1>Import from Spiceworks</h1><p class="hero-copy">Tickets, comments and history from Spiceworks Cloud Help Desk's data export. Nothing changes until you import - this shows what would.</p></div>
+    <div><h1>Import from Spiceworks</h1><p class="hero-copy">Tickets, comments and history from Spiceworks Cloud Help Desk's data export. Nothing changes until you import - this shows what would.</p></div>
     <a class="button button-secondary" asp-page="/Settings/Imports">← Imports</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -45,7 +45,7 @@ else
     @if (plan.Problems.Count > 0)
     {
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">WORTH KNOWING</p><h2>@P(plan.Problems.Count, "thing", "things") in the file that can't come across as they are</h2></div></div>
+            <div class="panel-heading"><div><h2>@P(plan.Problems.Count, "thing", "things") in the file that can't come across as they are</h2></div></div>
             <ul>@foreach (var problem in plan.Problems) { <li>@problem</li> }</ul>
         </section>
     }
@@ -77,7 +77,7 @@ else
     </section>
 
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">PEOPLE</p><h2>Who the tickets belong to</h2></div></div>
+        <div class="panel-heading"><div><h2>Who the tickets belong to</h2></div></div>
         <h3 class="section-heading">Technicians</h3>
         <p class="muted">Matched to EduHelpdesk accounts by email, then name. A ticket whose Spiceworks assignee has no match is left unassigned, with who had it in its history. @P(plan.UnassignedTickets, "ticket", "tickets") will be unassigned.</p>
         <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">In Spiceworks</th><th>Email</th><th class="num">Assigned tickets</th><th>In EduHelpdesk</th></tr></thead><tbody>
@@ -102,7 +102,7 @@ else
     @if (plan.Attributes.Count > 0)
     {
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">CUSTOM FIELDS</p><h2>Kept as ticket custom attributes</h2></div></div>
+            <div class="panel-heading"><div><h2>Kept as ticket custom attributes</h2></div></div>
             <ul>@foreach (var field in plan.Attributes) { <li><strong>@field.Label</strong>: @P(field.Values, "ticket has", "tickets have") a value. @(field.Exists ? "Goes in the existing attribute of that name." : "A new ticket attribute is added.")</li> }</ul>
         </section>
     }
@@ -114,7 +114,7 @@ else
         var automatic = sync.Updates.Where(x => !x.EditedHere || x.Changes.Count == 0).ToList();
         var conflicts = sync.Conflicts;
         <section class="panel" id="updates">
-            <div class="panel-heading"><div><p class="eyebrow">ALREADY BROUGHT ACROSS</p><h2>@P(already, "ticket was", "tickets were") imported before</h2></div></div>
+            <div class="panel-heading"><div><h2>@P(already, "ticket was", "tickets were") imported before</h2></div></div>
             <p class="muted">
                 @P(sync.Unchanged, "is", "are") the same in both systems.
                 @if (automatic.Count > 0) { <text>@P(automatic.Count, "has", "have") changed only in Spiceworks and will be updated to match.</text> }
@@ -179,7 +179,7 @@ else
 @if (Model.Imports.Count > 0)
 {
     <section class="panel" id="imports">
-        <div class="panel-heading"><div><p class="eyebrow">IMPORTS SO FAR</p><h2>@P(Model.Imports.Count, "import", "imports") from Spiceworks</h2></div></div>
+        <div class="panel-heading"><div><h2>@P(Model.Imports.Count, "import", "imports") from Spiceworks</h2></div></div>
         <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">When</th><th>By</th><th>File</th><th>Brought across</th></tr></thead><tbody>
         @foreach (var import in Model.Imports)
         {

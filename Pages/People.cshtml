@@ -7,7 +7,7 @@
     var onUsers = Model.Tab == PeopleModel.UsersTab;
     var onTechnicians = Model.Tab == PeopleModel.TechniciansTab;
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / DIRECTORY</p><h1>People and technicians</h1></div><a class="button button-secondary" asp-page="/Index">← Back</a></div>
+<div class="page-heading"><div><h1>People and technicians</h1></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 @* Each tab is its own module. The page as a whole opens for anyone allowed any one of the three (see the People policy
@@ -100,7 +100,7 @@
 
 @if (Model.Tab == PeopleModel.RolesTab)
 {
-    <section class="panel directory-panel"><div class="panel-heading"><div><p class="eyebrow">PERMISSIONS</p><h2>Roles</h2></div>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">@Icons.Plus Add role</a> }</div>
+    <section class="panel directory-panel"><div class="panel-heading"><div><h2>Roles</h2></div>@if (Model.CanAddRoles) { <a class="button button-primary" asp-page="/People/Role">@Icons.Plus Add role</a> }</div>
     @* A role's grants run to a dozen modules plus flags, so each role's list is folded away behind a one-line summary
        and opened on demand. Chips wrap, so an opened row grows downwards rather than sideways. *@
     @foreach (var role in Model.Roles)

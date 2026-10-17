@@ -2,7 +2,7 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.BrandingModel
 @{ ViewData["Title"] = "Branding & logo"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Branding &amp; logo</h1><p class="hero-copy">The school's name, colours and logo, the wording at the top of the overview, and whether a device that hasn't chosen for itself starts light or dark.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Branding &amp; logo</h1><p class="hero-copy">The school's name, colours and logo, the wording at the top of the overview, and whether a device that hasn't chosen for itself starts light or dark.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.NotificationsModel
 @{ ViewData["Title"] = "Notifications"; }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Notifications</h1></div><a class="button button-secondary" asp-page="/Index">← Back</a></div>
+<div class="page-heading"><div><h1>Notifications</h1></div></div>
 <div class="notify-page">
     @* The notification centre: everything the bell has held in the last fortnight, newest first. *@
     @if (Model.Inbox is { } inbox)

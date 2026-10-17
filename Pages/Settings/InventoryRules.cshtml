@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.InventoryRulesModel
 @{ ViewData["Title"] = "Asset, part & loan rules"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

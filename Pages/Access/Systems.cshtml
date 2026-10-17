@@ -7,7 +7,7 @@
     string ContractName(Guid? id) => id is { } c ? Model.Contracts.FirstOrDefault(x => x.Id == c)?.Name ?? "—" : "—";
 }
 <div class="page-heading">
-    <div><p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p><h1>Systems and areas</h1><p class="hero-copy">What access can be given to: systems, and physical areas and keys. Tick MFA required for anything reached from the cloud or from home.</p></div>
+    <div><h1>Systems and areas</h1><p class="hero-copy">What access can be given to: systems, and physical areas and keys. Tick MFA required for anything reached from the cloud or from home.</p></div>
     @if (Model.CanAdd) { <button class="button button-primary" type="button" data-open-blade="add-blade">@Icons.Plus Add a system or area</button> }
 </div>
 <partial name="_AccessTabs" model="@("/Access/Systems")" />

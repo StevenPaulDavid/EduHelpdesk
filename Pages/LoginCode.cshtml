@@ -1,7 +1,7 @@
 @page
 @model LoginCodeModel
 @{ ViewData["Title"] = "Sign in"; }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Sign in</h1><p class="hero-copy">@Model.Name, open your authenticator app and type the code it shows for the helpdesk.</p></div></div>
+<div class="page-heading"><div><h1>Sign in</h1><p class="hero-copy">@Model.Name, open your authenticator app and type the code it shows for the helpdesk.</p></div></div>
 <section class="panel" style="max-width:420px;">
     <form method="post" class="settings-form">
         <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />

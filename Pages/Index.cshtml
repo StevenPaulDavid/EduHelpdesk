@@ -74,7 +74,7 @@
 @if (Model.CanSeeTickets)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">YOUR WORK</p><h2>My tickets</h2></div>@if (Model.Me is not null) { <a class="button button-secondary" asp-page="/Jobs" asp-route-view="mine">All my tickets (@Model.MyTickets.Count)</a> }</div>
+        <div class="panel-heading"><div><h2>My tickets</h2></div>@if (Model.Me is not null) { <a class="button button-secondary" asp-page="/Jobs" asp-route-view="mine">All my tickets (@Model.MyTickets.Count)</a> }</div>
         @if (Model.Me is null)
         {
             <p class="muted">Your account isn't linked to a technician record, so there are no tickets assigned to you.</p>
@@ -93,7 +93,7 @@
 
     <div class="dash-grid">
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h2>Overdue &amp; due soon</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.DueTickets.Count</span></div>
+            <div class="panel-heading"><div><h2>Overdue &amp; due soon</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.DueTickets.Count</span></div>
             @if (Model.DueTickets.Count == 0) { <p class="empty">Nothing is overdue or due within @Model.DueSoonHours hours.</p> }
             else
             {
@@ -102,7 +102,7 @@
             }
         </section>
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">NEEDS AN OWNER</p><h2>Unassigned</h2></div><span class="badge">@Model.UnassignedTickets.Count</span></div>
+            <div class="panel-heading"><div><h2>Unassigned</h2></div><span class="badge">@Model.UnassignedTickets.Count</span></div>
             @if (Model.UnassignedTickets.Count == 0) { <p class="empty">Every open ticket has a technician.</p> }
             else
             {
@@ -113,7 +113,7 @@
     </div>
 
     <section class="panel" id="replies">
-        <div class="panel-heading"><div><p class="eyebrow">WAITING ON US</p><h2>Replies waiting</h2></div><span class="badge @(Model.RepliesWaiting.Count > 0 ? "badge-reply" : "")">@Model.RepliesWaiting.Count</span></div>
+        <div class="panel-heading"><div><h2>Replies waiting</h2></div><span class="badge @(Model.RepliesWaiting.Count > 0 ? "badge-reply" : "")">@Model.RepliesWaiting.Count</span></div>
         @if (Model.RepliesWaiting.Count == 0) { <p class="empty">No requester is waiting on an answer.</p> }
         else
         {
@@ -127,7 +127,7 @@
 @if (Model.CanSeeOnboarding && Model.NewStarters.Count > 0)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">ONBOARDING</p><h2>New starters</h2></div>@if (Model.HasOnboardingList) { <a class="button button-secondary" asp-page="/Onboarding/Index">All onboardings</a> }</div>
+        <div class="panel-heading"><div><h2>New starters</h2></div>@if (Model.HasOnboardingList) { <a class="button button-secondary" asp-page="/Onboarding/Index">All onboardings</a> }</div>
         <p class="muted dash-note">Onboardings still to finish for anyone starting in the next @IndexModel.StartersWindowDays days, or who has already started.</p>
         <ul class="dash-list">
             @foreach (var (record, name) in Model.NewStarters.Take(IndexModel.PanelSize))
@@ -153,7 +153,7 @@
 @if (Model.CanSeeProjects && (Model.MyProjects.Count > 0 || Model.ProjectsAwaitingAssignment > 0))
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">PROJECTS</p><h2>My projects</h2></div><a class="button button-secondary" asp-page="/Projects" asp-route-view="mine">All my projects</a></div>
+        <div class="panel-heading"><div><h2>My projects</h2></div><a class="button button-secondary" asp-page="/Projects" asp-route-view="mine">All my projects</a></div>
         @if (Model.MyProjects.Count == 0) { <p class="empty">No active projects are assigned to you.</p> }
         else
         {
@@ -183,7 +183,7 @@
 {
     var complianceDue = Model.ComplianceDue;
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h2>Contracts and access</h2></div><span class="badge @(complianceDue.Any(x => x.Level == EduHelpdesk.Services.ComplianceFinding.Levels.Danger) ? "badge-warning" : "")">@complianceDue.Count</span></div>
+        <div class="panel-heading"><div><h2>Contracts and access</h2></div><span class="badge @(complianceDue.Any(x => x.Level == EduHelpdesk.Services.ComplianceFinding.Levels.Danger) ? "badge-warning" : "")">@complianceDue.Count</span></div>
         <p class="muted dash-note">Renewals and notice dates coming up, contracts ending, leavers still with access, privileged access not approved, MFA off and the termly access review.</p>
         @if (complianceDue.Count == 0) { <p class="empty">Nothing is due on the contracts or access registers.</p> }
         else
@@ -208,7 +208,7 @@
         @if (Model.CanSeeAssets)
         {
             <section class="panel">
-                <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
+                <div class="panel-heading"><div><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
                 <p class="muted dash-note">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), overdue loans, leavers' kit, and DfE checks or end of support coming up.</p>
                 @if (Model.AssetsToReview.Count == 0) { <p class="empty">No assets need review right now.</p> }
                 else
@@ -232,7 +232,7 @@
         @if (Model.CanSeeParts)
         {
             <section class="panel">
-                <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Parts to reorder</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
+                <div class="panel-heading"><div><h2>Parts to reorder</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
                 <p class="muted dash-note">At or below their reorder threshold (default @Model.PartsReorderThreshold, or a part's own).</p>
                 @if (Model.PartsToReview.Count == 0) { <p class="empty">No parts need reordering right now.</p> }
                 else

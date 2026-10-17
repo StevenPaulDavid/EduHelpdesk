@@ -5,7 +5,7 @@
 @{ ViewData["Title"] = "Projects"; ViewData["Wide"] = true; }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / PROJECTS</p><h1>Projects</h1><p class="hero-copy">Purchasing projects raised by line managers and SLT from the staff portal, from assignment through to a proposal.</p></div>
+    <div><h1>Projects</h1><p class="hero-copy">Purchasing projects raised by line managers and SLT from the staff portal, from assignment through to a proposal.</p></div>
 </div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 
@@ -53,7 +53,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">PROJECT REGISTER</p><h2>@ProjectsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown") · sorted by @ProjectsModel.SortLabel(Model.Sort).ToLowerInvariant()</span></div>
+    <div class="panel-heading"><div><h2>@ProjectsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown") · sorted by @ProjectsModel.SortLabel(Model.Sort).ToLowerInvariant()</span></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th data-stack="head">Project</th><th>Requested by</th><th>Technician</th><th>Priority</th><th>Status</th><th>Quotes</th><th class="num">Chosen total</th><th>Needed by</th><th>Updated</th>
     </tr></thead><tbody>

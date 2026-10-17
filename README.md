@@ -12,7 +12,7 @@ A helpdesk for schools, run on the school's own server. Technicians log and work
 
 ## Help
 
-Everything in the app is explained in its own **Help centre**. Sign in and press the **?** in the top bar, or go to `/Help`. Pages with a guide have a **? Help** link next to their title, and a **?** beside a field explains what to put in it. Staff using the portal have their own short help at `/Portal/Help`.
+Everything in the app is explained in its own **Help centre**. Sign in and press the **?** in the top bar, or go to `/Help`. Pages with a guide have a **?** next to their title, and a **?** beside a field explains what to put in it. Staff using the portal have their own short help at `/Portal/Help`.
 
 ## Installing
 

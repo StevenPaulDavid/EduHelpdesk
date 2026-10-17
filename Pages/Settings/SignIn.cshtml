@@ -5,7 +5,7 @@
     ViewData["Title"] = "Sign-in security";
     var withTwoFactor = Model.Staff.Count(x => x.TwoFactor is not null);
 }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Sign-in security</h1><p class="hero-copy">How staff accounts are protected. The staff portal has its own passwords and isn't covered by two-step sign-in.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Sign-in security</h1><p class="hero-copy">How staff accounts are protected. The staff portal has its own passwords and isn't covered by two-step sign-in.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

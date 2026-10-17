@@ -5,10 +5,9 @@
     ViewData["Title"] = "Premises checks"; ViewData["Wide"] = true;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Premises checks</h1><p class="hero-copy">The compliance log: every check with a checklist done in the year - fire alarm tests, water temperatures, emergency lighting - when it was done, by whom, whether on time, and what failed.</p></div>
+    <div><h1>Premises checks</h1><p class="hero-copy">The compliance log: every check with a checklist done in the year - fire alarm tests, water temperatures, emergency lighting - when it was done, by whom, whether on time, and what failed.</p></div>
     <div class="heading-actions">
         @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/ChecksPrint" asp-route-year="@Model.Year" target="_blank">🖨 Print / Save as PDF</a> }
-        <a class="button button-secondary" asp-page="/Index">← Overview</a>
     </div>
 </div>
 <partial name="_ReportTabs" model="@("/Reports/Checks")" />
@@ -28,7 +27,7 @@
 @foreach (var schedule in Model.Schedules)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">CHECK</p><h2>@schedule.Name</h2></div><span class="badge @(schedule.WithFailures > 0 ? "badge-warning" : "")">@schedule.Done of @schedule.Checks.Count done · @schedule.OnTime on time@(schedule.WithFailures > 0 ? $" · {schedule.WithFailures} with failures" : "")</span></div>
+        <div class="panel-heading"><div><h2>@schedule.Name</h2></div><span class="badge @(schedule.WithFailures > 0 ? "badge-warning" : "")">@schedule.Done of @schedule.Checks.Count done · @schedule.OnTime on time@(schedule.WithFailures > 0 ? $" · {schedule.WithFailures} with failures" : "")</span></div>
         <div class="table-wrap"><table>
             <thead><tr><th>Ticket</th><th>Logged</th><th>Due</th><th>Done</th><th>By</th><th>Result</th></tr></thead>
             <tbody>

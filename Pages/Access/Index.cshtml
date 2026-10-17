@@ -9,7 +9,7 @@
     string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p><h1>Access control register</h1><p class="hero-copy">Who can get into which systems and areas, who approved it, and when it was last reviewed - and, for anyone who has left, when it was taken away.</p></div>
+    <div><h1>Access control register</h1><p class="hero-copy">Who can get into which systems and areas, who approved it, and when it was last reviewed - and, for anyone who has left, when it was taken away.</p></div>
     <div class="heading-actions">
         @if (Model.CanView) { <a class="button button-secondary" href="@Url.Page("/Access/Index", "Export", Model.Route())">⬇ Export CSV</a> }
         @if (Model.CanAdd) { <a class="button button-primary" asp-page="/Access/Grant">@Icons.Plus Record access</a> }
@@ -48,7 +48,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">REGISTER</p><h2>Who has access</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.LiveCount}" : Model.LiveCount.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="panel-heading"><div><h2>Who has access</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.LiveCount}" : Model.LiveCount.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th data-stack="head">Person</th>
         <th>System or area</th>

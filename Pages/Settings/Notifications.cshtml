@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.NotificationsModel
 @{ ViewData["Title"] = "Notifications"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Notifications</h1><p class="hero-copy">Whether browsers ping and pop up when a ticket arrives, a requester replies, or a technician updates a requester - for everyone, or just one side.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Notifications</h1><p class="hero-copy">Whether browsers ping and pop up when a ticket arrives, a requester replies, or a technician updates a requester - for everyone, or just one side.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

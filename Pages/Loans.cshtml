@@ -3,7 +3,7 @@
 @model LoansModel
 @{ ViewData["Title"] = "Loans"; ViewData["Wide"] = true; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / LOANS</p><h1>Loans</h1><p class="hero-copy">Everything out with staff right now — loan kits and individual devices — and what has come back lately.</p></div>
+    <div><h1>Loans</h1><p class="hero-copy">Everything out with staff right now — loan kits and individual devices — and what has come back lately.</p></div>
     <div class="heading-actions">
         <a class="button button-secondary" asp-page="/Reports/Loans">Loan report</a>
         <a class="button button-secondary" asp-page="/Kits">Kits</a>
@@ -41,7 +41,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">OUT NOW</p><h2>On loan</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@(Model.IsFiltered ? $"{Model.Out.Count} of {Model.OutTotal}" : Model.Out.Count.ToString())</span></div>
+    <div class="panel-heading"><div><h2>On loan</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@(Model.IsFiltered ? $"{Model.Out.Count} of {Model.OutTotal}" : Model.Out.Count.ToString())</span></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th>Type</th><th data-stack="head">What</th><th>Borrower</th><th>Reason</th><th>Out for</th><th>Due back</th><th></th>
     </tr></thead><tbody>
@@ -77,7 +77,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">RECENTLY BACK</p><h2>Returned</h2></div><span class="badge">Last @LoansModel.RecentLimit</span></div>
+    <div class="panel-heading"><div><h2>Returned</h2></div><span class="badge">Last @LoansModel.RecentLimit</span></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th>Type</th><th data-stack="head">What</th><th>Borrower</th><th>Reason</th><th>Issued</th><th>Returned</th><th>Kept</th>
     </tr></thead><tbody>

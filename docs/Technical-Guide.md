@@ -2,7 +2,7 @@
 
 The guide for technicians and administrators now lives inside EduHelpdesk, as its **Help centre**, so it always matches the version installed and is kept up to date in one place.
 
-- **Opening it:** sign in and press the **?** in the top bar (or **Help** in the menu under your name). Every page with a guide also has a **? Help** link next to its title, and a **?** beside a field explains what to put in it.
+- **Opening it:** sign in and press the **?** in the top bar (or **Help** in the menu under your name). Every page with a guide also has a **?** next to its title, and a **?** beside a field explains what to put in it.
 - **What's in it:** Getting started guides for technicians, administrators, cleaning supervisors, reports and records, and onboarding; a guide to every page; step-by-step "how to" articles; and **What's new** for each release.
 - **Your school's own help:** administrators can add school articles and a note on any built-in article. They're kept when EduHelpdesk is updated.
 

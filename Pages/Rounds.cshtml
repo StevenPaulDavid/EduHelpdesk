@@ -6,7 +6,7 @@
     var iso = Model.Date.ToString("yyyy-MM-dd");
 }
 <div class="page-heading">
-    <div><p class="eyebrow">CLEANING</p><h1>Cleaning rounds</h1><p class="hero-copy">Print the day's sheets for the cleaners, then tick off what was done when they hand them back. A room left unticked counts as missed on the rounds report.</p></div>
+    <div><h1>Cleaning rounds</h1><p class="hero-copy">Print the day's sheets for the cleaners, then tick off what was done when they hand them back. A room left unticked counts as missed on the rounds report.</p></div>
     @if (Model.CanReport) { <a class="button button-secondary" asp-page="/Reports/Rounds">Rounds report</a> }
 </div>
 @if (Model.Message is { } message) { <div class="notice">@message</div> }

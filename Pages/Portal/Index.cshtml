@@ -2,7 +2,7 @@
 @model EduHelpdesk.Pages.Portal.IndexModel
 @{ ViewData["Title"] = "Staff portal"; }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Report a problem</h1><p class="hero-copy">Log a job with the IT team, or check on one you've already sent in.</p></div></div>
+    <div class="page-heading"><div><h1>Report a problem</h1><p class="hero-copy">Log a job with the IT team, or check on one you've already sent in.</p></div></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     @if (Model.CurrentUser is null && Model.SignedInTechnician is { } technician)
     {

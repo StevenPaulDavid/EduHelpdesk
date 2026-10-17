@@ -10,8 +10,8 @@
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / TICKETS</p><h1>Tickets</h1><p class="hero-copy">Work through queues, search and filter, and update many tickets at once.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-secondary" href="@Model.DailySheetUrl()" target="_blank" rel="noopener" title="Open jobs for the desks and team shown, by room, to print and hand out">🖨 Daily sheet</a><a class="button button-secondary" asp-page="/QuickLog" title="For a job dealt with before it was logged - saved as a closed ticket">Log a job already done</a><a class="button button-primary" asp-page="/NewTicket">@Icons.Plus New ticket</a></div>
+    <div><h1>Tickets</h1><p class="hero-copy">Work through queues, search and filter, and update many tickets at once.</p></div>
+    <div class="heading-actions"><a class="button button-secondary" href="@Model.DailySheetUrl()" target="_blank" rel="noopener" title="Open jobs for the desks and team shown, by room, to print and hand out">🖨 Daily sheet</a><a class="button button-secondary" asp-page="/QuickLog" title="For a job dealt with before it was logged - saved as a closed ticket">Log a job already done</a><a class="button button-primary" asp-page="/NewTicket">@Icons.Plus New ticket</a></div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
@@ -84,7 +84,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">TICKET REGISTER</p><h2>@JobsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
+    <div class="panel-heading"><div><h2>@JobsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
     <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="ticket" data-nouns="tickets">
         @foreach (var field in Model.StateFields()) { <input type="hidden" name="@field.Name" value="@field.Value" /> }
         <input type="hidden" name="selectAll" id="select-all-matching" value="false" />

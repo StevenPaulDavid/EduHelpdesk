@@ -1,7 +1,7 @@
 @page
 @model RecoveryKeyModel
 @{ ViewData["Title"] = "Recovery key"; var current = Model.Me.RecoveryKey; }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / YOUR ACCOUNT</p><h1>Recovery key</h1><p class="hero-copy">If you forget your password, your recovery key lets you set a new one yourself from the sign-in page, without waiting for an administrator. It works once.</p></div></div>
+<div class="page-heading"><div><h1>Recovery key</h1><p class="hero-copy">If you forget your password, your recovery key lets you set a new one yourself from the sign-in page, without waiting for an administrator. It works once.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 @if (!Model.Allowed) { <div class="notice notice-warning">Your school has turned recovery keys off, so a forgotten password is reset by an administrator.@(current is null ? "" : " Your key is kept, and will work again if they're turned back on.")</div> }
 

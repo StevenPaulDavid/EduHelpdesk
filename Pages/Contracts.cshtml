@@ -8,7 +8,7 @@
     string Day(DateOnly? value) => value is { } d ? AssetInsights.Format(d) : "—";
 }
 <div class="page-heading">
-    <div><p class="eyebrow">COMPLIANCE / CONTRACTS REGISTER</p><h1>Contracts register</h1><p class="hero-copy">The DfE digital technology contracts register: what the school pays for, who supplies it, and when each contract renews or needs notice.</p></div>
+    <div><h1>Contracts register</h1><p class="hero-copy">The DfE digital technology contracts register: what the school pays for, who supplies it, and when each contract renews or needs notice.</p></div>
     <div class="heading-actions">
         @if (Model.CanView) { <a class="button button-secondary" href="@Url.Page("/Contracts", "Export", Model.Route())">⬇ Export CSV</a> }
         @if (Model.CanAdd && Model.CanEdit) { <a class="button button-secondary" asp-page="/Contracts/Import">Import</a> }
@@ -48,7 +48,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">REGISTER</p><h2>Contracts</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.All.Count}" : Model.All.Count.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="panel-heading"><div><h2>Contracts</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.All.Count}" : Model.All.Count.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th data-stack="head">Contract</th>
         @if (cols.Show("supplier")) { <th>Supplier</th> }

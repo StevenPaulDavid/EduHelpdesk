@@ -4,7 +4,7 @@
 @model EduHelpdesk.Pages.Reports.ProjectReportsModel
 @{ ViewData["Title"] = "Project reports"; ViewData["Wide"] = true; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Project reports</h1><p class="hero-copy">Purchasing projects: what is open and with whom, how quickly proposals come back, and what the decided projects came to.</p></div>
+    <div><h1>Project reports</h1><p class="hero-copy">Purchasing projects: what is open and with whom, how quickly proposals come back, and what the decided projects came to.</p></div>
     <div class="heading-actions">
         @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/ProjectsPrint" asp-route-year="@Model.YearKey" target="_blank">🖨 Print / Save as PDF</a> }
         @if (Model.CanOpenProjects) { <a class="button button-secondary" asp-page="/Projects">← Projects</a> }
@@ -32,7 +32,7 @@
 </div>
 
 <section class="panel" id="open">
-    <div class="panel-heading"><div><p class="eyebrow">NOW</p><h2>Where projects are</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="open" asp-route-year="@Model.YearKey">⬇ Open projects CSV</a> }<span class="badge">@Model.Open.Count open</span></div></div>
+    <div class="panel-heading"><div><h2>Where projects are</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="open" asp-route-year="@Model.YearKey">⬇ Open projects CSV</a> }<span class="badge">@Model.Open.Count open</span></div></div>
     <div class="table-wrap"><table><thead><tr><th>Status</th><th>Projects</th><th>Overdue</th><th>Due within @ProjectPriorities.DueSoonDays days</th><th>Chosen quotes</th></tr></thead><tbody>
     @foreach (var row in Model.ByStatus)
     {
@@ -58,7 +58,7 @@
 </section>
 
 <section class="panel" id="workload">
-    <div class="panel-heading"><div><p class="eyebrow">WHO HAS WHAT</p><h2>Technician workload</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="workload" asp-route-year="@Model.YearKey">⬇ CSV</a> }</div></div>
+    <div class="panel-heading"><div><h2>Technician workload</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Projects" asp-page-handler="Export" asp-route-table="workload" asp-route-year="@Model.YearKey">⬇ CSV</a> }</div></div>
     <p class="muted">Active projects by priority today, as the project lead sees them when assigning. Proposals made, days to proposal and closures are for @Model.PeriodLabel.ToLowerInvariant() and are credited to whoever has the project now.</p>
     <div class="table-wrap"><table><thead><tr><th>Technician</th><th>Active</th>@foreach (var level in ProjectPriorities.All) { <th>P@(level)</th> }<th>Overdue</th><th>Awaiting a decision</th><th>Proposals made</th><th>Median days to proposal</th><th>Closed</th></tr></thead><tbody>
     @foreach (var row in Model.Workload)

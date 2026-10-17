@@ -7,7 +7,7 @@
     var preview = Model.Preview;
     string When(DateTime? cutoff) => cutoff is { } c ? c.ToLocalTime().ToString("d MMM yyyy") : "";
 }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Data retention</h1><p class="hero-copy">How long the helpdesk keeps personal data it no longer needs. Your school's retention schedule sets the numbers; this applies them every night.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Data retention</h1><p class="hero-copy">How long the helpdesk keeps personal data it no longer needs. Your school's retention schedule sets the numbers; this applies them every night.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">

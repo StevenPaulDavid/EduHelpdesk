@@ -7,7 +7,7 @@
     ViewData["Title"] = project.Reference;
 }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div><a class="button button-secondary" asp-page="/Portal/Projects">← @(Model.IsLead ? "Projects" : "My projects")</a></div>
+    <div class="page-heading"><div><h1>@project.Reference</h1><p class="hero-copy">@project.Title</p></div><a class="button button-secondary" asp-page="/Portal/Projects">← @(Model.IsLead ? "Projects" : "My projects")</a></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     @if (Model.IsLead && project.IsActive)
     {
@@ -36,24 +36,24 @@
         </section>
     }
     <section class="panel portal-panel">
-        <div class="detail-block"><p class="eyebrow">STATUS</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>
+        <div class="detail-block"><p class="eyebrow field-name">Status</p><strong class="field-value">@project.Status@(project.Outcome is { } outcome ? $" · {outcome}" : "")</strong>@if (!string.IsNullOrWhiteSpace(project.OutcomeNote)) { <p class="job-description">@project.OutcomeNote</p> }</div>
         @if (Model.ProposalAvailable)
         {
             <div class="detail-block proposal-block">
-                <p class="eyebrow">PROPOSAL</p>
+                <p class="eyebrow field-name">Proposal</p>
                 <p>The quotes have been gathered into one document: the costs of each option, the recommended choice, and every supplier's quote.</p>
                 <a class="button button-primary portal-button" asp-page="/Portal/Project" asp-page-handler="Proposal" asp-route-number="@project.Number">Download the proposal (PDF)</a>
             </div>
         }
-        @if (!Model.IsOwnProject) { <div class="detail-block"><p class="eyebrow">REQUESTED BY</p><p>@(Model.RequesterName ?? "Unknown")</p></div> }
-        <div class="detail-block"><p class="eyebrow">WHO HAS IT</p><p>@(Model.TechnicianName ?? "Waiting to be assigned to a technician")</p></div>
-        <div class="detail-block"><p class="eyebrow">PROPOSAL NEEDED BY</p><p>@project.DueDate.ToString("dddd d MMMM yyyy")</p></div>
-        <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? (Model.IsOwnProject ? " (your suggestion - the project lead will confirm it)" : " (suggested, not confirmed yet)") : "")</p></div>
+        @if (!Model.IsOwnProject) { <div class="detail-block"><p class="eyebrow field-name">Requested by</p><p>@(Model.RequesterName ?? "Unknown")</p></div> }
+        <div class="detail-block"><p class="eyebrow field-name">Who has IT</p><p>@(Model.TechnicianName ?? "Waiting to be assigned to a technician")</p></div>
+        <div class="detail-block"><p class="eyebrow field-name">Proposal needed by</p><p>@project.DueDate.ToString("dddd d MMMM yyyy")</p></div>
+        <div class="detail-block"><p class="eyebrow field-name">Priority</p><p>@ProjectPriorities.Label(project.EffectivePriority)@(project.Priority is null ? (Model.IsOwnProject ? " (your suggestion - the project lead will confirm it)" : " (suggested, not confirmed yet)") : "")</p></div>
         <div class="detail-block"><p class="eyebrow">@(Model.IsOwnProject ? "WHAT YOU ASKED FOR" : "WHAT WAS ASKED FOR")</p><p class="job-description">@project.ItemsWanted</p></div>
         @if (project.Items.Count > 0)
         {
             @* The list as the technician tidied it up - what is being quoted for. Suppliers and quotes stay helpdesk-side. *@
-            <div class="detail-block"><p class="eyebrow">ITEMS BEING QUOTED FOR</p>
+            <div class="detail-block"><p class="eyebrow field-name">Items being quoted for</p>
                 <ul class="plain-list portal-items">
                     @foreach (var item in project.Items)
                     {
@@ -62,9 +62,9 @@
                 </ul>
             </div>
         }
-        <div class="detail-block"><p class="eyebrow">PURCHASING REQUIREMENTS</p><p>@HelpdeskStore.DescribeRequirements(project)</p></div>
+        <div class="detail-block"><p class="eyebrow field-name">Purchasing requirements</p><p>@HelpdeskStore.DescribeRequirements(project)</p></div>
         <div class="detail-block">
-            <p class="eyebrow">UPDATES</p>
+            <p class="eyebrow field-name">Updates</p>
             @if (Model.Notes.Count == 0) { <p class="muted">No updates yet.</p> }
             <div class="comment-list">
                 @foreach (var note in Model.Notes)

@@ -2478,7 +2478,10 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .header-help:hover, .header-help.active { color: var(--teal-text); border-color: var(--teal-text); }
 .page-help-link { display: inline-flex; align-items: center; gap: 6px; float: right; margin: 0 0 var(--space-2) var(--space-3); font-size: 13px; font-weight: 700; color: var(--teal-text); text-decoration: none; }
 .page-help-link:hover { text-decoration: underline; }
-.page-help-link.page-help-link-placed { float: none; margin: var(--space-1) 0 0; }
+/* In the heading, just the ? after the title; the word stays for screen readers. */
+.page-help-link.page-help-link-placed { float: none; margin: 0 0 0 10px; vertical-align: middle; font-size: 0; }
+.page-help-link-placed .page-help-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.page-help-link-placed .help-tip-mark { width: 22px; height: 22px; font-size: 13px; }
 .help-welcome { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-left: 4px solid var(--teal-text); border-radius: 10px; background: var(--surface); }
 .help-welcome p { margin: 0; }
 .help-welcome form { margin: 0; }
@@ -2555,3 +2558,14 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 /* A note under a field's value, on its own line (the ticket page's Desk). */
 .field-note { display: block; margin-top: 2px; }
 .form-section[hidden] { display: none; }
+
+/* Notifications switched off on this computer: a dot on the bell, and a line at the top of its panel to switch them on
+   (wwwroot/js/notifications.js). The full reminder bar shows only on the overview and the portal's home. */
+.notify-bell-off > summary::after { content: ""; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--caution); box-shadow: 0 0 0 2px var(--surface); }
+.notify-bell-off:has(.notify-badge:not([hidden])) > summary::after { display: none; }
+.notify-off { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--notice-bg); color: var(--notice-ink); font-size: 13px; }
+.nav-panel .notify-off .button, .nav-panel .notify-off .button:hover { flex: none; width: auto; padding: 6px 10px; font-size: 12px; text-align: center; color: #fff; background: var(--teal); border-radius: 7px; }
+
+/* A field's name inside a panel (the ticket page's Status, Priority...): plain, quiet text. The teal capitals of
+   .eyebrow are kept for the few section breaks that need them. */
+.eyebrow.field-name { font-size: 12px; font-weight: 650; letter-spacing: 0; color: var(--muted); }

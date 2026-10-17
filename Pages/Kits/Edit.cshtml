@@ -7,7 +7,7 @@
     ViewData["Title"] = !editing ? "Add loan kit" : locked ? Model.Kit!.Name : $"Edit {Model.Kit!.Name}";
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / LOAN KITS</p><h1>@ViewData["Title"]</h1></div>
+    <div><h1>@ViewData["Title"]</h1></div>
     <a class="button button-secondary" asp-page="/Kits">← Back</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -89,7 +89,7 @@
 @if (editing)
 {
     <section class="panel directory-panel">
-        <div class="panel-heading"><div><p class="eyebrow">HISTORY</p><h2>Loans of this kit</h2></div><span class="badge">@Model.History.Count</span></div>
+        <div class="panel-heading"><div><h2>Loans of this kit</h2></div><span class="badge">@Model.History.Count</span></div>
         <div class="table-wrap"><table><thead><tr>
             <th>Borrower</th><th>Reason</th><th>Issued</th><th>Due back</th><th>Returned</th><th>Kept</th>
         </tr></thead><tbody>

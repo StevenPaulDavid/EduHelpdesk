@@ -253,6 +253,9 @@
     // A slim bar at the top of the page content for someone who hasn't switched notifications on in this browser - or has, but the
     // browser hasn't been allowed to show pop-ups. "Not now" hides it for a week. Not shown where it would be redundant
     // (the Notifications page itself), when this side is switched off, or when Settings has turned the reminder off.
+    // Only on the overview and the portal's home (data-nudge-here, from the layout): on every other page it would push
+    // the work down, so there the bell carries a dot and a line in its panel instead. Pop-ups that stopped working
+    // still get the bar everywhere.
     const nudgeKey = `edu.notify.nudge.${audience}.${account}`;
     const WEEK = 7 * 24 * 60 * 60 * 1000;
     let nudgeBar = null;
@@ -271,28 +274,10 @@
         if (s.supported && s.secure && s.permission !== "granted") return s.permission === "denied" || (askedResult && askedResult !== "granted") ? "blocked" : "allow";
         return null;
     };
-    function syncNudge() {
-        const wanted = nudgeWanted();
-        const snoozeKey = wanted === "lost" ? lostKey : nudgeKey;
-        const dismissed = Number(read(snoozeKey)) > Date.now();
-        if (!wanted || dismissed) { nudgeBar?.remove(); nudgeBar = null; return; }
-        if (nudgeBar?.dataset.kind === wanted) return;
-        nudgeBar?.remove();
-        const bar = document.createElement("div");
-        bar.className = "notify-nudge" + (wanted === "lost" ? " notify-nudge-warning" : "");
-        bar.dataset.kind = wanted;
-        bar.setAttribute("role", "region");
-        bar.setAttribute("aria-label", "Notifications");
-        const text = document.createElement("span");
-        const who = audience === "portal" ? "when the IT team updates one of your tickets" : "when a ticket arrives or someone replies";
-        // Once the browser has said no, its question can't be asked again from the page, so the button explains instead.
+    const nudgeHere = root.dataset.nudgeHere === "true";
+    // What the bar's main button does: switch on, ask the browser, or (once it has said no) explain how to allow them.
+    function nudgeAction(wanted) {
         const blocked = capability().permission === "denied";
-        text.textContent = wanted === "on" ? `Notifications are off. Switch them on to get a ping and a pop-up on this computer ${who}.`
-            : wanted === "lost" ? "Pop-ups have stopped: this browser no longer allows them from this site, so you won't see or hear new notifications while you're in another window. Browsers sometimes take this back by themselves."
-            : wanted === "allow" ? "Notifications are on, but this browser hasn't been allowed to show pop-ups yet."
-            : "Notifications are on, but this browser is blocking pop-ups from this site.";
-        const buttons = document.createElement("span");
-        buttons.className = "notify-nudge-actions";
         const asLink = wanted === "blocked" || (wanted === "lost" && blocked);
         const act = asLink ? document.createElement("a") : document.createElement("button");
         act.className = "button button-primary";
@@ -306,6 +291,48 @@
                 announce();
             });
         }
+        return act;
+    }
+    // The bell's share of the reminder: a dot unless "Not now" was pressed, and a line at the top of its panel.
+    function syncBellNudge(wanted, dismissed) {
+        const bellMenu = document.getElementById("notify-bell");
+        if (!bellMenu) return;
+        bellMenu.classList.toggle("notify-bell-off", !!wanted && !dismissed);
+        let line = bellMenu.querySelector(".notify-off");
+        if (!wanted) { line?.remove(); return; }
+        if (line?.dataset.kind === wanted) return;
+        line?.remove();
+        line = document.createElement("div");
+        line.className = "notify-off";
+        line.dataset.kind = wanted;
+        const text = document.createElement("span");
+        text.textContent = wanted === "on" ? "Pings and pop-ups are off on this computer." : "This browser isn't showing pop-ups from the helpdesk.";
+        line.append(text, nudgeAction(wanted));
+        bellMenu.querySelector(".notify-panel-head")?.after(line);
+    }
+    function syncNudge() {
+        const wanted = nudgeWanted();
+        const snoozeKey = wanted === "lost" ? lostKey : nudgeKey;
+        const dismissed = Number(read(snoozeKey)) > Date.now();
+        syncBellNudge(wanted, dismissed);
+        if (!wanted || dismissed || (wanted !== "lost" && !nudgeHere)) { nudgeBar?.remove(); nudgeBar = null; return; }
+        if (nudgeBar?.dataset.kind === wanted) return;
+        nudgeBar?.remove();
+        const bar = document.createElement("div");
+        bar.className = "notify-nudge" + (wanted === "lost" ? " notify-nudge-warning" : "");
+        bar.dataset.kind = wanted;
+        bar.setAttribute("role", "region");
+        bar.setAttribute("aria-label", "Notifications");
+        const text = document.createElement("span");
+        const who = audience === "portal" ? "when the helpdesk updates one of your tickets" : "when a ticket arrives or someone replies";
+        text.textContent = wanted === "on" ? `Notifications are off. Switch them on to get a ping and a pop-up on this computer ${who}.`
+            : wanted === "lost" ? "Pop-ups have stopped: this browser no longer allows them from this site, so you won't see or hear new notifications while you're in another window. Browsers sometimes take this back by themselves."
+            : wanted === "allow" ? "Notifications are on, but this browser hasn't been allowed to show pop-ups yet."
+            : "Notifications are on, but this browser is blocking pop-ups from this site.";
+        const buttons = document.createElement("span");
+        buttons.className = "notify-nudge-actions";
+        // Once the browser has said no, its question can't be asked again from the page, so the button explains instead.
+        const act = nudgeAction(wanted);
         const later = document.createElement("button");
         later.type = "button";
         later.className = "button button-secondary";

@@ -5,7 +5,7 @@
     var cols = Model.Columns;
     string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SUPPLIERS</p><h1>Suppliers</h1><p class="hero-copy">Who the school buys from: the assets bought from each, the parts they supply and the projects they've quoted on.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Suppliers/Edit">@Icons.Plus Add supplier</a> }</div>
+<div class="page-heading"><div><h1>Suppliers</h1><p class="hero-copy">Who the school buys from: the assets bought from each, the parts they supply and the projects they've quoted on.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Suppliers/Edit">@Icons.Plus Add supplier</a> }</div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -28,7 +28,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">PROCUREMENT</p><h2>Supplier directory</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.Suppliers.Count}" : Model.Suppliers.Count.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="panel-heading"><div><h2>Supplier directory</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.Rows.Count} of {Model.Suppliers.Count}" : Model.Suppliers.Count.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr>
         <th data-stack="head">Supplier</th>
         @if (cols.Show("contact")) { <th>Contact</th> }

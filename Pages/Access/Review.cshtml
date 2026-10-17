@@ -8,7 +8,7 @@
     var overdue = Model.NextDue is null || Model.NextDue < Model.Today;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">COMPLIANCE / ACCESS CONTROL</p><h1>Termly access review</h1><p class="hero-copy">Go through who has access with the business manager or finance team, keep what is still needed and remove what isn't. The standard asks for this every term; the record below is the evidence.</p></div>
+    <div><h1>Termly access review</h1><p class="hero-copy">Go through who has access with the business manager or finance team, keep what is still needed and remove what isn't. The standard asks for this every term; the record below is the evidence.</p></div>
 </div>
 <partial name="_AccessTabs" model="@("/Access/Review")" />
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -65,7 +65,7 @@
 }
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">EVIDENCE</p><h2>Past reviews</h2></div><span class="badge">@Model.Reviews.Count</span></div>
+    <div class="panel-heading"><div><h2>Past reviews</h2></div><span class="badge">@Model.Reviews.Count</span></div>
     <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Reviewed</th><th>With</th><th>By</th><th>Scope</th><th class="num">Kept</th><th class="num">Removed</th><th>Notes</th></tr></thead><tbody>
     @foreach (var review in Model.Reviews)
     {

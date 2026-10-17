@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Assets.AddModel
 @{ ViewData["Title"] = "Add asset"; }
-<div class="page-heading"><div><p class="eyebrow">ASSET REGISTER</p><h1>Add asset</h1></div><a class="button button-secondary" asp-page="/Assets">← Back to assets</a></div>
+<div class="page-heading"><div><h1>Add asset</h1></div><a class="button button-secondary" asp-page="/Assets">← Back to assets</a></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 <section class="panel"><form method="post" class="settings-form">
 <label>Asset tag<input name="assetTag" value="@Model.Posted("assetTag")" required /></label>
