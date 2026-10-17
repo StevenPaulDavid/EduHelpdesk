@@ -563,16 +563,17 @@ public sealed partial class HelpdeskStore
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.TicketParts.Add(new(reader.GetInt32(0), Guid.Parse(reader.GetString(1)), reader.GetInt32(2)));
         }
+        var portalTemplates = new List<(TicketTemplate Template, string Helper, int Order)>();
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal, PortalOrder FROM TicketTemplates ORDER BY rowid;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.TicketTemplates.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), TicketTypes.Normalize(reader.GetString(2)), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), NullableGuid(reader, 7))
+            while (reader.Read())
             {
-                HelperLine = reader.GetString(8),
-                ShowInPortal = reader.GetInt32(9) != 0,
-                PortalOrder = reader.GetInt32(10)
-            });
+                var template = new TicketTemplate(Guid.Parse(reader.GetString(0)), reader.GetString(1), TicketTypes.Normalize(reader.GetString(2)), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), NullableGuid(reader, 7));
+                data.TicketTemplates.Add(template);
+                if (reader.GetInt32(9) != 0) portalTemplates.Add((template, reader.GetString(8), reader.GetInt32(10)));
+            }
         }
         using (var command = connection.CreateCommand())
         {
@@ -580,6 +581,12 @@ public sealed partial class HelpdeskStore
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.ServiceItems.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5) != 0, reader.GetInt32(6)));
         }
+        // A template ticked "Show in portal" was a second kind of portal button. The service catalogue is the only one
+        // now, so each becomes a catalogue item - same category, name, priority, hint and place - unless one is already
+        // there. The template stays for technicians; the save after loading clears its portal tick, so this runs once.
+        foreach (var (template, helper, order) in portalTemplates)
+            if (!data.ServiceItems.Any(x => string.Equals(x.Category, template.Category, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Name, template.Name, StringComparison.OrdinalIgnoreCase)))
+                data.ServiceItems.Add(new ServiceItem(Guid.NewGuid(), template.Category, template.Name, template.Priority, helper, true, order));
         using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT Category, Icon, Color FROM CategoryStyles ORDER BY rowid;";
@@ -991,10 +998,12 @@ public sealed partial class HelpdeskStore
         // Sorted, so the rows come out in the same order whatever order the dictionary happens to hold them in.
         foreach (var (category, style) in data.CategoryStyles.Where(x => data.Categories.Contains(x.Key, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
             Execute(connection, transaction, "INSERT INTO CategoryStyles (Category, Icon, Color) VALUES ($category,$icon,$color);", ("$category", category), ("$icon", style.Icon), ("$color", style.Color));
+        // HelperLine, ShowInPortal and PortalOrder are from when a template could be a portal button. Written blank, so a
+        // template that was one is moved to the service catalogue only once (see the reading of TicketTemplates).
         foreach (var template in data.TicketTemplates)
         {
             Execute(connection, transaction, "INSERT INTO TicketTemplates (Id, Name, TicketType, Title, Description, Category, Priority, SlaId, HelperLine, ShowInPortal, PortalOrder) VALUES ($id,$name,$type,$title,$description,$category,$priority,$sla,$helper,$show,$order);",
-                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()), ("$helper", template.HelperLine ?? ""), ("$show", template.ShowInPortal ? 1 : 0), ("$order", template.PortalOrder));
+                ("$id", template.Id.ToString()), ("$name", template.Name), ("$type", TicketTypes.Normalize(template.Type)), ("$title", template.Title), ("$description", template.Description), ("$category", template.Category), ("$priority", template.Priority), ("$sla", template.SlaId?.ToString()), ("$helper", ""), ("$show", 0), ("$order", 0));
             foreach (var pair in template.AttributeValues.Where(x => !string.IsNullOrEmpty(x.Value) && ticketDefinitionIds.Contains(x.Key)))
                 Execute(connection, transaction, "INSERT INTO TicketTemplateAttributes (TemplateId, AttributeDefinitionId, Value) VALUES ($template,$definition,$value);", ("$template", template.Id.ToString()), ("$definition", pair.Key.ToString()), ("$value", pair.Value));
         }

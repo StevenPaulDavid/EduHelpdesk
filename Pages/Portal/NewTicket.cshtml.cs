@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace EduHelpdesk.Pages.Portal;
 
 // Report a problem in the staff portal, in up to three short steps: big category tiles, then that category's buttons
-// (service catalogue items and portal-ticked templates, which look the same to staff), then a confirm step asking only
+// (the service catalogue's items), then a confirm step asking only
 // where it is, how urgent, and an optional description. "Something else" opens a plain form for anything not listed,
 // so the buttons never stop anyone reporting a problem. Type, requester and team are set server-side.
 // With more than one desk offered in the portal (HelpdeskStore.Desks) there is a step before the categories: who they
@@ -37,7 +37,7 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
     public IReadOnlyList<(string Category, int Count)> PortalCategories => store.PortalCategories().Where(x => InScope(x.Category)).ToList();
     // How many categories a desk's tile leads to, for the line under it.
     public int CategoriesOn(Desk desk) => store.CategoriesFor(desk.Id).Count;
-    public IReadOnlyList<HelpdeskStore.PortalChoice> Choices => store.PortalChoices(Category);
+    public IReadOnlyList<ServiceItem> Choices => store.PortalChoices(Category);
     // The icon and colour chosen for a category's tile in Settings, or its built-in look.
     public CategoryStyle StyleFor(string? category) => store.StyleFor(category);
 
@@ -50,14 +50,13 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
     // is required." to a box the form calls optional - and failed the ticket. The handler does its own checks.
     [BindProperty] public string? Title { get; set; } = "";
     [BindProperty] public string? Description { get; set; } = "";
-    // Category, SubCategory (a catalogue item's name) and TemplateId are also the query string of the earlier steps.
+    // Category and SubCategory (a catalogue item's name) are also the query string of the earlier steps.
     // Never null, but declared nullable: a non-nullable string is implicitly [Required], and the empty category of the
     // first screen then put "The Category field is required." on it. Each step checks what it needs itself.
     private string _category = "";
     [BindProperty(SupportsGet = true)] public string? Category { get => _category; set => _category = value?.Trim() ?? ""; }
     [BindProperty] public string? Location { get; set; }
     [BindProperty(SupportsGet = true)] public string? SubCategory { get; set; }
-    [BindProperty(SupportsGet = true)] public Guid? TemplateId { get; set; }
     // "Something else": the plain form, where the requester types their own title.
     [BindProperty(SupportsGet = true)] public bool Other { get; set; }
     [BindProperty] public string? Priority { get; set; }
@@ -66,7 +65,6 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
     public TicketRecord? Previous { get; private set; }
 
     private ServiceItem? _item;
-    private TicketTemplate? _template;
 
     public IActionResult OnGet()
     {
@@ -83,21 +81,12 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
             Category = previous.Category;
             Location = previous.Location ?? Location;
             if (store.FindServiceItem(previous.Category, previous.SubCategory) is { ShowInPortal: true } item) SubCategory = item.Name;
-            else if (store.FindPortalTemplateByName(previous.Category, previous.SubCategory) is { } template) TemplateId = template.Id;
             else { Other = true; Title = previous.Title; }
         }
 
         Resolve();
-        if (Mode == Step.Confirm)
-        {
-            // What the button suggests: a template its own priority and description, an item its starting priority.
-            if (_template is not null)
-            {
-                Description = _template.Description;
-                Priority = ValidPriority(_template.Priority) ?? Priority;
-            }
-            else if (_item is { DefaultPriority.Length: > 0 }) Priority = ValidPriority(_item.DefaultPriority) ?? Priority;
-        }
+        // What the button suggests: the item's starting priority.
+        if (Mode == Step.Confirm && _item is { DefaultPriority.Length: > 0 }) Priority = ValidPriority(_item.DefaultPriority) ?? Priority;
         if (Previous is not null) Priority = ValidPriority(Previous.Priority) ?? Priority;
         if (Mode is Step.Categories or Step.Choices) Title = "";
         return Page();
@@ -112,15 +101,9 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         var chosen = PortalFiles.Chosen(files);
         if (PortalFiles.TooMany(chosen) is { } tooMany) ModelState.AddModelError("", tooMany);
 
-        // A template or a catalogue item names the ticket; with neither, the requester typed the title themselves.
-        TicketTemplate? template = null;
+        // A catalogue item names the ticket; without one, the requester typed the title themselves.
         ServiceItem? item = null;
-        if (TemplateId is { } templateId)
-        {
-            template = store.FindPortalTemplate(templateId);
-            if (template is null) ModelState.AddModelError("", "That option is no longer available - please choose again.");
-        }
-        else if (!string.IsNullOrWhiteSpace(SubCategory))
+        if (!string.IsNullOrWhiteSpace(SubCategory))
         {
             item = store.FindServiceItem(Category, SubCategory) is { ShowInPortal: true } found ? found : null;
             if (item is null) ModelState.AddModelError("", "That option is no longer available - please choose again.");
@@ -141,20 +124,16 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
             return Page();
         }
 
-        var category = template?.Category ?? item?.Category ?? Category ?? "";
+        var category = item?.Category ?? Category ?? "";
         var createdAt = DateTime.UtcNow;
-        // A template's own SLA is kept as chosen (it stops following the priority), as on the technician's form.
-        Guid? templateSla = template?.SlaId is { } slaId && store.Slas.Any(x => x.Id == slaId) ? slaId : null;
-        var sla = templateSla ?? store.SlaFor(priority!, category);
+        var sla = store.SlaFor(priority!, category);
         var dueDate = store.CalculateDueDate(sla, createdAt, category);
-        var title = template is not null ? (string.IsNullOrWhiteSpace(template.Title) ? template.Name : template.Title) : item?.Name ?? Title!.Trim();
+        var title = item?.Name ?? Title!.Trim();
         var number = store.AddTicket(new TicketRecord(
             0, title, (Description ?? "").Trim(), id.Value, [], null,
             priority!, store.StartingStatusFor(category), category, createdAt,
-            null, sla, dueDate, false, templateSla.HasValue, null, string.IsNullOrWhiteSpace(Location) ? null : Location.Trim())
-        { Type = template is not null ? TicketTypes.Normalize(template.Type) : TicketTypes.Incident, SubCategory = template?.Name ?? item?.Name ?? "" });
-        // Answers to custom attributes the template carries, which the staff member is never asked.
-        if (template is { AttributeValues.Count: > 0 }) store.UpdateTicketAttributeValues(number, category, template.AttributeValues);
+            null, sla, dueDate, false, false, null, string.IsNullOrWhiteSpace(Location) ? null : Location.Trim())
+        { Type = TicketTypes.Incident, SubCategory = item?.Name ?? "" });
         // Linked both ways, so whoever picks it up sees the history of the first time round.
         if (previous is not null) store.LinkRelatedTickets(number, previous.Number);
         var problems = PortalFiles.Attach(store, number, chosen);
@@ -172,17 +151,15 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
     // since the page was opened - falls back a step rather than showing an error page.
     private void Resolve()
     {
-        _template = TemplateId is { } templateId ? store.FindPortalTemplate(templateId) : null;
-        _item = _template is null && !string.IsNullOrWhiteSpace(SubCategory) && store.FindServiceItem(Category, SubCategory) is { ShowInPortal: true } found ? found : null;
-        if (_template is not null || _item is not null)
+        _item = !string.IsNullOrWhiteSpace(SubCategory) && store.FindServiceItem(Category, SubCategory) is { ShowInPortal: true } found ? found : null;
+        if (_item is not null)
         {
             Mode = Step.Confirm;
-            Category = _template?.Category ?? _item!.Category;
-            ChosenLabel = _template?.Name ?? _item!.Name;
-            ChosenHelper = _template?.HelperLine ?? _item!.HelperLine;
+            Category = _item.Category;
+            ChosenLabel = _item.Name;
+            ChosenHelper = _item.HelperLine;
             return;
         }
-        TemplateId = null;
         SubCategory = null;
         // A chosen category says the desk; otherwise the desk asked for, if it's one staff can report to.
         ChosenDesk = !AsksForDesk ? null

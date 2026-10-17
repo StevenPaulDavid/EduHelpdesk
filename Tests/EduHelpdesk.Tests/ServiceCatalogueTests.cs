@@ -129,7 +129,7 @@ public class ServiceCatalogueTests
     }
 
     [Fact]
-    public void The_portal_offers_shown_items_and_shown_templates_together_by_category()
+    public void The_portal_offers_the_shown_catalogue_items_by_category_and_never_a_template()
     {
         using var test = new TestStore();
         var store = test.Store;
@@ -137,67 +137,64 @@ public class ServiceCatalogueTests
 
         store.AddServiceItem("Hardware", "Dead pixel", "", "Stuck dot on the screen");
         store.AddServiceItem("Hardware", "Hidden thing", "", null, showInPortal: false);
-        store.AddTicketTemplate("New starter laptop", "Request", "Laptop for a new starter", "", "Hardware", "Normal", null, null, "Login and email too", showInPortal: true);
+        store.AddServiceItem("Software", "Install a program", "Low");
         store.AddTicketTemplate("Technician only", "Incident", "", "", "Hardware", "Normal", null, null);
-        store.AddTicketTemplate("Install a program", "Request", "", "", "Software", "Low", null, null, showInPortal: true);
 
         var hardware = store.PortalChoices("hardware");
-        Assert.Equal(["Dead pixel", "New starter laptop"], hardware.Select(x => x.Label));
+        Assert.Equal(["Dead pixel"], hardware.Select(x => x.Name));
         Assert.Equal("Stuck dot on the screen", hardware[0].HelperLine);
-        Assert.Equal(HelpdeskStore.PortalChoice.ItemKind, hardware[0].Kind);
-        Assert.Equal(HelpdeskStore.PortalChoice.TemplateKind, hardware[1].Kind);
-        Assert.Equal("Login and email too", hardware[1].HelperLine);
 
         // Categories in their own order, only those with something to press.
-        Assert.Equal([("Hardware", 2), ("Software", 1)], store.PortalCategories());
+        Assert.Equal([("Hardware", 1), ("Software", 1)], store.PortalCategories());
     }
 
+    // Templates ticked "Show in portal" were a second kind of portal button. An upgrading database turns each into a
+    // catalogue item, once: the template stays for technicians, and deleting the new item doesn't bring it back.
     [Fact]
-    public void A_template_is_only_offered_while_it_is_shown_and_its_category_exists()
+    public void A_template_that_was_a_portal_button_becomes_a_catalogue_item_once()
     {
         using var test = new TestStore();
-        var store = test.Store;
-        store.AddTicketTemplate("Shown", "Request", "", "", "Software", "Low", null, null, showInPortal: true);
-        store.AddTicketTemplate("Hidden", "Request", "", "", "Software", "Low", null, null);
-        var shown = store.TicketTemplates.Single(x => x.Name == "Shown");
-        var hidden = store.TicketTemplates.Single(x => x.Name == "Hidden");
+        foreach (var existing in test.Store.ServiceItems.ToList()) test.Store.DeleteServiceItem(existing.Id);
+        test.Store.AddTicketTemplate("New starter laptop", "Request", "Laptop for a new starter", "", "Hardware", "High", null, null);
+        test.Store.AddTicketTemplate("Technician only", "Incident", "", "", "Hardware", "Normal", null, null);
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={test.DatabasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE TicketTemplates SET ShowInPortal = 1, HelperLine = 'Login and email too', PortalOrder = 3 WHERE Name = 'New starter laptop';";
+            command.ExecuteNonQuery();
+        }
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
-        Assert.NotNull(store.FindPortalTemplate(shown.Id));
-        Assert.Null(store.FindPortalTemplate(hidden.Id));
-        Assert.NotNull(store.FindPortalTemplateByName("software", "shown"));
-        Assert.Null(store.FindPortalTemplateByName("Hardware", "Shown"));
+        var store = test.Reopen();
+        var item = Assert.Single(store.ServiceItems);
+        Assert.Equal(("Hardware", "New starter laptop", "High", "Login and email too", true), (item.Category, item.Name, item.DefaultPriority, item.HelperLine, item.ShowInPortal));
+        Assert.Contains(store.TicketTemplates, x => x.Name == "New starter laptop");
+        Assert.Null(store.CompareDatabaseWithMemory());
 
-        // A rename follows the template, so its button does not vanish.
-        store.UpdateTicketOption("Category", "Software", "Programs");
-        Assert.Equal("Programs", store.GetTicketTemplate(shown.Id)!.Category);
-        Assert.NotNull(store.FindPortalTemplate(shown.Id));
-        Assert.Contains(store.PortalChoices("Programs"), x => x.Label == "Shown");
+        store.DeleteServiceItem(item.Id);
+        Assert.Empty(test.Reopen().ServiceItems);
     }
 
     [Fact]
-    public void Helper_lines_have_a_limit_and_templates_and_items_keep_both_new_settings_through_a_restart()
+    public void Helper_lines_have_a_limit_and_items_keep_them_and_their_visibility_through_a_restart()
     {
         using var test = new TestStore();
         var store = test.Store;
         var tooLong = new string('x', HelpdeskStore.MaxHelperLineLength + 1);
         Assert.Contains("helper line is too long", store.AddServiceItem("Hardware", "Dead pixel", "", tooLong));
-        Assert.Contains("helper line is too long", store.AddTicketTemplate("T", "Request", "", "", "Hardware", "Normal", null, null, tooLong));
 
         store.AddServiceItem("Hardware", "Dead pixel", "", "  Stuck dot  ", showInPortal: false);
-        store.AddTicketTemplate("New starter laptop", "Request", "", "", "Hardware", "Normal", null, null, "Login and email", showInPortal: true);
         Assert.Null(store.CompareDatabaseWithMemory());
 
-        var reopened = test.Reopen();
-        var item = reopened.ServiceItems.Single(x => x.Name == "Dead pixel");
+        var item = test.Reopen().ServiceItems.Single(x => x.Name == "Dead pixel");
         Assert.Equal("Stuck dot", item.HelperLine);
         Assert.False(item.ShowInPortal);
-        var template = reopened.TicketTemplates.Single(x => x.Name == "New starter laptop");
-        Assert.Equal("Login and email", template.HelperLine);
-        Assert.True(template.ShowInPortal);
     }
 
     [Fact]
-    public void A_database_from_before_the_portal_buttons_keeps_its_items_visible_and_its_templates_hidden()
+    public void A_database_from_before_the_portal_buttons_keeps_its_items_visible()
     {
         using var test = new TestStore();
         test.Store.AddTicketTemplate("Old template", "Incident", "", "", "Hardware", "Normal", null, null);
@@ -222,7 +219,6 @@ public class ServiceCatalogueTests
         var reopened = test.Reopen();
         Assert.NotEmpty(reopened.ServiceItems);
         Assert.All(reopened.ServiceItems, x => Assert.True(x.ShowInPortal));
-        Assert.All(reopened.TicketTemplates, x => Assert.False(x.ShowInPortal));
         Assert.NotEmpty(reopened.PortalCategories());
         Assert.Null(reopened.CompareDatabaseWithMemory());
     }
@@ -310,41 +306,40 @@ public class ServiceCatalogueTests
     }
 
     [Fact]
-    public void Portal_buttons_can_be_ordered_by_hand_with_items_and_templates_sharing_one_order()
+    public void Portal_buttons_can_be_ordered_by_hand()
     {
         using var test = new TestStore();
         var store = test.Store;
         foreach (var item in store.ServiceItems.ToList()) store.DeleteServiceItem(item.Id);
         store.AddServiceItem("Hardware", "Alpha", "");
         store.AddServiceItem("Hardware", "Charlie", "");
-        store.AddTicketTemplate("Bravo template", "Request", "", "", "Hardware", "Normal", null, null, showInPortal: true);
-        string Labels() => string.Join(",", store.PortalChoices("Hardware").Select(x => x.Label));
+        store.AddServiceItem("Hardware", "Bravo", "");
+        string Labels() => string.Join(",", store.PortalChoices("Hardware").Select(x => x.Name));
 
         // Added one after another, they sit in that order - not alphabetically.
-        Assert.Equal("Alpha,Charlie,Bravo template", Labels());
+        Assert.Equal("Alpha,Charlie,Bravo", Labels());
 
-        var bravo = store.PortalChoices("Hardware").Single(x => x.Kind == HelpdeskStore.PortalChoice.TemplateKind);
-        Assert.Null(store.MovePortalChoice("Hardware", bravo.Kind, bravo.Key, -1));
-        Assert.Equal("Alpha,Bravo template,Charlie", Labels());
-        Assert.Null(store.MovePortalChoice("Hardware", bravo.Kind, bravo.Key, -1));
-        Assert.Equal("Bravo template,Alpha,Charlie", Labels());
-        Assert.Null(store.MovePortalChoice("Hardware", bravo.Kind, bravo.Key, -1)); // at the top already
-        Assert.Equal("Bravo template,Alpha,Charlie", Labels());
-        Assert.Equal("That button was not found.", store.MovePortalChoice("Hardware", "item", "Nonsense", 1));
-        Assert.Equal("That button was not found.", store.MovePortalChoice("Hardware", "template", Guid.NewGuid().ToString(), 1));
+        var bravo = store.ServiceItems.Single(x => x.Name == "Bravo").Id;
+        Assert.Null(store.MovePortalChoice(bravo, -1));
+        Assert.Equal("Alpha,Bravo,Charlie", Labels());
+        Assert.Null(store.MovePortalChoice(bravo, -1));
+        Assert.Equal("Bravo,Alpha,Charlie", Labels());
+        Assert.Null(store.MovePortalChoice(bravo, -1)); // at the top already
+        Assert.Equal("Bravo,Alpha,Charlie", Labels());
+        Assert.Equal("That button was not found.", store.MovePortalChoice(Guid.NewGuid(), 1));
 
-        // Editing keeps its place; hiding and showing again sends it to the end; so does moving category and back.
+        // Editing keeps its place; hiding and showing again sends it to the end.
         var alpha = store.ServiceItems.Single(x => x.Name == "Alpha");
         store.UpdateServiceItem(alpha.Id, "Hardware", "Alpha (renamed)", "High", "A hint", true);
-        Assert.Equal("Bravo template,Alpha (renamed),Charlie", Labels());
+        Assert.Equal("Bravo,Alpha (renamed),Charlie", Labels());
         store.UpdateServiceItem(alpha.Id, "Hardware", "Alpha (renamed)", "High", "A hint", false);
-        Assert.Equal("Bravo template,Charlie", Labels());
+        Assert.Equal("Bravo,Charlie", Labels());
         store.UpdateServiceItem(alpha.Id, "Hardware", "Alpha (renamed)", "High", "A hint", true);
-        Assert.Equal("Bravo template,Charlie,Alpha (renamed)", Labels());
+        Assert.Equal("Bravo,Charlie,Alpha (renamed)", Labels());
 
         Assert.Null(store.CompareDatabaseWithMemory());
         var reopened = test.Reopen();
-        Assert.Equal("Bravo template,Charlie,Alpha (renamed)", string.Join(",", reopened.PortalChoices("Hardware").Select(x => x.Label)));
+        Assert.Equal("Bravo,Charlie,Alpha (renamed)", string.Join(",", reopened.PortalChoices("Hardware").Select(x => x.Name)));
     }
 
     [Fact]
@@ -357,10 +352,10 @@ public class ServiceCatalogueTests
         store.AddServiceItem("Software", "Yankee", "");
         var yankee = store.PortalChoices("Software").Single();
         store.AddServiceItem("Software", "Alpha", "");
-        Assert.Equal(["Yankee", "Alpha"], store.PortalChoices("Software").Select(x => x.Label));
-        Assert.Null(store.MovePortalChoice("Software", yankee.Kind, yankee.Key, 1));
-        Assert.Equal(["Alpha", "Yankee"], store.PortalChoices("Software").Select(x => x.Label));
-        Assert.Equal(["Zulu"], store.PortalChoices("Hardware").Select(x => x.Label));
+        Assert.Equal(["Yankee", "Alpha"], store.PortalChoices("Software").Select(x => x.Name));
+        Assert.Null(store.MovePortalChoice(yankee.Id, 1));
+        Assert.Equal(["Alpha", "Yankee"], store.PortalChoices("Software").Select(x => x.Name));
+        Assert.Equal(["Zulu"], store.PortalChoices("Hardware").Select(x => x.Name));
     }
 
     [Fact]
@@ -384,7 +379,7 @@ public class ServiceCatalogueTests
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
         var reopened = test.Reopen();
-        var hardware = reopened.PortalChoices("Hardware").Select(x => x.Label).ToList();
+        var hardware = reopened.PortalChoices("Hardware").Select(x => x.Name).ToList();
         Assert.NotEmpty(hardware);
         Assert.Equal(hardware.OrderBy(x => x, StringComparer.OrdinalIgnoreCase), hardware);
         Assert.Equal(new CategoryStyle("laptop", "blue"), reopened.StyleFor("Hardware"));

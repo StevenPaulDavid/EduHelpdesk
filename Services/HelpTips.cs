@@ -60,7 +60,6 @@ public static class HelpTips
         ["schoolday.periods"] = new("Lesson times, the same every school day. Leave gaps for break and lunch. A 1-period SLA is due at the end of the next full lesson.", "school-day", "periods"),
         ["catalogue.priority"] = new("What the portal's priority box starts on for this button. Staff can still change it. Blank starts on Normal.", "service-catalogue", "buttons"),
         ["catalogue.show"] = new("Untick to keep the item in the catalogue without offering it to staff - while a service is unavailable, say.", "service-catalogue", "buttons"),
-        ["template.portal"] = new("Shows this template as a button in the staff portal under its category. Its name is the button; staff can change the description but not the title.", "ticket-templates", "offering-it-in-the-staff-portal"),
         ["recurring.requester"] = new("Who the logged tickets are for - often yourself or the team that does the job, so replies come back to you.", "recurring-tickets", "the-ticket-it-logs"),
         ["recurring.starts"] = new("The first date it can be logged. Every 2 weeks, 3 months and so on count from here, so pick a date on the right weekday.", "recurring-tickets", "the-schedule"),
         ["recurring.school-day"] = new("Ticked, a date that falls on a weekend or day off moves to the next school day. Unticked, it's logged on the day itself.", "recurring-tickets", "the-schedule"),

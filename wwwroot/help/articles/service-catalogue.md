@@ -26,8 +26,4 @@ Add an item under **Add an item**:
 
 Use the arrows to put the buttons in order, most common first.
 
-## Templates as buttons
-
-A **ticket template** ticked *Show in the staff portal* appears as a button too, sharing the same order. Use one when a request needs a fuller description or default details. See [Ticket templates](ticket-templates).
-
 > **Tip:** Keep it short. Six to ten buttons per tile is plenty; *Something else* catches the rest.

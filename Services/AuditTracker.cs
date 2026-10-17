@@ -144,7 +144,7 @@ internal static class AuditTracker
             Add(s, "Ticket templates", "Ticket template", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Type", x.Type), ("Title", x.Title), ("Description", x.Description), ("Category", x.Category), ("Priority", x.Priority),
                 ("SLA", x.SlaId is { } sla ? d.Slas.FirstOrDefault(y => y.Id == sla)?.Name ?? "" : "Automatic"),
-                ("Attribute defaults", x.AttributeValues.Count.ToString()), ("Helper line", x.HelperLine), ("Shown in portal", Yn(x.ShowInPortal)));
+                ("Attribute defaults", x.AttributeValues.Count.ToString()));
         // What each run did is shown on the page instead: a line every time one logged a ticket would bury everything else.
         foreach (var x in d.RecurringTickets)
             Add(s, "Recurring tickets", "Recurring ticket", x.Id.ToString(), x.Name, Track.All,

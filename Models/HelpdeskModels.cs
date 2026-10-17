@@ -267,17 +267,12 @@ public static class TicketTypes
     // The matching type, or Incident for anything unknown or blank.
     public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Incident;
 }
-// A saved starting point for a ticket. A blank SlaId means the SLA is worked out from the priority and category as usual.
+// A saved starting point for a ticket a technician logs. A blank SlaId means the SLA is worked out from the priority and
+// category as usual. The staff portal's buttons are the service catalogue's (ServiceItem), not templates.
 public record TicketTemplate(Guid Id, string Name, string Type, string Title, string Description, string Category, string Priority, Guid? SlaId)
 {
     // Default answers for ticket custom attributes, by attribute definition id.
     public Dictionary<Guid, string> AttributeValues { get; init; } = [];
-    // A ticked template is also a button in the staff portal, under its category. Off by default: most templates are
-    // written for technicians.
-    public bool ShowInPortal { get; init; }
-    public string HelperLine { get; init; } = "";
-    // Its place among the portal buttons of its category - see ServiceItem.
-    public int PortalOrder { get; init; }
 }
 // How often a recurring ticket is logged - see Services/Recurrence for the working-out. Days is for weekly. Monthly and
 // yearly fall on MonthDay (the last day of a shorter month), or for monthly with WeekOfMonth 1-4 on the first to fourth
@@ -332,7 +327,7 @@ public record CheckLine(Guid Id, int TicketNumber, int Position, string Kind, st
 // One line of the service catalogue: a common problem or request, filed under a ticket category. Staff pick it in the
 // portal instead of typing a title. DefaultPriority (blank for none) is only what the portal's priority box starts on.
 // HelperLine is the short hint shown under its button; ShowInPortal says whether staff see it at all.
-// PortalOrder is its place among the portal buttons of its category (templates share the same numbering); ties go
+// PortalOrder is its place among the portal buttons of its category; ties go
 // alphabetically, which is how everything made before ordering existed stays sorted.
 public record ServiceItem(Guid Id, string Category, string Name, string DefaultPriority = "", string HelperLine = "", bool ShowInPortal = true, int PortalOrder = 0);
 // What a category's tile looks like in the staff portal: keys into PortalLook, never markup or CSS.

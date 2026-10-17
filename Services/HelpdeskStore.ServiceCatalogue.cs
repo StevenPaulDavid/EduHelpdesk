@@ -9,14 +9,6 @@ public sealed partial class HelpdeskStore
     public const int MaxServiceItemNameLength = 120;
     public const int MaxHelperLineLength = 120;
 
-    // One button in the staff portal: a catalogue item or a template ticked "Show in portal". Key is the item's name
-    // or the template's id, whichever Kind says it is.
-    public sealed record PortalChoice(string Kind, string Key, string Label, string HelperLine, string Category, int Order = 0)
-    {
-        public const string ItemKind = "item";
-        public const string TemplateKind = "template";
-    }
-
     // Grouped the way the portal shows them: categories in their own order, items alphabetical within each.
     public IReadOnlyList<ServiceItem> ServiceItems
     {
@@ -43,21 +35,17 @@ public sealed partial class HelpdeskStore
 
     // ---- What the staff portal offers ----
 
-    // Every button staff can press, in one category or all of them: shown catalogue items and shown templates mixed
-    // together, because to staff they are the same thing. A template whose category was deleted has nowhere to sit.
-    // In the order set in Settings; buttons never ordered by hand tie, and so sort alphabetically.
-    public IReadOnlyList<PortalChoice> PortalChoices(string? category = null)
+    // Every button staff can press, in one category or all of them: the catalogue items shown in the portal, in the
+    // order set in Settings. Items never ordered by hand tie, and so sort alphabetically.
+    public IReadOnlyList<ServiceItem> PortalChoices(string? category = null)
     {
         lock (_sync)
         {
             var categories = _data.Categories.ToHashSet(StringComparer.OrdinalIgnoreCase);
             bool InScope(string value) => categories.Contains(value) && (category is null || string.Equals(value, category.Trim(), StringComparison.OrdinalIgnoreCase));
             return _data.ServiceItems.Where(x => x.ShowInPortal && InScope(x.Category))
-                .Select(x => new PortalChoice(PortalChoice.ItemKind, x.Name, x.Name, x.HelperLine, x.Category, x.PortalOrder))
-                .Concat(_data.TicketTemplates.Where(x => x.ShowInPortal && InScope(x.Category))
-                    .Select(x => new PortalChoice(PortalChoice.TemplateKind, x.Id.ToString(), x.Name, x.HelperLine, x.Category, x.PortalOrder)))
-                .OrderBy(x => x.Order)
-                .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x.PortalOrder)
+                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
     }
@@ -108,45 +96,34 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // Moves a portal button one place up (-1) or down inside its category. Items and templates share the numbering, so a
-    // template can sit between two items. Every shown button in the category is renumbered, so a category that has only
-    // ever been sorted alphabetically becomes an explicit order the first time one moves.
-    public string? MovePortalChoice(string? category, string? kind, string? key, int direction)
+    // Moves a portal button one place up (-1) or down inside its category. Every shown button in the category is
+    // renumbered, so a category that has only ever been sorted alphabetically becomes an explicit order the first time
+    // one moves.
+    public string? MovePortalChoice(Guid id, int direction)
     {
         lock (_sync)
         {
-            var list = PortalChoices(category).ToList();
-            var index = list.FindIndex(x => x.Kind == kind && string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (_data.ServiceItems.FirstOrDefault(x => x.Id == id) is not { } item) return "That button was not found.";
+            var list = PortalChoices(item.Category).ToList();
+            var index = list.FindIndex(x => x.Id == id);
             if (index < 0) return "That button was not found.";
             var other = index + (direction < 0 ? -1 : 1);
             if (other < 0 || other >= list.Count) return null;
             (list[index], list[other]) = (list[other], list[index]);
-            for (var i = 0; i < list.Count; i++) SetPortalOrder(list[i], i);
+            for (var i = 0; i < list.Count; i++)
+            {
+                var at = _data.ServiceItems.FindIndex(x => x.Id == list[i].Id);
+                if (_data.ServiceItems[at].PortalOrder != i) _data.ServiceItems[at] = _data.ServiceItems[at] with { PortalOrder = i };
+            }
             Save();
             return null;
-        }
-    }
-
-    private void SetPortalOrder(PortalChoice choice, int order)
-    {
-        if (choice.Kind == PortalChoice.ItemKind)
-        {
-            var i = _data.ServiceItems.FindIndex(x => string.Equals(x.Category, choice.Category, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Name, choice.Key, StringComparison.OrdinalIgnoreCase));
-            if (i >= 0 && _data.ServiceItems[i].PortalOrder != order) _data.ServiceItems[i] = _data.ServiceItems[i] with { PortalOrder = order };
-        }
-        else if (Guid.TryParse(choice.Key, out var id))
-        {
-            var i = _data.TicketTemplates.FindIndex(x => x.Id == id);
-            if (i >= 0 && _data.TicketTemplates[i].PortalOrder != order) _data.TicketTemplates[i] = _data.TicketTemplates[i] with { PortalOrder = order };
         }
     }
 
     // The place at the end of a category's portal buttons, for something new there (or newly shown, or moved in).
     private int NextPortalOrder(string category, Guid? exceptId)
     {
-        var orders = _data.ServiceItems.Where(x => x.ShowInPortal && x.Id != exceptId && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)).Select(x => x.PortalOrder)
-            .Concat(_data.TicketTemplates.Where(x => x.ShowInPortal && x.Id != exceptId && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)).Select(x => x.PortalOrder))
-            .ToList();
+        var orders = _data.ServiceItems.Where(x => x.ShowInPortal && x.Id != exceptId && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)).Select(x => x.PortalOrder).ToList();
         return orders.Count == 0 ? 0 : orders.Max() + 1;
     }
 
@@ -158,21 +135,6 @@ public sealed partial class HelpdeskStore
             var counts = PortalChoices().GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
             return _data.Categories.Where(counts.ContainsKey).Select(x => (x, counts[x])).ToList();
         }
-    }
-
-    // A template staff may use: ticked for the portal and still sitting in a category that exists.
-    public TicketTemplate? FindPortalTemplate(Guid id)
-    {
-        lock (_sync)
-            return _data.TicketTemplates.FirstOrDefault(x => x.Id == id && x.ShowInPortal && _data.Categories.Contains(x.Category, StringComparer.OrdinalIgnoreCase));
-    }
-
-    // By name, for "Report it again": a ticket raised from a template keeps the template's name as its sub-category.
-    public TicketTemplate? FindPortalTemplateByName(string? category, string? name)
-    {
-        lock (_sync)
-            return _data.TicketTemplates.FirstOrDefault(x => x.ShowInPortal && string.Equals(x.Category, category?.Trim(), StringComparison.OrdinalIgnoreCase)
-                && string.Equals(x.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     // ---- Managing the catalogue ----
@@ -222,7 +184,7 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // Shared with templates, which carry the same hint under their button.
+    // Shared with desks, whose portal tiles carry the same kind of hint.
     internal static string? CheckHelperLine(string? helperLine, out string cleaned)
     {
         cleaned = helperLine?.Trim() ?? string.Empty;
