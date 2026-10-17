@@ -49,6 +49,8 @@ public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", 
     public IReadOnlyList<DayOfWeek> WorkDays { get; init; } = [];
     public IReadOnlyList<SchoolPeriod> WorkWindows { get; init; } = [];
     public bool HasOwnHours => WorkWindows.Count > 0;
+    // The parts of the top bar it doesn't use (Services/DeskAreas.cs). Empty: all of them.
+    public IReadOnlyList<string> HiddenAreas { get; init; } = [];
 }
 
 // Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.

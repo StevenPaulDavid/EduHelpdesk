@@ -14,6 +14,7 @@ public static class HelpTips
     {
         // Settings → Desks
         ["desk.prefix"] = new("Letters shown in front of this desk's ticket numbers, so SITE-14 is plainly a site job. Leave blank for plain numbers (#14); only one desk can do that.", "desks", "ticket-numbers"),
+        ["desk.areas"] = new("The parts of the top bar this desk uses. Someone working on it sees only these (and only those their role can open); Tickets, Reports and Settings are always there.", "desks", "the-top-bar"),
         ["desk.hours"] = new("The hours this desk's SLA clocks count. With its own hours, a spill reported at 17:55 with a 30-minute SLA is due at 06:25 the next working morning, not 18:25.", "desks", "working-hours"),
 
         // New ticket

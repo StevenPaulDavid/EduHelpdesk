@@ -35,6 +35,15 @@ public partial class HelpdeskStore
     // What the pages open on, switcher or not: someone on only the Site desk works on Site. Empty for every desk.
     public IReadOnlyList<Desk> WorkingDesks(ClaimsPrincipal user) => DeskSwitchFor(user).Working;
 
+    // Whether the top bar shows this area (DeskAreas): when any desk being worked on uses it - all of them on All desks.
+    // The role's own permission is asked separately. With one desk, always.
+    public bool AreaOn(ClaimsPrincipal user, string area)
+    {
+        if (!HasSeveralDesks) return true;
+        var working = WorkingDesks(user);
+        return (working.Count == 0 ? Desks : working).Any(x => DeskUses(x, area));
+    }
+
     // The blank choice in a page's own desk filter (the asset list and report), which follows the switcher.
     public string WorkingDeskOption(ClaimsPrincipal user) =>
         SwitcherFor(user) is { } switcher ? $"As the top bar: {switcher.Label}"

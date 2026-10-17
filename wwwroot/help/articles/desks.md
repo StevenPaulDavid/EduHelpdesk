@@ -5,12 +5,24 @@ area: Tickets
 kind: task
 pages: /Settings/Desks
 needs: Tickets
-keywords: desk desks it site facilities premises caretaker cleaning department prefix ticket number move hand over working hours
+keywords: desk desks it site facilities premises caretaker cleaning department prefix ticket number move hand over working hours switcher switch top bar menu areas
 order: 15
 ---
 A **desk** is a part of the school the helpdesk serves, such as **IT**, **Site** and **Cleaning**. They share one EduHelpdesk, but each desk has its own categories, teams, people and ticket numbers. Desks are set up in **Settings → Desks**.
 
 If your school has only one desk, you won't see desks anywhere.
+
+## The desk switcher
+
+If you can see more than one desk, the top bar has a **desk switcher** next to the school's name. It says which desk you're working on: **My desks** (every desk you're on, the default), one desk such as **Site**, or **All desks** if your role sees more desks than your own.
+
+The ticket list, the asset list and report, the daily sheet and the overview open on the desk you choose. It's remembered on your account, so it follows you to any computer. Opening a ticket or a link for another desk doesn't change it, and the desk filter on the ticket list still shows any desks you like.
+
+## The top bar
+
+Each desk chooses which parts of the top bar it uses, under **In the top bar** on the desk in **Settings → Desks**. The Site desk might use Assets and Cleaning rounds, but not Kits, Loans or Projects. The bar shows a part when any desk you're working on uses it, so **My desks** and **All desks** show everything your desks use. **Tickets**, **Reports** and **Settings** are always there.
+
+This only tidies the bar. Nobody gets a page their role can't open, and an unticked part can still be reached by a link.
 
 ## Which desk a ticket is on
 

@@ -113,4 +113,56 @@ public class DeskSwitchTests
         Assert.Empty(s.Store.WorkingDesks(admin));
         Assert.False(s.Store.ChooseWorkingDesk(admin, HelpdeskStore.AllDesksChoice));
     }
+
+    [Fact]
+    public void A_desk_keeps_the_top_bar_areas_it_uses_across_a_restart()
+    {
+        using var s = new Setup();
+        Assert.All(DeskAreas.All, area => Assert.True(HelpdeskStore.DeskUses(s.Site, area.Key)));
+
+        Assert.True(s.Store.SetDeskAreas(s.Site.Id, [DeskAreas.Assets, DeskAreas.Rounds, "no-such-area"]).Ok);
+
+        var site = s.Test.Reopen().Desks.Single(x => x.Name == "Site");
+        Assert.True(HelpdeskStore.DeskUses(site, DeskAreas.Assets));
+        Assert.True(HelpdeskStore.DeskUses(site, DeskAreas.Rounds));
+        Assert.False(HelpdeskStore.DeskUses(site, DeskAreas.Projects));
+        Assert.False(HelpdeskStore.DeskUses(site, DeskAreas.Kits));
+        Assert.Null(s.Test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public void The_bar_shows_an_area_when_any_desk_being_worked_on_uses_it()
+    {
+        using var s = new Setup();
+        var admin = Principal(s.Admin);
+        var caretaker = Principal(s.Caretaker);
+        Assert.True(s.Store.SetDeskAreas(s.Site.Id, [DeskAreas.Assets, DeskAreas.Rounds]).Ok);
+        Assert.True(s.Store.SetDeskAreas(s.It.Id, DeskAreas.All.Select(x => x.Key).Where(x => x != DeskAreas.Rounds)).Ok);
+
+        // The caretaker works on Site only.
+        Assert.False(s.Store.AreaOn(caretaker, DeskAreas.Projects));
+        Assert.True(s.Store.AreaOn(caretaker, DeskAreas.Rounds));
+
+        // My desks is IT for the Administrator.
+        Assert.True(s.Store.AreaOn(admin, DeskAreas.Projects));
+        Assert.False(s.Store.AreaOn(admin, DeskAreas.Rounds));
+
+        Assert.True(s.Store.ChooseWorkingDesk(admin, "Site"));
+        Assert.False(s.Store.AreaOn(admin, DeskAreas.Projects));
+        Assert.True(s.Store.AreaOn(admin, DeskAreas.Rounds));
+
+        // All desks: what any of them uses.
+        Assert.True(s.Store.ChooseWorkingDesk(admin, HelpdeskStore.AllDesksChoice));
+        Assert.True(s.Store.AreaOn(admin, DeskAreas.Projects));
+        Assert.True(s.Store.AreaOn(admin, DeskAreas.Rounds));
+    }
+
+    [Fact]
+    public void With_one_desk_every_area_shows_whatever_the_desk_says()
+    {
+        using var test = new TestStore();
+        Assert.True(test.Store.SetDeskAreas(test.Store.Desks[0].Id, []).Ok);
+        var admin = Principal(test.Store.Technicians.First(x => x.Role == StaffRoles.Administrator));
+        Assert.All(DeskAreas.All, area => Assert.True(test.Store.AreaOn(admin, area.Key)));
+    }
 }

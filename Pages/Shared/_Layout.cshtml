@@ -17,17 +17,25 @@
     // menu is built from what this role can actually reach. The pages enforce the same permissions themselves - this
     // only decides what is worth showing.
     bool Can(string module, ModulePermission action = ModulePermission.Access) => Helpdesk.UserCan(User, module, action);
-    var canInventory = Can(Modules.Assets) || Can(Modules.Kits) || Can(Modules.Loans) || Can(Modules.Parts) || Can(Modules.Suppliers);
+    // And from what the desks being worked on use (Settings → Desks, Services/DeskAreas.cs): the Site desk can leave
+    // Kits and Projects out of its bar. That only ever takes a link away - the role still decides what opens.
+    var areas = DeskAreas.All.ToDictionary(x => x.Key, x => Helpdesk.AreaOn(User, x.Key));
+    bool On(string area) => areas[area];
+    var canInventory = (Can(Modules.Assets) && On(DeskAreas.Assets)) || (Can(Modules.Kits) && On(DeskAreas.Kits)) || (Can(Modules.Loans) && On(DeskAreas.Loans))
+        || (Can(Modules.Parts) && On(DeskAreas.Parts)) || (Can(Modules.Suppliers) && On(DeskAreas.Suppliers));
     // People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough.
-    var canPeople = Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles);
-    var canOnboarding = Can(Modules.Onboarding);
+    var canPeople = (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) && On(DeskAreas.People);
+    var canOnboarding = Can(Modules.Onboarding) && On(DeskAreas.People);
     // The DfE registers that aren't inventory. Like HR, a menu only when there is more than one thing in it for this role;
     // the access control register and the compliance summary join the contracts register here.
     var compliance = new List<(string Page, string Label)>();
     // The summary first: it is where the three registers meet.
-    if (Can(Modules.Contracts) || Can(Modules.Access)) compliance.Add(("/Compliance/Index", "Compliance summary"));
-    if (Can(Modules.Contracts)) compliance.Add(("/Contracts", "Contracts register"));
-    if (Can(Modules.Access)) { compliance.Add(("/Access/Index", "Access control")); compliance.Add(("/Access/Review", "Access review")); }
+    if (On(DeskAreas.Compliance))
+    {
+        if (Can(Modules.Contracts) || Can(Modules.Access)) compliance.Add(("/Compliance/Index", "Compliance summary"));
+        if (Can(Modules.Contracts)) compliance.Add(("/Contracts", "Contracts register"));
+        if (Can(Modules.Access)) { compliance.Add(("/Access/Index", "Access control")); compliance.Add(("/Access/Review", "Access review")); }
+    }
     // /Reports is the asset report, not an index, so pointing the menu at it would refuse anyone given only one of the
     // other reports. The link goes to the first report this role can actually open.
     var reportPages = new (string Page, string Flag)[]
@@ -51,18 +59,18 @@
     var deskAsked = deskQuery.Count == 1 ? facilitiesDesks.FirstOrDefault(x => string.Equals(x.Name, deskQuery[0], StringComparison.OrdinalIgnoreCase)) : null;
     string Href(string page, string? desk = null) => desk is null ? Url.Page(page)! : Url.Page(page, new { desk })!;
     var facilities = new List<(string Section, string Href, string Label, bool NewTab)>();
-    if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) facilities.Add(("Daily work", Href("/Rounds"), severalDesks ? "Cleaning rounds" : "Rounds", false));
+    if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds) && On(DeskAreas.Rounds)) facilities.Add(("Daily work", Href("/Rounds"), severalDesks ? "Cleaning rounds" : "Rounds", false));
     if (severalDesks)
     {
         if (Can(Modules.Tickets, ModulePermission.New)) facilities.Add(("Daily work", Href("/QuickLog"), "Log a job already done", false));
         if (Can(Modules.Tickets, ModulePermission.View)) facilities.Add(("Daily work", Href("/DailySheet"), "Daily sheet", true));
         if (Can(Modules.Tickets)) foreach (var desk in facilitiesDesks) facilities.Add(("Daily work", Href("/Jobs", desk.Name), $"{desk.Name} tickets", false));
-        if (Can(Modules.Assets)) foreach (var desk in facilitiesDesks) facilities.Add(("Checks & plant", Href("/Assets", desk.Name), $"{desk.Name} plant", false));
+        if (Can(Modules.Assets) && On(DeskAreas.Assets)) foreach (var desk in facilitiesDesks) facilities.Add(("Checks & plant", Href("/Assets", desk.Name), $"{desk.Name} plant", false));
         if (Can(Modules.Reports))
         {
             if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportChecks)) facilities.Add(("Reports", Href("/Reports/Checks"), "Premises checks", false));
             if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportSpend)) facilities.Add(("Reports", Href("/Reports/Spend"), "Job spend", false));
-            if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportRounds)) facilities.Add(("Reports", Href("/Reports/Rounds"), "Cleaning rounds report", false));
+            if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportRounds) && On(DeskAreas.Rounds)) facilities.Add(("Reports", Href("/Reports/Rounds"), "Cleaning rounds report", false));
         }
         if (Helpdesk.CanSetUpFacilities(User))
         {
@@ -200,7 +208,7 @@
                 </details>
             }
             else if (facilities.Count == 1 && severalDesks) { <a href="@facilities[0].Href" class="@(onFacilities ? "active" : null)" target="@(facilities[0].NewTab ? "_blank" : null)" rel="@(facilities[0].NewTab ? "noopener" : null)">@facilities[0].Label</a> }
-            @if (Can(Modules.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
+            @if (Can(Modules.Projects) && On(DeskAreas.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
             @* With one desk the only facilities link is Rounds, in the place it has always had. *@
             @if (facilities.Count == 1 && !severalDesks) { <a href="@facilities[0].Href" class="@(onFacilities ? "active" : null)">@facilities[0].Label</a> }
             @* HR groups People and Onboarding, but only for someone who can reach both. Someone with just one of them - the
@@ -222,11 +230,11 @@
                 <details class="nav-menu">
                     <summary class="@(onInventory && !onFacilities ? "active" : null)">Inventory<span class="chev" aria-hidden="true">▾</span></summary>
                     <div class="nav-panel">
-                        @if (Can(Modules.Assets)) { <a asp-page="/Assets">Assets</a> }
-                        @if (Can(Modules.Kits)) { <a asp-page="/Kits">Kits</a> }
-                        @if (Can(Modules.Loans)) { <a asp-page="/Loans">Loans</a> }
-                        @if (Can(Modules.Parts)) { <a asp-page="/Parts">Parts</a> }
-                        @if (Can(Modules.Suppliers)) { <a asp-page="/Suppliers">Suppliers</a> }
+                        @if (Can(Modules.Assets) && On(DeskAreas.Assets)) { <a asp-page="/Assets">Assets</a> }
+                        @if (Can(Modules.Kits) && On(DeskAreas.Kits)) { <a asp-page="/Kits">Kits</a> }
+                        @if (Can(Modules.Loans) && On(DeskAreas.Loans)) { <a asp-page="/Loans">Loans</a> }
+                        @if (Can(Modules.Parts) && On(DeskAreas.Parts)) { <a asp-page="/Parts">Parts</a> }
+                        @if (Can(Modules.Suppliers) && On(DeskAreas.Suppliers)) { <a asp-page="/Suppliers">Suppliers</a> }
                     </div>
                 </details>
             }
