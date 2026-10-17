@@ -11,7 +11,7 @@ namespace EduHelpdesk.Pages;
 public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
 {
     public sealed record Card(string Title, string Page, string Description, string Keywords, string? Badge = null, bool Warn = false,
-        bool Open = true, IDictionary<string, string>? Route = null, bool Info = false, bool Good = false);
+        bool Open = true, bool Info = false, bool Good = false);
     public sealed record Group(string Title, IReadOnlyList<Card> Cards);
 
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
@@ -89,6 +89,8 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         // pages' own menu uses too.
         var details = new Dictionary<string, Detail>(StringComparer.OrdinalIgnoreCase)
         {
+            // The plain lists, a card for each group in its own section (SettingsMenu.ListGroups).
+
             ["/Settings/Desks"] = List(store.Desks.Select(x => x.Name).ToList(), "The parts of the school the helpdesk serves, such as IT, Site and Cleaning, each with its own categories, teams, people and ticket prefix."),
             ["/Settings/Rounds"] = List(store.CleaningRounds.Select(x => x.Name).ToList(), "Rooms grouped into cleaning rounds, the days each is done and its usual cleaner, for the supervisor to tick off."),
             ["/Settings/Cleaners"] = List(store.Cleaners, "The cleaners' names, for cleaning rounds. Cleaners don't need a sign-in."),
@@ -107,7 +109,6 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/AssetModels"] = List(store.AssetModels, "Models, each linked to its make."),
             ["/Settings/AssetAttributes"] = List(store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type."),
             ["/Settings/Teams"] = List(store.TechnicianTeams, "Technician teams that tickets can be assigned to."),
-            ["/Settings/Lists"] = new("Rooms, departments, buildings, makes, statuses and the other plain lists the dropdowns offer.", $"{SettingsMenu.Lists.Count} lists"),
             ["/Settings/Imports"] = new("Technician accounts and option lists from CSV files."),
             ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
             ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
@@ -127,6 +128,19 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings"] = new($"Version {AppVersion}. Made by Steven Davidson; free to use and share under the MIT licence, provided as it is with no warranty.", $"v{AppVersion}"),
             ["/Settings/Reset"] = new(HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.", HasDemoData ? "Demo data present" : null),
         };
+
+        foreach (var group in SettingsMenu.ListGroups)
+        {
+            var count = SettingsMenu.Lists.Count(x => x.Group == group.Key);
+            // A group of one list counts its values, like the other list cards; a group of several counts its lists.
+            var single = count == 1 ? SettingsMenu.Lists.First(x => x.Group == group.Key).Kind switch
+            {
+                "Priorities" => store.Priorities.Count,
+                "PurchasingRequirements" => store.PurchasingRequirements.Count,
+                _ => (int?)null
+            } : null;
+            details[SettingsMenu.ListPage(group.Key)] = new(group.Description, count > 1 ? $"{count} lists" : single?.ToString());
+        }
 
         Groups = SettingsMenu.Sections.Select(section => new Group(section.Title, section.Items.Select(item =>
         {

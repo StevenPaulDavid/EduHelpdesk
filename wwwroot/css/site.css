@@ -2610,14 +2610,9 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .more-options { margin-top: 16px; }
 .more-options .form-grid { margin-top: 14px; }
 
-/* Settings → Lists: the lists as tabs, in groups. */
-.list-tabs { display: grid; gap: 10px; margin: 0 0 18px; }
-.list-tab-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.list-tab-group-name { min-width: 150px; font-size: 12px; font-weight: 700; color: var(--muted); }
+/* Settings → Lists: a group's lists as tabs. */
+.list-tabs { margin: 0 0 18px; }
 .list-tabs .queue-tab { padding: 6px 12px; font-size: 13px; }
-@media(max-width:800px) {
-    .list-tab-group-name { min-width: 0; flex-basis: 100%; }
-}
 
 /* The portal's home: the person's open tickets, under the two big buttons. */
 .portal-open-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }

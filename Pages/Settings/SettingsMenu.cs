@@ -22,17 +22,17 @@ public static class SettingsMenu
     [
         new("Tickets",
         [
-            new("Desks", "/Settings/Desks", "desk desks site facilities premises caretaker cleaning cleaners estates departments prefix ticket number portal tiles separate teams"),
+            new("Desks", "/Settings/Desks", "desk desks it facilities site premises caretaker cleaning estates departments prefix ticket number portal tiles separate teams switch off rename"),
             new("Ticket queues & closing", "/Settings/TicketRules", "due soon overdue window hours reopen reply closed days closing message requirement print template word docx"),
             new("Statuses", "/Settings/Statuses", "status on hold pause sla clock"),
             new("Categories", "/Settings/Categories", "category hardware software"),
+            new("Priorities", ListPage("tickets"), "priorities priority urgent high normal low"),
             new("SLAs", "/Settings/Slas", "sla service level due date target"),
             new("School day and periods", "/Settings/SchoolDay", "school day week periods lessons timetable working hours"),
             new("Service catalogue", "/Settings/ServiceCatalogue", "service catalogue catalog sub category portal common problems"),
             new("Ticket templates", "/Settings/TicketTemplates", "template repeat job"),
-            new("Recurring tickets", "/Settings/RecurringTickets", "recurring reoccurring repeating scheduled schedule routine regular weekly monthly termly yearly checks maintenance checklist readings premises fire alarm water temperature legionella emergency lighting", Need.Facilities, Also: ["/Settings/Checklist"]),
+            new("Recurring tickets & checks", "/Settings/RecurringTickets", "recurring reoccurring repeating scheduled schedule routine regular weekly monthly termly yearly checks maintenance checklist readings premises fire alarm water temperature legionella emergency lighting", Need.Facilities, Also: ["/Settings/Checklist"]),
             new("Ticket custom attributes", "/Settings/TicketAttributes", "custom fields attributes extra"),
-            new("Budget codes", "/Settings/BudgetCodes", "budget code cost spend reactive planned maintenance ppm finance job costs", Need.Facilities),
         ]),
         new("Assets & inventory",
         [
@@ -40,23 +40,34 @@ public static class SettingsMenu
             new("Asset types", "/Settings/AssetTypes", "type lifespan laptop"),
             new("Asset models", "/Settings/AssetModels", "model"),
             new("Custom asset attributes", "/Settings/AssetAttributes", "custom fields attributes extra"),
+            new("Asset, part & loan lists", ListPage("assets"), "lists dropdown options asset makes asset statuses asset conditions part categories part locations loan reasons make manufacturer brand asset status disposed condition new used refurbished donated dfe part category location store cupboard loan reason kit"),
+        ]),
+        // The premises side: what the cleaning supervisor and site manager set up, open to "Set up facilities" too.
+        new("Facilities",
+        [
+            new("Cleaning rounds", "/Settings/Rounds", "cleaning rounds rooms cleaner cleaners rota sheet supervisor spot check daily weekly", Need.Facilities),
+            new("Cleaners", "/Settings/Cleaners", "cleaner cleaners cleaning staff names contractor rounds", Need.Facilities),
+            new("Budget codes", "/Settings/BudgetCodes", "budget code cost spend reactive planned maintenance ppm finance job costs", Need.Facilities),
         ]),
         new("People & places",
         [
             new("Teams", "/Settings/Teams", "team"),
-            new("Cleaning rounds", "/Settings/Rounds", "cleaning rounds rooms cleaner cleaners rota sheet supervisor spot check daily weekly", Need.Facilities),
-            new("Cleaners", "/Settings/Cleaners", "cleaner cleaners cleaning staff names contractor rounds", Need.Facilities),
-            new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Onboarding checklists", "/Settings/Onboarding", "onboarding new starter staff checklist template tasks"),
-            new("Lists", "/Settings/Lists", "lists dropdown options priorities asset makes asset statuses asset conditions part categories part locations loan reasons departments buildings locations (rooms) contract types spend categories contract durations contract statuses person types system and area categories reasons for removing access purchasing requirements priority urgent high normal low make manufacturer brand asset status disposed condition new used refurbished donated dfe part category location store cupboard loan reason kit department building block site campus room contract type licence subscription lease support register spend contracts duration length yearly rolling active expired person staff pupil governor contractor service account access system area mis cloud key fob revoke remove leaver purchasing requirement project request"),
+            new("Departments, buildings & rooms", ListPage("places"), "lists dropdown options departments buildings locations rooms department building block site campus room area"),
         ]),
         new("Projects",
         [
             new("Spending bands", "/Settings/SpendingBands", "spending bands quotes finance policy threshold vat ex inc excluding including amounts project page"),
+            new("Purchasing requirements", ListPage("projects"), "purchasing requirements requirement project request tick boxes"),
+        ]),
+        new("Compliance",
+        [
+            new("Contract & access lists", ListPage("compliance"), "lists dropdown options contract types spend categories contract durations contract statuses person types system and area categories reasons for removing access contract type licence subscription lease support register spend contracts duration length yearly rolling active expired person staff pupil governor contractor service account access system area mis cloud key fob revoke remove leaver"),
         ]),
         new("System",
         [
             new("Branding & logo", "/Settings/Branding", "branding brand name colour color logo crest dark mode light appearance theme overview wording"),
+            new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Backups & data", "/Settings/Backups", "backup restore data folder onedrive"),
             new("Sign-in security", "/Settings/SignIn", "sign in login password lockout https encryption security two-step 2fa mfa authenticator multi-factor"),
             new("Notifications", "/Settings/Notifications", "notifications pings pop-ups toast alerts banner reminder enable disable staff requesters portal sound"),
@@ -71,34 +82,49 @@ public static class SettingsMenu
         ]),
     ];
 
-    // The plain lists the dropdowns offer - a name each, renamed or removed - on one page, Settings → Lists
-    // (Pages/Settings/Lists.cshtml), a tab each. Lists with more to them (categories and teams on desks, statuses that
-    // pause the clock, cleaners and budget codes for "Set up facilities") keep pages of their own.
+    // The plain lists the dropdowns offer - a name each, renamed or removed. They share one page, Settings → Lists
+    // (Pages/Settings/Lists.cshtml), but each sits in the section it belongs to: the page at /Settings/Lists/<group>
+    // shows that group's lists, a tab each. Lists with more to them (categories and teams on desks, statuses that pause
+    // the clock, cleaners and budget codes for "Set up facilities") keep pages of their own.
     public sealed record ListItem(string Kind, string Title, string Group, string Description);
+    public sealed record ListGroup(string Key, string Title, string Description);
+
+    public static readonly IReadOnlyList<ListGroup> ListGroups =
+    [
+        new("tickets", "Priorities", "How urgent a ticket is."),
+        new("assets", "Asset, part & loan lists", "Makes, statuses and conditions for assets, where parts are kept and how they're grouped, and why devices are borrowed."),
+        new("places", "Departments, buildings & rooms", "Where people work and where things are: for requesters, tickets, assets and cleaning rounds."),
+        new("projects", "Purchasing requirements", "Tick boxes offered when a project is requested."),
+        new("compliance", "Contract & access lists", "The dropdowns of the contracts register and the access control register."),
+    ];
 
     public static readonly IReadOnlyList<ListItem> Lists =
     [
-        new("Priorities", "Priorities", "Tickets", "How urgent a ticket is."),
-        new("AssetMakes", "Asset makes", "Assets & inventory", "Manufacturers."),
-        new("AssetStatuses", "Asset statuses", "Assets & inventory", "Where an asset is in its life."),
-        new("AssetConditions", "Asset conditions", "Assets & inventory", "The condition column of the DfE asset register."),
-        new("PartCategories", "Part categories", "Assets & inventory", "How parts are grouped."),
-        new("PartLocations", "Part locations", "Assets & inventory", "Where parts are kept."),
-        new("LoanReasons", "Loan reasons", "Assets & inventory", "Why a device was borrowed."),
-        new("Departments", "Departments", "People & places", "Requesters' departments."),
-        new("Buildings", "Buildings", "People & places", "Buildings or sites, recorded with the room on each asset."),
-        new("Locations", "Locations (rooms)", "People & places", "Rooms and areas, for tickets, assets and people."),
-        new("ContractTypes", "Contract types", "Compliance", "What kind of contract each is: licence, subscription, lease."),
-        new("SpendCategories", "Spend categories", "Compliance", "The DfE spend categories contracts are grouped under."),
-        new("ContractDurations", "Contract durations", "Compliance", "How long contracts run for."),
-        new("ContractStatuses", "Contract statuses", "Compliance", "Where a contract is. Expired takes it out of the warnings."),
-        new("PersonTypes", "Person types", "Compliance", "Staff, pupils, governors, contractors and service accounts, for the access register."),
-        new("AccessCategories", "System and area categories", "Compliance", "How systems and areas are grouped on the access register."),
-        new("RevokeReasons", "Reasons for removing access", "Compliance", "Why access was taken away: leaver, changed role, removed at review."),
-        new("PurchasingRequirements", "Purchasing requirements", "Projects", "Tick boxes offered when a project is requested."),
+        new("Priorities", "Priorities", "tickets", "How urgent a ticket is."),
+        new("AssetMakes", "Asset makes", "assets", "Manufacturers."),
+        new("AssetStatuses", "Asset statuses", "assets", "Where an asset is in its life."),
+        new("AssetConditions", "Asset conditions", "assets", "The condition column of the DfE asset register."),
+        new("PartCategories", "Part categories", "assets", "How parts are grouped."),
+        new("PartLocations", "Part locations", "assets", "Where parts are kept."),
+        new("LoanReasons", "Loan reasons", "assets", "Why a device was borrowed."),
+        new("Departments", "Departments", "places", "Requesters' departments."),
+        new("Buildings", "Buildings", "places", "Buildings or sites, recorded with the room on each asset."),
+        new("Locations", "Locations (rooms)", "places", "Rooms and areas, for tickets, assets, people and cleaning rounds."),
+        new("PurchasingRequirements", "Purchasing requirements", "projects", "Tick boxes offered when a project is requested."),
+        new("ContractTypes", "Contract types", "compliance", "What kind of contract each is: licence, subscription, lease."),
+        new("SpendCategories", "Spend categories", "compliance", "The DfE spend categories contracts are grouped under."),
+        new("ContractDurations", "Contract durations", "compliance", "How long contracts run for."),
+        new("ContractStatuses", "Contract statuses", "compliance", "Where a contract is. Expired takes it out of the warnings."),
+        new("PersonTypes", "Person types", "compliance", "Staff, pupils, governors, contractors and service accounts, for the access register."),
+        new("AccessCategories", "System and area categories", "compliance", "How systems and areas are grouped on the access register."),
+        new("RevokeReasons", "Reasons for removing access", "compliance", "Why access was taken away: leaver, changed role, removed at review."),
     ];
 
+    public static string ListPage(string group) => "/Settings/Lists/" + group;
     public static ListItem? FindList(string? kind) => Lists.FirstOrDefault(x => string.Equals(x.Kind, kind, StringComparison.OrdinalIgnoreCase));
+    public static ListGroup? FindListGroup(string? key) => ListGroups.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
+    // Where a list is edited: /Settings/Lists/assets?kind=LoanReasons.
+    public static string ListUrl(string kind) => FindList(kind) is { } list ? $"{ListPage(list.Group)}?kind={list.Kind}" : "/Settings/Lists";
 
     public static bool CanOpen(HelpdeskStore store, ClaimsPrincipal user, Item item) => item.Need switch
     {
@@ -109,7 +135,13 @@ public static class SettingsMenu
         _ => store.UserCan(user, Modules.Settings, ModulePermission.Edit)
     };
 
-    // The menu entry for the page at this path, or for the page it sits inside.
-    public static Item? For(string path) => Sections.SelectMany(x => x.Items).Where(x => x.Need != Need.Info).FirstOrDefault(x =>
-        string.Equals(x.Page, path, StringComparison.OrdinalIgnoreCase) || (x.Also?.Contains(path, StringComparer.OrdinalIgnoreCase) ?? false));
+    // The menu entry for the page at this path, or for the page it sits inside. /Settings/Lists on its own (where a
+    // list's forms post back to) is the entry for the group of the list asked for.
+    public static Item? For(string path, string? listKind = null)
+    {
+        if (string.Equals(path.TrimEnd('/'), "/Settings/Lists", StringComparison.OrdinalIgnoreCase))
+            path = ListPage(FindList(listKind)?.Group ?? Lists[0].Group);
+        return Sections.SelectMany(x => x.Items).Where(x => x.Need != Need.Info).FirstOrDefault(x =>
+            string.Equals(x.Page, path, StringComparison.OrdinalIgnoreCase) || (x.Also?.Contains(path, StringComparer.OrdinalIgnoreCase) ?? false));
+    }
 }

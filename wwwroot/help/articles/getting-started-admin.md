@@ -16,7 +16,7 @@ Everything that shapes how EduHelpdesk works for your school is under **Settings
 2. **Desks** - one per team that takes work (IT, Site, Cleaning). Each has its own categories, people and ticket numbers (IT-12, SITE-4). See [Desks](desks).
 3. **Categories, statuses and priorities** - what tickets are about, the steps they move through, and how urgent they are. See [The simple lists](simple-lists) and [Statuses](statuses).
 4. **SLAs** - how long tickets have, by priority and category. **School day and periods** sets the days and lessons they count. See [SLAs](slas) and [School day and periods](school-day).
-5. **Rooms** and **departments**, in **Settings → Lists** - used on tickets, assets and cleaning rounds. Long lists can be imported; see [Importing from spreadsheets](imports).
+5. **Rooms** and **departments**, in **Settings → Departments, buildings & rooms** - used on tickets, assets and cleaning rounds. Long lists can be imported; see [Importing from spreadsheets](imports).
 6. **Roles** (in People) - what each kind of account can see and do. Then add **technician accounts** and give each a role. See [Roles and permissions](roles-and-permissions) and [Technician accounts](staff-accounts).
 7. **Service catalogue** - the list of common problems staff pick from in the staff portal. See [The service catalogue](service-catalogue).
 8. **Notifications**, **Teams channel** and **EduNotify** - how people hear about new tickets. See [Notifications for everyone](notifications-setup).

@@ -8,7 +8,7 @@ needs: Settings:Edit
 keywords: list option category priority team department location room building budget code cleaner make condition rename delete add
 order: 2
 ---
-Many settings are a simple list of values that appear in drop-downs elsewhere: rooms, departments, priorities, asset makes, contract types and so on. Most of them share one page, **Settings → Lists**, a tab each. Categories, teams, budget codes and cleaners have pages of their own, because there is a little more to them. They all work the same way.
+Many settings are a simple list of values that appear in drop-downs elsewhere: rooms, departments, priorities, asset makes, contract types and so on. Each sits in the section of Settings it belongs to - **Priorities** under Tickets, **Asset, part & loan lists** under Assets & inventory, **Departments, buildings & rooms** under People & places, **Purchasing requirements** under Projects, and **Contract & access lists** under Compliance - with a tab for each list. Categories and teams (under Tickets and People & places) and budget codes and cleaners (under Facilities) have pages of their own, because there is a little more to them. They all work the same way.
 
 ## Adding, renaming and removing
 

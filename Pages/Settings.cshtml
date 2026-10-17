@@ -44,7 +44,7 @@
                 }
                 else if (card.Open)
                 {
-                    <a class="settings-card" asp-page="@card.Page" asp-all-route-data="@(card.Route ?? new Dictionary<string, string>())" data-keywords="@card.Keywords">
+                    <a class="settings-card" href="@Url.Content("~" + card.Page)" data-keywords="@card.Keywords">
                         <span class="settings-card-title"><strong>@card.Title</strong>@if (card.Badge is not null) { <span class="@badgeClass">@card.Badge</span> }</span>
                         <small>@card.Description</small>
                     </a>
