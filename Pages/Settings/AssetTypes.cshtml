@@ -6,10 +6,10 @@
 <section class="panel">
     <form method="post" class="settings-form">
         <label>Add type<input name="value" required /></label>
-        <label>Expected lifespan (years)<input name="lifespan" type="number" min="1" max="50" step="1" placeholder="Optional" /></label>
+        <label>Expected lifespan (years) <help-tip key="assettype.lifespan" /><input name="lifespan" type="number" min="1" max="50" step="1" placeholder="Optional" /></label>
         @if (Model.HasSeveralDesks)
         {
-            <label>Desk<select name="deskId">@foreach (var desk in Model.Desks) { <option value="@desk.Id">@desk.Name</option> }</select></label>
+            <label>Desk <help-tip key="assettype.desk" /><select name="deskId">@foreach (var desk in Model.Desks) { <option value="@desk.Id">@desk.Name</option> }</select></label>
         }
         @if (Model.HasSeveralDesks) { <small class="muted">Each type belongs to a desk: plant such as boilers and extinguishers to Site, so the asset list and asset report keep it apart from IT's kit.</small> }
         <small class="muted">The lifespan works out when an asset is due for replacement: its purchase date plus the lifespan. A replacement date typed on an asset always overrides it. Leave it blank to only use typed dates.</small>

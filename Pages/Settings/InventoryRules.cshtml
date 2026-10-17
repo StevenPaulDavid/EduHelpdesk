@@ -7,7 +7,7 @@
 <section class="panel">
     <div class="panel-heading"><h2>Asset review</h2></div>
     <p class="muted">The overview lists assets whose warranty ends, or that are due for replacement, within this many days, along with any already past. Overdue loans are always listed.</p>
-    <form method="post" asp-page-handler="SaveAssetReview" class="import-row"><label>Review window (days)<input name="days" type="number" min="0" max="3650" step="1" value="@Model.AssetReviewDays" required /></label><button class="button button-primary">Save</button></form>
+    <form method="post" asp-page-handler="SaveAssetReview" class="import-row"><label>Review window (days) <help-tip key="rules.review-window" /><input name="days" type="number" min="0" max="3650" step="1" value="@Model.AssetReviewDays" required /></label><button class="button button-primary">Save</button></form>
 </section>
 
 <section class="panel">
@@ -16,7 +16,7 @@
     <form method="post" asp-page-handler="SaveAssetChecks" class="import-row">
         <label>Check due soon (days)<input name="dueSoonDays" type="number" min="0" max="3650" step="1" value="@Model.Checks.DueSoonDays" required /></label>
         <label>Support ending warning (days)<input name="supportWarningDays" type="number" min="0" max="3650" step="1" value="@Model.Checks.SupportWarningDays" required /></label>
-        <label>Months between checks<input name="intervalMonths" type="number" min="1" max="120" step="1" value="@Model.Checks.IntervalMonths" required /></label>
+        <label><span>Months between checks <help-tip key="rules.check-months" /></span><input name="intervalMonths" type="number" min="1" max="120" step="1" value="@Model.Checks.IntervalMonths" required /></label>
         <button class="button button-primary">Save</button>
     </form>
 </section>
@@ -24,7 +24,7 @@
 <section class="panel">
     <div class="panel-heading"><h2>Academic year</h2></div>
     <p class="muted">Which month your academic year starts in. The finance and audit report groups purchases and disposals by this, so a July purchase belongs to the year that started the previous September.</p>
-    <form method="post" asp-page-handler="SaveAcademicYear" class="import-row"><label>Starts in<select name="month">@foreach (var m in InventoryRulesModel.AcademicMonths) { <option value="@m.Month" selected="@(m.Month == Model.AcademicYearStartMonth)">@m.Name</option> }</select></label><button class="button button-primary">Save</button></form>
+    <form method="post" asp-page-handler="SaveAcademicYear" class="import-row"><label>Starts in <help-tip key="rules.academic-year" /><select name="month">@foreach (var m in InventoryRulesModel.AcademicMonths) { <option value="@m.Month" selected="@(m.Month == Model.AcademicYearStartMonth)">@m.Name</option> }</select></label><button class="button button-primary">Save</button></form>
 </section>
 
 <section class="panel">

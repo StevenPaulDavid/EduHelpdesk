@@ -129,7 +129,7 @@
             <div class="bulk-actions">
                 <strong>With selected assets</strong>
                 <span class="muted" id="selected-count">None selected</span>
-                <label>Action<select name="operation" id="bulk-operation">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change room</option><option value="check" data-button="Record check">Record a check</option> }<option value="export" data-button="Export selected">Export to CSV</option></select></label>
+                <label><span>Action <help-tip key="assets.bulk" /></span><select name="operation" id="bulk-operation">@if (Model.CanEdit) { <option value="status">Change status</option><option value="owner">Reassign owner</option><option value="location">Change room</option><option value="check" data-button="Record check">Record a check</option> }<option value="export" data-button="Export selected">Export to CSV</option></select></label>
                 @if (Model.CanEdit)
                 {
                     <label id="bulk-status-field">New status<select name="newStatus">@foreach (var item in Model.Statuses) { <option value="@item">@item</option> }</select></label>

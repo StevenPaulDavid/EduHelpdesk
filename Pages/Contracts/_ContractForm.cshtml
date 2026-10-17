@@ -32,7 +32,7 @@
     <legend>Cost</legend>
     <div class="form-grid contract-form-grid">
         <label>Cost (£)<input name="Input.Cost" inputmode="decimal" value="@x.Cost" placeholder="0.00" /></label>
-        <label>Per<select name="Input.CostPeriod">@foreach (var period in ContractCostPeriods.All) { <option value="@period" selected="@Same(period, x.CostPeriod ?? ContractCostPeriods.PerYear)">@period</option> }</select></label>
+        <label><span>Per <help-tip key="contract.cost-period" /></span><select name="Input.CostPeriod">@foreach (var period in ContractCostPeriods.All) { <option value="@period" selected="@Same(period, x.CostPeriod ?? ContractCostPeriods.PerYear)">@period</option> }</select></label>
         <label class="span-2">Cost notes<input name="Input.CostNotes" value="@x.CostNotes" placeholder="e.g. £875 in year 1 only; excludes VAT" /></label>
     </div>
 </fieldset>
@@ -42,7 +42,7 @@
         <label>Start date<input name="Input.StartDate" type="date" value="@Day(x.StartDate)" /></label>
         <label>End date<input name="Input.EndDate" type="date" value="@Day(x.EndDate)" /></label>
         <label>Next renewal date<input name="Input.NextRenewalDate" type="date" value="@Day(x.NextRenewalDate)" /></label>
-        <label>Notice needed (months)<input name="Input.NoticeMonths" type="number" min="0" max="60" step="1" value="@x.NoticeMonths" /><small class="muted">To renew or cancel, counted back from the renewal date (or the end date).</small></label>
+        <label><span>Notice needed (months) <help-tip key="contract.notice" /></span><input name="Input.NoticeMonths" type="number" min="0" max="60" step="1" value="@x.NoticeMonths" /><small class="muted">To renew or cancel, counted back from the renewal date (or the end date).</small></label>
         <label>Duration<select name="Input.Duration"><option value="">Not recorded</option>@foreach (var item in EduHelpdesk.Pages.Contracts.ContractForm.With(Model.Durations, x.Duration)) { <option value="@item" selected="@Same(item, x.Duration)">@item</option> }</select></label>
         <label>Renewal<select name="Input.RenewalType"><option value="">Not recorded</option>@foreach (var item in ContractRenewalTypes.All) { <option value="@item" selected="@Same(item, x.RenewalType)">@item</option> }</select></label>
     </div>
@@ -51,7 +51,7 @@
     <legend>Compliance</legend>
     <label class="toggle-label"><input type="checkbox" name="Input.ApprovedApp" value="true" checked="@x.ApprovedApp" /> An approved application <span class="muted">(the cyber security standard's list of approved apps)</span></label>
     <label class="toggle-label"><input type="checkbox" name="Input.ProcessesPersonalData" value="true" checked="@x.ProcessesPersonalData" /> Processes personal data <span class="muted">(needs a DPIA and a line on the information asset register)</span></label>
-    <label class="toggle-label"><input type="checkbox" name="Input.RelatedParty" value="true" checked="@x.RelatedParty" /> A related party transaction <span class="muted">(Academy Trust Handbook: report to DfE before it starts or renews)</span></label>
+    <label class="toggle-label"><input type="checkbox" name="Input.RelatedParty" value="true" checked="@x.RelatedParty" /> A related party transaction <span class="muted">(Academy Trust Handbook: report to DfE before it starts or renews)</span> <help-tip key="contract.related-party" /></label>
     <label>Reported to DfE on<input name="Input.RelatedPartyReportedOn" type="date" value="@Day(x.RelatedPartyReportedOn)" /><small class="muted">Only kept for related party contracts.</small></label>
 </fieldset>
 <label>Additional comments<textarea name="Input.Notes" rows="3" maxlength="4000">@x.Notes</textarea></label>

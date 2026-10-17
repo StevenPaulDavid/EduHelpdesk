@@ -34,7 +34,7 @@
         <section class="panel directory-panel">
             <div class="panel-heading"><div><p class="eyebrow">STEP 1</p><h2>Keep or remove</h2></div><span class="badge">@Model.Rows.Count</span></div>
             <p class="muted">Everything is kept unless you tick Remove. Anything already flagged in red - a leaver, privileged access nobody approved, MFA off - is worth removing or fixing now.</p>
-            <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Person</th><th>System or area</th><th>Access</th><th>Last reviewed</th><th>Remove</th></tr></thead><tbody>
+            <div class="table-wrap"><table class="ticket-table stack-table"><thead><tr><th data-stack="head">Person</th><th>System or area</th><th>Access</th><th>Last reviewed</th><th>Remove <help-tip key="review.remove" /></th></tr></thead><tbody>
             @foreach (var row in Model.Rows)
             {
                 <tr>
@@ -76,7 +76,7 @@
     @if (Model.CanSetInterval)
     {
         <form method="post" asp-page-handler="Interval" asp-route-system="@Model.SystemId" class="import-row">
-            <label>Review every (days)<input name="days" type="number" min="7" max="730" value="@Model.ReviewDays" required /></label>
+            <label><span>Review every (days) <help-tip key="review.every" /></span><input name="days" type="number" min="7" max="730" value="@Model.ReviewDays" required /></label>
             <button class="button button-secondary" type="submit">Save</button>
             <small class="muted">About 120 days is once a term. Grants not reviewed within this show as review overdue.</small>
         </form>

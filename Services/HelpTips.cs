@@ -86,6 +86,37 @@ public static class HelpTips
         ["person.projects"] = new("Can raise projects: ask IT to source and quote for purchases from the portal. Project lead: also confirms priorities and assigns technicians.", "people", "a-requester-s-details"),
         ["import.passwords"] = new("Gives everyone imported a temporary password and opens their quick start guides to print. Untick to import without passwords.", "imports", "requesters-and-staff-accounts"),
 
+        // Assets and inventory
+        ["asset.ownership"] = new("Owned by the school, or leased or loaned from someone else. For leased and loaned assets, End of support becomes the date the lease ends.", "asset-page", "details"),
+        ["asset.condition"] = new("New, used, refurbished or donated when it arrived - a column on the DfE asset register.", "asset-page", "details"),
+        ["asset.replacement"] = new("When it's due for replacement, for budgeting. Leave blank to use the purchase date plus the type's lifespan (Settings → Asset types).", "inventory-rules", "asset-types"),
+        ["asset.support"] = new("When it stops getting security updates, or a lease ends. Flagged ahead of time. Separate from the replacement date, which is for budgeting.", "asset-checks", "end-of-support"),
+        ["asset.next-check"] = new("When its next DfE check is due. Recording a check sets this automatically, a set number of months later.", "asset-checks", "recording-a-check"),
+        ["asset.disposal"] = new("For an asset leaving the school - sold, recycled, donated or written off. Keeps the record for finance and auditors instead of deleting it.", "dispose-an-asset"),
+        ["assets.bulk"] = new("Tick assets in the list, choose what to do - change status, owner or room, record a check, or export - then Apply.", "asset-register", "changing-many-at-once"),
+        ["import.blank-clears"] = new("Off (recommended): a blank cell leaves the existing value alone. On: a blank cell empties that field on an existing asset.", "import-assets", "2-match-the-columns"),
+        ["import.add-missing"] = new("On: makes, models, rooms and so on that aren't in the lists yet are added. Off: a row with an unknown value is skipped instead.", "import-assets", "2-match-the-columns"),
+        ["loan.borrower"] = new("Someone from the staff directory. For a kit only, choose Not listed and type a name for supply staff or visitors.", "loans", "issuing-a-loan"),
+        ["loan.reason"] = new("Why they need it, from Settings → Loan reasons. The loan report uses it to spot patterns, such as repeated forgotten chargers.", "loans", "issuing-a-loan"),
+        ["kit.retired"] = new("Stops offering the kit for new loans but keeps its loan history. Use it instead of deleting a kit that's been lent.", "loan-kits", "retiring-a-kit"),
+        ["part.threshold"] = new("Flag the part as low once stock drops to this or below. Blank uses the default in Settings → Asset, part & loan rules.", "parts", "adding-a-part"),
+        ["part.correct"] = new("Replaces the count rather than adding to it - for a stocktake, breakage or something gone missing. Deliveries use Add to stock.", "parts", "changing-the-stock"),
+        ["rules.review-window"] = new("Assets whose warranty ends or replacement is due within this many days appear in the review list on the Overview.", "inventory-rules"),
+        ["rules.check-months"] = new("Recording a DfE check sets the asset's next check this many months later, e.g. 12 for yearly.", "inventory-rules"),
+        ["rules.academic-year"] = new("The finance report groups purchases and disposals by academic year starting this month, so a July purchase counts in the year that began last September.", "inventory-rules"),
+        ["assettype.lifespan"] = new("How many years this type should last. An asset's replacement date is its purchase date plus this, unless one is typed on the asset.", "inventory-rules", "asset-types"),
+        ["assettype.desk"] = new("Which desk this type belongs to: plant such as boilers to Site, so the asset list and report keep it apart from IT's kit.", "inventory-rules", "asset-types"),
+
+        // Compliance
+        ["contract.notice"] = new("Months of notice needed to renew or cancel, counted back from the renewal (or end) date. The register warns before that notice date.", "contracts-register", "adding-a-contract"),
+        ["contract.cost-period"] = new("What the cost covers. Monthly, quarterly and yearly costs are turned into a yearly figure for the register's total; one-off costs are left out.", "contracts-register", "adding-a-contract"),
+        ["contract.related-party"] = new("A contract with someone connected to the school or trust. The Academy Trust Handbook says report it to the DfE before it starts or renews.", "contracts-register", "compliance-ticks"),
+        ["access.privileged"] = new("Administrator-level access. The cyber security standard expects SLT or a trustee to approve it first - record who under Approved by.", "access-register", "recording-access"),
+        ["access.mfa"] = new("Needed for cloud or remote access and every administrator account. Not available means a complex password is used instead. Keys: not applicable.", "access-register", "recording-access"),
+        ["system.mfa"] = new("Tick for anything reached from the cloud or from home. Anyone recorded with access to it but no MFA is then flagged.", "access-systems"),
+        ["review.remove"] = new("Everything is kept unless ticked. Ticked access is removed when you record the review, with the reason you give.", "access-review", "doing-a-review"),
+        ["review.every"] = new("How often access should be reviewed. About 120 days is once a term; access not reviewed within this shows as overdue.", "access-review", "how-often"),
+
         // Settings → Cleaning rounds
         ["round.cleaner"] = new("Filled in against every room when the supervisor ticks the round off. They can change it on the day if someone else covered.", "getting-started-cleaning", "setting-up-a-round"),
         ["round.counted-from"] = new("The first day this round is due. Days before it never show as missed, so set it to the day the cleaners start working from the sheet.", "getting-started-cleaning", "setting-up-a-round"),

@@ -71,8 +71,8 @@
             @* DfE records where kit is as building and room. The room is the same Locations list tickets and people use. *@
             <label>Building<select name="building"><option value="">Not recorded</option>@foreach (var item in buildingOptions) { <option value="@item" selected="@(string.Equals(item, asset.Building, StringComparison.OrdinalIgnoreCase))">@item</option> }</select></label>
             <label>Room<select name="location"><option value="">Unassigned</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@(string.Equals(location, asset.Location, StringComparison.OrdinalIgnoreCase))">@location</option> }</select></label>
-            <label>Condition<select name="condition"><option value="">Not recorded</option>@foreach (var item in conditionOptions) { <option value="@item" selected="@(string.Equals(item, asset.Condition, StringComparison.OrdinalIgnoreCase))">@item</option> }</select></label>
-            <label>Ownership<select name="ownership">@foreach (var item in AssetOwnership.All) { <option value="@item" selected="@(item == asset.Ownership)">@AssetOwnership.Label(item)</option> }</select></label>
+            <label><span>Condition <help-tip key="asset.condition" /></span><select name="condition"><option value="">Not recorded</option>@foreach (var item in conditionOptions) { <option value="@item" selected="@(string.Equals(item, asset.Condition, StringComparison.OrdinalIgnoreCase))">@item</option> }</select></label>
+            <label><span>Ownership <help-tip key="asset.ownership" /></span><select name="ownership">@foreach (var item in AssetOwnership.All) { <option value="@item" selected="@(item == asset.Ownership)">@AssetOwnership.Label(item)</option> }</select></label>
             <label>Assigned user<select name="assignedUserId" data-picker><option value="">Unassigned</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id == asset.AssignedUserId)">@user.Name</option> }</select></label>
             @if (asset.LoanDueDate is { } onLoanUntil)
             {
@@ -112,7 +112,7 @@
         <label>Purchase order<input name="purchaseOrder" form="asset-form" value="@asset.PurchaseOrder" /><small class="muted">The Trust's PO, if you were given one.</small></label>
         <label>Quote reference<input name="quoteReference" form="asset-form" value="@asset.QuoteReference" /><small class="muted">The supplier's quote number — often the only reference for an order placed via the Trust.</small></label>
         <label>Warranty end<input name="warrantyEnd" type="date" form="asset-form" value="@asset.WarrantyEnd?.ToString("yyyy-MM-dd")" />@if (warrantyExpired) { <small class="muted">Expired.</small> }</label>
-        <label>Replacement date<input name="replacementDate" type="date" form="asset-form" value="@asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
+        <label><span>Replacement date <help-tip key="asset.replacement" /></span><input name="replacementDate" type="date" form="asset-form" value="@asset.ReplacementDate?.ToString("yyyy-MM-dd")" /><small class="muted">@replacementHint</small></label>
         @* DfE: a leased asset's details belong on the contracts register too. *@
         <label>Lease or loan contract<select name="contractId" form="asset-form" data-picker><option value="">None</option>@foreach (var contract in Model.Contracts) { <option value="@contract.Id" selected="@(contract.Id == asset.ContractId)">@contract.Name</option> }</select>
             <small class="muted">@if (asset.ContractId is { } linkedId && Model.CanOpenContracts) { <a asp-page="/Contract" asp-route-id="@linkedId">Open the contract</a> } else { <text>For leased or loaned kit: its contract on the contracts register.</text> }</small></label>
@@ -145,7 +145,7 @@
         <label>Last check<input name="lastCheckDate" type="date" form="asset-form" value="@asset.LastCheckDate?.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" /></label>
         <label>Checked by<input name="lastCheckBy" form="asset-form" value="@asset.LastCheckBy" /></label>
         <label>Next check<input name="nextCheckDate" type="date" form="asset-form" value="@asset.NextCheckDate?.ToString("yyyy-MM-dd")" /></label>
-        <label>@(string.IsNullOrEmpty(asset.Ownership) ? "End of support" : "Lease or loan ends")<input name="endOfSupport" type="date" form="asset-form" value="@asset.EndOfSupport?.ToString("yyyy-MM-dd")" /><small class="muted">When it stops getting security updates (or goes back to its owner). Separate from the replacement date, which is for budgeting.</small></label>
+        <label><span>@(string.IsNullOrEmpty(asset.Ownership) ? "End of support" : "Lease or loan ends") <help-tip key="asset.support" /></span><input name="endOfSupport" type="date" form="asset-form" value="@asset.EndOfSupport?.ToString("yyyy-MM-dd")" /><small class="muted">When it stops getting security updates (or goes back to its owner). Separate from the replacement date, which is for budgeting.</small></label>
     </div>
     <div class="asset-form-actions"><button class="button button-primary" type="submit" form="asset-form" formaction="@(Url.Page("/Asset", "Save") + "#asset-checks")">Save asset</button></div>
 </section>
@@ -224,7 +224,7 @@
     else
     {
         <details class="dispose-block">
-            <summary>Record a disposal</summary>
+            <summary>Record a disposal <help-tip key="asset.disposal" /></summary>
             <p class="muted">Use this when the asset leaves the school — sold, recycled, donated or written off. It keeps the record for finance and auditors instead of deleting it. Book it back in, or take it out of its kit, first.</p>
             <form method="post" asp-page-handler="Dispose" asp-fragment="asset-loans" class="import-row" data-confirm="Record this asset as disposed?">
                 <input type="hidden" name="id" value="@asset.Id" />

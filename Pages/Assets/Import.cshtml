@@ -71,9 +71,9 @@ else if (Model.Stage == "map")
                 <label>Type for new assets with no type<select name="defaultType"><option value="">No default (a type is required)</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@string.Equals(type, session.Options.DefaultType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
                 <label>Status for new assets with no status<select name="defaultStatus">@foreach (var status in Model.Statuses) { <option value="@status" selected="@(string.Equals(status, session.Options.DefaultStatus, StringComparison.OrdinalIgnoreCase) || (session.Options.DefaultStatus is null && status == Model.Statuses[0]))">@status</option> }</select></label>
             </div>
-            <label class="toggle-label"><input type="checkbox" name="createMissing" value="true" checked="@session.Options.CreateMissing" /> Add makes, models, types, locations, statuses and suppliers that are not in the lists yet</label>
+            <label class="toggle-label"><input type="checkbox" name="createMissing" value="true" checked="@session.Options.CreateMissing" /> Add makes, models, types, locations, statuses and suppliers that are not in the lists yet <help-tip key="import.add-missing" /></label>
             <p class="muted import-hint">You will see everything that would be added in step 3. If this is off, a row with an unknown value is skipped instead.</p>
-            <label class="toggle-label"><input type="checkbox" name="blankClears" value="true" checked="@session.Options.BlankClears" /> A blank cell clears the value on an existing asset</label>
+            <label class="toggle-label"><input type="checkbox" name="blankClears" value="true" checked="@session.Options.BlankClears" /> A blank cell clears the value on an existing asset <help-tip key="import.blank-clears" /></label>
             <p class="muted import-hint">Off (recommended): blank cells are ignored and existing values stay. Tags, types, models and statuses are never cleared.</p>
             <div class="heading-actions"><button class="button button-primary" type="submit">Preview the import</button><a class="button button-secondary" asp-page="/Assets/Import">Start again with another file</a></div>
         </form>

@@ -43,7 +43,7 @@
             </label>
         </div>
 
-        <label>Who is borrowing it?
+        <label><span>Who is borrowing it? <help-tip key="loan.borrower" /></span>
             <select name="borrowerUserId" id="borrower-user" data-picker data-picker-placeholder="Type a name or department…">
                 <option value="">Not listed — type a name below</option>
                 @foreach (var user in Model.Users)
@@ -57,7 +57,7 @@
             <small class="muted">Kits only. A single device has to go to somebody in the directory so it can be traced back.</small>
         </label>
 
-        <label>Why do they need it? <span class="required-marker">*</span>
+        <label><span>Why do they need it? <span class="required-marker">*</span> <help-tip key="loan.reason" /></span>
             <select name="reason" required>
                 @foreach (var reason in Model.Reasons)
                 {

@@ -88,9 +88,9 @@
                 <label>Account, key or fob number<input name="Form.Identifier" value="@f.Identifier" maxlength="150" placeholder="Username, or key / fob number" /></label>
                 @if (isSystem)
                 {
-                    <label>MFA<select name="Form.Mfa">@foreach (var state in MfaStates.All) { <option value="@state" selected="@(state == f.Mfa)">@state</option> }</select><small class="muted">Needed for cloud or remote access and for every administrator account. Not used for physical areas and keys.</small></label>
+                    <label><span>MFA <help-tip key="access.mfa" /></span><select name="Form.Mfa">@foreach (var state in MfaStates.All) { <option value="@state" selected="@(state == f.Mfa)">@state</option> }</select><small class="muted">Needed for cloud or remote access and for every administrator account. Not used for physical areas and keys.</small></label>
                 }
-                <label class="toggle-label"><input type="checkbox" name="Form.Privileged" value="true" checked="@f.Privileged" /> Privileged (administrator) access</label>
+                <label class="toggle-label"><input type="checkbox" name="Form.Privileged" value="true" checked="@f.Privileged" /> Privileged (administrator) access <help-tip key="access.privileged" /></label>
                 <label>Granted on<input name="Form.GrantedOn" type="date" value="@Iso(f.GrantedOn)" required /></label>
                 <label>Granted by<input name="Form.GrantedBy" value="@f.GrantedBy" maxlength="100" /></label>
                 <label>Approved by (SLT or trustee)<input name="Form.ApprovedBy" value="@f.ApprovedBy" maxlength="100" /></label>

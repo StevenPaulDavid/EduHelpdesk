@@ -10,3 +10,5 @@ checklist | /Job?number=1003 | #checklist
 settings | /Settings |
 role-editor | /People/Role?name=Technician | main table
 sla-form | /Settings/Slas | main section.panel
+asset-register | /Assets |
+compliance-summary | /Compliance |
