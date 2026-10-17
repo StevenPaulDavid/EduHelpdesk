@@ -9,7 +9,7 @@
          release zip; releases/ is where the zips are made. None of them are part of the app. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**;deploy/**;installer/**;releases/**</DefaultItemExcludes>
     <!-- The release number schools see (Settings → About). deploy/New-Release.ps1 sets it for each release. -->
-    <Version>2.2.0</Version>
+    <Version>2.3.0</Version>
     <Authors>Steven Davidson</Authors>
     <Product>EduHelpdesk</Product>
     <Copyright>Copyright (c) 2026 Steven Davidson. MIT licence.</Copyright>
