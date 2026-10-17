@@ -7,7 +7,7 @@
     var onUsers = Model.Tab == PeopleModel.UsersTab;
     var onTechnicians = Model.Tab == PeopleModel.TechniciansTab;
 }
-<div class="page-heading"><div><h1>People and technicians</h1></div></div>
+<div class="page-heading"><div><h1>People</h1></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 @* Each tab is its own module. The page as a whole opens for anyone allowed any one of the three (see the People policy
@@ -24,11 +24,11 @@
 
 @if (onUsers || onTechnicians)
 {
-    var noun = onUsers ? "users" : "technicians";
+    var noun = onUsers ? "requesters" : "technicians";
     var rowCount = onUsers ? Model.UserRows.Count : Model.TechnicianRows.Count;
     <section class="panel directory-panel">
         <div class="panel-heading">
-            <div><p class="eyebrow">@(onUsers ? "REQUESTERS" : "STAFF ACCOUNTS")</p><h2>@(onUsers ? "Users" : "Technicians")</h2></div>
+            <div><h2>@(onUsers ? "Requesters" : "Technicians")</h2></div>
             <div class="heading-actions">
                 <span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.Total}" : Model.Total.ToString())</span>
                 @if (onUsers && Model.CanAddUsers && Model.CanEditUsers) { <a class="button button-secondary" asp-page="/People/Import" title="Add and update people from an MIS or HR export: type, start and leave dates">Import a staff list</a> }
@@ -39,7 +39,7 @@
                         <button class="button button-secondary" title="Active @noun who can't sign in yet because nobody has given them a password - usually imported ones">Temporary passwords for @Model.WithoutPassword without one</button>
                     </form>
                 }
-                @if (onUsers && Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">@Icons.Plus Add user</a> }
+                @if (onUsers && Model.CanAddUsers) { <a class="button button-primary" asp-page="/People/User">@Icons.Plus Add requester</a> }
                 @if (onTechnicians && Model.CanAddTechnicians) { <a class="button button-primary" asp-page="/People/Technician">@Icons.Plus Add technician</a> }
             </div>
         </div>
@@ -50,7 +50,7 @@
                 Id = "people-filters",
                 Search = Model.Search,
                 SearchPlaceholder = onUsers ? "Name, email, department or location" : "Name, email, team or role",
-                Title = onUsers ? "Filter users" : "Filter technicians",
+                Title = onUsers ? "Filter requesters" : "Filter technicians",
                 Chips = Model.ActiveFilters(),
                 PanelCount = Model.PanelFilterCount,
                 ClearUrl = Model.TabUrl(Model.Tab!),
@@ -84,7 +84,7 @@
                 <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (!item.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(item.Email, item.Team, item.Role)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id" title="Delete @item.Name">@Icons.Bin</a> }</div></div>
             }
         }
-        @if (rowCount == 0) { <p class="empty">@(Model.IsFiltered ? $"No {noun} match this search." : onUsers ? "No users have been imported yet." : "No technicians have been added yet.")</p> }
+        @if (rowCount == 0) { <p class="empty">@(Model.IsFiltered ? $"No {noun} match this search." : onUsers ? "No requesters have been added yet." : "No technicians have been added yet.")</p> }
         </div>
 
         @if (Model.TotalPages > 1)

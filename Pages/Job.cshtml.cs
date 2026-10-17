@@ -199,7 +199,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             }
             if (technicianId.HasValue && store.Technicians.FirstOrDefault(x => x.Id == technicianId.Value) is { } onDesk && !HelpdeskStore.TechnicianOnDesk(onDesk, desk.Id))
             {
-                Message = $"{onDesk.Name} isn't on the {desk.Name} desk. Add them to it on their staff account, or move the ticket first.";
+                Message = $"{onDesk.Name} isn't on the {desk.Name} desk. Add them to it on their technician account, or move the ticket first.";
                 return RedirectToPage(new { number });
             }
             ticket = ticket with { TechnicianId = technicianId };
@@ -242,11 +242,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         }
         else
         {
-            Message = "Unknown job field.";
+            Message = "Unknown ticket field.";
             return RedirectToPage(new { number });
         }
         store.UpdateTicket(ticket);
-        Message = successMessage ?? "Job updated.";
+        Message = successMessage ?? "Ticket updated.";
         return RedirectToPage(new { number });
     }
 
@@ -650,7 +650,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
         if (ticket.Status == "Closed")
         {
-            Message = "Job is already closed.";
+            Message = "Ticket is already closed.";
             return RedirectToPage(new { number });
         }
 
@@ -674,7 +674,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             Status = "Closed",
             ClosedAt = current.ClosedAt ?? DateTime.UtcNow
         });
-        Message = "Job closed.";
+        Message = "Ticket closed.";
         return RedirectToPage(new { number });
     }
 

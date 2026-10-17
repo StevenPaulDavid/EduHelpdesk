@@ -29,7 +29,7 @@
     if (Can(Modules.Loans) && On(DeskAreas.Loans)) assetLinks.Add(("/Loans", "Loans"));
     if (Can(Modules.Parts) && On(DeskAreas.Parts)) assetLinks.Add(("/Parts", "Parts"));
     if (Can(Modules.Suppliers) && On(DeskAreas.Suppliers)) assetLinks.Add(("/Suppliers", "Suppliers"));
-    // People is one page holding requesters, staff accounts and roles, so reaching any one of them is enough.
+    // People is one page holding requesters, technician accounts and roles, so reaching any one of them is enough.
     var canPeople = (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) && On(DeskAreas.People);
     var canOnboarding = Can(Modules.Onboarding) && On(DeskAreas.People);
     var canRounds = Helpdesk.UserHasFlag(User, Modules.Flags.Rounds) && On(DeskAreas.Rounds);

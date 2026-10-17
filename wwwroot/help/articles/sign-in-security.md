@@ -8,7 +8,7 @@ needs: Settings:Edit
 keywords: sign in security two-step 2fa mfa authenticator recovery key password lockout https certificate address
 order: 13
 ---
-How helpdesk staff accounts are protected. The staff portal has its own passwords and isn't covered by two-step sign-in.
+How helpdesk technician accounts are protected. The staff portal has its own passwords and isn't covered by two-step sign-in.
 
 ## Two-step sign-in
 
@@ -17,7 +17,7 @@ After their password, people enter a code from an app on their phone, so a guess
 - **Require it for everyone** - anyone without it sets it up the next time they use the helpdesk.
 - **Make it optional** - each person chooses (from *Two-step sign-in* in their account menu).
 
-Someone who's lost their phone and their recovery codes: open their staff account in **People** and press **Reset two-step sign-in**; they then set it up again.
+Someone who's lost their phone and their recovery codes: open their technician account in **People** and press **Reset two-step sign-in**; they then set it up again.
 
 ## Recovery keys
 

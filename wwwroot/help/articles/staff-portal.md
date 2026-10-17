@@ -10,7 +10,7 @@ The **staff portal** (`/Portal`) is where staff who aren't helpdesk technicians 
 
 ## Who can use it
 
-- **Requesters** - anyone in **People → Users** with a portal password. Give one with **Give them a temporary password** on their record; they choose their own when they first sign in. Their **quick start guide** tells them where to go.
+- **Requesters** - anyone in **People → Requesters** with a portal password. Give one with **Give them a temporary password** on their record; they choose their own when they first sign in. Their **quick start guide** tells them where to go.
 - **Helpdesk staff** - press **Open staff portal** in the menu under your name, or **Continue as** on the portal, to use it as yourself without a second password.
 
 ## What staff can do

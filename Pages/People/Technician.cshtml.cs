@@ -58,7 +58,7 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
             return Page();
         }
         var normalizedRole = store.NormalizeRoleName(role);
-        // Staff accounts: Edit is about looking after colleagues' accounts, not a way up. Only an Administrator can hand
+        // Technician accounts: Edit is about looking after colleagues' accounts, not a way up. Only an Administrator can hand
         // out Administrator or touch an Administrator's account (a password reset there is as good as the role itself),
         // and nobody changes their own role or switches their own account off.
         if (existing is { Role: StaffRoles.Administrator } && !IsAdministrator)

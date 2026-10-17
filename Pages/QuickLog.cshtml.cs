@@ -36,7 +36,7 @@ public class QuickLogModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPost(bool another)
     {
-        if (Me is not { } me) { ModelState.AddModelError("", "Only a staff account can log jobs."); return Page(); }
+        if (Me is not { } me) { ModelState.AddModelError("", "Only a technician account can log one."); return Page(); }
         // A category on a desk they can't see is refused like one that doesn't exist.
         if (Category is not null && !CategoriesByDesk.Any(x => x.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase)))
         {

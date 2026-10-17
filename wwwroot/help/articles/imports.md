@@ -1,16 +1,16 @@
 ---
 title: Importing from spreadsheets
-summary: Bringing staff accounts and lists in from CSV files, and where requesters, assets and Spiceworks tickets are imported.
+summary: Bringing technician accounts and lists in from CSV files, and where requesters, assets and Spiceworks tickets are imported.
 area: Settings
 kind: page
 pages: /Settings/Imports, /Settings/SpiceworksImport
 needs: Settings:Edit
-keywords: import csv spreadsheet users requesters technicians staff accounts lists bulk spiceworks quick start guide temporary password
+keywords: import csv spreadsheet users requesters technicians technician accounts lists bulk spiceworks quick start guide temporary password
 order: 20
 ---
 Rather than typing people and lists in one at a time, import them from **CSV** files (save a spreadsheet *as CSV* in Excel). Each import has a template to download, with example rows to replace.
 
-## Staff accounts
+## Technician accounts
 
 The technicians file has these columns, in order, with a header row: **Name, Email, Team, Role**. **Role** is optional and defaults to *Technician*; it must match the name of an existing role.
 

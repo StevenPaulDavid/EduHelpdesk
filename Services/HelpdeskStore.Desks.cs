@@ -360,7 +360,7 @@ public sealed partial class HelpdeskStore
             var (changed, dropped) = WithCategoryCore(ticket, chosen);
             UpdateTicket(changed);
             var after = DeskForCategoryCore(chosen);
-            return (true, before.Id == after.Id ? "Job updated." : DescribeMove(after, dropped));
+            return (true, before.Id == after.Id ? "Ticket updated." : DescribeMove(after, dropped));
         }
     }
 
@@ -377,7 +377,7 @@ public sealed partial class HelpdeskStore
             var desk = new Desk(Guid.NewGuid(), cleanName, cleanPrefix, helper, NextNumber: firstNumber);
             _data.Desks.Add(desk);
             Save();
-            return (true, $"{desk.Name} desk added. Give it categories in Settings → Categories, and add people to it on their staff account.");
+            return (true, $"{desk.Name} desk added. Give it categories in Settings → Categories, and add people to it on their technician account.");
         }
     }
 

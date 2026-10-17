@@ -45,7 +45,7 @@ public static class Modules
         new(Contracts, "Contracts", "The DfE contracts register: what the school pays for, renewal and notice dates. It shows what each contract costs.", Full),
         new(Access, "Access control", "The DfE access control register: who can get into which systems and areas, and the termly review. It names individuals. Edit covers removing access and recording a review; Delete is for access recorded by mistake.", Full),
         new(Requesters, "Requesters", "The staff directory tickets are raised for. Edit includes resetting a portal password.", Full),
-        new(StaffAccounts, "Staff accounts", "Technician accounts, their team and their role. Edit includes resetting passwords.", Full),
+        new(StaffAccounts, "Technician accounts", "Technician accounts, their team and their role. Edit includes resetting passwords.", Full),
         new(Roles, "Roles", "Role definitions and what each one grants.", Full),
         new(Reports, "Reports", "Access to the reports area. Which reports are readable is set separately below.", ModulePermission.Access),
         new(Settings, "Settings", "Branding, option lists, imports, factory reset.", ModulePermission.Access | ModulePermission.Edit),

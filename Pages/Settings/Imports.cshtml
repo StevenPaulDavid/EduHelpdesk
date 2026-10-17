@@ -1,11 +1,11 @@
 @page
 @model EduHelpdesk.Pages.Settings.ImportsModel
 @{ ViewData["Title"] = "Imports"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Imports</h1><p class="hero-copy">Bring staff accounts and option lists in from CSV files, rather than typing them in one at a time.</p></div></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / PEOPLE &amp; PLACES</p><h1>Imports</h1><p class="hero-copy">Bring technician accounts and option lists in from CSV files, rather than typing them in one at a time.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <div class="panel-heading"><h2>Staff accounts</h2></div>
+    <div class="panel-heading"><h2>Technician accounts</h2></div>
     <p class="muted">Requesters - the staff who use the portal - come in from the MIS or HR system's staff list: <a asp-page="/People/Import">Import a staff list</a>.</p>
     <p class="muted">Assets are imported on their own page, with column matching and a preview: <a asp-page="/Assets/Import">Import assets from a CSV file</a>.</p>
     <p class="muted">Moving from Spiceworks Cloud Help Desk? Its data export brings tickets, comments, history and the people on them across in one go: <a asp-page="/Settings/SpiceworksImport">Import from Spiceworks</a>.</p>

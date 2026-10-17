@@ -4,7 +4,7 @@
 @model JobModel
 @inject HelpdeskStore Helpdesk
 @{
-    ViewData["Title"] = $"Job {Model.Reference}";
+    ViewData["Title"] = $"{Model.Reference} {Model.Ticket.Title}";
 }
 
 @* The header keeps only the two everyday actions as buttons - take it, close it. Everything else is under "More", in

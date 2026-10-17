@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace EduHelpdesk.Pages.Settings;
 
 // Settings → Desks: the parts of the school the helpdesk serves (HelpdeskStore.Desks). Categories, teams and statuses
-// are placed on a desk on their own Settings pages; people on their staff account.
+// are placed on a desk on their own Settings pages; people on their technician account.
 public class DesksModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<Desk> Desks => store.Desks;

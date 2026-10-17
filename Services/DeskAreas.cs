@@ -28,7 +28,7 @@ public static class DeskAreas
         new(Suppliers, "Suppliers", "The supplier directory."),
         new(Projects, "Projects", "Projects, their quotes and the projects report."),
         new(Rounds, "Cleaning rounds", "The day's cleaning rounds and their report."),
-        new(People, "People & onboarding", "Requesters, staff accounts, roles and new starters."),
+        new(People, "People & onboarding", "Requesters, technician accounts, roles and new starters."),
         new(Compliance, "Compliance registers", "The compliance summary, contracts register and access control."),
     ];
 

@@ -8,13 +8,13 @@ needs: Roles:Edit
 keywords: role roles permissions access view new edit delete ticks administrator technician least privilege
 order: 1
 ---
-Every staff account has one **role**, and the role decides what that person can see and do. Roles are on the **Roles** tab of the **People** page; open one to change it, or add a new one.
+Every technician account has one **role**, and the role decides what that person can see and do. Roles are on the **Roles** tab of the **People** page; open one to change it, or add a new one.
 
 ## The five ticks per area
 
 ![The role editor](role-editor.png)
 
-Each area (Tickets, Projects, Onboarding, Assets, Loan kits, Loans, Parts, Suppliers, Contracts, Access control, Requesters, Staff accounts, Roles, Reports, Settings, Audit log) has up to five ticks:
+Each area (Tickets, Projects, Onboarding, Assets, Loan kits, Loans, Parts, Suppliers, Contracts, Access control, Requesters, Technician accounts, Roles, Reports, Settings, Audit log) has up to five ticks:
 
 | Tick | Lets them |
 | --- | --- |

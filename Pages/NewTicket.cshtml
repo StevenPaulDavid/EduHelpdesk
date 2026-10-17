@@ -27,7 +27,7 @@
         <h2>The issue</h2>
         <div class="form-grid compact">
             <label>Ticket title<input asp-for="Ticket.Title" placeholder="e.g. Projector has no signal" required /></label>
-            <label>Requester<select asp-for="Ticket.RequesterId" required data-picker data-picker-placeholder="Type a name, email or department…"><option value="">Select a user…</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Location">@user.Name · @user.Department</option> }</select></label>
+            <label>Requester<select asp-for="Ticket.RequesterId" required data-picker data-picker-placeholder="Type a name, email or department…"><option value="">Select a requester…</option>@foreach (var user in Model.Users) { <option value="@user.Id" data-search="@user.Email @user.Location">@user.Name · @user.Department</option> }</select></label>
             <label class="full">Description<textarea asp-for="Ticket.Description" rows="7" placeholder="Symptoms, checks already completed, and next action…"></textarea></label>
         </div>
     </div>

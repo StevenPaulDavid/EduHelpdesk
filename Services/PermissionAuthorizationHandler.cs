@@ -28,7 +28,7 @@ public sealed class PermissionRequirement : IAuthorizationRequirement
     // model then checks which of the two it actually needs.
     public static PermissionRequirement For(string module, ModulePermission action) => new(module, action, null, null);
     public static PermissionRequirement ForFlag(string flag) => new(null, ModulePermission.None, flag, null);
-    // Satisfied by Access on any one of the modules. /People lists requesters, staff accounts and roles on one page,
+    // Satisfied by Access on any one of the modules. /People lists requesters, technician accounts and roles on one page,
     // so being allowed any of the three is enough to open it - the page then shows only the sections it may.
     public static PermissionRequirement ForAny(params string[] modules) => new(null, ModulePermission.Access, null, modules);
     // Satisfied by the module action or by the flag: the facilities setup pages open for Settings: Edit, as the rest of

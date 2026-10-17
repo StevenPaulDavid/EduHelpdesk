@@ -34,7 +34,7 @@ Each desk counts its own tickets and has its own **prefix**, so IT-1042 and SITE
 
 ## Who sees what
 
-You see the tickets of the desks you're on (set on your staff account). Other desks' tickets aren't shown to you anywhere - not in lists, search or reports - unless your role has **See all desks**, which is meant for leads such as the site manager or the IT manager.
+You see the tickets of the desks you're on (set on your technician account). Other desks' tickets aren't shown to you anywhere - not in lists, search or reports - unless your role has **See all desks**, which is meant for leads such as the site manager or the IT manager.
 
 Alerts follow desks too: pings, the bell, the Teams channel and EduNotify pings go to the people on the ticket's desk.
 

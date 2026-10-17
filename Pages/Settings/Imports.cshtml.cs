@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Settings;
 
-// Settings → Imports: staff accounts and option lists from CSV. Requesters come in from People → Import a staff list,
+// Settings → Imports: technician accounts and option lists from CSV. Requesters come in from People → Import a staff list,
 // the one import for them. Needs Settings: Edit (Program.cs).
 public class ImportsModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {

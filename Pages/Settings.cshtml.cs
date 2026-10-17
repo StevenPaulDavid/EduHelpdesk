@@ -108,7 +108,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/AssetAttributes"] = List(store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type."),
             ["/Settings/Teams"] = List(store.TechnicianTeams, "Technician teams that tickets can be assigned to."),
             ["/Settings/Lists"] = new("Rooms, departments, buildings, makes, statuses and the other plain lists the dropdowns offer.", $"{SettingsMenu.Lists.Count} lists"),
-            ["/Settings/Imports"] = new("Staff accounts and option lists from CSV files."),
+            ["/Settings/Imports"] = new("Technician accounts and option lists from CSV files."),
             ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
             ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
             ["/Settings/Branding"] = new($"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()})."),

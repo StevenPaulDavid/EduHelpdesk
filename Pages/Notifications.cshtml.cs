@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace EduHelpdesk.Pages;
 
 // The notification centre's full list (the bell in the header shows the newest), and switching pings and pop-ups on for
-// this browser (see wwwroot/js/notifications.js). Any signed-in staff account can open it: what a ping may say is
+// this browser (see wwwroot/js/notifications.js). Any signed-in technician account can open it: what a ping may say is
 // decided where it is made, and who hears about new tickets by NotificationEndpoints.Broadcast.
 public class NotificationsModel(HelpdeskStore store, LinkGenerator links) : PageModel
 {

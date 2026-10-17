@@ -50,7 +50,7 @@ public sealed partial class HelpdeskStore
             var allFlags = Modules.Flags.All.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Grants = everything, Flags = allFlags });
 
-            // Runs the whole desk, including staff accounts and roles, but Settings and the audit log stay with the
+            // Runs the whole desk, including technician accounts and roles, but Settings and the audit log stay with the
             // Administrator - configuring the system and reading who did what are deliberately not part of the job.
             _data.Roles.Add(Role("Senior Technician",
                 new()
@@ -65,7 +65,7 @@ public sealed partial class HelpdeskStore
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance, Modules.Flags.ReportProjects,
                 Modules.Flags.ReportOnboarding, Modules.Flags.ReportExport));
 
-            // Runs the inventory outright, reads the supplier directory, and cannot reach staff accounts, roles,
+            // Runs the inventory outright, reads the supplier directory, and cannot reach technician accounts, roles,
             // settings or the audit log.
             _data.Roles.Add(Role("Technician",
                 new()

@@ -91,7 +91,7 @@ public class PeopleModel(HelpdeskStore store, TemporaryPasswords passwords) : Pa
     public void OnGet()
     {
         var tabs = new List<TabLink>();
-        if (CanSeeUsers) tabs.Add(new(UsersTab, "Users", store.Users.Count));
+        if (CanSeeUsers) tabs.Add(new(UsersTab, "Requesters", store.Users.Count));
         if (CanSeeTechnicians) tabs.Add(new(TechniciansTab, "Technicians", store.Technicians.Count));
         if (CanSeeRoles) tabs.Add(new(RolesTab, "Roles", store.Roles.Count));
         Tabs = tabs;

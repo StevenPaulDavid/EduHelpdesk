@@ -89,7 +89,7 @@ public sealed partial class HelpdeskStore
         public int AcademicYearStartMonth { get; set; } = AcademicYear.DefaultStartMonth;
         // Open tickets due within this many hours count as "due soon" on the ticket list.
         public int TicketDueSoonHours { get; set; } = 24;
-        // Settings → Sign-in security: every staff account must use two-step sign-in (HelpdeskStore.TwoFactor).
+        // Settings → Sign-in security: every technician account must use two-step sign-in (HelpdeskStore.TwoFactor).
         public bool RequireTwoFactor { get; set; }
         // Settings → Sign-in security: technicians may reset a forgotten password with their recovery key
         // (HelpdeskStore.RecoveryKeys). On unless a school turns it off.
