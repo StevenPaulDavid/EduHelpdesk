@@ -35,6 +35,18 @@
         table.classList.add("is-labelled");
     });
 
+    // Tab strips that scroll sideways on a phone (.queue-tabs) fade at whichever edge has more tabs beyond it, so it is
+    // plain there is more to see.
+    document.querySelectorAll(".queue-tabs").forEach(strip => {
+        const mark = () => {
+            strip.classList.toggle("more-right", strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 2);
+            strip.classList.toggle("more-left", strip.scrollLeft > 2);
+        };
+        strip.addEventListener("scroll", mark, { passive: true });
+        window.addEventListener("resize", mark);
+        mark();
+    });
+
     // The phone-width Menu button, which shows and hides the nav and account menu under the header bar. It only
     // appears below tablet width (site.css); on a wider screen they are always in the bar.
     const topbar = document.querySelector(".topbar");

@@ -95,6 +95,24 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
     public string StatusTone(string status) => store.StatusTone(status);
 
+    // The panels with nothing in them, as one "All clear" list instead of a page of empty boxes. Each panel shows only
+    // when it has something to show.
+    public IReadOnlyList<string> AllClear()
+    {
+        var clear = new List<string>();
+        if (CanSeeTickets)
+        {
+            if (Me is not null && MyTickets.Count == 0) clear.Add("Nothing assigned to you is open");
+            if (DueTickets.Count == 0) clear.Add($"Nothing overdue or due within {DueSoonHours} hours");
+            if (UnassignedTickets.Count == 0) clear.Add("Every open ticket has a technician");
+            if (RepliesWaiting.Count == 0) clear.Add("Nobody is waiting on a reply");
+        }
+        if ((CanSeeContracts || CanSeeAccess) && ComplianceDue.Count == 0) clear.Add("Nothing due on the contracts or access registers");
+        if (CanSeeAssets && AssetsToReview.Count == 0) clear.Add("No assets need review");
+        if (CanSeeParts && PartsToReview.Count == 0) clear.Add("No parts need reordering");
+        return clear;
+    }
+
     // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
     // staff portal instead of straight to the technician login - a technician still ends up here once signed in.
     // The desks the overview covers (the desk switcher's), empty for every desk, and each ticket's number as shown (SITE-1043).

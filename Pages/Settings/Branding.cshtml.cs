@@ -24,6 +24,10 @@ public class BrandingModel(HelpdeskStore store) : PageModel
             return Page();
         }
         if (!Enum.IsDefined(Branding.DefaultAppearance)) Branding.DefaultAppearance = store.Branding.DefaultAppearance;
+        // A box left empty arrives as null; the tagline and description may be blank, the title falls back to Overview.
+        Branding.DashboardEyebrow = Branding.DashboardEyebrow?.Trim() ?? "";
+        Branding.DashboardDescription = Branding.DashboardDescription?.Trim() ?? "";
+        Branding.DashboardTitle = string.IsNullOrWhiteSpace(Branding.DashboardTitle) ? "Overview" : Branding.DashboardTitle.Trim();
 
         store.UpdateBranding(Branding);
         Message = "Branding saved.";

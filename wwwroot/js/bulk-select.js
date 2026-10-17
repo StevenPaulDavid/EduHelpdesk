@@ -41,6 +41,8 @@
         if (pageBox) pageBox.checked = boxes.length > 0 && checked === boxes.length;
         const total = selectedTotal();
         if (counter) counter.textContent = total === 0 ? "None selected" : total + " selected";
+        // The bar of bulk actions only shows once something is ticked; without this script it is always there.
+        document.querySelector(".bulk-actions")?.classList.toggle("bulk-idle", total === 0);
         // Once the whole page is ticked and there are more matches than fit on it, offer to take in every match.
         if (!banner) return;
         if (allMatching()) {

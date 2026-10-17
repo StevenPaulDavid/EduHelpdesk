@@ -663,9 +663,10 @@ public sealed class BrandingSettings
     public string BrandName { get; set; } = "EduHelpdesk";
     // Defaults for a fresh install and a factory reset. A school that has already saved its branding keeps its own
     // wording - these are only read when nothing is stored.
-    public string DashboardEyebrow { get; set; } = "Keep every school device moving.";
+    // No tagline by default: one about devices read oddly on the Site and Cleaning desks.
+    public string DashboardEyebrow { get; set; } = "";
     public string DashboardTitle { get; set; } = "Overview";
-    public string DashboardDescription { get; set; } = "Log and track jobs, link them to assets, and keep a complete repair history. Staff can report problems and follow their own tickets through the staff portal.";
+    public string DashboardDescription { get; set; } = "What needs doing on the desks you work on.";
     public string PrimaryColor { get; set; } = "#067A78";
     public string AccentColor { get; set; } = "#E8F0EF";
     public string BackgroundColor { get; set; } = "#F5F8F8";

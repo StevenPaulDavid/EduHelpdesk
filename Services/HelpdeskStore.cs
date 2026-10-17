@@ -264,6 +264,9 @@ public sealed partial class HelpdeskStore
     private const string OldDefaultEyebrow = "EDUHELPDESK / TECHNICIAN WORKSPACE";
     private const string OldDefaultTitle = "Keep every school device moving.";
     private const string OldDefaultDescription = "Log jobs, link them to assets, and keep a complete repair history without exposing a staff-facing portal.";
+    // The second defaults, about devices and repairs, from before desks: read oddly on the Site and Cleaning desks.
+    private const string SecondDefaultEyebrow = "Keep every school device moving.";
+    private const string SecondDefaultDescription = "Log and track jobs, link them to assets, and keep a complete repair history. Staff can report problems and follow their own tickets through the staff portal.";
     private static void UpgradeDefaultBranding(BrandingSettings branding)
     {
         var defaults = new BrandingSettings();
@@ -276,6 +279,8 @@ public sealed partial class HelpdeskStore
         }
         // Nobody would type the old description back in - it describes a system without a portal.
         if (branding.DashboardDescription == OldDefaultDescription) branding.DashboardDescription = defaults.DashboardDescription;
+        if (branding.DashboardEyebrow == SecondDefaultEyebrow && branding.DashboardTitle == defaults.DashboardTitle) branding.DashboardEyebrow = defaults.DashboardEyebrow;
+        if (branding.DashboardDescription == SecondDefaultDescription) branding.DashboardDescription = defaults.DashboardDescription;
     }
 
     private bool Update<T>(T item, List<T> items, Func<T, bool> match)

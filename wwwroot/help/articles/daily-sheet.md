@@ -14,7 +14,7 @@ The **daily sheet** lists the open jobs room by room, with a box to tick and spa
 
 1. Open **Tickets**.
 2. If you want only some jobs, use **Filters** first: tick the desk (such as *Site*), or choose a team.
-3. Press **Daily sheet**. It opens in a new tab with the jobs for the desks and team shown, ready to print or save as PDF.
+3. Choose **More → Print the daily sheet**. It opens in a new tab with the jobs for the desks and team shown, ready to print or save as PDF.
 
 Overdue jobs are shaded so they stand out. Each job shows its number, what it is, its priority, when it's due and who it's assigned to.
 

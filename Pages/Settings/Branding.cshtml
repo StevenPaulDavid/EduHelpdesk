@@ -9,7 +9,7 @@
     <div class="panel-heading"><h2>Name, wording and colours</h2></div>
     <form method="post" asp-page-handler="SaveBranding" class="settings-form field-narrow branding-form">
         <label>Brand name<input asp-for="Branding.BrandName" maxlength="80" /></label>
-        <label>Overview eyebrow<input asp-for="Branding.DashboardEyebrow" maxlength="120" /></label>
+        <label>Overview tagline (optional)<input asp-for="Branding.DashboardEyebrow" maxlength="120" /></label>
         <label>Overview title<input asp-for="Branding.DashboardTitle" maxlength="120" /></label>
         <label>Overview description<textarea asp-for="Branding.DashboardDescription" rows="3" maxlength="600"></textarea></label>
         <div class="color-grid">

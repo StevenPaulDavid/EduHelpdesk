@@ -1,12 +1,33 @@
 // The ticket page (Pages/Job.cshtml). Dialogs, tabs, print buttons and confirms are handled by actions.js.
 (function () {
-    // The pencil beside a field swaps the value for that field's own small form (.inline-control in site.css).
-    document.querySelectorAll("[data-edit-field]").forEach(button => button.addEventListener("click", () => {
-        const name = button.dataset.editField;
+    // The pencil beside a field - or the value itself - swaps the value for that field's own small form (.inline-control
+    // in site.css). A form that is just one dropdown saves as soon as something is chosen, so changing a field is one
+    // step; forms with more to fill in (a date and time) keep their save button.
+    const openField = name => {
+        const control = document.getElementById(name + "-control");
+        if (!control) return;
         document.getElementById(name + "-value").style.display = "none";
-        button.style.display = "none";
-        document.getElementById(name + "-control").classList.add("visible");
-    }));
+        document.getElementById(name + "-edit")?.style.setProperty("display", "none");
+        control.classList.add("visible");
+        const select = control.querySelector("select");
+        if (select) { select.focus(); try { select.showPicker(); } catch { /* not every browser lets a page open it */ } }
+    };
+    document.querySelectorAll("[data-edit-field]").forEach(button => {
+        const name = button.dataset.editField;
+        button.addEventListener("click", () => openField(name));
+        const value = document.getElementById(name + "-value");
+        if (!value) return;
+        value.classList.add("field-value-editable");
+        value.title = "Click to change";
+        value.addEventListener("click", () => openField(name));
+        const control = document.getElementById(name + "-control");
+        const selects = control?.querySelectorAll("select") ?? [];
+        const others = control?.querySelectorAll("input:not([type=hidden]), textarea") ?? [];
+        if (selects.length === 1 && others.length === 0) {
+            selects[0].addEventListener("change", () => control.requestSubmit());
+            control.classList.add("inline-control-instant");
+        }
+    });
 
     // Edit details swaps the title and description for their form, and Cancel swaps them back.
     const display = document.getElementById("ticket-content-display");

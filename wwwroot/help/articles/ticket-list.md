@@ -12,11 +12,12 @@ order: 1
 
 ![The ticket list](tickets-list.png)
 
-## The buttons at the top
+## The More menu
 
-- **Daily sheet** - open jobs by room, ready to print and hand out. See [The daily sheet](daily-sheet).
+- **Print the daily sheet** - open tickets by room, ready to print and hand out. See [The daily sheet](daily-sheet).
 - **Log a job already done** - for something dealt with before anyone logged it. See [Logging a job already done](quick-log).
-- **New ticket** - log a job that still needs doing. See [Logging a new ticket](new-ticket).
+
+For a job that still needs doing, use **Log a ticket** in the top bar. See [Logging a new ticket](new-ticket).
 
 ## Queues
 

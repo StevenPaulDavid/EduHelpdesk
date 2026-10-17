@@ -7,9 +7,10 @@
     ViewData["Title"] = $"Job {Model.Reference}";
 }
 
-@* The header keeps only the everyday actions as buttons. The three print options share one menu, and merge and delete
-   sit under "More" - they are rare, need Tickets: Delete, and a destructive button one slip away from "Mark as closed"
-   was never a good neighbour. Back is navigation rather than an action, so it is a plain link above the title. *@
+@* The header keeps only the two everyday actions as buttons - take it, close it. Everything else is under "More", in
+   sections: On my way, the print options, raw data, and merge and delete (rare, need Tickets: Delete, and a destructive
+   button one slip away from "Mark as closed" was never a good neighbour). Back is navigation rather than an action, so
+   it is a plain link above the title. *@
 <a class="back-link no-print" href="@Model.BackUrl">← Back to tickets</a>
 @* The ticket's bar stays at the top of the screen while the page scrolls (wwwroot/js/pages/job.js marks it stuck),
    so the everyday actions are always to hand however far down the comments go. *@
@@ -28,36 +29,36 @@
         {
             <form method="post" asp-page-handler="AssignToMe"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-secondary" type="submit">Assign to me</button></form>
         }
-        @if (Model.CanSayOnMyWay)
-        {
-            <form method="post" asp-page-handler="OnMyWay"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-secondary" type="submit" title="Assigns the ticket to you and tells the requester you're on your way">On my way</button></form>
-        }
         @if (Model.CanEdit && Model.Ticket.Status != "Closed")
         {
             if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" data-open-blade="close-dialog-backdrop">Mark as closed</button> }
             else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }
         }
-        <partial name="_RawDataLink" model='("ticket", Model.Ticket.Number.ToString())' />
         <details class="nav-menu action-menu">
-            <summary class="button button-secondary">🖨 Print<span class="chev" aria-hidden="true">▾</span></summary>
-            <div class="nav-panel nav-panel-right">
+            <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+            <div class="nav-panel nav-panel-right nav-panel-sections">
+                @if (Model.CanSayOnMyWay)
+                {
+                    <form method="post" asp-page-handler="OnMyWay" class="nav-panel-form"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button type="submit" title="Assigns the ticket to you and tells the requester you're on your way">On my way</button></form>
+                }
+                <p class="nav-section">Print</p>
                 <button type="button" data-action="print">Ticket</button>
                 <button type="button" data-open-window="@Url.Page("/PrintLabel", new { number = Model.Ticket.Number })">Label</button>
                 <button type="button" data-open-window="@Url.Page("/PrintJobSheet", new { number = Model.Ticket.Number })">Job sheet</button>
                 <a href="@Url.Page("/Job", "Report", new { number = Model.Ticket.Number })" target="_blank" rel="noopener" title="Everything on the ticket as a PDF: details, conversation with internal notes, history and the attachments">Full report (PDF)</a>
                 <a href="@Url.Page("/Job", "Report", new { number = Model.Ticket.Number, internalNotes = false })" target="_blank" rel="noopener" title="The same report without internal notes, the change history or files kept for the IT team, to give to the requester or anyone outside the IT team">Requester copy (PDF)</a>
+                @if (Model.CanDelete || Helpdesk.UserHasFlag(User, Modules.Flags.RawDatabase))
+                {
+                    <p class="nav-section">Other</p>
+                    <partial name="_RawDataLink" model='("ticket", Model.Ticket.Number.ToString())' />
+                    if (Model.CanDelete)
+                    {
+                        <button type="button" data-open-blade="merge-dialog-backdrop">Merge into another ticket…</button>
+                        <button type="button" class="menu-danger" data-open-blade="delete-dialog-backdrop">Delete ticket…</button>
+                    }
+                }
             </div>
         </details>
-        @if (Model.CanDelete)
-        {
-            <details class="nav-menu action-menu">
-                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
-                <div class="nav-panel nav-panel-right">
-                    <button type="button" data-open-blade="merge-dialog-backdrop">Merge into another ticket…</button>
-                    <button type="button" class="menu-danger" data-open-blade="delete-dialog-backdrop">Delete ticket…</button>
-                </div>
-            </details>
-        }
     </div>
 </div>
 @if (Model.Ticket.Status != "Closed" && Model.RequiresCloseMessage)
@@ -155,9 +156,9 @@ else
 
 <div class="job-detail-grid">
     <section class="panel job-main printable-job">
-        <div class="panel-heading"><div><h2>@Model.Ticket.Title</h2></div><button class="button button-secondary no-print" type="button" id="ticket-content-edit" data-edit-content>Edit details</button></div>
+        <div class="panel-heading"><div><h2>Description</h2></div><button class="button button-secondary no-print" type="button" id="ticket-content-edit" data-edit-content>Edit details</button></div>
         <div id="ticket-content-display">
-            <p class="job-description">@Model.Ticket.Description</p>
+            @if (string.IsNullOrWhiteSpace(Model.Ticket.Description)) { <p class="muted">No description.</p> } else { <p class="job-description">@Model.Ticket.Description</p> }
         </div>
         <form method="post" asp-page-handler="UpdateContent" class="ticket-content-form no-print" id="ticket-content-form">
             <input type="hidden" name="number" value="@Model.Ticket.Number" />
@@ -165,7 +166,8 @@ else
             <label>Description<textarea name="description" rows="7">@Model.Ticket.Description</textarea></label>
             <div class="heading-actions"><button class="button button-primary" type="submit">Save details</button><button class="button button-secondary" type="button" data-cancel-content>Cancel</button></div>
         </form>
-        <div class="job-meta"><div><span>Created</span><strong>@Model.Ticket.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Last modified</span><strong>@Model.Ticket.LastModifiedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</strong></div><div><span>Closed</span><strong>@(Model.Ticket.ClosedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Not closed")</strong></div></div>
+        @* When, in one quiet line: the dates matter for the record, not for working the ticket. *@
+        <p class="job-meta-line muted">Logged @Model.Ticket.CreatedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm") · last changed @Model.Ticket.LastModifiedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")@(Model.Ticket.ClosedAt is { } closedAt ? $" · closed {closedAt.ToLocalTime():d MMM yyyy, HH:mm}" : "")</p>
         @if (Model.Checklist.Count > 0)
         {
             var closed = Model.Ticket.Status == "Closed";
@@ -209,8 +211,8 @@ else
         <div class="job-detail-fields">
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow field-name">Assigned technician</p><button id="technician-edit" class="icon-button edit-icon" type="button" title="Edit technician" data-edit-field="technician">@Icons.Edit</button></div><strong class="field-value" id="technician-value">@(Model.Technician?.Name ?? Model.Ticket.TeamName ?? "Unassigned")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="technician-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="technician" /><select name="value"><option value="">Unassigned</option>@foreach (var tech in Model.TeamTechnicians) { <option value="@tech.Id" selected="@(tech.Id == Model.Ticket.TechnicianId)">@tech.Name · @tech.Team</option> }</select><button class="icon-button save-icon" type="submit" title="Save technician" aria-label="Save technician">@Icons.Check</button></form></div>
             <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow field-name">Assigned team</p><button id="team-edit" class="icon-button edit-icon" type="button" title="Edit team" data-edit-field="team">@Icons.Edit</button></div><strong class="field-value" id="team-value">@(Model.Ticket.TeamName ?? "No team")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="team-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="team" /><select name="value"><option value="">No team</option>@foreach (var team in Model.TechnicianTeams) { <option value="@team" selected="@(team == Model.Ticket.TeamName)">@team</option> }</select><button class="icon-button save-icon" type="submit" title="Save team" aria-label="Save team">@Icons.Check</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">SLA <help-tip key="ticket.sla" /></p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" data-edit-field="sla">@Icons.Edit</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">@Icons.Check</button></form></div>
-            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow">DUE DATE <help-tip key="ticket.due-date" /></p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" data-edit-field="dueDate">@Icons.Edit</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">@Icons.Check</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow field-name">SLA <help-tip key="ticket.sla" /></p><button id="sla-edit" class="icon-button edit-icon" type="button" title="Edit SLA" data-edit-field="sla">@Icons.Edit</button></div><strong class="field-value" id="sla-value">@(Model.Slas.FirstOrDefault(x => x.Id == Model.Ticket.SlaId)?.Name ?? "No SLA")</strong><form method="post" asp-page-handler="Update" class="inline-control" id="sla-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="sla" /><select name="value"><option value="">No SLA</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == Model.Ticket.SlaId)">@sla.Name (@sla.Duration @sla.DurationUnit)</option> }</select><button class="icon-button save-icon" type="submit" title="Save SLA" aria-label="Save SLA">@Icons.Check</button></form></div>
+            <div class="detail-block editable-field"><div class="field-label"><p class="eyebrow field-name">Due date <help-tip key="ticket.due-date" /></p><button id="dueDate-edit" class="icon-button edit-icon" type="button" title="Edit due date" data-edit-field="dueDate">@Icons.Edit</button></div><strong class="field-value" id="dueDate-value">@(Model.Ticket.DueDate?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "No due date")@(Model.Ticket.DueDateOverridden ? " · Override" : "")</strong>@if (Model.DueState != DueState.None) { <span class="badge due-flag @(Model.DueState == DueState.Overdue ? "badge-warning" : "")" title="@(Model.DueState == DueState.Paused ? $"{Model.Ticket.Status} stops the SLA clock. It starts again when the status changes, and an SLA due date moves on by the time paused." : "")">@Model.DueText</span> }<form method="post" asp-page-handler="Update" class="inline-control" id="dueDate-control"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="field" value="dueDate" /><input name="value" type="datetime-local" value="@(Model.Ticket.DueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" /><button class="icon-button save-icon" type="submit" title="Save due date" aria-label="Save due date">@Icons.Check</button></form></div>
         </div>
         <div class="ticket-tabs no-print">
             <div class="ticket-tab-buttons" role="tablist">

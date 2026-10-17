@@ -11,7 +11,7 @@ order: 11
 ## Name, wording and colours
 
 - **Brand name** - shown in the top bar and on print-outs, such as *Oakfield Helpdesk*.
-- **Overview eyebrow, title and description** - the wording at the top of the Overview page.
+- **Overview tagline, title and description** - the wording at the top of the Overview page. The tagline is optional.
 - **Primary colour** - buttons, links and headings.
 - **Accent colour** - behind secondary buttons and highlights.
 - **Background colour** - behind every page.

@@ -426,22 +426,6 @@ html.blade-open { overflow: hidden; }
 .job-detail-grid { display: grid; grid-template-columns: 1.5fr .75fr; gap: var(--space-5); }
 .job-main { min-height: 340px; }
 .job-description { font-size: 16px; line-height: 1.75; white-space: pre-wrap; margin: 0 0 35px; }
-.job-meta {
-    display: grid;
-    grid-template-columns: repeat(2,1fr);
-    gap: 20px;
-    border-top: 1px solid var(--line);
-    padding-top: 22px;
-}
-.job-meta span {
-    display: block;
-    color: var(--muted);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    margin-bottom: 7px;
-}
-.job-meta strong { font-size: 14px; }
 .detail-sidebar { padding: 0; }
 .detail-block { padding: 24px; border-bottom: 1px solid var(--line); }
 .detail-block:last-child { border-bottom: 0; }
@@ -449,7 +433,6 @@ html.blade-open { overflow: hidden; }
 .detail-block p:not(.eyebrow) { margin: 5px 0; color: var(--muted); font-size: 13px; }
 @media(max-width:800px) {
     .job-detail-grid { display: block; }
-    .job-meta { grid-template-columns: 1fr; }
     .detail-sidebar { padding: 0; }
 }
 
@@ -791,7 +774,6 @@ tr.row-urgent td:nth-child(2) strong::after {
 .template-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
 .template-item summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .template-item form { margin-top: 12px; }
-.template-picker { margin-bottom: 16px; }
 .portal-shell { max-width: 640px; margin: 0 auto; }
 .portal-shell .page-heading h1 { font-size: clamp(28px, 5vw, 40px); }
 .portal-panel { font-size: 15px; }
@@ -2097,6 +2079,9 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
     /* The queues stay one row you can swipe along, rather than wrapping into three. */
     .queue-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; }
     .queue-tabs::-webkit-scrollbar { display: none; }
+    .queue-tabs.more-right { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); }
+    .queue-tabs.more-left { -webkit-mask-image: linear-gradient(to left, #000 82%, transparent); mask-image: linear-gradient(to left, #000 82%, transparent); }
+    .queue-tabs.more-left.more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent); }
     .queue-tab { flex: none; padding: 8px 12px; font-size: 13px; }
     .queue-bar { align-items: stretch; }
     /* Filter dropdowns two to a row (a column of eight full-width boxes was a whole screen of form); search, tick
@@ -2569,3 +2554,32 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 /* A field's name inside a panel (the ticket page's Status, Priority...): plain, quiet text. The teal capitals of
    .eyebrow are kept for the few section breaks that need them. */
 .eyebrow.field-name { font-size: 12px; font-weight: 650; letter-spacing: 0; color: var(--muted); }
+/* A one-button form inside a menu (On my way under the ticket's More): a menu item like the rest, no rule above it. */
+.nav-panel .nav-panel-form { border-top: 0; margin-top: 0; padding-top: 0; }
+/* Raw data outside a menu: a small link, not a button - it's for looking into a problem (Pages/Shared/_RawDataLink). */
+.heading-actions > .raw-data-link { align-self: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.job-meta-line { margin: 14px 0 0; font-size: 12px; }
+/* The ticket page's fields: the value itself opens its dropdown, and a lone dropdown saves on choosing
+   (wwwroot/js/pages/job.js), so its tick button is hidden. */
+.field-value-editable { cursor: pointer; border-radius: 6px; margin: -2px -6px; padding: 2px 6px; }
+.field-value-editable:hover { background: var(--accent); }
+.inline-control-instant button[type="submit"] { display: none; }
+
+/* The overview's "All clear": every panel with nothing in it, as one short list of ticks. */
+.dash-clear h2 { margin: 0 0 10px; font-size: 18px; }
+.dash-clear ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.dash-clear li { color: var(--muted); font-size: 14px; }
+.dash-clear li::before { content: "✓"; margin-right: 7px; color: var(--teal-text); font-weight: 800; }
+.dash-clear p { margin: 12px 0 0; }
+/* Bulk actions wait until a row is ticked (wwwroot/js/bulk-select.js). */
+.bulk-actions.bulk-idle { display: none; }
+.when-cell { white-space: nowrap; }
+
+/* New ticket: the template picker and the less-used fields fold away behind a link-like summary. */
+.template-picker { margin: 0 0 16px; }
+.template-picker > summary, .more-options > summary { cursor: pointer; color: var(--teal-text); font-weight: 700; font-size: 14px; width: fit-content; }
+.template-picker > summary:hover, .more-options > summary:hover { text-decoration: underline; }
+.template-picker[open] { padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.template-picker form { margin-top: 12px; max-width: 480px; }
+.more-options { margin-top: 16px; }
+.more-options .form-grid { margin-top: 14px; }
