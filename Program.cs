@@ -155,6 +155,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Help/Edit", Policy(Modules.Settings, ModulePermission.Edit));
     // Cleaning rounds: the supervisor's page and the sheets it prints, and the report.
     options.Conventions.AuthorizePage("/Rounds", Modules.Flags.Rounds);
+    // Facilities → Premises checks: the checks to do are tickets, and the page is the checks report's working half.
+    options.Conventions.AuthorizePage("/Checks", Policy(Modules.Tickets, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Checks", Modules.Flags.ReportChecks);
     options.Conventions.AuthorizePage("/RoundSheet", Modules.Flags.Rounds);
     options.Conventions.AuthorizePage("/Reports/Rounds", Modules.Flags.ReportRounds);
     options.Conventions.AuthorizePage("/Reports/RoundsPrint", Modules.Flags.ReportRounds);
@@ -281,6 +284,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Events.OnCheckSlidingExpiration = context =>
         {
             if (context.HttpContext.Request.Path.Equals(NotificationEndpoints.PollPath, StringComparison.OrdinalIgnoreCase)) context.ShouldRenew = false;
+            // Nor the dashboard redrawing itself (wwwroot/js/pages/dashboard.js), for the same reason.
+            if (context.HttpContext.Request.Headers["X-Requested-With"] == EduHelpdesk.Pages.Reports.DashboardModel.RefreshHeader) context.ShouldRenew = false;
             return Task.CompletedTask;
         };
     });
@@ -338,6 +343,18 @@ if (requireHttps) app.UseHttpsRedirection();
 app.UseSecurityHeaders();
 
 app.UseRouting();
+// A switched-off feature's pages (Services/Features.cs) say so, rather than that the role can't open them - for the
+// staff portal's too, so this runs before the sign-in checks.
+app.Use(async (context, next) =>
+{
+    var off = context.RequestServices.GetRequiredService<HelpdeskStore>().FeaturesOff;
+    if (off.Count > 0 && Features.ForPath(context.Request.Path.Value ?? "", off) is { } feature)
+    {
+        context.Response.Redirect($"{context.Request.PathBase}/FeatureOff?feature={feature.Key}");
+        return;
+    }
+    await next();
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

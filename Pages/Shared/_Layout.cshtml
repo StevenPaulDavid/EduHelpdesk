@@ -8,7 +8,10 @@
     var navPath = Context.Request.Path.Value ?? string.Empty;
     bool NavOn(params string[] prefixes) => prefixes.Any(p =>
         navPath.Equals(p, StringComparison.OrdinalIgnoreCase) || navPath.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase));
-    var onAssets = NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
+    // Facilities → Contractors is the supplier directory's contractors, so it lights Facilities rather than Assets.
+    var onContractors = NavOn("/Suppliers") && Context.Request.Query["use"] == "contractors";
+    var onFacilities = NavOn("/Checks", "/Rounds", "/RoundSheet") || onContractors;
+    var onAssets = !onContractors && NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
     var onPeople = NavOn("/People");
     var onOnboarding = NavOn("/Onboarding");
     var onReports = NavOn("/Reports", "/Contracts", "/Contract", "/Access", "/Compliance");
@@ -32,7 +35,19 @@
     // People is one page holding requesters, technician accounts and roles, so reaching any one of them is enough.
     var canPeople = (Can(Modules.Requesters) || Can(Modules.StaffAccounts) || Can(Modules.Roles)) && On(DeskAreas.People);
     var canOnboarding = Can(Modules.Onboarding) && On(DeskAreas.People);
-    var canRounds = Helpdesk.UserHasFlag(User, Modules.Flags.Rounds) && On(DeskAreas.Rounds);
+    // Facilities: the site team's pages, while a desk being worked on uses the Facilities menu. Premises checks, job spend
+    // and contractors come with the built-in Facilities desk (HelpdeskStore.BuiltInDesks); cleaning rounds are there
+    // either way. Each needs its own permission, the one its page already asks for. A menu with two or more, a plain
+    // link with one.
+    var facilitiesLinks = new List<(string Href, string Label)>();
+    if (On(DeskAreas.Facilities))
+    {
+        var hasFacilitiesDesk = Helpdesk.BuiltInDesk(DeskKinds.Facilities) is not null;
+        if (hasFacilitiesDesk && Can(Modules.Tickets) && Helpdesk.UserHasFlag(User, Modules.Flags.ReportChecks)) facilitiesLinks.Add((Url.Page("/Checks")!, "Premises checks"));
+        if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) facilitiesLinks.Add((Url.Page("/Rounds")!, "Cleaning rounds"));
+        if (hasFacilitiesDesk && Can(Modules.Reports) && Helpdesk.UserHasFlag(User, Modules.Flags.ReportSpend)) facilitiesLinks.Add((Url.Page("/Reports/Spend")!, "Job spend"));
+        if (hasFacilitiesDesk && Can(Modules.Suppliers)) facilitiesLinks.Add((Url.Page("/Suppliers", new { use = "contractors" })!, "Contractors"));
+    }
     // Reports: every report this role can open (ReportMenu - /Reports is the asset report, not an index), then the DfE
     // registers that aren't inventory, the compliance summary first since it is where the three meet.
     var reportLinks = ReportMenu.For(Helpdesk, User).Select(x => (Section: "Reports", x.Page, x.Label)).ToList();
@@ -45,7 +60,7 @@
     // The gear: the Settings index, or for someone who can't open it - a DPO given only the audit log, a site manager
     // given "Set up facilities" - the first settings page they can open, whose own menu lists the rest (_SettingsLayout).
     var settingsHref = Can(Modules.Settings) ? Url.Page("/Settings")
-        : SettingsMenu.Sections.SelectMany(x => x.Items).Where(x => x.Need != SettingsMenu.Need.Info && SettingsMenu.CanOpen(Helpdesk, User, x)).Select(x => Url.Content("~" + x.Page)).FirstOrDefault();
+        : SettingsMenu.Sections.SelectMany(x => x.Items).Where(x => x.Need != SettingsMenu.Need.Info && SettingsMenu.Shown(Helpdesk, x) && SettingsMenu.CanOpen(Helpdesk, User, x)).Select(x => Url.Content("~" + x.Page)).FirstOrDefault();
 
     // The desk switcher (HelpdeskStore.DeskSwitch): for whoever can see more than one desk. It goes back to the page it
     // was pressed on without that page's own ?desk=, so the page opens on the desk just chosen. Only a GET's query
@@ -155,7 +170,6 @@
         <nav>
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
             @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket", "/QuickLog", "/DailySheet") ? "active" : null)">Tickets</a> }
-            @if (canRounds) { <a asp-page="/Rounds" class="@(NavOn("/Rounds", "/RoundSheet") ? "active" : null)">Rounds</a> }
             @if (Can(Modules.Projects) && On(DeskAreas.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
             @* HR groups People and Onboarding, but only for someone who can reach both. Someone with just one of them - the
                onboarding officer, say - gets a plain link rather than a menu with a single item in it. *@
@@ -171,6 +185,14 @@
             }
             else if (canPeople) { <a asp-page="/People" class="@(onPeople ? "active" : null)">People</a> }
             else if (canOnboarding) { <a asp-page="/Onboarding/Index" class="@(onOnboarding ? "active" : null)">Onboarding</a> }
+            @if (facilitiesLinks.Count > 1)
+            {
+                <details class="nav-menu">
+                    <summary class="@(onFacilities ? "active" : null)">Facilities<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel">@foreach (var link in facilitiesLinks) { <a href="@link.Href">@link.Label</a> }</div>
+                </details>
+            }
+            else if (facilitiesLinks.Count == 1) { <a href="@facilitiesLinks[0].Href" class="@(onFacilities ? "active" : null)">@facilitiesLinks[0].Label</a> }
             @if (assetLinks.Count > 1)
             {
                 <details class="nav-menu">

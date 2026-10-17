@@ -46,7 +46,7 @@
             </ul>
             @if (Model.OpenTickets.Count > EduHelpdesk.Pages.Portal.IndexModel.OpenTicketsShown) { <p class="muted"><a asp-page="/Portal/MyTickets">All @Model.OpenTickets.Count open tickets →</a></p> }
         }
-        @if (Model.CurrentUser.MayRaiseProjects || Model.HasProjects)
+        @if (Model.ShowProjects && (Model.CurrentUser.MayRaiseProjects || Model.HasProjects))
         {
             <h2 class="portal-subheading">Projects</h2>
             @* The lead's count sits under the heading, only when there is something to do; the button opens every project. *@

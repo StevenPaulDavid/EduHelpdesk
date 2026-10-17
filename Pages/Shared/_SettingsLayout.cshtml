@@ -5,9 +5,9 @@
     // The settings menu: every settings page this person can open, grouped as on the Settings index (SettingsMenu), with
     // the one they are on marked. Someone who can open none but this page - a DPO given only the audit log - just sees it.
     var path = Context.Request.Path.Value ?? "";
-    var current = SettingsMenu.For(path);
+    var current = SettingsMenu.For(path, Context.Request.Query["kind"]);
     var sections = SettingsMenu.Sections
-        .Select(s => (s.Title, Items: s.Items.Where(i => i.Need != SettingsMenu.Need.Info && SettingsMenu.CanOpen(Helpdesk, User, i)).ToList()))
+        .Select(s => (s.Title, Items: s.Items.Where(i => i.Need != SettingsMenu.Need.Info && SettingsMenu.Shown(Helpdesk, i) && SettingsMenu.CanOpen(Helpdesk, User, i)).ToList()))
         .Where(s => s.Items.Count > 0)
         .ToList();
     var canSeeIndex = Helpdesk.UserCan(User, Modules.Settings, ModulePermission.Access);

@@ -7,8 +7,10 @@ namespace EduHelpdesk.Pages.People;
 
 public class RoleModel(HelpdeskStore store) : PageModel
 {
-    public IReadOnlyList<Modules.Definition> AllModules => Modules.All;
-    public IReadOnlyList<Modules.Flags.Definition> AllFlags => Modules.Flags.All;
+    // Less what belongs to a switched-off feature (Services/Features.cs): it can't be granted while it isn't there.
+    // What a role had ticked for it is kept, for when it is switched back on.
+    public IReadOnlyList<Modules.Definition> AllModules => Modules.All.Where(x => Features.ForModule(x.Key) is not { } f || store.IsFeatureOn(f)).ToList();
+    public IReadOnlyList<Modules.Flags.Definition> AllFlags => Modules.Flags.All.Where(x => Features.ForFlag(x.Key) is not { } f || store.IsFeatureOn(f)).ToList();
     // Every column the grid draws, whether or not a given module offers it - a module that does not gets a blank cell,
     // so the columns stay lined up down the page.
     public static IReadOnlyList<ModulePermission> AllActions => ModulePermissions.Ordered;
@@ -87,6 +89,19 @@ public class RoleModel(HelpdeskStore store) : PageModel
         }
         foreach (var key in flag ?? [])
             if (Modules.Flags.Find(key) is { } known) role.Flags.Add(known.Key);
+        // What the role had for a switched-off feature isn't on the form, so it is carried over as it was rather than
+        // lost - and what the form posts for one is ignored.
+        var previous = adding ? null : store.Roles.FirstOrDefault(x => string.Equals(x.Name, currentName, StringComparison.OrdinalIgnoreCase));
+        foreach (var module in Modules.All.Where(x => Features.ForModule(x.Key) is { } f && !store.IsFeatureOn(f)))
+        {
+            role.Grants.Remove(module.Key);
+            if (previous?.GrantsFor(module.Key) is { } kept and not ModulePermission.None) role.Grants[module.Key] = kept;
+        }
+        foreach (var known in Modules.Flags.All.Where(x => Features.ForFlag(x.Key) is { } f && !store.IsFeatureOn(f)))
+        {
+            role.Flags.Remove(known.Key);
+            if (previous?.Has(known.Key) == true) role.Flags.Add(known.Key);
+        }
 
         Role = role;
 

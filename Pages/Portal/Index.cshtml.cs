@@ -22,6 +22,8 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrott
 
     // Someone who raised projects before losing the tick can still follow them.
     public bool HasProjects { get; private set; }
+    // Off with projects switched off (Services/Features.cs).
+    public bool ShowProjects => store.IsFeatureOn(Features.Projects);
     // For the project lead: open projects nobody has been given yet.
     public int AwaitingAssignment { get; private set; }
     // Their tickets with a reply or status change from IT they haven't opened yet.

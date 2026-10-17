@@ -66,7 +66,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public bool CanSeeProjects => store.UserCan(User, Modules.Projects, ModulePermission.Access) && store.AreaOn(User, DeskAreas.Projects);
     public bool CanOpenProject => store.UserCan(User, Modules.Projects, ModulePermission.View);
     // Onboarding: the officer sees it through the Onboarding module; technicians, whose IT tasks are in it, through Tickets.
-    public bool CanSeeOnboarding => (store.UserCan(User, Modules.Onboarding, ModulePermission.Access) || CanSeeTickets) && store.AreaOn(User, DeskAreas.People);
+    public bool CanSeeOnboarding => store.IsFeatureOn(Features.Onboarding) && (store.UserCan(User, Modules.Onboarding, ModulePermission.Access) || CanSeeTickets) && store.AreaOn(User, DeskAreas.People);
     public bool CanOpenOnboarding => store.UserCan(User, Modules.Onboarding, ModulePermission.View) || CanOpenTicket;
     public bool HasOnboardingList => store.UserCan(User, Modules.Onboarding, ModulePermission.Access);
     public const int StartersWindowDays = 14;

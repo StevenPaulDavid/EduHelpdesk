@@ -117,6 +117,14 @@ public sealed class HelpCentre
     // ---- Who an article is for ----
 
     // True when this person can use at least one of the things the article describes (or it names none).
+    // About a part of the helpdesk the school has switched off (Services/Features.cs): every page it covers is one of a
+    // switched-off feature's. Left out of the help centre, so a school without assets reads nothing about them.
+    public static bool SwitchedOff(Article article, HelpdeskStore store)
+    {
+        var off = store.FeaturesOff;
+        return off.Count > 0 && article.Pages.Count > 0 && article.Pages.All(page => Features.ForPath(page, off) is not null);
+    }
+
     public static bool CanUse(Article article, HelpdeskStore store, ClaimsPrincipal user) =>
         article.Needs.Count == 0 || article.Needs.Any(need => Meets(need, store, user));
 

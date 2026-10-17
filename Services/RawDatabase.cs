@@ -124,6 +124,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Cleaners"] = "The cleaners' names, for cleaning rounds (Settings → Cleaners). Cleaners don't sign in.",
         ["CleaningRounds"] = "Cleaning rounds: the rooms each covers (one per line), the weekdays it's done (0 = Sunday), its usual cleaner, and the day it was set up.",
         ["RoundVisits"] = "What the cleaning supervisor recorded on a round: one row per room per day - done or not, who cleaned it, a note, and any spot-check score (1-5).",
+        ["ParkedDeskValues"] = "What a switched-off built-in desk set aside - its categories, teams, own statuses, asset types and people - until it is switched back on (Settings → Desks).",
         ["Desks"] = "The parts of the school the helpdesk serves, such as IT, Site and Cleaning (Settings → Desks), in tile order, with their ticket number prefix and portal tile look.",
         ["CategoryDesks"] = "Which desk each ticket category belongs to. A ticket is on its category's desk.",
         ["TeamDesks"] = "Which desk each technician team works on.",

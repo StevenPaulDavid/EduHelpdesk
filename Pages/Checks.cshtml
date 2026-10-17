@@ -1,0 +1,84 @@
+@page
+@model ChecksModel
+@{
+    ViewData["Title"] = "Premises checks";
+    async Task OpenList(string heading, IReadOnlyList<ChecksModel.Open> checks, string empty, bool warn = false)
+    {
+        <h3 class="checks-heading">@heading <span class="badge @(warn && checks.Count > 0 ? "badge-warning" : null)">@checks.Count</span></h3>
+        @if (checks.Count == 0) { <p class="muted">@empty</p> }
+        else
+        {
+            <ul class="dash-list">
+                @foreach (var check in checks)
+                {
+                    <li class="dash-row @(warn ? "is-overdue" : null)">
+                        <span class="dash-main"><a asp-page="/Job" asp-route-number="@check.Ticket.Number"><strong>@check.Name</strong></a><span class="muted">@check.Ref@(check.Technician is { } who ? $" · {who}" : "") · @check.Answered of @check.Lines lines done</span></span>
+                        <span class="dash-side">@if (Model.DueText(check.Ticket) is { Length: > 0 } due) { <span class="badge @(warn ? "badge-warning" : null)">@due</span> } else { <span class="muted">No due date</span> }</span>
+                    </li>
+                }
+            </ul>
+        }
+        await Task.CompletedTask;
+    }
+}
+<div class="page-heading">
+    <div><h1>Premises checks</h1><p class="hero-copy">The fire alarm tests, water temperatures and other checks to do now, what's coming up, and how each went last time. Open one to fill in its checklist.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanReport) { <a class="button button-secondary" asp-page="/Reports/Checks">Yearly log</a> }
+        @if (Model.CanSetUp) { <a class="button button-secondary" asp-page="/Settings/RecurringTickets">Set up checks</a> }
+    </div>
+</div>
+
+@if (!Model.HasSchedules && Model.Overdue.Count + Model.DueToday.Count + Model.DueLater.Count == 0)
+{
+    <section class="panel"><p class="muted">No premises checks are set up yet. A check is a recurring ticket with a checklist: set one up in @(Model.CanSetUp ? "" : "Settings → ")<a asp-page="/Settings/RecurringTickets">Recurring tickets &amp; checks</a>.</p></section>
+}
+else
+{
+    <div class="dash-grid">
+        <section class="panel">
+            <div class="panel-heading"><h2>To do</h2></div>
+            @{ await OpenList("Overdue", Model.Overdue, "Nothing overdue.", warn: true); }
+            @{ await OpenList("Due today", Model.DueToday, "Nothing else due today."); }
+            @{ await OpenList("Open, due later", Model.DueLater, "Nothing else open."); }
+        </section>
+        <section class="panel">
+            <div class="panel-heading"><h2>Coming up</h2></div>
+            @foreach (var (heading, list, empty) in new[] { ("This week", Model.ThisWeek, "Nothing else this week."), ("In the next month", Model.ThisMonth, "Nothing else in the next month.") })
+            {
+                <h3 class="checks-heading">@heading <span class="badge">@list.Count</span></h3>
+                @if (list.Count == 0) { <p class="muted">@empty</p> }
+                else
+                {
+                    <ul class="dash-list">
+                        @foreach (var item in list)
+                        {
+                            <li class="dash-row"><span class="dash-main"><strong>@item.Schedule.Name</strong><span class="muted">@item.Repeats</span></span><span class="dash-side"><span class="badge">@item.When.ToString("ddd d MMM")</span></span></li>
+                        }
+                    </ul>
+                }
+            }
+        </section>
+    </div>
+    <section class="panel">
+        <div class="panel-heading"><h2>Last time</h2></div>
+        @if (Model.LastResults.Count == 0) { <p class="muted">No check has been closed yet.</p> }
+        else
+        {
+            <div class="table-wrap"><table>
+                <thead><tr><th>Check</th><th>Done</th><th>Result</th><th>Ticket</th></tr></thead>
+                <tbody>
+                    @foreach (var last in Model.LastResults)
+                    {
+                        <tr>
+                            <td><strong>@last.Name</strong></td>
+                            <td>@last.Ticket.ClosedAt?.ToLocalTime().ToString("ddd d MMM yyyy")@if (last.Late) { <text> </text><span class="badge badge-warning">Late</span> }</td>
+                            <td>@if (last.Failed > 0) { <span class="badge badge-warning">@last.Failed failed</span> } else { <span class="badge badge-good">All passed</span> }</td>
+                            <td><a asp-page="/Job" asp-route-number="@last.Ticket.Number">@last.Ref</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </section>
+}

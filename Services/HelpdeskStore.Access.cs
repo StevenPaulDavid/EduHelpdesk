@@ -198,11 +198,13 @@ public sealed partial class HelpdeskStore
         }
     }
     // Administrator always has every permission, regardless of what the Roles table says - the one hardcoded exception,
-    // and the reason a mistake in the permission model can never lock everybody out.
+    // and the reason a mistake in the permission model can never lock everybody out. A feature the school has switched
+    // off (Services/Features.cs) is refused to everyone, Administrators too: it isn't there.
     public bool RoleAllows(string? roleName, string module, ModulePermission action)
     {
         lock (_sync)
         {
+            if (ModuleSwitchedOff(module)) return false;
             if (string.Equals(roleName, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return true;
             var role = _data.Roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
             return role?.Allows(module, action) ?? false;
@@ -212,6 +214,7 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
+            if (FlagSwitchedOff(flag)) return false;
             if (string.Equals(roleName, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase)) return true;
             var role = _data.Roles.FirstOrDefault(x => string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
             return role?.Has(flag) ?? false;

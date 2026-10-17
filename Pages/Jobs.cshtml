@@ -27,7 +27,7 @@
 <section class="panel">
     <div class="queue-bar">
         <nav class="queue-tabs" aria-label="Ticket queues">
-            @foreach (var view in TicketListQuery.Views)
+            @foreach (var view in TicketListQuery.Views.Where(x => x != "onboarding" || Model.ShowOnboarding))
             {
                 <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)">@JobsModel.ViewLabel(view) <span class="badge @(view == "overdue" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
             }
@@ -63,7 +63,7 @@
         {
             Id = "ticket-filters",
             Search = Model.Search,
-            SearchPlaceholder = "Number, title, description, comments, requester, asset tag, technician",
+            SearchPlaceholder = Model.ShowAssets ? "Number, title, description, comments, requester, asset tag, technician" : "Number, title, description, comments, requester, technician",
             Title = "Filter tickets",
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
@@ -102,7 +102,7 @@
             <th data-stack="check"><input id="select-page" type="checkbox" aria-label="Select all tickets on this page" /></th>
             <th data-stack="head"><a class="sort-link" href="@Model.SortUrl("number")">Ticket@(Model.SortMark("number"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("title")">Title@(Model.SortMark("title"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("requester")">Requester@(Model.SortMark("requester"))</a></th>
-            <th><a class="sort-link" href="@Model.SortUrl("asset")">Asset@(Model.SortMark("asset"))</a></th>
+            @if (Model.ShowAssets) { <th><a class="sort-link" href="@Model.SortUrl("asset")">Asset@(Model.SortMark("asset"))</a></th> }
             <th><a class="sort-link" href="@Model.SortUrl("technician")">Technician@(Model.SortMark("technician"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("priority")">Priority@(Model.SortMark("priority"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("status")">Status@(Model.SortMark("status"))</a></th>
@@ -131,7 +131,7 @@
                     }
                     @if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply" title="The requester replied in the staff portal and is waiting to hear back">Reply</span> }<br /><span class="muted">@ticket.Title</span></td>
                 <td>@(Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "—")</td>
-                <td>@if (linkedAssets.Count == 0) { <span class="muted">—</span> } else { @string.Join(", ", linkedAssets.Select(a => $"{a!.AssetTag} · {a.Model}")) }</td>
+                @if (Model.ShowAssets) { <td>@if (linkedAssets.Count == 0) { <span class="muted">—</span> } else { @string.Join(", ", linkedAssets.Select(a => $"{a!.AssetTag} · {a.Model}")) }</td> }
                 <td>@(ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned")@if (!string.IsNullOrWhiteSpace(ticket.TeamName)) { <br /><span class="muted">@ticket.TeamName</span> }</td>
                 <td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td>
                 <td><span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span></td>
@@ -139,7 +139,7 @@
                 <td class="when-cell"><span title="Updated @ticket.LastModifiedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@NotificationEndpoints.When(ticket.LastModifiedAt)</span><br /><span class="muted" title="Created @ticket.CreatedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")">Created @ticket.CreatedAt.ToLocalTime().ToString("d MMM")</span></td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="9" class="empty">@(Model.View == "mine" && currentTechnician is null ? "Your account isn't linked to a technician record." : Model.IsFiltered ? "No tickets match these filters." : null)@if (!(Model.View == "mine" && currentTechnician is null) && !Model.IsFiltered) { if (Model.ShownDesks.Count > 0) { <text>Nothing here on @Model.DeskPhrase. <a href="@Model.AllDesksUrl()">Show every desk</a></text> } else { @(Model.TotalTickets == 0 ? "No tickets have been logged yet." : "Nothing in this queue.") } }</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="@(Model.ShowAssets ? 9 : 8)" class="empty">@(Model.View == "mine" && currentTechnician is null ? "Your account isn't linked to a technician record." : Model.IsFiltered ? "No tickets match these filters." : null)@if (!(Model.View == "mine" && currentTechnician is null) && !Model.IsFiltered) { if (Model.ShownDesks.Count > 0) { <text>Nothing here on @Model.DeskPhrase. <a href="@Model.AllDesksUrl()">Show every desk</a></text> } else { @(Model.TotalTickets == 0 ? "No tickets have been logged yet." : "Nothing in this queue.") } }</td></tr> }
         </tbody></table></div>
 
         @if (Model.Rows.Count > 0)

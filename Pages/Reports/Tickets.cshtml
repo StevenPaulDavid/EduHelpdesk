@@ -58,20 +58,25 @@
 @* The trend first, as two small charts, with the same numbers as a table under each. The detail below folds away. *@
 @if (Model.Trend.Count > 1)
 {
-    var logged = Model.Trend.Select(x => new MiniChart.Point(x.Label, x.Logged, $"{x.Label}: {x.Logged} logged, {x.Closed} closed")).ToList();
-    var openAt = Model.Trend.Select(x => new MiniChart.Point(x.Label, x.OpenAtEnd, $"{x.Label}: {x.OpenAtEnd} open at the end")).ToList();
+    var unit = Model.TrendStep;
+    var unitName = char.ToUpperInvariant(unit[0]) + unit[1..];
+    var steps = Model.Trend.Select(x => new Charts.Step(x.Label, x.Step.Name, Model.LoggedUrl(x.Step))).ToList();
+    var openSteps = Model.Trend.Select(x => new Charts.Step(x.Label, x.Step.Name)).ToList();
+    Charts.Series[] logged = [new("Logged", "brand", Model.Trend.Select(x => (double)x.Logged).ToList())];
+    Charts.Series[] open = [new("Open at the end", "brand", Model.Trend.Select(x => (double)x.OpenAtEnd).ToList())];
+    Charts.Series[] table = [logged[0], new("Closed", "brand", Model.Trend.Select(x => (double)x.Closed).ToList())];
     <div class="dash-grid report-trend">
         <section class="panel">
             <h2>Tickets logged</h2>
-            <p class="muted">Each @Model.TrendStep, @Model.WhenText.</p>
-            @MiniChart.Bars(logged, $"Tickets logged each {Model.TrendStep}, latest {logged[^1].Value}")
-            <details class="chart-table"><summary>Show as table</summary><div class="table-wrap"><table><thead><tr><th>@(Model.TrendStep == "week" ? "Week" : "Month")</th><th>Logged</th><th>Closed</th></tr></thead><tbody>@foreach (var point in Model.Trend) { <tr><td>@point.Label</td><td>@point.Logged</td><td>@point.Closed</td></tr> }</tbody></table></div></details>
+            <p class="muted">Each @unit, @Model.WhenText. Click a bar to see them.</p>
+            @Charts.Columns(steps, logged, $"Tickets logged each {unit}, latest {Model.Trend[^1].Logged}")
+            @Charts.Table(unitName, steps, table)
         </section>
         <section class="panel">
             <h2>Open tickets</h2>
-            <p class="muted">Still open at the end of each @Model.TrendStep.</p>
-            @MiniChart.Line(openAt, $"Open tickets at the end of each {Model.TrendStep}, now {openAt[^1].Value}")
-            <details class="chart-table"><summary>Show as table</summary><div class="table-wrap"><table><thead><tr><th>@(Model.TrendStep == "week" ? "Week" : "Month")</th><th>Open at the end</th></tr></thead><tbody>@foreach (var point in Model.Trend) { <tr><td>@point.Label</td><td>@point.OpenAtEnd</td></tr> }</tbody></table></div></details>
+            <p class="muted">Still open at the end of each @unit.</p>
+            @Charts.Lines(openSteps, open, $"Open tickets at the end of each {unit}, now {Model.Trend[^1].OpenAtEnd}")
+            @Charts.Table(unitName, openSteps, open)
         </section>
     </div>
 }
@@ -176,3 +181,4 @@
     </tbody></table></div>
     </details>
 </section>
+<script src="~/js/charts.js" asp-append-version="true"></script>

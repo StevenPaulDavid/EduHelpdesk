@@ -4,22 +4,26 @@
 @{
     ViewData["Title"] = "Desks";
 }
-<div class="page-heading"><div><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves, such as IT, Site or Cleaning. Each has its own categories, teams and people, and its own ticket numbers with their own prefix (SITE-1, SITE-2…). A ticket is on the desk its category belongs to, so moving a ticket to another desk is giving it one of that desk's categories. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div></div>
+<div class="page-heading"><div><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves. IT and Facilities are built in - Facilities is the site team's repairs, premises checks and cleaning - and either can be renamed or switched off; you can add desks of your own too. Each has its own categories, teams and people, and its own ticket numbers with their own prefix (FAC-1, FAC-2…). A ticket is on the desk its category belongs to. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 
-<section class="panel">
-    <div class="panel-heading"><h2>Add a desk</h2></div>
-    <form method="post" asp-page-handler="Add" class="settings-form">
-        <div class="template-fields">
-            <label>Name<input name="name" required maxlength="@HelpdeskStore.MaxDeskNameLength" placeholder="e.g. Site" /></label>
-            <label><span>Ticket number prefix <help-tip key="desk.prefix" /></span><input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. SITE" autocapitalize="characters" /><small class="muted">Its tickets show as SITE-1, SITE-2… Leave blank for #1.</small></label>
-            <label>First ticket number<input name="firstNumber" type="number" min="1" step="1" value="1" /><small class="muted">Each desk counts its own tickets. Start higher (1001, say) to keep numbers the same length.</small></label>
-            <label class="full">Helper line<input name="helperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under its portal tile, e.g. Heating, leaks, doors and furniture" /></label>
+@* Asked once, on an install from before Facilities was built in (HelpdeskStore.BuiltInDesks). *@
+@if (Model.FacilitiesChoicePending)
+{
+    <section class="panel facilities-choice">
+        <h2>Facilities is now built in</h2>
+        <p>The Facilities desk is the site team's: repairs, premises checks and cleaning, with a Facilities menu in the top bar for checks, cleaning rounds, job spend and contractors. Is one of your desks already that?</p>
+        <div class="button-row">
+            @foreach (var desk in Model.OwnDesks)
+            {
+                <form method="post" asp-page-handler="Facilities"><input type="hidden" name="choice" value="make" /><input type="hidden" name="id" value="@desk.Id" /><button class="button button-primary" type="submit">Make @desk.Name the Facilities desk</button></form>
+            }
+            <form method="post" asp-page-handler="Facilities"><input type="hidden" name="choice" value="add" /><button class="button @(Model.OwnDesks.Count == 0 ? "button-primary" : "button-secondary")" type="submit">@Icons.Plus Add a Facilities desk</button></form>
+            <form method="post" asp-page-handler="Facilities"><input type="hidden" name="choice" value="later" /><button class="button button-secondary" type="submit">Not now</button></form>
         </div>
-        <button class="button button-primary" type="submit">@Icons.Plus Add desk</button>
-    </form>
-    <p class="muted">Then give it its categories in <a asp-page="/Settings/Categories">Categories</a> and its teams in <a asp-page="/Settings/Teams">Teams</a>, and add people to it on their technician account in People.</p>
-</section>
+        <p class="muted">Making one of your desks Facilities keeps its name, tickets and setup. A new one starts with categories such as Heating &amp; hot water and Plumbing &amp; leaks, a button for each in the staff portal, and the @HelpdeskStore.FacilitiesTeam. Not now leaves it switched off below, ready whenever.</p>
+    </section>
+}
 
 <section class="panel">
     <div class="panel-heading"><h2>The desks</h2><span class="badge">@Model.Desks.Count</span></div>
@@ -46,6 +50,7 @@
                 <summary>
                     <span class="tile-swatch" style="--tile-color:@color.Hex">@PortalLook.Svg(style.Icon)</span>
                     <strong>@desk.Name</strong>
+                    @if (desk.IsBuiltIn) { <span class="badge">@DesksModel.KindLabel(desk)</span> }
                     <span class="badge" title="The number its next ticket gets">Next: @HelpdeskStore.RefFor(desk, desk.NextNumber)</span>
                     <span class="muted">@(categories.Count == 1 ? "1 category" : $"{categories.Count} categories") · @(teams.Count == 1 ? "1 team" : $"{teams.Count} teams") · @(Model.PeopleOn(desk) == 1 ? "1 person" : $"{Model.PeopleOn(desk)} people") · @Model.OpenTicketsOn(desk) open@(desk.ShowInPortal ? "" : " · not in the portal")</span>
                 </summary>
@@ -86,7 +91,7 @@
                     <form method="post" asp-page-handler="Areas" class="settings-form">
                         <input type="hidden" name="id" value="@desk.Id" />
                         <fieldset class="desk-choices"><legend>In the top bar <help-tip key="desk.areas" /></legend>
-                            @foreach (var area in DeskAreas.All)
+                            @foreach (var area in DeskAreas.All.Where(x => x.Feature is null || Model.FeatureOn(x.Feature)))
                             {
                                 <label class="toggle-label" title="@area.Description"><input type="checkbox" name="areas" value="@area.Key" checked="@HelpdeskStore.DeskUses(desk, area.Key)" /> @area.Label</label>
                             }
@@ -115,7 +120,15 @@
                     </fieldset>
                     <button class="button button-secondary" type="submit">Save tile</button>
                 </form>
-                @if (Model.Desks.Count > 1)
+                @if (desk.IsBuiltIn && Model.Desks.Count > 1)
+                {
+                    <form method="post" asp-page-handler="SwitchOff" data-confirm="Switch the @desk.Name desk off? Its categories, teams and setup are set aside until you switch it on again.">
+                        <input type="hidden" name="id" value="@desk.Id" />
+                        <button class="button button-secondary" type="submit">Switch @desk.Name off</button>
+                        <small class="muted">For a school that doesn't need it. Only while it has no tickets; everything else is kept for switching it on again.</small>
+                    </form>
+                }
+                else if (!desk.IsBuiltIn && Model.Desks.Count > 1)
                 {
                     <form method="post" asp-page-handler="Delete" data-confirm="Delete the @desk.Name desk?">
                         <input type="hidden" name="id" value="@desk.Id" />
@@ -126,4 +139,33 @@
             </details>
         </div>
     }
+</section>
+
+@if (Model.OffDesks.Count > 0)
+{
+    <section class="panel">
+        <div class="panel-heading"><h2>Switched off</h2></div>
+        <p class="muted">Built-in desks this school doesn't use. Nothing about them shows anywhere until one is switched on again, with everything it had.</p>
+        @foreach (var desk in Model.OffDesks)
+        {
+            <div class="directory-row">
+                <div class="directory-text"><strong>@desk.Name</strong> <span class="badge">@DesksModel.KindLabel(desk)</span><span>@(desk.Kind == DeskKinds.Facilities ? "Repairs, premises checks and cleaning, with the Facilities menu." : "IT support: devices, accounts, network and classroom tech.")</span></div>
+                <form method="post" asp-page-handler="SwitchOn"><input type="hidden" name="id" value="@desk.Id" /><button class="button button-secondary" type="submit">Switch @desk.Name on</button></form>
+            </div>
+        }
+    </section>
+}
+
+<section class="panel">
+    <div class="panel-heading"><h2>Add a desk of your own</h2></div>
+    <form method="post" asp-page-handler="Add" class="settings-form">
+        <div class="template-fields">
+            <label>Name<input name="name" required maxlength="@HelpdeskStore.MaxDeskNameLength" placeholder="e.g. Reprographics" /></label>
+            <label><span>Ticket number prefix <help-tip key="desk.prefix" /></span><input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. REPRO" autocapitalize="characters" /><small class="muted">Its tickets show as REPRO-1, REPRO-2… Leave blank for #1.</small></label>
+            <label>First ticket number<input name="firstNumber" type="number" min="1" step="1" value="1" /><small class="muted">Each desk counts its own tickets. Start higher (1001, say) to keep numbers the same length.</small></label>
+            <label class="full">Helper line<input name="helperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under its portal tile, e.g. Printing, copying and binding" /></label>
+        </div>
+        <button class="button button-primary" type="submit">@Icons.Plus Add desk</button>
+    </form>
+    <p class="muted">Then give it its categories in <a asp-page="/Settings/Categories">Categories</a> and its teams in <a asp-page="/Settings/Teams">Teams</a>, and add people to it on their technician account in People.</p>
 </section>

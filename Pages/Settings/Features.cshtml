@@ -1,0 +1,27 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.FeaturesModel
+@{ ViewData["Title"] = "Features"; }
+<div class="page-heading"><div><h1>Features</h1><p class="hero-copy">Switch off the parts of the helpdesk your school doesn't use - a helpdesk without assets, say - and they disappear for everyone: from the top bar, the reports, tickets and the staff portal, and their settings. Nothing is deleted, so switching one back on brings back everything it had. Tickets, people, reports and settings are always there.</p></div></div>
+@if (Model.Message is { } message) { <div class="notice">@message</div> }
+<section class="panel">
+    <ul class="feature-list">
+        @foreach (var feature in Features.All)
+        {
+            var on = Model.IsOn(feature);
+            var needs = feature.Needs.Select(Features.Find).OfType<Features.Feature>().Select(x => x.Label).ToList();
+            var neededBy = Features.NeededBy(feature.Key).Select(x => x.Label).ToList();
+            <li class="feature-row @(on ? null : "is-off")" id="@feature.Key">
+                <div class="feature-text">
+                    <strong>@feature.Label</strong> <span class="badge @(on ? "badge-good" : null)">@(on ? "On" : "Off")</span>
+                    <span class="muted">@feature.Description@(needs.Count > 0 ? $" Needs {string.Join(" and ", needs)}." : "")@(neededBy.Count > 0 ? $" Switching it off switches off {string.Join(" and ", neededBy)} too." : "")</span>
+                </div>
+                <form method="post" data-confirm="@(on ? $"Switch {feature.Label} off for everyone? Nothing is deleted." : null)">
+                    <input type="hidden" name="key" value="@feature.Key" /><input type="hidden" name="on" value="@(on ? "false" : "true")" />
+                    <button class="button @(on ? "button-secondary" : "button-primary")" type="submit">@(on ? "Switch off" : "Switch on")</button>
+                </form>
+            </li>
+        }
+    </ul>
+</section>
+<p class="muted">The two built-in desks, IT and Facilities, are switched off and on in <a asp-page="/Settings/Desks">Desks</a>; notifications, the Teams channel and EduNotify on their own pages.</p>
