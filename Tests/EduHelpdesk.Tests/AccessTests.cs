@@ -192,4 +192,26 @@ public class AccessTests
         test.Store.RevokeAllAccess(person.Id, null, null);
         Assert.Equal((1, 0), (test.Store.PreviewRetention().People, test.Store.PreviewRetention().LeaversWaiting));
     }
+
+    // A tick that no longer exists - "Working as" was one - is dropped from the role rather than kept for ever.
+    [Fact]
+    public void A_retired_permission_tick_is_dropped_from_a_role_on_restart()
+    {
+        using var test = new TestStore();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={test.DatabasePath};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "INSERT INTO RolePermissions (RoleName, Permission) VALUES ('Senior Technician', 'Tickets.WorkingAs');";
+            command.ExecuteNonQuery();
+        }
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        var store = test.Reopen();
+        var role = store.Roles.Single(x => x.Name == "Senior Technician");
+        Assert.DoesNotContain("Tickets.WorkingAs", role.Flags);
+        Assert.Contains(Modules.Flags.AssignProjects, role.Flags);
+        Assert.Null(store.CompareDatabaseWithMemory());
+    }
 }

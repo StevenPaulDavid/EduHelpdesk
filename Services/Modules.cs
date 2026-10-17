@@ -65,11 +65,10 @@ public static class Modules
     public static bool Supports(string moduleKey, ModulePermission action) =>
         Find(moduleKey) is { } module && module.Supports.HasFlag(action);
 
-    // Permissions that are not an action on a record: reading one particular report, exporting, and picking whose
-    // queue you are looking at. Each is a plain on/off tick.
+    // Permissions that are not an action on a record: reading one particular report, exporting, and the like. Each is
+    // a plain on/off tick.
     public static class Flags
     {
-        public const string WorkingAs = "Tickets.WorkingAs";
         public const string NotifyStaff = "Tickets.NotifyStaff";
         public const string AllDesks = "Tickets.AllDesks";
         public const string Costs = "Tickets.Costs";
@@ -93,7 +92,6 @@ public static class Modules
 
         public static readonly Definition[] All =
         [
-            new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
             // Without it, someone sees only the tickets of the desks they're on (HelpdeskStore.Desks) - for the site manager, SLT, IT leads.
             // Money is its own question: the site manager and business manager, not everyone who works a ticket.
             new(Costs, "See and add job costs", "The Costs tab on tickets: what a job cost (net, VAT, supplier, budget code). Adding or removing a line also needs Tickets: Edit.", "Tickets"),

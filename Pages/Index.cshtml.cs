@@ -85,7 +85,6 @@ public class IndexModel(HelpdeskStore store) : PageModel
         ComplianceFindings.For(store, AssetInsights.Today, assets: false, contracts: CanSeeContracts, access: CanSeeAccess)
             .Where(x => x.Level >= ComplianceFinding.Levels.Warning).ToList();
     public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
-    public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
     // Slow saves or a nearly full disk (Settings → Database), for Administrators only.
     public IReadOnlyList<string> DatabaseWarnings =>
         EduHelpdesk.Services.RawDatabase.IsAdministrator(User) ? store.HealthWarnings(DateTime.UtcNow) : [];
@@ -126,7 +125,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
         if (CanSeeTickets)
         {
-            var meId = WorkingAs.Resolve(store, User, Request);
+            var meId = SignedInTechnician.Id(store, User);
             Me = meId is { } id ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
             // The overview is of the desks the top bar's desk switcher is on (HelpdeskStore.DeskSwitch), as the ticket
             // list opens on them; tickets assigned to them count wherever they are.
@@ -157,7 +156,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
             RepliesWaiting = replies.OrderBy(x => meId is { } me && x.TechnicianId == me ? 0 : 1).ThenBy(x => x.LastModifiedAt).ToList();
         }
 
-        if (CanSeeProjects && WorkingAs.SignedInTechnicianId(store, User) is { } projectMe)
+        if (CanSeeProjects && SignedInTechnician.Id(store, User) is { } projectMe)
         {
             var active = store.Projects.Where(x => x.IsActive).ToList();
             MyProjects = active.Where(x => x.TechnicianId == projectMe).OrderBy(x => x.DueDate).ThenBy(x => x.EffectivePriority).ToList();

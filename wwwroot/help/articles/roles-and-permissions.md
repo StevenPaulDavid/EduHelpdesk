@@ -32,7 +32,6 @@ Some permissions aren't about records, and are plain on/off ticks, such as:
 
 - **See all desks** - every desk's tickets, for leads such as the site manager.
 - **See and add job costs** - the Costs tab on tickets.
-- **Change "Working as"** - cover a colleague's queue.
 - **Tell staff through EduNotify** - outage notices from tickets.
 - **Record cleaning rounds** - for cleaning supervisors.
 - **Assign projects** - the helpdesk-side backup to the project lead.

@@ -149,6 +149,8 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.AssetModels, _data.Assets.Select(x => x.Model));
         _data.AssetModelMakes = new Dictionary<string, string>(_data.AssetModelMakes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         EnsureSystemOptions();
+        // A permission tick that no longer exists (Working as, say) grants nothing, so it isn't kept on the role.
+        foreach (var role in _data.Roles) role.Flags.RemoveWhere(x => Modules.Flags.Find(x) is null);
         // After the lists it places on desks are complete.
         EnsureDesks();
         PrepareTeams();

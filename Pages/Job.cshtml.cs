@@ -76,7 +76,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
     public bool CanEdit => store.UserCan(User, Modules.Tickets, ModulePermission.Edit);
     public bool CanDelete => store.UserCan(User, Modules.Tickets, ModulePermission.Delete);
-    // The signed-in account, not the Jobs list's "Working as" choice: taking a ticket is something you do for yourself.
+    // The signed-in account: taking a ticket is something you do for yourself.
     public Guid? SignedInTechnicianId =>
         Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     // Offered on an open ticket that is not already yours. A team mismatch still shows the button, and the handler

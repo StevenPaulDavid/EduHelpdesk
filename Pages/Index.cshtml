@@ -77,7 +77,7 @@
         <div class="panel-heading"><div><p class="eyebrow">YOUR WORK</p><h2>My tickets</h2></div>@if (Model.Me is not null) { <a class="button button-secondary" asp-page="/Jobs" asp-route-view="mine">All my tickets (@Model.MyTickets.Count)</a> }</div>
         @if (Model.Me is null)
         {
-            <p class="muted">@(Model.CanChangeWorkingAs ? "Choose who you are under Working as on the ticket list to see the tickets assigned to you here." : "Your account isn't linked to a technician record, so there are no tickets assigned to you.")</p>
+            <p class="muted">Your account isn't linked to a technician record, so there are no tickets assigned to you.</p>
         }
         else if (Model.MyTickets.Count == 0)
         {

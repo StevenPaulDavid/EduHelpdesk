@@ -1,6 +1,6 @@
 ---
 title: The ticket list
-summary: The Tickets page - queues, Working as, search and filters, and updating many tickets at once.
+summary: The Tickets page - queues, search and filters, and updating many tickets at once.
 area: Tickets
 kind: page
 pages: /Jobs
@@ -31,9 +31,9 @@ The tabs are the queues. The number on each tab is how many tickets are in it.
 | Onboarding | New starters' onboardings with IT tasks still to do |
 | All tickets | Everything, closed tickets included |
 
-## Working as
+## Covering a colleague
 
-**Working as** says whose tickets **My tickets** shows. Normally it's you. If your role has *Change "Working as"*, you can pick a colleague - handy for covering someone's queue while they're off. The choice is remembered in this browser only.
+**My tickets** is always your own. To work through a colleague's queue while they're off, choose them under **Technician** in the filters.
 
 ## Searching and filtering
 

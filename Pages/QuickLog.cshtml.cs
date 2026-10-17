@@ -15,7 +15,7 @@ public class QuickLogModel(HelpdeskStore store) : PageModel
         Desks.Select(d => (d, store.CategoriesFor(d.Id))).Where(x => x.Item2.Count > 0).ToList();
     public IReadOnlyList<TechnicianRecord> People => store.Technicians.Where(x => x.IsActive && Desks.Any(d => HelpdeskStore.TechnicianOnDesk(x, d.Id))).OrderBy(x => x.Name).ToList();
     public IReadOnlyList<string> Locations => store.Locations;
-    public Guid? Me => WorkingAs.SignedInTechnicianId(store, User);
+    public Guid? Me => SignedInTechnician.Id(store, User);
 
     [BindProperty] public string? Category { get; set; }
     [BindProperty] public string? Title { get; set; }

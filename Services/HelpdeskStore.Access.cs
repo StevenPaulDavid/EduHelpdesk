@@ -61,7 +61,7 @@ public sealed partial class HelpdeskStore
                     [Modules.Requesters] = Full, [Modules.StaffAccounts] = Full,
                     [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access
                 },
-                Modules.Flags.WorkingAs, Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
+                Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance, Modules.Flags.ReportProjects,
                 Modules.Flags.ReportOnboarding, Modules.Flags.ReportExport));
 

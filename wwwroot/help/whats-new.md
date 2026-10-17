@@ -8,6 +8,7 @@
 - **Desks kept apart** - people see only their own desks' tickets unless their role has *See all desks*, and alerts go to the right desk.
 - **Ticket numbers per desk** - each desk counts its own tickets (IT-12, SITE-4).
 - **Desk switcher and a tidier top bar** - choose the desk you're working on next to the school's name: tickets, assets, the daily sheet, the overview and **Log a ticket** follow it, and each desk chooses which parts of the bar it uses. The Facilities menu is gone, Inventory is now **Assets**, **Reports** is a menu with the compliance registers in it, and Settings is the gear beside **?**. See [Desks](desks).
+- **Simpler setup** - SLAs can be edited; the service catalogue is the one place for staff-portal buttons (templates that were buttons have become catalogue items); requesters are imported from the staff list only, which can now give them temporary passwords; and *Working as* is gone - use the Technician filter to cover a colleague's tickets.
 
 ## 1.12
 
