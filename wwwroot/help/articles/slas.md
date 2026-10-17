@@ -38,4 +38,4 @@ Anyone can still choose a different SLA, or none, on the ticket.
 
 ## Changing or deleting an SLA
 
-Tickets already logged keep the due dates they have. An SLA used by any ticket can't be deleted. Deleting one that a ticket template named sends that template back to working the SLA out from the priority and category.
+Click an SLA in the list to change its name, duration, unit or what it applies to, then **Save SLA**. Tickets already logged keep the due dates they have; new tickets use the changed SLA. An SLA used by any ticket can't be deleted. Deleting one that a ticket template named sends that template back to working the SLA out from the priority and category.

@@ -3,19 +3,26 @@
 @{ ViewData["Title"] = "SLAs"; }
 <div class="page-heading"><h1>SLAs</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
-<section class="panel">
-    <form method="post" class="settings-form">
-        <label>Name<input name="name" required /></label>
-        <label>Description<textarea name="description" rows="2" placeholder="What this SLA means, e.g. respond within one business day"></textarea></label>
-        <label>Duration<input name="duration" type="number" min="1" required /></label>
-        <label><span>Unit <help-tip key="sla.unit" /></span><select name="durationUnit">@foreach (var unit in EduHelpdesk.Services.SlaUnits.All) { <option value="@unit.Value" selected="@(unit.Value == EduHelpdesk.Services.SlaUnits.Hours)">@unit.Label</option> }</select>
+@{
+    // The same fields add an SLA and change one.
+    async Task Fields(SlaDefinition? sla)
+    {
+        <label>Name<input name="name" value="@sla?.Name" required /></label>
+        <label>Description<textarea name="description" rows="2" placeholder="What this SLA means, e.g. respond within one business day">@sla?.Description</textarea></label>
+        <label>Duration<input name="duration" type="number" min="1" value="@sla?.Duration" required /></label>
+        <label><span>Unit <help-tip key="sla.unit" /></span><select name="durationUnit">@foreach (var unit in EduHelpdesk.Services.SlaUnits.All) { <option value="@unit.Value" selected="@(unit.Value == (sla?.DurationUnit ?? EduHelpdesk.Services.SlaUnits.Hours))">@unit.Label</option> }</select>
             <small class="muted">Work days skip weekends and any other day that isn't a school day. Periods count lessons from the next one to start, skipping break, lunch and after school. Both follow <a asp-page="/Settings/SchoolDay">School day and periods</a>@(Model.PeriodCount == 0 ? " - no periods are set up yet, so add those before using periods" : $" ({Model.PeriodCount} periods set up)").</small>
         </label>
         <div class="checkbox-grid">
-            <div><p class="eyebrow">Applies to priorities <help-tip key="sla.applies" /></p>@foreach (var value in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@value" /> @value</label> }@if (Model.Priorities.Count == 0) { <p class="empty">No priorities configured yet.</p> }</div>
-            <div><p class="eyebrow">Applies to categories</p>@foreach (var value in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="categories" value="@value" /> @value</label> }@if (Model.Categories.Count == 0) { <p class="empty">No categories configured yet.</p> }</div>
+            <div><p class="eyebrow">Applies to priorities <help-tip key="sla.applies" /></p>@foreach (var value in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@value" checked="@(sla?.Priorities.Contains(value, StringComparer.OrdinalIgnoreCase) == true)" /> @value</label> }@if (Model.Priorities.Count == 0) { <p class="empty">No priorities configured yet.</p> }</div>
+            <div><p class="eyebrow">Applies to categories</p>@foreach (var value in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="categories" value="@value" checked="@(sla?.Categories.Contains(value, StringComparer.OrdinalIgnoreCase) == true)" /> @value</label> }@if (Model.Categories.Count == 0) { <p class="empty">No categories configured yet.</p> }</div>
         </div>
         <small class="muted">Tick any combination of priorities and categories this SLA should apply to — one SLA can cover several.</small>
+    }
+}
+<section class="panel">
+    <form method="post" class="settings-form">
+        @{ await Fields(null); }
         <button class="button button-primary" type="submit">Add SLA</button>
     </form>
 </section>
@@ -23,18 +30,20 @@
     <div class="directory-list">
         @foreach (var item in Model.Slas)
         {
-            <div class="directory-row">
-                <div class="sla-row-info">
+            <details class="template-item">
+                <summary>
                     <strong>@item.Name</strong>
-                    <span class="muted">@EduHelpdesk.Services.SlaUnits.Describe(item)</span>
-                    @if (!string.IsNullOrWhiteSpace(item.Description)) { <span class="muted">@item.Description</span> }
-                    <span class="muted">
-                        @(item.Priorities.Count > 0 ? string.Join(", ", item.Priorities) : "Any priority") ·
-                        @(item.Categories.Count > 0 ? string.Join(", ", item.Categories) : "Any category")
-                    </span>
-                </div>
-                <form method="post" asp-page-handler="Delete"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger">Delete</button></form>
-            </div>
+                    <span class="muted">@EduHelpdesk.Services.SlaUnits.Describe(item) · @(item.Priorities.Count > 0 ? string.Join(", ", item.Priorities) : "Any priority") · @(item.Categories.Count > 0 ? string.Join(", ", item.Categories) : "Any category")</span>
+                </summary>
+                @if (!string.IsNullOrWhiteSpace(item.Description)) { <p class="muted">@item.Description</p> }
+                <form method="post" asp-page-handler="Save" class="settings-form">
+                    <input type="hidden" name="id" value="@item.Id" />
+                    @{ await Fields(item); }
+                    <small class="muted">Tickets already logged keep their due dates; new tickets use the changed SLA.</small>
+                    <button class="button button-primary" type="submit">Save SLA</button>
+                </form>
+                <form method="post" asp-page-handler="Delete"><input type="hidden" name="id" value="@item.Id" /><button class="button button-danger">Delete SLA</button> <small class="muted">Only an SLA no ticket has used.</small></form>
+            </details>
         }
         @if (Model.Slas.Count == 0) { <p class="empty">No SLAs have been added yet.</p> }
     </div>
