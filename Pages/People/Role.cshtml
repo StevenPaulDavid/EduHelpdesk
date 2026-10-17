@@ -2,7 +2,19 @@
 @using EduHelpdesk.Pages.People
 @model RoleModel
 @{ ViewData["Title"] = Model.CurrentName is null ? "Add role" : "Edit role"; }
-<div class="page-heading"><h1>@ViewData["Title"]</h1><a class="button button-secondary" asp-page="/People" asp-route-tab="roles">← Back</a></div>
+<div class="page-heading">
+    <h1>@ViewData["Title"]</h1>
+    <div class="heading-actions">
+        <a class="button button-secondary" asp-page="/People" asp-route-tab="roles">← Back</a>
+        @if (Model.CanDelete)
+        {
+            <details class="nav-menu action-menu">
+                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+                <div class="nav-panel nav-panel-right"><a class="menu-danger" asp-page="/People/DeleteRole" asp-route-name="@Model.Role!.Name">Delete role…</a></div>
+            </details>
+        }
+    </div>
+</div>
 <section class="panel"><form method="post" class="settings-form permission-form">
     <input type="hidden" name="currentName" value="@Model.CurrentName" />
     <div asp-validation-summary="All" class="validation-summary-errors"></div>

@@ -2,15 +2,22 @@
 @model UserModel
 @inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
-    ViewData["Title"] = $"Edit {Model.Person?.Name}";
+    ViewData["Title"] = Model.Person?.Name ?? "Requester";
     var linkedTickets = Model.Tickets.Where(x => x.RequesterId == Model.Person!.Id).Select(x => x.Number).ToHashSet();
 }
 
 <div class="page-heading">
-    <div><h1>Edit person</h1><p class="hero-copy">Update the person details and choose which tickets belong to them.</p></div>
+    <div><h1>@Model.Person!.Name</h1><p class="hero-copy">Requester. Their details, what they hold, and the tickets that are theirs.</p></div>
     <div class="heading-actions">
         <partial name="_RawDataLink" model='("user", Model.Person!.Id.ToString())' />
-        <a class="button button-secondary" asp-page="/People">&lt;- Back to people</a>
+        <a class="button button-secondary" asp-page="/People">← Back</a>
+        @if (Model.CanDelete)
+        {
+            <details class="nav-menu action-menu">
+                <summary class="button button-secondary" aria-label="More actions">More<span class="chev" aria-hidden="true">▾</span></summary>
+                <div class="nav-panel nav-panel-right"><a class="menu-danger" asp-page="/People/DeleteUser" asp-route-id="@Model.Person.Id">Delete requester…</a></div>
+            </details>
+        }
     </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }

@@ -17,6 +17,8 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle, TemporaryPa
     // What they still have - assets, kits, open tickets, active projects - for the leaver check.
     public HelpdeskStore.LeaverHoldings? Holdings { get; private set; }
     public bool CanEdit => store.UserCan(User, Modules.Requesters, ModulePermission.Edit);
+    // Deleting is on the person's own page, not a bin on every row of the People list.
+    public bool CanDelete => store.UserCan(User, Modules.Requesters, ModulePermission.Delete);
     // Booking equipment back in changes assets and ends loans, so it needs both.
     public bool CanBookBackIn => store.UserCan(User, Modules.Assets, ModulePermission.Edit) && store.UserCan(User, Modules.Loans, ModulePermission.Edit);
     public bool CanOpenAssets => store.UserCan(User, Modules.Assets, ModulePermission.View);

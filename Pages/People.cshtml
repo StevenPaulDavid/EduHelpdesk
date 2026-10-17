@@ -74,14 +74,14 @@
         {
             @foreach (var user in Model.UserRows)
             {
-                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">@(user.AnonymisedAt is null ? "Inactive" : "Anonymised")</span> }@if (Model.LeaversHolding.TryGetValue(user.Id, out var stillHeld)) { <text> </text><span class="badge badge-warning" title="Marked inactive, but assets, kits or access are still recorded against them">Still holds @stillHeld</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div><div class="row-actions">@if (Model.CanDeleteUsers) { <a class="icon-button delete-icon" asp-page="/People/DeleteUser" asp-route-id="@user.Id" title="Delete @user.Name">@Icons.Bin</a> }</div></div>
+                <div class="directory-row"><div class="directory-person"><div class="avatar">@user.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanOpenUser) { <a asp-page="/User" asp-route-id="@user.Id">@user.Name</a> } else { @user.Name }</strong>@if (!user.IsActive) { <text> </text><span class="badge">@(user.AnonymisedAt is null ? "Inactive" : "Anonymised")</span> }@if (Model.LeaversHolding.TryGetValue(user.Id, out var stillHeld)) { <text> </text><span class="badge badge-warning" title="Marked inactive, but assets, kits or access are still recorded against them">Still holds @stillHeld</span> }<span>@Detail(user.Email, user.Department, user.Location)</span></div></div></div>
             }
         }
         else
         {
             @foreach (var item in Model.TechnicianRows)
             {
-                <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (!item.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(item.Email, item.Team, item.Role)</span></div></div><div class="row-actions">@if (Model.CanDeleteTechnicians) { <a class="icon-button delete-icon" asp-page="/People/DeleteTechnician" asp-route-id="@item.Id" title="Delete @item.Name">@Icons.Bin</a> }</div></div>
+                <div class="directory-row"><div class="directory-person"><div class="avatar technician-avatar">@item.Name[..1].ToUpperInvariant()</div><div class="directory-text"><strong>@if (Model.CanEditTechnicians) { <a asp-page="/People/Technician" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (!item.IsActive) { <text> </text><span class="badge">Inactive</span> }<span>@Detail(item.Email, item.Team, item.Role)</span></div></div></div>
             }
         }
         @if (rowCount == 0) { <p class="empty">@(Model.IsFiltered ? $"No {noun} match this search." : onUsers ? "No requesters have been added yet." : "No technicians have been added yet.")</p> }
@@ -126,7 +126,6 @@
                     }
                 </div>
             </div>
-            <div class="row-actions">@if (!role.IsProtected && Model.CanDeleteRoles) { <a class="icon-button delete-icon" asp-page="/People/DeleteRole" asp-route-name="@role.Name" title="Delete @role.Name">@Icons.Bin</a> }</div>
         </div>
     }
     @if (Model.Roles.Count == 0) { <p class="empty">No roles yet.</p> }</section>

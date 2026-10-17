@@ -12,7 +12,7 @@ order: 3
 
 | Tab | Who's in it |
 | --- | --- |
-| Users | **Requesters** - staff who report problems in the staff portal |
+| Requesters | Staff who report problems in the staff portal |
 | Technicians | **Technician accounts** - helpdesk logins. See [Technician accounts](staff-accounts) |
 | Roles | What each kind of technician account can do. See [Roles and permissions](roles-and-permissions) |
 
@@ -28,6 +28,8 @@ Open a requester to see and change:
 - **Project lead** - confirms each project's priority and assigns the technician, from the portal.
 - **Set a password** / **Give them a temporary password** - their staff portal password.
 - **Select tickets** - tick tickets to make this person their requester.
+
+To delete someone, open them and choose **More → Delete requester…** (or **Delete technician…** on a technician account). Marking a leaver inactive is usually better: their history keeps their name.
 
 ## Importing a staff list
 

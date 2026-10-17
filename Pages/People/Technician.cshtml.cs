@@ -22,6 +22,8 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
     public string TeamDesk(string team) => store.DeskForTeam(team)?.Name ?? "";
     public bool IsAdministrator => string.Equals(User.FindFirst(ClaimTypes.Role)?.Value, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase);
     public bool IsSelf => Technician is not null && Technician.Id == SignedInId;
+    // Deleting is on the account's own page, not a bin on every row of the People list - and never your own.
+    public bool CanDelete => Technician is not null && !IsSelf && store.UserCan(User, Modules.StaffAccounts, ModulePermission.Delete);
     private Guid? SignedInId => Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
 
     // One page serves adding and editing, so the convention lets in anyone with either permission and the handlers
