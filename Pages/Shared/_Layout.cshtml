@@ -279,7 +279,7 @@
         @RenderBody()
     </main>
     <footer class="footer@(ViewData["Wide"] is true ? " shell-wide" : null)">
-        <span>EduHelpdesk · Local technician operations</span>
+        <span>EduHelpdesk</span>
         @* Per browser, so a technician's dark laptop and the staffroom PC can each have their own. Pressing the one
            already chosen goes back to the school's default. *@
         <form method="post" asp-page="/Appearance" class="appearance-switch" aria-label="Appearance">

@@ -24,7 +24,7 @@
         </nav>
     }
     <article class="panel help-article">
-        @if (Model.Rendered.Html.Length == 0) { <p class="muted">The help isn't available at the moment. Ask the IT team.</p> }
+        @if (Model.Rendered.Html.Length == 0) { <p class="muted">The help isn't available at the moment. Ask the helpdesk.</p> }
         @Html.Raw(Model.Rendered.Html)
     </article>
 </div>

@@ -27,7 +27,7 @@
                     {
                         <div class="attachment-row">
                             @if (HelpdeskStore.IsInlineImage(attachment)) { <a class="attachment-thumb" href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" target="_blank" rel="noopener"><img loading="lazy" alt="@attachment.FileName" src="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" /></a> }
-                            <div class="attachment-info"><a href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @(attachment.FromRequester ? "from you" : "from the IT team") · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</span></div>
+                            <div class="attachment-info"><a href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @(attachment.FromRequester ? "from you" : "from the helpdesk") · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</span></div>
                         </div>
                     }
                 </div>

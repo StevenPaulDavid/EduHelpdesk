@@ -1,10 +1,10 @@
 ## Signing in
 
-Use your school email and the password the IT team gave you. The first time, you'll be asked to choose your own password.
+Use your school email and the password the helpdesk gave you. The first time, you'll be asked to choose your own password.
 
 Tick **Keep me signed in** only on your own computer or laptop. On a shared or staffroom computer leave it unticked - you're signed out when the browser closes, or after two hours without using the portal.
 
-Forgotten your password? Ask the IT team to set you a new one.
+Forgotten your password? Ask the helpdesk to set you a new one.
 
 ## Reporting a problem
 
@@ -25,7 +25,7 @@ The portal is for things that can wait a little. If someone could be hurt, there
 
 ## Checking on something you reported
 
-**My tickets** lists everything you've reported, newest first, with its status. A **new** badge means the team have replied and you haven't read it yet.
+Your open tickets are listed on the portal's front page. **My tickets** lists everything you've reported, newest first, with its status. A **new** badge means the team have replied and you haven't read it yet.
 
 Open a ticket to see the conversation and its status, such as *Open*, *On Hold* (waiting for something, perhaps a part or an answer from you) or *Closed*.
 

@@ -2592,3 +2592,10 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 @media(max-width:800px) {
     .list-tab-group-name { min-width: 0; flex-basis: 100%; }
 }
+
+/* The portal's home: the person's open tickets, under the two big buttons. */
+.portal-open-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.portal-open-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.portal-open-list a { color: var(--ink); text-decoration: none; min-width: 0; }
+.portal-open-list a:hover { color: var(--teal-text); text-decoration: underline; }
+.portal-open-side { display: flex; flex: none; gap: 6px; align-items: center; }
