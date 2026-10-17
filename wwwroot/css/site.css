@@ -906,7 +906,7 @@ tr.row-urgent td:nth-child(2) strong::after {
 .report-tabs { margin: 0 0 16px; }
 .report-nav a { color: inherit; }
 
-/* Header menus: Inventory grouping and the account menu. Uses <details>, so it works without JavaScript. */
+/* Header menus: Assets, HR and Reports groupings and the account menu. Uses <details>, so it works without JavaScript. */
 .topbar nav > a.active, .topbar nav summary.active { color: var(--teal-text); }
 .nav-menu { position: relative; }
 .nav-menu > summary {
@@ -961,8 +961,8 @@ tr.row-urgent td:nth-child(2) strong::after {
 
 .nav-panel a:hover, .nav-panel button:hover { background: var(--accent); color: var(--teal-strong); }
 .nav-panel form { margin: 0; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
-/* A menu in labelled sections (Facilities): a small heading over each group, a rule between them. */
-.nav-panel-sections { min-width: 220px; }
+/* A menu in labelled sections (Reports, then Compliance): a small heading over each group, a rule between them. */
+.nav-panel-sections { min-width: 220px; max-height: calc(100vh - 96px); overflow-y: auto; }
 .nav-panel .nav-section { margin: 0; padding: 7px 11px 3px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .nav-panel .nav-section:not(:first-child) { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
 .user-menu > summary .user-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2014,6 +2014,7 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
     .site-menu .nav-menu>summary { justify-content: space-between; }
     .site-menu .nav-panel {
         position: static;
+        max-height: none;
         box-shadow: none;
         border: 0;
         border-radius: 0;
@@ -2558,3 +2559,5 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 @media(max-width:980px) {
     .desk-switch-label { max-width: 110px; }
 }
+/* The Settings gear beside the help "?", the same round button. */
+.header-settings .ico { width: 17px; height: 17px; }

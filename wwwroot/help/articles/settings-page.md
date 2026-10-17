@@ -32,7 +32,7 @@ Type in **Find a setting** at the top - *SLA*, *logo*, *backup*, *cleaning* - an
 ## Who can open what
 
 - **Settings: Edit** on a role opens the Settings pages and lets it change them.
-- The **audit log** and the **raw database** have permissions of their own, so a data protection officer can be given those without being able to change settings. They then appear in the top menu instead of Settings.
+- The **audit log** and the **raw database** have permissions of their own, so a data protection officer can be given those without being able to change settings. The **Settings** gear in the top bar then opens those pages instead. In the same way, **Set up facilities** opens just the facilities setup pages: recurring checks, cleaning rounds, cleaners and budget codes.
 - **Administrator** can always do everything.
 
 See [Roles and permissions](roles-and-permissions).

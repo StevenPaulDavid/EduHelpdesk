@@ -12,10 +12,10 @@ A **cleaning round** is a set of rooms cleaned on the same days, usually by the 
 
 ## Setting up a round
 
-Rounds are set up in **Facilities → Cleaning rounds setup** (also in **Settings → Cleaning rounds**) by someone who can change settings or whose role has **Set up facilities**. First make sure:
+Rounds are set up in **Settings → Cleaning rounds** (the gear in the top bar) by someone who can change settings or whose role has **Set up facilities**. First make sure:
 
 - every room is in **Settings → Locations**, and
-- every cleaner's name is in **Facilities → Cleaners**.
+- every cleaner's name is in **Settings → Cleaners**.
 
 Then add a round:
 
@@ -28,7 +28,7 @@ To stop a round for a while (over the summer, say) without losing what was recor
 
 ## Printing the day's sheets
 
-Open **Facilities → Cleaning rounds** from the top menu. It shows the rounds due today. Press **Print sheet** on each and hand it to the cleaner: it lists the rooms with a box to tick and space for a note.
+Open **Rounds** in the top bar. It shows the rounds due today. Press **Print sheet** on each and hand it to the cleaner: it lists the rooms with a box to tick and space for a note.
 
 ## Ticking off a round
 

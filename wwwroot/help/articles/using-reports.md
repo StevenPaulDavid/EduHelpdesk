@@ -7,7 +7,7 @@ needs: Reports
 keywords: reports report tabs period academic year desk export csv print pdf governors
 order: 1
 ---
-**Reports** in the top menu opens the first report your role can read. The tabs across the top are the others you can open; each report has its own tick on the role, so a business manager can be given finance and spend without seeing ticket workload, say.
+**Reports** in the top bar is a menu of the reports your role can read, with the compliance registers under them. The tabs across a report are the others you can open; each report has its own tick on the role, so a business manager can be given finance and spend without seeing ticket workload, say.
 
 | Report | What it answers |
 | --- | --- |

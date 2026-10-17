@@ -54,7 +54,7 @@ public static class Modules
 
     public static Definition? Find(string key) => All.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
 
-    // The Settings pages that Settings: Edit or Flags.FacilitiesSetup opens (Program.cs), the Facilities menu's Setup section.
+    // The Settings pages that Settings: Edit or Flags.FacilitiesSetup opens (Program.cs).
     public static readonly string[] FacilitiesSetupPages =
         ["/Settings/RecurringTickets", "/Settings/Checklist", "/Settings/Rounds", "/Settings/Cleaners", "/Settings/BudgetCodes"];
 

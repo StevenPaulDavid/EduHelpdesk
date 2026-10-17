@@ -8,7 +8,7 @@ needs: Loans
 keywords: loan loans lend borrow issue book back in due back overdue kit device reason supply staff
 order: 6
 ---
-**Inventory → Loans** shows everything out with staff right now - loan kits and individual devices - and what's come back lately.
+**Assets → Loans** shows everything out with staff right now - loan kits and individual devices - and what's come back lately.
 
 ## Issuing a loan
 

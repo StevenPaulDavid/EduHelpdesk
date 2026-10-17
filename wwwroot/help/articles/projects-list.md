@@ -8,7 +8,7 @@ needs: Projects
 keywords: projects list awaiting assignment mine due soon late closed filter priority technician
 order: 2
 ---
-**Projects** in the top menu lists purchasing projects. Click one to open it.
+**Projects** in the top bar lists purchasing projects. Click one to open it.
 
 ## Views
 

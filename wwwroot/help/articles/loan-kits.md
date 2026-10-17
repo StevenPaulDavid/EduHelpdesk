@@ -8,7 +8,7 @@ needs: Kits
 keywords: kit kits loan kit contents assets bag charger retire swap
 order: 7
 ---
-A **loan kit** is a named set of equipment lent out together - *Loan laptop 3* with its charger and mouse, say. **Inventory → Kits** lists every kit, what's in it, whether it's available, and who has it.
+A **loan kit** is a named set of equipment lent out together - *Loan laptop 3* with its charger and mouse, say. **Assets → Kits** lists every kit, what's in it, whether it's available, and who has it.
 
 The figures at the top show how many are **ready to issue**, **with staff now**, and **past their due-back date**.
 

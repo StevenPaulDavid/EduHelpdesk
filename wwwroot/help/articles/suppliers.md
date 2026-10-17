@@ -8,7 +8,7 @@ needs: Suppliers
 keywords: supplier suppliers vendor contact directory company quote purchase
 order: 9
 ---
-**Inventory → Suppliers** is who the school buys from. One directory is shared by assets, parts, contracts, job costs and purchasing projects, so a supplier is entered once.
+**Assets → Suppliers** is who the school buys from. One directory is shared by assets, parts, contracts, job costs and purchasing projects, so a supplier is entered once.
 
 ## The directory
 

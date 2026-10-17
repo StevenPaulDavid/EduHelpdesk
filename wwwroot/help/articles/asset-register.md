@@ -8,7 +8,7 @@ needs: Assets
 keywords: assets register equipment devices laptops list filter review warranty columns bulk check export csv desk
 order: 1
 ---
-**Inventory → Assets** is the school's register of equipment: laptops, projectors, switches, and - with the Site desk - plant such as boilers and extinguishers. Every asset keeps its tickets, loans, checks and history together.
+**Assets** in the top bar is the school's register of equipment: laptops, projectors, switches, and - with the Site desk - plant such as boilers and extinguishers. Every asset keeps its tickets, loans, checks and history together.
 
 ![The asset register](asset-register.png)
 
