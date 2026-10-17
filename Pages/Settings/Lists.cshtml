@@ -1,0 +1,23 @@
+@page
+@model EduHelpdesk.Pages.Settings.OptionModel
+@{
+    // Settings → Lists: every plain list the dropdowns offer (SettingsMenu.Lists), a tab each, grouped by what they're
+    // for. The tab is ?kind=; the add, rename and delete forms are the shared option list's (_Option, OptionModel).
+    var current = SettingsMenu.FindList(Model.Kind) ?? SettingsMenu.Lists[0];
+    ViewData["Title"] = current.Title;
+    ViewData["ListTitle"] = current.Title;
+    ViewData["ListDescription"] = current.Description;
+}
+<div class="page-heading">
+    <div><h1>Lists</h1><p class="hero-copy">The plain lists the dropdowns offer. Rename one with the pencil; the bin takes it off the list.</p></div>
+</div>
+<nav class="list-tabs" aria-label="Lists">
+    @foreach (var group in SettingsMenu.Lists.GroupBy(x => x.Group))
+    {
+        <div class="list-tab-group">
+            <span class="list-tab-group-name">@group.Key</span>
+            @foreach (var item in group) { <a class="queue-tab @(item == current ? "active" : null)" asp-page="/Settings/Lists" asp-route-kind="@item.Kind" aria-current="@(item == current ? "page" : null)">@item.Title</a> }
+        </div>
+    }
+</nav>
+<partial name="_Option" model="Model" />

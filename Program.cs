@@ -110,11 +110,11 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Access/Grant", Policy(Modules.Access, ModulePermission.View));
 
     // People is three directories on one page, so the page itself only needs to reach one of them; each maintenance
-    // page carries its own permission. /User is the requester detail page and was the one duplicating /People/User
-    // without any check - it edits names, emails, portal passwords and ticket ownership.
+    // page carries its own permission. /User is the requester's page, where they are viewed and edited (saving checks
+    // Requesters: Edit itself); /People/User only adds one.
     options.Conventions.AuthorizePage("/People", PermissionRequirement.PeoplePolicy);
     options.Conventions.AuthorizePage("/User", Policy(Modules.Requesters, ModulePermission.View));
-    options.Conventions.AuthorizePage("/People/User", Policy(Modules.Requesters, NewOrEdit));
+    options.Conventions.AuthorizePage("/People/User", Policy(Modules.Requesters, ModulePermission.New));
     options.Conventions.AuthorizePage("/People/DeleteUser", Policy(Modules.Requesters, ModulePermission.Delete));
     options.Conventions.AuthorizePage("/People/Technician", Policy(Modules.StaffAccounts, NewOrEdit));
     options.Conventions.AuthorizePage("/People/DeleteTechnician", Policy(Modules.StaffAccounts, ModulePermission.Delete));

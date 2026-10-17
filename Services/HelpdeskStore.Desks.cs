@@ -85,7 +85,6 @@ public sealed partial class HelpdeskStore
         lock (_sync) return StatusesForCore(deskId);
     }
     private List<string> StatusesForCore(Guid deskId) => _data.Statuses.Where(x => DeskForStatusCore(x) is not { } desk || desk.Id == deskId).ToList();
-    public bool StatusOnDesk(string? status, Guid deskId) { lock (_sync) return DeskForStatusCore(status) is not { } desk || desk.Id == deskId; }
 
     // Where a new ticket in this category starts: the first status its desk uses (Open, unless the list was reordered).
     public string StartingStatusFor(string? category)
@@ -361,7 +360,7 @@ public sealed partial class HelpdeskStore
             var (changed, dropped) = WithCategoryCore(ticket, chosen);
             UpdateTicket(changed);
             var after = DeskForCategoryCore(chosen);
-            return (true, before.Id == after.Id ? "Job updated." : DescribeMove(after, dropped));
+            return (true, before.Id == after.Id ? "Ticket updated." : DescribeMove(after, dropped));
         }
     }
 
@@ -378,7 +377,7 @@ public sealed partial class HelpdeskStore
             var desk = new Desk(Guid.NewGuid(), cleanName, cleanPrefix, helper, NextNumber: firstNumber);
             _data.Desks.Add(desk);
             Save();
-            return (true, $"{desk.Name} desk added. Give it categories in Settings → Categories, and add people to it on their staff account.");
+            return (true, $"{desk.Name} desk added. Give it categories in Settings → Categories, and add people to it on their technician account.");
         }
     }
 

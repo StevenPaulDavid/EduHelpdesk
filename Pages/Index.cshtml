@@ -25,7 +25,7 @@
 
 <div class="hero dash-hero">
     <div>
-        <p class="eyebrow">@Model.Branding.DashboardEyebrow</p>
+        @if (!string.IsNullOrWhiteSpace(Model.Branding.DashboardEyebrow)) { <p class="eyebrow">@Model.Branding.DashboardEyebrow</p> }
         <h1>@Model.Branding.DashboardTitle</h1>
         <p class="hero-copy">@Model.Branding.DashboardDescription</p>
         @if (Model.DeskSummary is { } deskSummary) { <p class="muted dash-desks">@deskSummary</p> }
@@ -71,63 +71,73 @@
     </div>
 }
 
+@if (Model.AllClear() is { Count: > 0 } allClear)
+{
+    <section class="panel dash-clear" aria-label="All clear">
+        <h2>All clear</h2>
+        <ul>@foreach (var line in allClear) { <li>@line</li> }</ul>
+        @if (Model.CanSeeTickets && Model.Me is not null && Model.MyTickets.Count == 0 && Model.UnassignedTickets.Count > 0) { <p class="muted"><a asp-page="/Jobs" asp-route-view="unassigned">Pick something up from Unassigned →</a></p> }
+    </section>
+}
+
 @if (Model.CanSeeTickets)
 {
+    @if (Model.Me is null || Model.MyTickets.Count > 0)
+    {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">YOUR WORK</p><h2>My tickets</h2></div>@if (Model.Me is not null) { <a class="button button-secondary" asp-page="/Jobs" asp-route-view="mine">All my tickets (@Model.MyTickets.Count)</a> }</div>
+        <div class="panel-heading"><div><h2>My tickets</h2></div>@if (Model.Me is not null) { <a class="button button-secondary" asp-page="/Jobs" asp-route-view="mine">All my tickets (@Model.MyTickets.Count)</a> }</div>
         @if (Model.Me is null)
         {
-            <p class="muted">@(Model.CanChangeWorkingAs ? "Choose who you are under Working as on the ticket list to see the tickets assigned to you here." : "Your account isn't linked to a technician record, so there are no tickets assigned to you.")</p>
-        }
-        else if (Model.MyTickets.Count == 0)
-        {
-            <p class="empty">Nothing assigned to @Model.Me.Name is open. <a asp-page="/Jobs" asp-route-view="unassigned">Pick something up from Unassigned</a>.</p>
+            <p class="muted">Your account isn't linked to a technician record, so there are no tickets assigned to you.</p>
         }
         else
         {
-            <p class="muted dash-note">Assigned to @Model.Me.Name, most urgent first: overdue, then soonest due.</p>
+            <p class="muted dash-note">Assigned to you, most urgent first: overdue, then soonest due.</p>
             <ul class="dash-list">@foreach (var ticket in Model.MyTickets.Take(IndexModel.MyTicketsSize)) { await TicketRow(ticket, false); }</ul>
             @if (Model.MyTickets.Count > IndexModel.MyTicketsSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="mine">@(Model.MyTickets.Count - IndexModel.MyTicketsSize) more of yours →</a></p> }
         }
     </section>
+    }
 
+    @if (Model.DueTickets.Count > 0 || Model.UnassignedTickets.Count > 0)
+    {
     <div class="dash-grid">
-        <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h2>Overdue &amp; due soon</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.DueTickets.Count</span></div>
-            @if (Model.DueTickets.Count == 0) { <p class="empty">Nothing is overdue or due within @Model.DueSoonHours hours.</p> }
-            else
-            {
-                <ul class="dash-list">@foreach (var ticket in Model.DueTickets.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
-                @if (Model.DueTickets.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="overdue">See all @Model.DueTickets.Count →</a></p> }
-            }
-        </section>
-        <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">NEEDS AN OWNER</p><h2>Unassigned</h2></div><span class="badge">@Model.UnassignedTickets.Count</span></div>
-            @if (Model.UnassignedTickets.Count == 0) { <p class="empty">Every open ticket has a technician.</p> }
-            else
-            {
-                <ul class="dash-list">@foreach (var ticket in Model.UnassignedTickets.Take(IndexModel.PanelSize)) { await TicketRow(ticket, false); }</ul>
-                @if (Model.UnassignedTickets.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="unassigned">See all @Model.UnassignedTickets.Count →</a></p> }
-            }
-        </section>
-    </div>
-
-    <section class="panel" id="replies">
-        <div class="panel-heading"><div><p class="eyebrow">WAITING ON US</p><h2>Replies waiting</h2></div><span class="badge @(Model.RepliesWaiting.Count > 0 ? "badge-reply" : "")">@Model.RepliesWaiting.Count</span></div>
-        @if (Model.RepliesWaiting.Count == 0) { <p class="empty">No requester is waiting on an answer.</p> }
-        else
+        @if (Model.DueTickets.Count > 0)
         {
+        <section class="panel">
+            <div class="panel-heading"><div><h2>Overdue &amp; due soon</h2></div><span class="badge @(Model.OverdueCount > 0 ? "badge-warning" : "")">@Model.DueTickets.Count</span></div>
+            <ul class="dash-list">@foreach (var ticket in Model.DueTickets.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
+            @if (Model.DueTickets.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="overdue">See all @Model.DueTickets.Count →</a></p> }
+        </section>
+        }
+        @if (Model.UnassignedTickets.Count > 0)
+        {
+        <section class="panel">
+            <div class="panel-heading"><div><h2>Unassigned</h2></div><span class="badge">@Model.UnassignedTickets.Count</span></div>
+            <ul class="dash-list">@foreach (var ticket in Model.UnassignedTickets.Take(IndexModel.PanelSize)) { await TicketRow(ticket, false); }</ul>
+            @if (Model.UnassignedTickets.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a asp-page="/Jobs" asp-route-view="unassigned">See all @Model.UnassignedTickets.Count →</a></p> }
+        </section>
+        }
+    </div>
+    }
+
+    @if (Model.RepliesWaiting.Count > 0)
+    {
+    <section class="panel" id="replies">
+        <div class="panel-heading"><div><h2>Replies waiting</h2></div><span class="badge @(Model.RepliesWaiting.Count > 0 ? "badge-reply" : "")">@Model.RepliesWaiting.Count</span></div>
+        @{
             <p class="muted dash-note">The requester had the last word in the staff portal. Yours first, then whoever has waited longest.</p>
             <ul class="dash-list">@foreach (var ticket in Model.RepliesWaiting.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
             @if (Model.RepliesWaiting.Count > IndexModel.PanelSize) { <p class="muted dash-more">And @(Model.RepliesWaiting.Count - IndexModel.PanelSize) more - look for the Reply badge on the <a asp-page="/Jobs">ticket list</a>.</p> }
         }
     </section>
+    }
 }
 
 @if (Model.CanSeeOnboarding && Model.NewStarters.Count > 0)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">ONBOARDING</p><h2>New starters</h2></div>@if (Model.HasOnboardingList) { <a class="button button-secondary" asp-page="/Onboarding/Index">All onboardings</a> }</div>
+        <div class="panel-heading"><div><h2>New starters</h2></div>@if (Model.HasOnboardingList) { <a class="button button-secondary" asp-page="/Onboarding/Index">All onboardings</a> }</div>
         <p class="muted dash-note">Onboardings still to finish for anyone starting in the next @IndexModel.StartersWindowDays days, or who has already started.</p>
         <ul class="dash-list">
             @foreach (var (record, name) in Model.NewStarters.Take(IndexModel.PanelSize))
@@ -153,7 +163,7 @@
 @if (Model.CanSeeProjects && (Model.MyProjects.Count > 0 || Model.ProjectsAwaitingAssignment > 0))
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">PROJECTS</p><h2>My projects</h2></div><a class="button button-secondary" asp-page="/Projects" asp-route-view="mine">All my projects</a></div>
+        <div class="panel-heading"><div><h2>My projects</h2></div><a class="button button-secondary" asp-page="/Projects" asp-route-view="mine">All my projects</a></div>
         @if (Model.MyProjects.Count == 0) { <p class="empty">No active projects are assigned to you.</p> }
         else
         {
@@ -179,15 +189,13 @@
     </section>
 }
 
-@if (Model.CanSeeContracts || Model.CanSeeAccess)
+@if ((Model.CanSeeContracts || Model.CanSeeAccess) && Model.ComplianceDue.Count > 0)
 {
     var complianceDue = Model.ComplianceDue;
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h2>Contracts and access</h2></div><span class="badge @(complianceDue.Any(x => x.Level == EduHelpdesk.Services.ComplianceFinding.Levels.Danger) ? "badge-warning" : "")">@complianceDue.Count</span></div>
+        <div class="panel-heading"><div><h2>Contracts and access</h2></div><span class="badge @(complianceDue.Any(x => x.Level == EduHelpdesk.Services.ComplianceFinding.Levels.Danger) ? "badge-warning" : "")">@complianceDue.Count</span></div>
         <p class="muted dash-note">Renewals and notice dates coming up, contracts ending, leavers still with access, privileged access not approved, MFA off and the termly access review.</p>
-        @if (complianceDue.Count == 0) { <p class="empty">Nothing is due on the contracts or access registers.</p> }
-        else
-        {
+        @{
             <ul class="dash-list">
                 @foreach (var finding in complianceDue.Take(IndexModel.PanelSize))
                 {
@@ -202,17 +210,15 @@
     </section>
 }
 
-@if (Model.CanSeeAssets || Model.CanSeeParts)
+@if ((Model.CanSeeAssets && Model.AssetsToReview.Count > 0) || (Model.CanSeeParts && Model.PartsToReview.Count > 0))
 {
     <div class="dash-grid">
-        @if (Model.CanSeeAssets)
+        @if (Model.CanSeeAssets && Model.AssetsToReview.Count > 0)
         {
             <section class="panel">
-                <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
+                <div class="panel-heading"><div><h2>Assets to review</h2></div><span class="badge @(Model.AssetsToReview.Count > 0 ? "badge-warning" : "")">@Model.AssetsToReview.Count</span></div>
                 <p class="muted dash-note">Warranty ending or replacement due within @Model.ReviewWindowDays days (or already past), overdue loans, leavers' kit, and DfE checks or end of support coming up.</p>
-                @if (Model.AssetsToReview.Count == 0) { <p class="empty">No assets need review right now.</p> }
-                else
-                {
+                @{
                     <ul class="dash-list">
                         @foreach (var item in Model.AssetsToReview.Take(IndexModel.PanelSize))
                         {
@@ -229,14 +235,12 @@
                 }
             </section>
         }
-        @if (Model.CanSeeParts)
+        @if (Model.CanSeeParts && Model.PartsToReview.Count > 0)
         {
             <section class="panel">
-                <div class="panel-heading"><div><p class="eyebrow">NEEDS REVIEW</p><h2>Parts to reorder</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
+                <div class="panel-heading"><div><h2>Parts to reorder</h2></div><span class="badge @(Model.PartsToReview.Count > 0 ? "badge-warning" : "")">@Model.PartsToReview.Count</span></div>
                 <p class="muted dash-note">At or below their reorder threshold (default @Model.PartsReorderThreshold, or a part's own).</p>
-                @if (Model.PartsToReview.Count == 0) { <p class="empty">No parts need reordering right now.</p> }
-                else
-                {
+                @{
                     <ul class="dash-list">
                         @foreach (var part in Model.PartsToReview.Take(IndexModel.PanelSize))
                         {

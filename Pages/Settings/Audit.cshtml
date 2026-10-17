@@ -2,11 +2,10 @@
 @model EduHelpdesk.Pages.Settings.AuditModel
 @{ ViewData["Title"] = "System audit"; ViewData["Wide"] = true; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>System audit</h1><p class="hero-copy">Every change made in the helpdesk, newest first. Filter by area, action, date or search text.</p></div>
+    <div><h1>System audit</h1><p class="hero-copy">Every change made in the helpdesk, newest first. Filter by area, action, date or search text.</p></div>
     <div class="heading-actions">
         <a class="button button-primary" asp-page="/Settings/AuditPrint" asp-route-section="@Model.Section" asp-route-act="@Model.ActionFilter" asp-route-who="@Model.ActorFilter" asp-route-q="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" target="_blank">🖨 Print / Save as PDF</a>
         <a class="button button-secondary" asp-page="/Settings/Audit" asp-page-handler="Export" asp-route-section="@Model.Section" asp-route-act="@Model.ActionFilter" asp-route-who="@Model.ActorFilter" asp-route-q="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")">⬇ CSV</a>
-        <a class="button button-secondary" asp-page="/Settings">← Settings</a>
     </div>
 </div>
 <section class="panel">
@@ -34,7 +33,7 @@
     <partial name="_FilterBar" model="filters" />
 </section>
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">AUDIT LOG</p><h2>@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalEvents} events" : $"{Model.TotalEvents} events")</h2></div><span class="badge">Page @Model.PageNumber of @Model.TotalPages</span></div>
+    <div class="panel-heading"><div><h2>@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalEvents} events" : $"{Model.TotalEvents} events")</h2></div><span class="badge">Page @Model.PageNumber of @Model.TotalPages</span></div>
     <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">When</th><th>Who</th><th>Area</th><th>Item</th><th>Action</th><th>Details</th></tr></thead><tbody>
     @foreach (var entry in Model.Entries)
     {

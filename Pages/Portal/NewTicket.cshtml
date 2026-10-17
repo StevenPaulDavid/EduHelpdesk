@@ -110,20 +110,10 @@
         <div class="portal-tiles">
             @foreach (var choice in Model.Choices)
             {
-                if (choice.Kind == HelpdeskStore.PortalChoice.TemplateKind)
-                {
-                    <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-templateId="@choice.Key">
-                        <span class="portal-tile-title">@choice.Label</span>
-                        @if (choice.HelperLine.Length > 0) { <span class="portal-tile-help">@choice.HelperLine</span> }
-                    </a>
-                }
-                else
-                {
-                    <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-category="@choice.Category" asp-route-subCategory="@choice.Key">
-                        <span class="portal-tile-title">@choice.Label</span>
-                        @if (choice.HelperLine.Length > 0) { <span class="portal-tile-help">@choice.HelperLine</span> }
-                    </a>
-                }
+                <a class="portal-tile" asp-page="/Portal/NewTicket" asp-route-category="@choice.Category" asp-route-subCategory="@choice.Name">
+                    <span class="portal-tile-title">@choice.Name</span>
+                    @if (choice.HelperLine.Length > 0) { <span class="portal-tile-help">@choice.HelperLine</span> }
+                </a>
             }
             <a class="portal-tile portal-tile-other" asp-page="/Portal/NewTicket" asp-route-other="true" asp-route-category="@Model.Category">
                 <span class="portal-tile-title">Something else</span>
@@ -142,8 +132,7 @@
             <form method="post" enctype="multipart/form-data" class="settings-form">
                 @if (Model.Again is { } again) { <input type="hidden" name="Again" value="@again" /> }
                 <input type="hidden" name="Category" value="@Model.Category" />
-                @if (Model.TemplateId is { } templateId) { <input type="hidden" name="TemplateId" value="@templateId" /> }
-                else { <input type="hidden" name="SubCategory" value="@Model.SubCategory" /> }
+                <input type="hidden" name="SubCategory" value="@Model.SubCategory" />
                 @{ await CommonFields(); }
                 <button class="button button-primary portal-button" type="submit">Submit</button>
             </form>

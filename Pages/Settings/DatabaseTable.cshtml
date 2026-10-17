@@ -6,7 +6,7 @@
     var first = (Model.PageNumber - 1) * EduHelpdesk.Services.RawDatabase.PageSize + 1;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">SETTINGS / DATABASE</p><h1>@result.Table</h1><p class="hero-copy">@(Model.Description.Length > 0 ? Model.Description : "Rows exactly as stored.")</p></div>
+    <div><h1>@result.Table</h1><p class="hero-copy">@(Model.Description.Length > 0 ? Model.Description : "Rows exactly as stored.")</p></div>
     <div class="heading-actions">
         <a class="button button-secondary" asp-page="/Settings/DatabaseTable" asp-page-handler="Export" asp-all-route-data="@Model.Route()">⬇ CSV@(Model.IsFiltered ? " (these rows)" : "")</a>
         <a class="button button-secondary" asp-page="/Settings/Database">← Database</a>

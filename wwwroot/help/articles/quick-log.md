@@ -10,7 +10,7 @@ order: 1
 ---
 Plenty of jobs are sorted on the spot: a call on the radio, a spill outside the hall, a door that won't shut. **Log a job already done** puts them on the record in a few seconds, so the work shows in the reports and the room's history.
 
-Open it from the **Tickets** page with **Log a job already done**.
+Open it from the **Tickets** page: **More → Log a job already done**.
 
 ![Logging a job already done](quick-log.png)
 

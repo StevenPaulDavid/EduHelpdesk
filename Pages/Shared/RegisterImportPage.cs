@@ -20,6 +20,8 @@ public abstract class RegisterImportPage(HelpdeskStore store, IMemoryCache cache
     public abstract string Intro { get; }
     public abstract string BackPage { get; }
     public abstract string BackLabel { get; }
+    // The staff list can give the people it adds a temporary portal password (People/Import); contracts can't.
+    public virtual bool OffersPortalPasswords => false;
 
     [BindProperty(SupportsGet = true, Name = "t")] public string? Token { get; set; }
     [TempData] public string? Message { get; set; }
@@ -62,7 +64,7 @@ public abstract class RegisterImportPage(HelpdeskStore store, IMemoryCache cache
         return RedirectToPage(new { t = token });
     }
 
-    public IActionResult OnPostApply(string? t, int[]? rows)
+    public virtual IActionResult OnPostApply(string? t, int[]? rows)
     {
         if (!Allowed) return Forbid();
         if (Load(t) is not { } upload) { Message = "That import has expired. Upload the file again."; return RedirectToPage(); }

@@ -16,7 +16,6 @@
 <a class="back-link" asp-page="/Contracts">← Back to the contracts register</a>
 <div class="page-heading">
     <div>
-        <p class="eyebrow">COMPLIANCE / CONTRACT</p>
         <h1>@contract.Name</h1>
         <p class="hero-copy asset-heading-meta">
             <span>@(Model.Supplier?.Name ?? "No supplier recorded")@(string.IsNullOrWhiteSpace(contract.ContractType) ? "" : " · " + contract.ContractType)</span>
@@ -47,7 +46,7 @@
 
 <div class="contract-layout">
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">THE CONTRACT</p><h2>What it is</h2></div></div>
+        <div class="panel-heading"><div><h2>What it is</h2></div></div>
         @if (!string.IsNullOrWhiteSpace(contract.Description)) { <p class="job-description">@contract.Description</p> }
         <dl class="pj-facts">
             <div><dt>Contract type</dt><dd>@Text(contract.ContractType)</dd></div>
@@ -102,7 +101,7 @@
 
 @* DfE: leased assets are recorded in the contracts register as well as the asset register. *@
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">LEASED OR LOANED ASSETS</p><h2>Assets under this contract</h2></div><span class="badge">@Model.LeasedAssets.Count</span></div>
+    <div class="panel-heading"><div><h2>Assets under this contract</h2></div><span class="badge">@Model.LeasedAssets.Count</span></div>
     @if (Model.LeasedAssets.Count == 0)
     {
         <p class="muted">No assets are linked. Link a leased or loaned asset from its own page (Purchase &amp; warranty tab).</p>
@@ -125,7 +124,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">AUDIT TRAIL</p><h2>History</h2></div><span class="badge">@Model.History.Count</span></div>
+    <div class="panel-heading"><div><h2>History</h2></div><span class="badge">@Model.History.Count</span></div>
     @if (Model.History.Count == 0) { <p class="muted">No changes recorded yet.</p> }
     else
     {

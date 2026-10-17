@@ -4,37 +4,37 @@
 @inject HelpdeskStore Helpdesk
 @{ ViewData["Title"] = $"Ticket {Helpdesk.Ref(Model.Ticket!)}"; }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>@Helpdesk.Ref(Model.Ticket)</h1><p class="hero-copy">@Model.Ticket.Title</p></div><a class="button button-secondary" asp-page="/Portal/MyTickets">← My tickets</a></div>
+    <div class="page-heading"><div><h1>@Helpdesk.Ref(Model.Ticket)</h1><p class="hero-copy">@Model.Ticket.Title</p></div><a class="button button-secondary" asp-page="/Portal/MyTickets">← My tickets</a></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     <section class="panel portal-panel">
-        <div class="detail-block"><p class="eyebrow">STATUS</p><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></div>
-        <div class="detail-block"><p class="eyebrow">PRIORITY</p><p>@Model.Ticket.Priority</p></div>
-        <div class="detail-block"><p class="eyebrow">CATEGORY</p><p>@Model.Ticket.Category@(string.IsNullOrWhiteSpace(Model.Ticket.SubCategory) ? "" : " › " + Model.Ticket.SubCategory)</p></div>
+        <div class="detail-block"><p class="eyebrow field-name">Status</p><span class="status status-@Helpdesk.StatusTone(Model.Ticket.Status)">@Model.Ticket.Status</span></div>
+        <div class="detail-block"><p class="eyebrow field-name">Priority</p><p>@Model.Ticket.Priority</p></div>
+        <div class="detail-block"><p class="eyebrow field-name">Category</p><p>@Model.Ticket.Category@(string.IsNullOrWhiteSpace(Model.Ticket.SubCategory) ? "" : " › " + Model.Ticket.SubCategory)</p></div>
         @if (!string.IsNullOrWhiteSpace(Model.Ticket.Location))
         {
-            <div class="detail-block"><p class="eyebrow">LOCATION</p><p>@Model.Ticket.Location</p></div>
+            <div class="detail-block"><p class="eyebrow field-name">Location</p><p>@Model.Ticket.Location</p></div>
         }
         @if (!string.IsNullOrWhiteSpace(Model.Ticket.Description))
         {
-            <div class="detail-block"><p class="eyebrow">WHAT YOU TOLD US</p><p class="job-description">@Model.Ticket.Description</p></div>
+            <div class="detail-block"><p class="eyebrow field-name">What you told us</p><p class="job-description">@Model.Ticket.Description</p></div>
         }
         @if (Model.Attachments.Count > 0)
         {
             <div class="detail-block">
-                <p class="eyebrow">FILES</p>
+                <p class="eyebrow field-name">Files</p>
                 <div class="attachment-list">
                     @foreach (var attachment in Model.Attachments)
                     {
                         <div class="attachment-row">
                             @if (HelpdeskStore.IsInlineImage(attachment)) { <a class="attachment-thumb" href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" target="_blank" rel="noopener"><img loading="lazy" alt="@attachment.FileName" src="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id, inline = true })" /></a> }
-                            <div class="attachment-info"><a href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @(attachment.FromRequester ? "from you" : "from the IT team") · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</span></div>
+                            <div class="attachment-info"><a href="@Url.Page("/Portal/Ticket", "Attachment", new { number = Model.Ticket.Number, id = attachment.Id })"><strong>@attachment.FileName</strong></a><span class="muted">@HelpdeskStore.FormatSize(attachment.Size) · @(attachment.FromRequester ? "from you" : "from the helpdesk") · @attachment.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</span></div>
                         </div>
                     }
                 </div>
             </div>
         }
         <div class="detail-block">
-            <p class="eyebrow">UPDATES</p>
+            <p class="eyebrow field-name">Updates</p>
             @if (Model.Comments.Count == 0) { <p class="muted">No updates yet.</p> }
             <div class="comment-list">
                 @foreach (var comment in Model.Comments)

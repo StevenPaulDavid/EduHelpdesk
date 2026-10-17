@@ -45,7 +45,7 @@ public static class Modules
         new(Contracts, "Contracts", "The DfE contracts register: what the school pays for, renewal and notice dates. It shows what each contract costs.", Full),
         new(Access, "Access control", "The DfE access control register: who can get into which systems and areas, and the termly review. It names individuals. Edit covers removing access and recording a review; Delete is for access recorded by mistake.", Full),
         new(Requesters, "Requesters", "The staff directory tickets are raised for. Edit includes resetting a portal password.", Full),
-        new(StaffAccounts, "Staff accounts", "Technician accounts, their team and their role. Edit includes resetting passwords.", Full),
+        new(StaffAccounts, "Technician accounts", "Technician accounts, their team and their role. Edit includes resetting passwords.", Full),
         new(Roles, "Roles", "Role definitions and what each one grants.", Full),
         new(Reports, "Reports", "Access to the reports area. Which reports are readable is set separately below.", ModulePermission.Access),
         new(Settings, "Settings", "Branding, option lists, imports, factory reset.", ModulePermission.Access | ModulePermission.Edit),
@@ -65,11 +65,10 @@ public static class Modules
     public static bool Supports(string moduleKey, ModulePermission action) =>
         Find(moduleKey) is { } module && module.Supports.HasFlag(action);
 
-    // Permissions that are not an action on a record: reading one particular report, exporting, and picking whose
-    // queue you are looking at. Each is a plain on/off tick.
+    // Permissions that are not an action on a record: reading one particular report, exporting, and the like. Each is
+    // a plain on/off tick.
     public static class Flags
     {
-        public const string WorkingAs = "Tickets.WorkingAs";
         public const string NotifyStaff = "Tickets.NotifyStaff";
         public const string AllDesks = "Tickets.AllDesks";
         public const string Costs = "Tickets.Costs";
@@ -93,7 +92,6 @@ public static class Modules
 
         public static readonly Definition[] All =
         [
-            new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
             // Without it, someone sees only the tickets of the desks they're on (HelpdeskStore.Desks) - for the site manager, SLT, IT leads.
             // Money is its own question: the site manager and business manager, not everyone who works a ticket.
             new(Costs, "See and add job costs", "The Costs tab on tickets: what a job cost (net, VAT, supplier, budget code). Adding or removing a line also needs Tickets: Edit.", "Tickets"),

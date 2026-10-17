@@ -50,7 +50,7 @@ public sealed partial class HelpdeskStore
             var allFlags = Modules.Flags.All.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _data.Roles.Add(new RoleRecord(StaffRoles.Administrator, IsProtected: true) { Grants = everything, Flags = allFlags });
 
-            // Runs the whole desk, including staff accounts and roles, but Settings and the audit log stay with the
+            // Runs the whole desk, including technician accounts and roles, but Settings and the audit log stay with the
             // Administrator - configuring the system and reading who did what are deliberately not part of the job.
             _data.Roles.Add(Role("Senior Technician",
                 new()
@@ -61,11 +61,11 @@ public sealed partial class HelpdeskStore
                     [Modules.Requesters] = Full, [Modules.StaffAccounts] = Full,
                     [Modules.Roles] = Full, [Modules.Reports] = ModulePermission.Access
                 },
-                Modules.Flags.WorkingAs, Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
+                Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance, Modules.Flags.ReportProjects,
                 Modules.Flags.ReportOnboarding, Modules.Flags.ReportExport));
 
-            // Runs the inventory outright, reads the supplier directory, and cannot reach staff accounts, roles,
+            // Runs the inventory outright, reads the supplier directory, and cannot reach technician accounts, roles,
             // settings or the audit log.
             _data.Roles.Add(Role("Technician",
                 new()
@@ -228,14 +228,6 @@ public sealed partial class HelpdeskStore
         ModulePermissions.Split(actions).Any(x => UserCan(user, module, x));
     public bool UserHasFlag(System.Security.Claims.ClaimsPrincipal user, string flag) =>
         RoleHasFlag(RoleOf(user), flag);
-    // Everything this account holds on one module, for a page that draws several controls and would otherwise ask five
-    // separate questions.
-    public ModulePermission UserGrants(System.Security.Claims.ClaimsPrincipal user, string module)
-    {
-        if (string.Equals(RoleOf(user), StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase))
-            return Modules.Find(module)?.Supports ?? ModulePermission.None;
-        lock (_sync) return _data.Roles.FirstOrDefault(x => string.Equals(x.Name, RoleOf(user), StringComparison.OrdinalIgnoreCase))?.GrantsFor(module) ?? ModulePermission.None;
-    }
     private static string? RoleOf(System.Security.Claims.ClaimsPrincipal user) =>
         user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 

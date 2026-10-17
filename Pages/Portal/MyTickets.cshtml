@@ -3,7 +3,7 @@
 @inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{ ViewData["Title"] = "My tickets"; }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>My tickets</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
+    <div class="page-heading"><div><h1>My tickets</h1></div><a class="button button-secondary" asp-page="/Portal/Index">← Back</a></div>
     <section class="panel portal-panel directory-panel">
         @foreach (var ticket in Model.Tickets)
         {

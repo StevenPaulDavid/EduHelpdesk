@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.StatusesModel
 @{ ViewData["Title"] = "Statuses"; }
-<div class="page-heading"><h1>Statuses</h1><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><h1>Statuses</h1></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 <section class="panel">
     <p class="muted">A status that <strong>stops the SLA clock</strong> is for tickets waiting on someone else - the requester, a part, a supplier. While a ticket is in it, it isn't counted as overdue or due soon. When it moves on, a due date worked out from the SLA moves on by the time it was paused (in the SLA's own time: school days or lessons for those SLAs). A due date typed by hand is left as it is. A ticket that's already overdue can't be paused.</p>

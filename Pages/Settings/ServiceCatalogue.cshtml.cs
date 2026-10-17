@@ -12,12 +12,11 @@ public class ServiceCatalogueModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Priorities => store.Priorities;
 
     public CategoryStyle StyleFor(string category) => store.StyleFor(category);
-    // What staff see in a category, in the order they see it: shown items and shown templates together.
-    public IReadOnlyList<HelpdeskStore.PortalChoice> ButtonsFor(string category) => store.PortalChoices(category);
+    // What staff see in a category, in the order they see it.
+    public IReadOnlyList<ServiceItem> ButtonsFor(string category) => store.PortalChoices(category);
     public IEnumerable<ServiceItem> HiddenItems(string category) => Items.Where(x => !x.ShowInPortal && string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase));
-    public ServiceItem? ItemFor(HelpdeskStore.PortalChoice choice) => choice.Kind == HelpdeskStore.PortalChoice.ItemKind ? store.FindServiceItem(choice.Category, choice.Key) : null;
-    // Categories worth a section in the catalogue list: anything with an item or a shown template.
-    public IEnumerable<string> ListedCategories => Categories.Where(c => Items.Any(i => string.Equals(i.Category, c, StringComparison.OrdinalIgnoreCase)) || ButtonsFor(c).Count > 0);
+    // Categories worth a section in the catalogue list: anything with an item.
+    public IEnumerable<string> ListedCategories => Categories.Where(c => Items.Any(i => string.Equals(i.Category, c, StringComparison.OrdinalIgnoreCase)));
 
     // Adds an item, or saves changes to one when an id is given.
     public IActionResult OnPostSave(Guid? id, string? category, string? name, string? priority, string? helperLine, bool showInPortal)
@@ -47,9 +46,10 @@ public class ServiceCatalogueModel(HelpdeskStore store) : PageModel
         return RedirectToPage(null, null, new { }, category is null ? null : "tile-" + Slug(category));
     }
 
-    public IActionResult OnPostMoveChoice(string? category, string? kind, string? key, int direction)
+    public IActionResult OnPostMoveChoice(Guid id, int direction)
     {
-        if (store.MovePortalChoice(category, kind, key, direction) is { } problem) TempData["Message"] = problem;
+        if (store.MovePortalChoice(id, direction) is { } problem) TempData["Message"] = problem;
+        var category = Items.FirstOrDefault(x => x.Id == id)?.Category;
         return RedirectToPage(null, null, new { }, category is null ? null : "cat-" + Slug(category));
     }
 

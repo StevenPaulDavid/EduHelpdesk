@@ -24,7 +24,8 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
     // Incident, Request, or blank for both.
     [BindProperty(SupportsGet = true, Name = "type")] public string? Type { get; set; }
-    // A desk's name (HelpdeskStore.Desks), or blank for every desk. Only offered with more than one desk.
+    // A desk's name (HelpdeskStore.Desks), or blank for every desk. Only offered with more than one desk. Not asked for at
+    // all, it opens on the desk switcher's desk when that is one desk (HelpdeskStore.DeskSwitch).
     [BindProperty(SupportsGet = true, Name = "desk")] public string? DeskName { get; set; }
     public bool HasSeveralDesks => Desks.Count > 1;
     // Only the desks this person can see (HelpdeskStore.Desks).
@@ -53,6 +54,9 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketReports.SlaRow> ByTechnician { get; private set; } = [];
     public IReadOnlyList<TicketRecord> OverdueOpen { get; private set; } = [];
     public IReadOnlyList<TicketReports.WorkloadRow> Workload { get; private set; } = [];
+    // The summary charts: tickets logged, and open, each week (or month) of the period.
+    public IReadOnlyList<TicketReports.TrendPoint> Trend { get; private set; } = [];
+    public string TrendStep => Trend.Count > 0 && Trend[0].Label.StartsWith("w/c") ? "week" : "month";
     public IReadOnlyList<TicketReports.TeamRow> Teams { get; private set; } = [];
     public IReadOnlyList<TicketReports.AssetRow> Assets { get; private set; } = [];
     public IReadOnlyList<TicketReports.RepeatFaultRow> RepeatFaults { get; private set; } = [];
@@ -124,6 +128,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         Since = period.Days is { } days ? Now.AddDays(-days) : period.Months is { } months ? Now.AddMonths(-months) : DateTime.MinValue;
         HasPreviousPeriod = period.Key != "all";
 
+        if (!Request.Query.ContainsKey("desk") && store.WorkingDesks(User) is [var working]) DeskName = working.Name;
         ReportDesk = HasSeveralDesks ? Desks.FirstOrDefault(x => string.Equals(x.Name, DeskName?.Trim(), StringComparison.OrdinalIgnoreCase)) : null;
         DeskName = ReportDesk?.Name;
         var deskOf = store.DeskLookup();
@@ -150,6 +155,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         ByTechnician = TicketReports.SlaBy(cohort, t => t.TechnicianId is { } id && technicianNames.TryGetValue(id, out var name) ? name : "Unassigned", Now);
 
         Workload = TicketReports.Workload(all, technicians, Now, Since);
+        Trend = TicketReports.Trend(all, Since, Now);
         Teams = TicketReports.WorkloadByTeam(all, technicians, Now, Since);
 
         Assets = TicketReports.AssetsWithMostTickets(cohort, store.Assets, RowLimit);

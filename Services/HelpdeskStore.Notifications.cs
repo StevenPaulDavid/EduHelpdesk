@@ -30,7 +30,7 @@ public sealed partial class HelpdeskStore
 
     // An Id is the time it was made, in milliseconds, or one more than the last: it only ever goes up, even after the
     // table has been emptied or the app restarted, so a browser can keep "the last one I handled" and ask for later ones.
-    // RecipientId is the account it is for; null means every staff account. ActorId is the technician it is about, for
+    // RecipientId is the account it is for; null means every technician account. ActorId is the technician it is about, for
     // the kinds that name one; their name is looked up when it is shown, like the rest of the wording.
     // DeskId is the desk the ticket was on when it was sent to every member of staff (HelpdeskStore.Desks): only people
     // who see that desk's tickets hear it. Null for everything else, and for messages from before desks.

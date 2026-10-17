@@ -34,11 +34,27 @@ body {
     border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
-    gap: 34px;
+    --bar-gap: 28px;
+    gap: var(--bar-gap);
     padding: 0 var(--gutter);
+}
+/* The help and settings icons and the account menu sit close together after the bell, as one cluster, and below
+   1360px the bar uses less of its side gutter - without both, a laptop's 1280px bar ran off the right edge. */
+@media(min-width:981px) {
+    .topbar > .header-help:not(.header-help-portal), .site-menu > .user-menu { margin-left: calc(8px - var(--bar-gap)); }
+}
+@media(min-width:981px) and (max-width:1360px) {
+    .topbar { padding: 0 24px; }
+}
+@media(min-width:981px) and (max-width:1200px) {
+    .brand > span:last-child { display: none; }
 }
 .brand { display: flex; align-items: center; gap: 11px; font-size: 20px; font-weight: 750; letter-spacing: -.04em; }
 .brand>span:last-child span { color: var(--teal-text); }
+/* A long school name gives way first when the bar is short of room, ending in "…" rather than pushing the account
+   menu off the edge. */
+.brand { min-width: 0; }
+.brand>span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .brand-mark {
     width: 34px;
     height: 34px;
@@ -426,22 +442,6 @@ html.blade-open { overflow: hidden; }
 .job-detail-grid { display: grid; grid-template-columns: 1.5fr .75fr; gap: var(--space-5); }
 .job-main { min-height: 340px; }
 .job-description { font-size: 16px; line-height: 1.75; white-space: pre-wrap; margin: 0 0 35px; }
-.job-meta {
-    display: grid;
-    grid-template-columns: repeat(2,1fr);
-    gap: 20px;
-    border-top: 1px solid var(--line);
-    padding-top: 22px;
-}
-.job-meta span {
-    display: block;
-    color: var(--muted);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    margin-bottom: 7px;
-}
-.job-meta strong { font-size: 14px; }
 .detail-sidebar { padding: 0; }
 .detail-block { padding: 24px; border-bottom: 1px solid var(--line); }
 .detail-block:last-child { border-bottom: 0; }
@@ -449,7 +449,6 @@ html.blade-open { overflow: hidden; }
 .detail-block p:not(.eyebrow) { margin: 5px 0; color: var(--muted); font-size: 13px; }
 @media(max-width:800px) {
     .job-detail-grid { display: block; }
-    .job-meta { grid-template-columns: 1fr; }
     .detail-sidebar { padding: 0; }
 }
 
@@ -541,9 +540,6 @@ html.blade-open { overflow: hidden; }
 .linked-asset-item:hover { background: var(--hover); border-color: var(--teal); }
 .linked-asset-item strong { font-size: 13px; color: var(--teal-strong); }
 .linked-asset-item span { font-size: 12px; color: var(--muted); }
-.asset-edit-form { display: grid; gap: 8px; }
-.asset-edit-form label { font-size: 12px; font-weight: 700; }
-.asset-edit-form select { margin-bottom: 3px; }
 
 .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .checkbox-grid .eyebrow { margin-bottom: 10px; }
@@ -611,7 +607,7 @@ main a:not([class]) { color: var(--ink); }
 }
 
 @media(min-width:801px) and (max-width:1100px) {
-    .topbar { gap: 16px; }
+    .topbar { --bar-gap: 16px; }
     .topbar nav { gap: 14px; }
     .topbar nav a { font-size: 12px; }
 }
@@ -736,23 +732,7 @@ main a:not([class]) { color: var(--ink); }
 
 .queue-tab.active { background: var(--teal); border-color: var(--teal); color: #fff; }
 .queue-tab.active .badge { background: rgba(255, 255, 255, .22); color: #fff; }
-.whoami label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
-.whoami select { min-width: 160px; }
 .queue-hint { margin: 6px 0 12px; }
-.filter-checks { display: flex; flex-wrap: wrap; gap: 8px 24px; grid-column: 1 / -1; }
-.filter-checks fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
-.filter-checks legend {
-    float: left;
-    padding: 0;
-    margin-right: 8px;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    opacity: .75;
-}
-.filter-checks .toggle-label { margin: 0; }
-.filter-chip { grid-column: 1 / -1; margin: 0; }
 tr.row-overdue td:first-child { box-shadow: inset 4px 0 0 var(--alert); }
 tr.row-soon td:first-child { box-shadow: inset 4px 0 0 var(--caution); }
 tr.row-urgent td:nth-child(2) strong::after {
@@ -769,7 +749,6 @@ tr.row-urgent td:nth-child(2) strong::after {
 .ticket-filters .audit-search { grid-column: span 2; }
 .ticket-table .status { white-space: nowrap; }
 .ticket-table td { vertical-align: top; }
-.whoami label { white-space: nowrap; }
 
 .print-only { display: none; }
 
@@ -811,7 +790,6 @@ tr.row-urgent td:nth-child(2) strong::after {
 .template-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
 .template-item summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .template-item form { margin-top: 12px; }
-.template-picker { margin-bottom: 16px; }
 .portal-shell { max-width: 640px; margin: 0 auto; }
 .portal-shell .page-heading h1 { font-size: clamp(28px, 5vw, 40px); }
 .portal-panel { font-size: 15px; }
@@ -825,6 +803,8 @@ tr.row-urgent td:nth-child(2) strong::after {
 /* Report a problem: big tap-friendly tiles (categories, then catalogue items and templates). --tile-color lets a tile
    carry its own colour later; without it they all use the teal accent. */
 .portal-shell-wide { max-width: 860px; }
+/* The technician sign-in pages: a narrow centred column, like the portal's. */
+.signin-shell { max-width: 460px; margin: 0 auto; }
 .portal-lead { margin: 0 0 18px; font-size: 15px; }
 .portal-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
 .portal-tile {
@@ -974,6 +954,11 @@ tr.row-urgent td:nth-child(2) strong::after {
 @media (max-width: 1100px) {
     .user-menu > summary .user-name { max-width: 110px; }
 }
+
+/* A form's error summary: hidden while there is nothing in it (ASP.NET still renders an empty list, which left a
+   blank band at the top of every form), and a short red list when there is. */
+.validation-summary-valid { display: none; }
+.validation-summary-errors ul { margin: 0; padding-left: 18px; color: var(--red); font-size: 13px; font-weight: 600; }
 
 /* Warning variant of .notice: used where an action is blocked and the reason needs explaining, not celebrating. */
 .notice-warning { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
@@ -1350,10 +1335,13 @@ h3 .csv-link { margin-left: 8px; }
 .pj-note { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
 .pj-note strong { color: var(--ink); }
 .pj-note .badge { margin-left: 4px; }
-.pj-steps { list-style: none; margin: 2px 0 4px; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
-.pj-steps li { display: inline-flex; align-items: center; gap: 6px; }
+/* Four fixed columns, a dot over each label and a rule joining the dots, so the steps never wrap a lone "Closed" onto
+   a second line; a long label wraps under its own dot instead. */
+.pj-steps { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); font-size: 12.5px; font-weight: 700; line-height: 1.3; color: var(--muted); }
+.pj-steps li { display: grid; justify-items: start; align-content: start; gap: 6px; padding-right: 8px; }
 .pj-steps li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--field-line); }
-.pj-steps li+li { padding-left: 22px; background: linear-gradient(var(--line),var(--line)) 0 50% / 16px 2px no-repeat; }
+.pj-steps li:not(:last-child) { background: linear-gradient(var(--line),var(--line)) 20px 6px / calc(100% - 24px) 2px no-repeat; }
+.pj-steps li.is-done:not(:last-child) { background-image: linear-gradient(var(--teal),var(--teal)); }
 .pj-steps li.is-done { color: var(--teal-text); }
 .pj-steps li.is-done::before { background: var(--teal); border-color: var(--teal); }
 .pj-steps li.is-now { color: var(--ink); }
@@ -1911,7 +1899,6 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 
 .filter-chip-link:hover { border-color: var(--red); color: var(--red); }
 .filter-chip-link span[aria-hidden] { font-size: 14px; line-height: 1; }
-.ticket-filters .filter-chip { margin: 10px 0 0; }
 
 /* The due date and its Overdue / Due in badge stay on their own lines rather than wrapping mid-phrase. */
 .ticket-table td.due-cell, .ticket-table td.due-cell .badge { white-space: nowrap; }
@@ -2118,13 +2105,16 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
     /* The queues stay one row you can swipe along, rather than wrapping into three. */
     .queue-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; }
     .queue-tabs::-webkit-scrollbar { display: none; }
+    .queue-tabs.more-right { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); }
+    .queue-tabs.more-left { -webkit-mask-image: linear-gradient(to left, #000 82%, transparent); mask-image: linear-gradient(to left, #000 82%, transparent); }
+    .queue-tabs.more-left.more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent); }
     .queue-tab { flex: none; padding: 8px 12px; font-size: 13px; }
     .queue-bar { align-items: stretch; }
     /* Filter dropdowns two to a row (a column of eight full-width boxes was a whole screen of form); search, tick
          boxes and the buttons take the full width. */
     .audit-filters, .audit-filters.people-filters { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
     .audit-filters>* { min-width: 0; }
-    .audit-filters .audit-search, .audit-filters .filter-checks, .audit-filters .audit-filter-actions, .audit-filters .filter-chip { grid-column: 1/-1; }
+    .audit-filters .audit-search, .audit-filters .audit-filter-actions { grid-column: 1/-1; }
     .audit-filters .audit-filter-actions .button { flex: 1; text-align: center; }
     /* The search box takes its own row; Search and Filters share the one below. */
     .filter-search-box { flex-basis: 100%; max-width: none; }
@@ -2499,7 +2489,10 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .header-help:hover, .header-help.active { color: var(--teal-text); border-color: var(--teal-text); }
 .page-help-link { display: inline-flex; align-items: center; gap: 6px; float: right; margin: 0 0 var(--space-2) var(--space-3); font-size: 13px; font-weight: 700; color: var(--teal-text); text-decoration: none; }
 .page-help-link:hover { text-decoration: underline; }
-.page-help-link.page-help-link-placed { float: none; margin: var(--space-1) 0 0; }
+/* In the heading, just the ? after the title; the word stays for screen readers. */
+.page-help-link.page-help-link-placed { float: none; margin: 0 0 0 10px; vertical-align: middle; font-size: 0; }
+.page-help-link-placed .page-help-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.page-help-link-placed .help-tip-mark { width: 22px; height: 22px; font-size: 13px; }
 .help-welcome { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-left: 4px solid var(--teal-text); border-radius: 10px; background: var(--surface); }
 .help-welcome p { margin: 0; }
 .help-welcome form { margin: 0; }
@@ -2572,4 +2565,86 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 
 @media(max-width:980px) {
     .header-job-menu { order: 1; margin-left: 0; }
+}
+/* A note under a field's value, on its own line (the ticket page's Desk). */
+.field-note { display: block; margin-top: 2px; }
+.form-section[hidden] { display: none; }
+
+/* Notifications switched off on this computer: a dot on the bell, and a line at the top of its panel to switch them on
+   (wwwroot/js/notifications.js). The full reminder bar shows only on the overview and the portal's home. */
+.notify-bell-off > summary::after { content: ""; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--caution); box-shadow: 0 0 0 2px var(--surface); }
+.notify-bell-off:has(.notify-badge:not([hidden])) > summary::after { display: none; }
+.notify-off { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--notice-bg); color: var(--notice-ink); font-size: 13px; }
+.nav-panel .notify-off .button, .nav-panel .notify-off .button:hover { flex: none; width: auto; padding: 6px 10px; font-size: 12px; text-align: center; color: #fff; background: var(--teal); border-radius: 7px; }
+
+/* A field's name inside a panel (the ticket page's Status, Priority...): plain, quiet text. The teal capitals of
+   .eyebrow are kept for the few section breaks that need them. */
+.eyebrow.field-name { font-size: 12px; font-weight: 650; letter-spacing: 0; color: var(--muted); }
+/* A one-button form inside a menu (On my way under the ticket's More): a menu item like the rest, no rule above it. */
+.nav-panel .nav-panel-form { border-top: 0; margin-top: 0; padding-top: 0; }
+/* Raw data outside a menu: a small link, not a button - it's for looking into a problem (Pages/Shared/_RawDataLink). */
+.heading-actions > .raw-data-link { align-self: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.job-meta-line { margin: 14px 0 0; font-size: 12px; }
+/* The ticket page's fields: the value itself opens its dropdown, and a lone dropdown saves on choosing
+   (wwwroot/js/pages/job.js), so its tick button is hidden. */
+.field-value-editable { cursor: pointer; border-radius: 6px; margin: -2px -6px; padding: 2px 6px; }
+.field-value-editable:hover { background: var(--accent); }
+.inline-control-instant button[type="submit"] { display: none; }
+
+/* The overview's "All clear": every panel with nothing in it, as one short list of ticks. */
+.dash-clear h2 { margin: 0 0 10px; font-size: 18px; }
+.dash-clear ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.dash-clear li { color: var(--muted); font-size: 14px; }
+.dash-clear li::before { content: "✓"; margin-right: 7px; color: var(--teal-text); font-weight: 800; }
+.dash-clear p { margin: 12px 0 0; }
+/* Bulk actions wait until a row is ticked (wwwroot/js/bulk-select.js). */
+.bulk-actions.bulk-idle { display: none; }
+.when-cell { white-space: nowrap; }
+
+/* New ticket: the template picker and the less-used fields fold away behind a link-like summary. */
+.template-picker { margin: 0 0 16px; }
+.template-picker > summary, .more-options > summary { cursor: pointer; color: var(--teal-text); font-weight: 700; font-size: 14px; width: fit-content; }
+.template-picker > summary:hover, .more-options > summary:hover { text-decoration: underline; }
+.template-picker[open] { padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.template-picker form { margin-top: 12px; max-width: 480px; }
+.more-options { margin-top: 16px; }
+.more-options .form-grid { margin-top: 14px; }
+
+/* Settings → Lists: the lists as tabs, in groups. */
+.list-tabs { display: grid; gap: 10px; margin: 0 0 18px; }
+.list-tab-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.list-tab-group-name { min-width: 150px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.list-tabs .queue-tab { padding: 6px 12px; font-size: 13px; }
+@media(max-width:800px) {
+    .list-tab-group-name { min-width: 0; flex-basis: 100%; }
+}
+
+/* The portal's home: the person's open tickets, under the two big buttons. */
+.portal-open-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.portal-open-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.portal-open-list a { color: var(--ink); text-decoration: none; min-width: 0; }
+.portal-open-list a:hover { color: var(--teal-text); text-decoration: underline; }
+.portal-open-side { display: flex; flex: none; gap: 6px; align-items: center; }
+
+/* Ticket report trend: small one-series charts (MiniChart.cs). Marks in the theme's text teal, which holds its contrast
+   on both surfaces; grid and axes recessive; text in ink, never the mark colour. The detail tables fold under them. */
+.report-trend .panel h2 { margin: 0; font-size: 17px; }
+.report-trend .panel > .muted { margin: 2px 0 10px; font-size: 13px; }
+.mini-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.mini-chart .grid { stroke: var(--line); stroke-width: 1; }
+.mini-chart .axis { fill: var(--muted); font-size: 11px; }
+.mini-chart .mark, .mini-chart .dot { fill: var(--teal-text); }
+.mini-chart .dot { stroke: var(--surface); stroke-width: 2px; }
+.mini-chart .line { fill: none; stroke: var(--teal-text); stroke-width: 2px; stroke-linejoin: round; stroke-linecap: round; }
+.mini-chart .hit { fill: transparent; }
+.mini-chart .slot:hover .hit { fill: var(--line); fill-opacity: .45; }
+.mini-chart .slot:hover .mark { opacity: .8; }
+.mini-chart .value { fill: var(--ink); font-size: 12px; font-weight: 700; }
+.chart-table, .report-detail { margin-top: 10px; }
+.chart-table > summary, .report-detail > summary { cursor: pointer; width: fit-content; font-size: 13px; font-weight: 700; color: var(--teal-text); }
+.report-detail > summary { margin-bottom: 4px; }
+.report-detail[open] > summary { margin-bottom: 14px; }
+.chart-table[open] > summary { margin-bottom: 8px; }
+@media print {
+    .chart-table, .report-detail > summary { display: none; }
 }

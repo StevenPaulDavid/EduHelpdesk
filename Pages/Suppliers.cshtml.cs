@@ -7,7 +7,6 @@ namespace EduHelpdesk.Pages;
 
 public class SuppliersModel(HelpdeskStore store) : PageModel
 {
-    public SupplierRecord EmptySupplier => new(Guid.Empty, "", "", "", "", "", "", "", "", "", "", "", "", DateTime.UtcNow);
     public IReadOnlyList<SupplierRecord> Suppliers => store.Suppliers;
     public IReadOnlyList<AssetRecord> Assets => store.Assets;
     [TempData] public string? Message { get; set; }

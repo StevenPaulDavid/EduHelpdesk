@@ -12,7 +12,7 @@ A helpdesk for schools, run on the school's own server. Technicians log and work
 
 ## Help
 
-Everything in the app is explained in its own **Help centre**. Sign in and press the **?** in the top bar, or go to `/Help`. Pages with a guide have a **? Help** link next to their title, and a **?** beside a field explains what to put in it. Staff using the portal have their own short help at `/Portal/Help`.
+Everything in the app is explained in its own **Help centre**. Sign in and press the **?** in the top bar, or go to `/Help`. Pages with a guide have a **?** next to their title, and a **?** beside a field explains what to put in it. Staff using the portal have their own short help at `/Portal/Help`.
 
 ## Installing
 
@@ -39,7 +39,7 @@ You must change the password when you first sign in. Then set up two-step sign-i
 
 **Roles** are on the Roles tab of the **People** page. Each role has five ticks per area (Access, View, New, Edit, Delete), each independent of the others, for areas such as tickets, projects, onboarding, assets, loans, parts, contracts, access control, people, reports, settings and the audit log. Some roles also need extra on/off ticks, such as *See all desks*, *See and add job costs*, *Change "Working as"*, *Record cleaning rounds*, one per report, and *View raw database*. **Administrator** can do everything and can't be changed or deleted. Three ordinary roles are made on first run: Senior Technician, Technician and Junior Technician. See **Help → Roles and permissions**.
 
-Staff accounts and portal users are added in **People**. A new account gets a temporary password to change at first sign-in, plus a quick start guide to print and hand over. **Give them a temporary password** resets a forgotten one. A technician with a recovery key can also reset their own password from the sign-in page, unless recovery keys are turned off in **Settings → Sign-in security**. Portal users have no self-service reset. See **Help → Sign-in security** and **Help → Staff accounts**.
+Technician accounts and portal users are added in **People**. A new account gets a temporary password to change at first sign-in, plus a quick start guide to print and hand over. **Give them a temporary password** resets a forgotten one. A technician with a recovery key can also reset their own password from the sign-in page, unless recovery keys are turned off in **Settings → Sign-in security**. Portal users have no self-service reset. See **Help → Sign-in security** and **Help → Technician accounts**.
 
 ## HTTPS
 

@@ -105,7 +105,7 @@
 @if (grant is not null)
 {
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">AUDIT TRAIL</p><h2>History</h2></div><span class="badge">@Model.History.Count</span></div>
+        <div class="panel-heading"><div><h2>History</h2></div><span class="badge">@Model.History.Count</span></div>
         @if (Model.History.Count == 0) { <p class="muted">No changes recorded yet.</p> }
         else
         {

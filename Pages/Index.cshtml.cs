@@ -85,7 +85,6 @@ public class IndexModel(HelpdeskStore store) : PageModel
         ComplianceFindings.For(store, AssetInsights.Today, assets: false, contracts: CanSeeContracts, access: CanSeeAccess)
             .Where(x => x.Level >= ComplianceFinding.Levels.Warning).ToList();
     public bool CanSeePartsReport => store.UserHasFlag(User, Modules.Flags.ReportParts);
-    public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
     // Slow saves or a nearly full disk (Settings → Database), for Administrators only.
     public IReadOnlyList<string> DatabaseWarnings =>
         EduHelpdesk.Services.RawDatabase.IsAdministrator(User) ? store.HealthWarnings(DateTime.UtcNow) : [];
@@ -95,6 +94,24 @@ public class IndexModel(HelpdeskStore store) : PageModel
         store.UserCan(User, Modules.Settings, ModulePermission.Edit) && store.Backups is { } backups && backups.NeedsAttention(DateTime.UtcNow) ? backups : null;
 
     public string StatusTone(string status) => store.StatusTone(status);
+
+    // The panels with nothing in them, as one "All clear" list instead of a page of empty boxes. Each panel shows only
+    // when it has something to show.
+    public IReadOnlyList<string> AllClear()
+    {
+        var clear = new List<string>();
+        if (CanSeeTickets)
+        {
+            if (Me is not null && MyTickets.Count == 0) clear.Add("Nothing assigned to you is open");
+            if (DueTickets.Count == 0) clear.Add($"Nothing overdue or due within {DueSoonHours} hours");
+            if (UnassignedTickets.Count == 0) clear.Add("Every open ticket has a technician");
+            if (RepliesWaiting.Count == 0) clear.Add("Nobody is waiting on a reply");
+        }
+        if ((CanSeeContracts || CanSeeAccess) && ComplianceDue.Count == 0) clear.Add("Nothing due on the contracts or access registers");
+        if (CanSeeAssets && AssetsToReview.Count == 0) clear.Add("No assets need review");
+        if (CanSeeParts && PartsToReview.Count == 0) clear.Add("No parts need reordering");
+        return clear;
+    }
 
     // The root page is reachable anonymously (see Program.cs) purely so it can send a signed-out visitor to the
     // staff portal instead of straight to the technician login - a technician still ends up here once signed in.
@@ -126,7 +143,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
 
         if (CanSeeTickets)
         {
-            var meId = WorkingAs.Resolve(store, User, Request);
+            var meId = SignedInTechnician.Id(store, User);
             Me = meId is { } id ? store.Technicians.FirstOrDefault(x => x.Id == id) : null;
             // The overview is of the desks the top bar's desk switcher is on (HelpdeskStore.DeskSwitch), as the ticket
             // list opens on them; tickets assigned to them count wherever they are.
@@ -157,7 +174,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
             RepliesWaiting = replies.OrderBy(x => meId is { } me && x.TechnicianId == me ? 0 : 1).ThenBy(x => x.LastModifiedAt).ToList();
         }
 
-        if (CanSeeProjects && WorkingAs.SignedInTechnicianId(store, User) is { } projectMe)
+        if (CanSeeProjects && SignedInTechnician.Id(store, User) is { } projectMe)
         {
             var active = store.Projects.Where(x => x.IsActive).ToList();
             MyProjects = active.Where(x => x.TechnicianId == projectMe).OrderBy(x => x.DueDate).ThenBy(x => x.EffectivePriority).ToList();

@@ -3,12 +3,12 @@ title: The simple lists
 summary: Categories, priorities, teams, departments, rooms and the other pick-lists - adding, renaming and removing values.
 area: Settings
 kind: page
-pages: /Settings/Categories, /Settings/Priorities, /Settings/Teams, /Settings/Departments, /Settings/Locations, /Settings/Buildings, /Settings/BudgetCodes, /Settings/Cleaners, /Settings/AssetMakes, /Settings/AssetStatuses, /Settings/AssetConditions, /Settings/PartCategories, /Settings/PartLocations, /Settings/LoanReasons, /Settings/ContractTypes, /Settings/SpendCategories, /Settings/ContractDurations, /Settings/ContractStatuses, /Settings/PersonTypes, /Settings/AccessCategories, /Settings/RevokeReasons, /Settings/PurchasingRequirements
+pages: /Settings/Lists, /Settings/Categories, /Settings/Teams, /Settings/BudgetCodes, /Settings/Cleaners
 needs: Settings:Edit
 keywords: list option category priority team department location room building budget code cleaner make condition rename delete add
 order: 2
 ---
-Many Settings pages are a simple list of values that appear in drop-downs elsewhere: categories, priorities, teams, departments, rooms, budget codes, cleaners, asset makes and so on. They all work the same way.
+Many settings are a simple list of values that appear in drop-downs elsewhere: rooms, departments, priorities, asset makes, contract types and so on. Most of them share one page, **Settings → Lists**, a tab each. Categories, teams, budget codes and cleaners have pages of their own, because there is a little more to them. They all work the same way.
 
 ## Adding, renaming and removing
 

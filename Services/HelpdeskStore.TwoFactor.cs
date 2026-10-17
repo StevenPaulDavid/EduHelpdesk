@@ -3,9 +3,9 @@ using Microsoft.Data.Sqlite;
 
 namespace EduHelpdesk.Services;
 
-// Two-step sign-in for staff accounts: after the password, a code from an authenticator app (Totp), or one of ten
+// Two-step sign-in for technician accounts: after the password, a code from an authenticator app (Totp), or one of ten
 // one-time recovery codes. Each technician turns it on for themselves; Settings → Sign-in security can require it of
-// everyone, and someone with Staff accounts: Edit can reset it for a person who has lost their phone. The DfE's cyber
+// everyone, and someone with Technician accounts: Edit can reset it for a person who has lost their phone. The DfE's cyber
 // security standard for schools expects this on accounts that can change a system.
 //
 // The secret is stored as it is, like the rest of the data in the database, rather than encrypted with the sign-in
@@ -21,7 +21,7 @@ public sealed partial class HelpdeskStore
             if (_data.RequireTwoFactor == required) return "Nothing changed.";
             _data.RequireTwoFactor = required;
             _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Sign-in", null, null, "Two-step sign-in", required ? "Required" : "No longer required",
-                required ? "Every staff account now needs two-step sign-in. Anyone without it sets it up the next time they sign in."
+                required ? "Every technician account now needs two-step sign-in. Anyone without it sets it up the next time they sign in."
                          : "Two-step sign-in is now each person's choice. Anyone who has it keeps it."));
             Save();
             return required ? "Two-step sign-in is now required. Anyone without it will set it up the next time they use the helpdesk."
@@ -53,7 +53,7 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            if (_data.RequireTwoFactor) return (false, "Two-step sign-in is required for every staff account, so it can't be turned off.");
+            if (_data.RequireTwoFactor) return (false, "Two-step sign-in is required for every technician account, so it can't be turned off.");
             if (CheckTwoFactorCore(technicianId, code) is not { Ok: true }) return (false, "That code didn't match, so two-step sign-in is still on.");
             var index = _data.Technicians.FindIndex(x => x.Id == technicianId);
             var technician = _data.Technicians[index];

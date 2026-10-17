@@ -7,14 +7,13 @@
     var now = DateTime.UtcNow;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Backups &amp; data</h1><p class="hero-copy">A copy of everything - tickets, assets, projects, people, attachments and settings - made automatically every night.</p></div>
-    <a class="button button-secondary" asp-page="/Settings">← Settings</a>
+    <div><h1>Backups &amp; data</h1><p class="hero-copy">A copy of everything - tickets, assets, projects, people, attachments and settings - made automatically every night.</p></div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
     <div class="panel-heading">
-        <div><p class="eyebrow">LAST BACKUP</p><h2>@(backups.LastSuccessAt is { } last ? last.ToLocalTime().ToString("dddd d MMMM yyyy, HH:mm") : "No backup yet")</h2></div>
+        <div><h2>@(backups.LastSuccessAt is { } last ? last.ToLocalTime().ToString("dddd d MMMM yyyy, HH:mm") : "No backup yet")</h2></div>
         <form method="post" asp-page-handler="BackupNow"><button class="button button-primary" type="submit">Back up now</button></form>
     </div>
     @if (!backups.Enabled)
@@ -37,7 +36,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">WHERE THE DATA LIVES</p><h2>Data folder</h2></div></div>
+    <div class="panel-heading"><div><h2>Data folder</h2></div></div>
     <p><code>@Model.DataFolder</code></p>
     @if (Model.Location?.CopiedFrom is { } copiedFrom)
     {
@@ -64,7 +63,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">SETTINGS</p><h2>Automatic backups</h2></div></div>
+    <div class="panel-heading"><div><h2>Automatic backups</h2></div></div>
     <form method="post" asp-page-handler="Save" class="settings-form backup-settings">
         <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@backups.Enabled" /> Make a backup automatically every night</label>
         <label><span>Backup folder <help-tip key="backup.folder" /></span>
@@ -85,7 +84,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">IN THE FOLDER</p><h2>Backups kept</h2></div><span class="badge">@Model.Files.Count</span></div>
+    <div class="panel-heading"><div><h2>Backups kept</h2></div><span class="badge">@Model.Files.Count</span></div>
     <p class="muted"><code>@backups.Folder</code></p>
     <div class="table-wrap"><table><thead><tr><th>Backup</th><th>Made</th><th>Size</th></tr></thead><tbody>
     @foreach (var file in Model.Files)

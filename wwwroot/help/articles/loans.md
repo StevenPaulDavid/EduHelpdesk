@@ -16,7 +16,7 @@ Press **Issue a loan**:
 
 1. **What are you lending?** - a **loan kit** or a **single device**. Devices already held by someone, and anything in a kit, aren't offered.
 2. **Who is borrowing it?** - someone from the staff directory. For a kit only, choose *Not listed* and type a name for supply staff or visitors; a single device must go to someone in the directory so it can be traced.
-3. **Why do they need it?** - the reason, from the list in **Settings → Loan reasons** (*Laptop in for repair*, *Forgot their charger*...).
+3. **Why do they need it?** - the reason, from the list in **Settings → Lists → Loan reasons** (*Laptop in for repair*, *Forgot their charger*...).
 4. **Due back** - starts at today; push it out if they need it longer.
 5. Any **notes**, then **Issue**.
 

@@ -2,7 +2,7 @@
 @using EduHelpdesk.Services
 @model EduHelpdesk.Pages.Settings.TicketRulesModel
 @{ ViewData["Title"] = "Ticket queues & closing"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / TICKETS</p><h1>Ticket queues &amp; closing</h1><p class="hero-copy">When a ticket counts as due soon, how long a requester's reply can reopen a closed ticket, which tickets need a closing message, and how a printed ticket looks.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Ticket queues &amp; closing</h1><p class="hero-copy">When a ticket counts as due soon, how long a requester's reply can reopen a closed ticket, which tickets need a closing message, and how a printed ticket looks.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel" id="queues">

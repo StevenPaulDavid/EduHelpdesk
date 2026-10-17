@@ -61,9 +61,9 @@ Everything the school name, colours, logo and backups questions set can be chang
 ### Then, in Settings
 
 - **Branding & logo**: check the name, colours and logo.
-- **Sign-in security**: turn on **two-step sign-in** for your own account (from your account menu), then require it for every staff account. The DfE's cyber security standard expects this.
+- **Sign-in security**: turn on **two-step sign-in** for your own account (from your account menu), then require it for every technician account. The DfE's cyber security standard expects this.
 - **Your recovery key**: keep the file you were given somewhere safe (or make a new one from **Recovery key** in your account menu). If you forget your password, it lets you reset it from the sign-in page. For the built-in administrator, it's the way back in without another administrator.
-- **People**: add your technicians (Staff accounts) and give them roles, and import staff who will use the portal (Requesters, from a CSV). Each account you add gets a temporary password and a one-page **quick start guide** to print and hand over; an import prints a guide for everyone in it.
+- **People**: add your technicians (Technician accounts) and give them roles, and import staff who will use the portal (Requesters, from a CSV). Each account you add gets a temporary password and a one-page **quick start guide** to print and hand over; an import prints a guide for everyone in it.
 - **Sign-in security → Helpdesk address**: check it's the address staff will type. It's printed on every quick start guide.
 - **Backups & data**: after the first night, check the backup ran.
 - Every setting and page is explained in the app's own **Help centre** - sign in and press the **?** in the top bar. Staff using the portal have their own help from the **? Help** in its top bar. (`docs\Technical-Guide.md` and `docs\Staff-Guide.md` in the zip point to these.)
@@ -202,7 +202,7 @@ Double-click `Uninstall.cmd` (from any copy of the zip). It removes the service,
 
 **The service won't start after HTTPS, and the log says the certificate "could not be found".** The certificate has no authority behind it and the settings don't allow that. Run `Enable-Https.cmd` again, or add `"AllowInvalid": true` to the certificate in `appsettings.Production.json`.
 
-**The default admin password doesn't work.** Someone has already changed it - which is what should happen. If they made a recovery key, **Forgotten your password?** on the sign-in page resets it. Otherwise another administrator can set a new password under **People → Staff accounts**.
+**The default admin password doesn't work.** Someone has already changed it - which is what should happen. If they made a recovery key, **Forgotten your password?** on the sign-in page resets it. Otherwise another administrator can set a new password under **People → Technician accounts**.
 
 ## Licence
 

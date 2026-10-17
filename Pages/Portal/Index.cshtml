@@ -2,7 +2,7 @@
 @model EduHelpdesk.Pages.Portal.IndexModel
 @{ ViewData["Title"] = "Staff portal"; }
 <div class="portal-shell">
-    <div class="page-heading"><div><p class="eyebrow">EDUHELPDESK</p><h1>Report a problem</h1><p class="hero-copy">Log a job with the IT team, or check on one you've already sent in.</p></div></div>
+    <div class="page-heading"><div><h1>Report a problem</h1><p class="hero-copy">Tell the helpdesk about a problem, or check on one you've already sent in.</p></div></div>
     @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
     @if (Model.CurrentUser is null && Model.SignedInTechnician is { } technician)
     {
@@ -23,7 +23,7 @@
                 <label class="toggle-label"><input asp-for="Remember" type="checkbox" /> Keep me signed in on this device for 30 days</label>
                 <p class="muted">Leave that unticked on a shared or staffroom computer - you'll be signed out when the browser closes, or after two hours without using the portal.</p>
                 <button class="button button-primary portal-button" type="submit">Sign in</button>
-                <p class="muted">Forgotten your password? Ask the IT team to set you a new one. New to the portal? <a asp-page="/Portal/Help">Read the help</a>.</p>
+                <p class="muted">Forgotten your password? Ask the helpdesk to set you a new one. New to the portal? <a asp-page="/Portal/Help">Read the help</a>.</p>
             </form>
         </section>
     }
@@ -35,6 +35,17 @@
             <a class="button button-primary portal-button" asp-page="/Portal/NewTicket">@Icons.Plus Report a problem</a>
             <a class="button button-secondary portal-button" asp-page="/Portal/MyTickets">My tickets @if (Model.TicketsWithNews > 0) { <span class="badge badge-reply" title="Tickets with a reply you haven't read yet">@Model.TicketsWithNews new</span> }</a>
         </div>
+        @if (Model.OpenTickets.Count > 0)
+        {
+            <h2 class="portal-subheading">Your open tickets</h2>
+            <ul class="portal-open-list">
+                @foreach (var ticket in Model.OpenTickets.Take(EduHelpdesk.Pages.Portal.IndexModel.OpenTicketsShown))
+                {
+                    <li><a asp-page="/Portal/Ticket" asp-route-number="@ticket.Number"><strong>@Model.Ref(ticket)</strong> @ticket.Title</a><span class="portal-open-side">@if (EduHelpdesk.Pages.Portal.IndexModel.HasNews(ticket)) { <span class="badge badge-reply">New reply</span> }<span class="status">@ticket.Status</span></span></li>
+                }
+            </ul>
+            @if (Model.OpenTickets.Count > EduHelpdesk.Pages.Portal.IndexModel.OpenTicketsShown) { <p class="muted"><a asp-page="/Portal/MyTickets">All @Model.OpenTickets.Count open tickets →</a></p> }
+        }
         @if (Model.CurrentUser.MayRaiseProjects || Model.HasProjects)
         {
             <h2 class="portal-subheading">Projects</h2>
@@ -54,5 +65,5 @@
             </div>
         }
     }
-    <p class="muted portal-tech-link">IT technician? <a asp-page="/Login">Login as Technician →</a></p>
+    <p class="muted portal-tech-link">Work on the helpdesk? <a asp-page="/Login">Technician sign-in →</a></p>
 </div>

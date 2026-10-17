@@ -10,7 +10,6 @@ namespace EduHelpdesk.Pages;
 public class JobsModel(HelpdeskStore store) : PageModel
 {
     public static readonly int[] PageSizes = [25, 50, 100, 200];
-    private const string MeCookie = WorkingAs.Cookie;
 
     // Short query-string names. "area", "action" and "page" are reserved by routing, so they are avoided.
     [BindProperty(SupportsGet = true, Name = "view")] public string View { get; set; } = "open";
@@ -67,9 +66,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public DateTime Now { get; } = DateTime.UtcNow;
     public Guid? CurrentTechnicianId { get; private set; }
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
-    // Only roles granted ChangeWorkingAs can work as someone other than themselves; everyone else is fixed to their own account.
-    public bool CanChangeWorkingAs => store.UserHasFlag(User, Modules.Flags.WorkingAs);
     public bool Descending => Dir == "desc";
+    // An empty list limited to some desks says so, with the way to every desk, rather than "none logged yet".
+    public string DeskPhrase => HelpdeskStore.DeskPhrase(ShownDesks);
+    public string? AllDesksUrl() { var route = RouteFor(1, Sort!, Dir!, View); route["desk"] = "all"; return Url.Page("/Jobs", route); }
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
         || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset);
 
@@ -191,19 +191,6 @@ public class JobsModel(HelpdeskStore store) : PageModel
         return text.ToString().Trim();
     }
 
-    // Remembers, in this browser only, which technician is using it, for the My tickets queue. Only Administrator
-    // and Senior Technician can work as someone else - everyone else is always themselves (see Prepare()).
-    public IActionResult OnPostWhoAmI(string? technicianId)
-    {
-        if (!CanChangeWorkingAs) return Forbid();
-        Prepare();
-        if (Guid.TryParse(technicianId, out var id) && store.Technicians.Any(x => x.Id == id))
-            Response.Cookies.Append(MeCookie, id.ToString(), new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Lax, Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true });
-        else
-            Response.Cookies.Delete(MeCookie);
-        return Back();
-    }
-
     private TicketContext Context() => new(store.Users, store.Technicians, store.Assets, store.Priorities, store.Statuses, Now, store.TicketDueSoonHours, CurrentTechnicianId, Onboardings,
         string.IsNullOrWhiteSpace(Search) ? null : store.TicketAttributeAnswers(), _deskOf);
 
@@ -232,9 +219,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
         Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category); Type = Clean(Type);
-        // Technician and Junior Technician are always themselves. Administrator and Senior Technician default to
-        // themselves too, but can pick someone else via "Working as" (remembered in this browser's cookie).
-        CurrentTechnicianId = WorkingAs.Resolve(store, User, Request);
+        // My tickets are always the signed-in account's own; a colleague's are the Technician filter.
+        CurrentTechnicianId = SignedInTechnician.Id(store, User);
         PrepareDesks();
     }
 

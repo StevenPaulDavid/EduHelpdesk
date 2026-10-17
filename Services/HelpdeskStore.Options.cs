@@ -65,53 +65,6 @@ public sealed partial class HelpdeskStore
             return "Technician team deleted.";
         }
     }
-    public string AddDepartment(string department)
-    {
-        lock (_sync)
-        {
-            var value = department.Trim();
-            if (string.IsNullOrWhiteSpace(value)) return "Department name is required.";
-            if (_data.Departments.Contains(value, StringComparer.OrdinalIgnoreCase)) return "That department already exists.";
-            _data.Departments.Add(value);
-            Save();
-            return "Department added.";
-        }
-    }
-    public string UpdateDepartment(string currentDepartment, string department)
-    {
-        lock (_sync)
-        {
-            var oldValue = currentDepartment.Trim();
-            var newValue = department.Trim();
-            if (string.IsNullOrWhiteSpace(newValue)) return "Department name is required.";
-            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return "Department updated.";
-            if (_data.Departments.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return "That department already exists.";
-            var index = _data.Departments.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) return "Department was not found.";
-            _data.Departments[index] = newValue;
-            for (var i = 0; i < _data.Users.Count; i++)
-            {
-                if (string.Equals(_data.Users[i].Department, oldValue, StringComparison.OrdinalIgnoreCase))
-                    _data.Users[i] = _data.Users[i] with { Department = newValue };
-            }
-            Save();
-            return "Department updated.";
-        }
-    }
-    public string DeleteDepartment(string department)
-    {
-        lock (_sync)
-        {
-            var value = (department ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(value)) return "Department name is required.";
-            var index = _data.Departments.FindIndex(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) return "Department was not found.";
-            if (_data.Users.Any(x => string.Equals(x.Department, value, StringComparison.OrdinalIgnoreCase))) return "That department cannot be deleted because users belong to it.";
-            _data.Departments.RemoveAt(index);
-            Save();
-            return "Department deleted.";
-        }
-    }
     // deskId places a new team on a desk (HelpdeskStore.Desks); every other list ignores it.
     public string AddManagedOption(string kind, string value, Guid? deskId = null)
     {
@@ -173,8 +126,12 @@ public sealed partial class HelpdeskStore
                 };
             }
             for (var i = 0; i < _data.Users.Count; i++)
+            {
                 if (kind == "Location" && string.Equals(_data.Users[i].Location, oldValue, StringComparison.OrdinalIgnoreCase))
                     _data.Users[i] = _data.Users[i] with { Location = newValue };
+                if (kind == "Department" && string.Equals(_data.Users[i].Department, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.Users[i] = _data.Users[i] with { Department = newValue };
+            }
             if (kind == "Location") RenameInRecurringTickets("Location", oldValue, newValue);
             if (kind == "Location") RenameInRounds(oldValue, newValue);
             if (kind == "Cleaner") RenameCleaner(oldValue, newValue);
@@ -262,6 +219,7 @@ public sealed partial class HelpdeskStore
             var inUse = kind switch
             {
                 "Location" => _data.Users.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)) || _data.Assets.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
+                "Department" => _data.Users.Any(x => string.Equals(x.Department, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset make" => _data.Assets.Any(x => string.Equals(x.Make, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetModelMakes.Values.Any(x => string.Equals(x, item, StringComparison.OrdinalIgnoreCase)),
                 "Asset type" => _data.Assets.Any(x => string.Equals(x.Type, item, StringComparison.OrdinalIgnoreCase)) || _data.AssetAttributeDefinitions.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)) || _data.Parts.Any(x => x.AssetTypes.Contains(item, StringComparer.OrdinalIgnoreCase)),
                 "Asset model" => _data.Assets.Any(x => string.Equals(x.Model, item, StringComparison.OrdinalIgnoreCase)),
@@ -841,11 +799,14 @@ public sealed partial class HelpdeskStore
     private static string DuplicateAttributeMessage(List<string> scope, string noun) =>
         scope.Count == 0 ? "That attribute name is already in use." : $"That attribute already exists for one of the selected {noun}.";
 
+    // A person or asset with nothing recorded (no room, say) adds nothing: a blank entry showed in every dropdown as an
+    // empty choice, and one saved by an earlier version is taken out here.
     private static void EnsureOptions(List<string> options, IEnumerable<string> defaults)
     {
+        options.RemoveAll(string.IsNullOrWhiteSpace);
         foreach (var value in defaults)
         {
-            if (!options.Contains(value, StringComparer.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(value) && !options.Contains(value, StringComparer.OrdinalIgnoreCase))
                 options.Add(value);
         }
     }

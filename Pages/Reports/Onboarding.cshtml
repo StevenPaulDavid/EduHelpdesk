@@ -6,7 +6,7 @@
     var today = Model.Today;
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Onboarding report</h1><p class="hero-copy">New staff: how many started, whether their checklists were finished and how long that took, and which tasks keep running late.</p></div>
+    <div><h1>Onboarding report</h1><p class="hero-copy">New staff: how many started, whether their checklists were finished and how long that took, and which tasks keep running late.</p></div>
     <div class="heading-actions">
         @if (Model.CanOpenOnboarding) { <a class="button button-secondary" asp-page="/Onboarding/Index">← Onboarding</a> }
     </div>
@@ -32,7 +32,7 @@
 </div>
 
 <section class="panel" id="active">
-    <div class="panel-heading"><div><p class="eyebrow">NOW</p><h2>Onboardings in progress</h2></div><span class="badge @(Model.OverdueNow > 0 ? "badge-warning" : "")">@Model.Active.Count</span></div>
+    <div class="panel-heading"><div><h2>Onboardings in progress</h2></div><span class="badge @(Model.OverdueNow > 0 ? "badge-warning" : "")">@Model.Active.Count</span></div>
     <div class="table-wrap"><table><thead><tr><th>Starter</th><th>Template</th><th>Starts</th><th>Done</th><th>IT tasks left</th><th>Overdue</th></tr></thead><tbody>
     @foreach (var row in Model.Active)
     {

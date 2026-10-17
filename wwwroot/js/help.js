@@ -2,7 +2,7 @@
 // - The ? beside a field opens its small explanation; Esc, a click elsewhere or opening another one closes it.
 //   The marks sit inside <label>s, so their clicks are kept from reaching the label (which would focus the input or
 //   tick a checkbox).
-// - The page's Help link moves from the top of the page to beside its heading.
+// - The page's Help link moves from the top of the page into its heading, as a small ? after the title.
 (() => {
     let open = null;
 
@@ -44,9 +44,9 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         const link = document.getElementById('page-help-link');
-        const heading = document.querySelector('main .page-heading h1');
+        const heading = document.querySelector('main .page-heading h1, main .hero h1, main h1');
         if (link && heading) {
-            heading.insertAdjacentElement('afterend', link);
+            heading.append(link);
             link.classList.add('page-help-link-placed');
         }
     });

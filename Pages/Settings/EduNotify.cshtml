@@ -3,7 +3,7 @@
 @inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @using EduHelpdesk.Services
 @{ ViewData["Title"] = "EduNotify"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>EduNotify</h1><p class="hero-copy">Tell staff about an outage or other problem from its ticket, with a notice on their PCs through EduNotify. The notice comes down by itself when the ticket is closed.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>EduNotify</h1><p class="hero-copy">Tell staff about an outage or other problem from its ticket, with a notice on their PCs through EduNotify. The notice comes down by itself when the ticket is closed.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice@(Model.Problem ? " notice-warning" : "")">@Model.Message</div> }
 
 <section class="panel">

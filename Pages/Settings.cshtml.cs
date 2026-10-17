@@ -17,7 +17,6 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
     public bool CanEdit => store.UserCan(User, Modules.Settings, ModulePermission.Edit);
     public bool CanSeeAudit => store.UserCan(User, Modules.AuditLog, ModulePermission.Access);
-    public bool CanSeeRaw => store.UserHasFlag(User, Modules.Flags.RawDatabase);
     public HelpdeskStore.BackupSettings Backups => store.Backups;
     public string? DataSyncedBy => store.Location?.SyncedBy;
     public bool IsHttps => Request.IsHttps;
@@ -97,7 +96,6 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/TicketRules"] = new("Due-soon window, how long replies reopen closed tickets, which tickets need a closing message, and the print template.", store.HasPrintTemplate ? "Template uploaded" : null),
             ["/Settings/Statuses"] = List(store.Statuses, "The steps a ticket moves through, what each means, and which stop the SLA clock."),
             ["/Settings/Categories"] = List(store.Categories, "What a ticket is about, for filters, reports and templates."),
-            ["/Settings/Priorities"] = List(store.Priorities, "How urgent a ticket is."),
             ["/Settings/Slas"] = List(store.Slas.Select(x => x.Name).ToList(), "How long tickets have, by priority and category."),
             ["/Settings/SchoolDay"] = new("The school week and lesson times that work-day and period SLAs count against."),
             ["/Settings/ServiceCatalogue"] = List(store.ServiceItems.Select(x => $"{x.Category} › {x.Name}").ToList(), "The common problems staff pick from when they report one in the portal."),
@@ -106,29 +104,13 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/TicketAttributes"] = List(store.TicketAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on tickets, by category."),
             ["/Settings/InventoryRules"] = new("Asset review window, DfE check and end-of-support windows, academic year, parts reorder threshold and repeat-borrowing flag."),
             ["/Settings/AssetTypes"] = List(store.AssetTypes, "Kinds of device, and how long each should last."),
-            ["/Settings/AssetMakes"] = List(store.AssetMakes, "Manufacturers."),
             ["/Settings/AssetModels"] = List(store.AssetModels, "Models, each linked to its make."),
-            ["/Settings/AssetStatuses"] = List(store.AssetStatuses, "Where an asset is in its life."),
-            ["/Settings/AssetConditions"] = List(store.AssetConditions, "The condition column of the DfE asset register."),
             ["/Settings/AssetAttributes"] = List(store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type."),
-            ["/Settings/PartCategories"] = List(store.PartCategories, "How parts are grouped."),
-            ["/Settings/PartLocations"] = List(store.PartLocations, "Where parts are kept."),
-            ["/Settings/LoanReasons"] = List(store.LoanReasons, "Why a device was borrowed."),
             ["/Settings/Teams"] = List(store.TechnicianTeams, "Technician teams that tickets can be assigned to."),
-            ["/Settings/Departments"] = List(store.Departments, "Requesters' departments."),
-            ["/Settings/Buildings"] = List(store.Buildings, "Buildings or sites, recorded with the room on each asset."),
-            ["/Settings/Locations"] = List(store.Locations, "Rooms and areas, for tickets, assets and people."),
-            ["/Settings/Imports"] = new("Requesters, staff accounts and option lists from CSV files."),
+            ["/Settings/Lists"] = new("Rooms, departments, buildings, makes, statuses and the other plain lists the dropdowns offer.", $"{SettingsMenu.Lists.Count} lists"),
+            ["/Settings/Imports"] = new("Technician accounts and option lists from CSV files."),
             ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
             ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
-            ["/Settings/ContractTypes"] = List(store.ContractTypes, "What kind of contract each is: licence, subscription, lease."),
-            ["/Settings/SpendCategories"] = List(store.SpendCategories, "The DfE spend categories contracts are grouped under."),
-            ["/Settings/ContractDurations"] = List(store.ContractDurations, "How long contracts run for."),
-            ["/Settings/ContractStatuses"] = List(store.ContractStatuses, "Where a contract is. Expired takes it out of the warnings."),
-            ["/Settings/PersonTypes"] = List(store.PersonTypes, "Staff, pupils, governors, contractors and service accounts, for the access register."),
-            ["/Settings/AccessCategories"] = List(store.AccessCategories, "How systems and areas are grouped on the access register."),
-            ["/Settings/RevokeReasons"] = List(store.RevokeReasons, "Why access was taken away: leaver, changed role, removed at review."),
-            ["/Settings/PurchasingRequirements"] = List(store.PurchasingRequirements, "Tick boxes offered when a project is requested."),
             ["/Settings/Branding"] = new($"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()})."),
             ["/Settings/Backups"] = new(lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""), backupBadge,
                 backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),

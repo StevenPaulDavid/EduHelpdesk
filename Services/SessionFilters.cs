@@ -34,7 +34,7 @@ public sealed class PasswordChangeFilter(HelpdeskStore store, PortalIdentity por
             return;
         }
 
-        // Settings can require two-step sign-in of every staff account. Anyone signed in without it can only set it up
+        // Settings can require two-step sign-in of every technician account. Anyone signed in without it can only set it up
         // (or sign out) until they have - checked on every page, like the password change above.
         if (store.RequireTwoFactor && TechnicianWithoutTwoFactor(context.HttpContext.User)
             && !TwoFactorAllowed.Contains(page)

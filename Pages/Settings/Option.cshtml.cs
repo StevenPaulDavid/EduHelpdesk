@@ -7,12 +7,12 @@ public class OptionModel(HelpdeskStore store):PageModel
  public bool PlacedOnDesks=>Kind is "Categories" or "Teams" && store.HasSeveralDesks;
  public IReadOnlyList<Desk> Desks=>store.Desks;
  public Desk? DeskFor(string value)=>Kind switch{"Categories"=>store.DeskForCategory(value),"Teams"=>store.DeskForTeam(value),_=>null};
- public bool CanOpenSettings=>store.UserCan(User,Modules.Settings,ModulePermission.Access);
  // Cleaners and Budget codes also open for "Set up facilities" alone (Modules.FacilitiesSetupPages). The kind comes from
  // the form, so without Settings: Edit a post may only touch the list this page is for - not Categories, say.
  private static readonly Dictionary<string,string> FacilitiesKinds=new(StringComparer.OrdinalIgnoreCase){["/Settings/Cleaners"]="Cleaners",["/Settings/BudgetCodes"]="BudgetCodes"};
  private bool MayChange(string kind)=>store.UserCan(User,Modules.Settings,ModulePermission.Edit)||(FacilitiesKinds.TryGetValue(PageContext.ActionDescriptor.ViewEnginePath,out var own)&&string.Equals(own,kind,StringComparison.Ordinal));
- public void OnGet(string kind){Kind=kind;}
+ // Settings → Lists: the kind is the tab asked for, or the first list.
+ public void OnGet(string kind){Kind=PageContext.ActionDescriptor.ViewEnginePath=="/Settings/Lists"?(SettingsMenu.FindList(kind)??SettingsMenu.Lists[0]).Kind:kind;}
  public IActionResult OnPost(string kind,string value,string? currentValue,Guid? deskId){if(!MayChange(kind))return Forbid(); Kind=kind; if(string.IsNullOrWhiteSpace(value)){ModelState.AddModelError("","A value is required.");return Page();} var ticketKind = NormalizeTicketKind(kind); TempData["Message"] = ticketKind is null ? (currentValue is null ? store.AddManagedOption(kind,value,deskId) : store.UpdateManagedOption(kind,currentValue,value)) : (currentValue is null ? store.AddTicketOption(ticketKind,value,deskId) : store.UpdateTicketOption(ticketKind,currentValue,value)); return RedirectToPage(new{kind});}
  public IActionResult OnPostDelete(string kind,string value){if(!MayChange(kind))return Forbid(); var ticketKind = NormalizeTicketKind(kind); TempData["Message"] = ticketKind is null ? store.DeleteManagedOption(kind,value) : store.DeleteTicketOption(ticketKind,value); return RedirectToPage(new{kind});}
  // Moves a category (with its open tickets) or a team (with its people) to another desk.

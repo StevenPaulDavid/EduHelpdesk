@@ -55,8 +55,8 @@ The tabs beside **Comments** hold the ticket's **History** (every change, by who
 
 ## Logging a job yourself
 
-Use **Log a ticket** for something that still needs doing. For a job you've already dealt with (a spill you mopped up, a door you fixed on the spot), use **Log a job already done** on the Tickets page instead. It's saved as a closed ticket with no deadline, so it still counts in the reports.
+Use **Log a ticket** for something that still needs doing. For a job you've already dealt with (a spill you mopped up, a door you fixed on the spot), use **Log a job already done** under **More** on the Tickets page instead. It's saved as a closed ticket with no deadline, so it still counts in the reports.
 
 ## Getting help
 
-Every page with a guide has a **Help** link next to its title, and a **?** beside a field explains what to put in it. Search all the help from the **?** in the top bar.
+Every page with a guide has a **?** next to its title, and a **?** beside a field explains what to put in it. Search all the help from the **?** in the top bar.

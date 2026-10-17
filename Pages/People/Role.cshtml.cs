@@ -18,6 +18,8 @@ public class RoleModel(HelpdeskStore store) : PageModel
 
     public RoleRecord? Role { get; private set; }
     public string? CurrentName { get; private set; }
+    // Deleting is on the role's own page, not a bin on every row of the People list. The built-in roles stay.
+    public bool CanDelete => Role is { IsProtected: false } && store.UserCan(User, Modules.Roles, ModulePermission.Delete);
 
     public bool IsTicked(string module, ModulePermission action) => Role?.Allows(module, action) ?? false;
     public bool HasFlag(string flag) => Role?.Has(flag) ?? false;

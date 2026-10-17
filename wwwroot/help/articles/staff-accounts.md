@@ -1,14 +1,14 @@
 ---
-title: Staff accounts
+title: Technician accounts
 summary: Adding a helpdesk account, its team, desks and role, temporary passwords, and resetting two-step sign-in.
 area: People and roles
 kind: page
 pages: /People/Technician, /People/DeleteTechnician
 needs: StaffAccounts:Edit, StaffAccounts:New
-keywords: staff account technician add new user login password temporary quick start guide desk team role reset two-step
+keywords: technician account technician add new user login password temporary quick start guide desk team role reset two-step
 order: 2
 ---
-A **staff account** is a helpdesk login: IT technicians, site staff, cleaning supervisors, the business manager. (People who only report problems are **requesters** and use the staff portal instead.) Staff accounts are on the **Technicians** tab of the **People** page.
+A **technician account** is a helpdesk login: IT technicians, site staff, cleaning supervisors, the business manager. (People who only report problems are **requesters** and use the staff portal instead.) Technician accounts are on the **Technicians** tab of the **People** page.
 
 ## Adding one
 
@@ -30,4 +30,4 @@ The account page says whether they have a temporary password. Their **quick star
 
 ## Many at once
 
-Import a spreadsheet of staff accounts in **Settings → Imports**. See [Importing from spreadsheets](imports).
+Import a spreadsheet of technician accounts in **Settings → Imports**. See [Importing from spreadsheets](imports).

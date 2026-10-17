@@ -26,6 +26,11 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrott
     public int AwaitingAssignment { get; private set; }
     // Their tickets with a reply or status change from IT they haven't opened yet.
     public int TicketsWithNews { get; private set; }
+    // Their open tickets, newest first, on the home page itself - most visits are to check on one.
+    public IReadOnlyList<TicketRecord> OpenTickets { get; private set; } = [];
+    public const int OpenTicketsShown = 5;
+    public string Ref(TicketRecord ticket) => store.Ref(ticket);
+    public static bool HasNews(TicketRecord ticket) => HelpdeskStore.HasUpdateForRequester(ticket);
 
     public void OnGet()
     {
@@ -33,7 +38,12 @@ public class IndexModel(HelpdeskStore store, PortalIdentity portal, SignInThrott
         SessionKind = session?.Kind;
         CurrentUser = session is not null ? store.Users.FirstOrDefault(x => x.Id == session.UserId) : null;
         HasProjects = CurrentUser is not null && store.Projects.Any(x => x.RequesterId == CurrentUser.Id);
-        if (CurrentUser is not null) TicketsWithNews = store.PortalTickets(CurrentUser.Id).Count(HelpdeskStore.HasUpdateForRequester);
+        if (CurrentUser is not null)
+        {
+            var tickets = store.PortalTickets(CurrentUser.Id);
+            TicketsWithNews = tickets.Count(HelpdeskStore.HasUpdateForRequester);
+            OpenTickets = tickets.Where(x => !TicketInsights.IsClosed(x)).OrderByDescending(x => x.CreatedAt).ToList();
+        }
         if (CurrentUser is { IsProjectLead: true }) AwaitingAssignment = store.Projects.Count(x => x.IsActive && x.TechnicianId is null);
         SignedInTechnician = Technician();
     }

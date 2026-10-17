@@ -68,16 +68,17 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     [TempData] public string? Message { get; set; }
 
     // Overdue, due soon or paused, for the flag beside the due date.
+    // The requester's name links to their page for whoever can open it.
+    public bool CanOpenRequester => store.UserCan(User, Modules.Requesters, ModulePermission.View);
     public DueState DueState => Ticket is null ? DueState.None : TicketInsights.DueStateOf(Ticket, DateTime.UtcNow, store.TicketDueSoonHours);
     public string DueText => Ticket is null ? "" : TicketInsights.DueText(Ticket, DateTime.UtcNow);
-    public bool StatusPausesSla(string status) => store.PausesSla(status);
     // Back to the ticket list as it was last seen (filters, sort, page), or the plain list. Only ever a /Jobs address.
     public string BackUrl => Request.Cookies[JobsModel.BackCookie] is { } back
         && (back == "/Jobs" || back.StartsWith("/Jobs?", StringComparison.Ordinal)) && Url.IsLocalUrl(back) ? back : Url.Page("/Jobs")!;
 
     public bool CanEdit => store.UserCan(User, Modules.Tickets, ModulePermission.Edit);
     public bool CanDelete => store.UserCan(User, Modules.Tickets, ModulePermission.Delete);
-    // The signed-in account, not the Jobs list's "Working as" choice: taking a ticket is something you do for yourself.
+    // The signed-in account: taking a ticket is something you do for yourself.
     public Guid? SignedInTechnicianId =>
         Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) && store.Technicians.Any(x => x.Id == id) ? id : null;
     // Offered on an open ticket that is not already yours. A team mismatch still shows the button, and the handler
@@ -198,7 +199,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             }
             if (technicianId.HasValue && store.Technicians.FirstOrDefault(x => x.Id == technicianId.Value) is { } onDesk && !HelpdeskStore.TechnicianOnDesk(onDesk, desk.Id))
             {
-                Message = $"{onDesk.Name} isn't on the {desk.Name} desk. Add them to it on their staff account, or move the ticket first.";
+                Message = $"{onDesk.Name} isn't on the {desk.Name} desk. Add them to it on their technician account, or move the ticket first.";
                 return RedirectToPage(new { number });
             }
             ticket = ticket with { TechnicianId = technicianId };
@@ -241,11 +242,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         }
         else
         {
-            Message = "Unknown job field.";
+            Message = "Unknown ticket field.";
             return RedirectToPage(new { number });
         }
         store.UpdateTicket(ticket);
-        Message = successMessage ?? "Job updated.";
+        Message = successMessage ?? "Ticket updated.";
         return RedirectToPage(new { number });
     }
 
@@ -649,7 +650,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
         if (ticket.Status == "Closed")
         {
-            Message = "Job is already closed.";
+            Message = "Ticket is already closed.";
             return RedirectToPage(new { number });
         }
 
@@ -673,7 +674,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             Status = "Closed",
             ClosedAt = current.ClosedAt ?? DateTime.UtcNow
         });
-        Message = "Job closed.";
+        Message = "Ticket closed.";
         return RedirectToPage(new { number });
     }
 

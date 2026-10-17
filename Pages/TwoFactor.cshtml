@@ -1,7 +1,7 @@
 @page
 @model TwoFactorModel
 @{ ViewData["Title"] = "Two-step sign-in"; var setup = Model.Me.TwoFactor; }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / YOUR ACCOUNT</p><h1>Two-step sign-in</h1><p class="hero-copy">After your password, the helpdesk asks for a code from an app on your phone, so a password on its own - guessed, reused or seen over a shoulder - isn't enough to get in.</p></div></div>
+<div class="page-heading"><div><h1>Two-step sign-in</h1><p class="hero-copy">After your password, the helpdesk asks for a code from an app on your phone, so a password on its own - guessed, reused or seen over a shoulder - isn't enough to get in.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 @if (Model.RecoveryCodes.Count > 0)
@@ -16,7 +16,7 @@
 
 @if (setup is null)
 {
-    @if (Model.Required) { <div class="notice notice-warning">Your school requires two-step sign-in for every staff account. Set it up to carry on using the helpdesk.</div> }
+    @if (Model.Required) { <div class="notice notice-warning">Your school requires two-step sign-in for every technician account. Set it up to carry on using the helpdesk.</div> }
     <section class="panel">
         <h2>Set it up</h2>
         <ol class="setup-steps">

@@ -3,7 +3,7 @@
 @using EduHelpdesk.Services
 @{ ViewData["Title"] = "Error log"; ViewData["Wide"] = true; }
 
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Error log</h1><p class="hero-copy">Warnings and errors the helpdesk has recorded, newest first. Files are kept for @FileLogProvider.KeepDays days.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Error log</h1><p class="hero-copy">Warnings and errors the helpdesk has recorded, newest first. Files are kept for @FileLogProvider.KeepDays days.</p></div></div>
 
 <section class="panel">
     <form method="get" class="audit-filters">

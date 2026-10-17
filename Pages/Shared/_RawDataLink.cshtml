@@ -1,7 +1,8 @@
 @model (string Kind, string Key)
 @inject EduHelpdesk.Services.HelpdeskStore Helpdesk
-@* "Raw data" on a record's own page: every row stored about it (Settings → Database). Only for "View raw database". *@
+@* "Raw data" on a record's own page: every row stored about it (Settings → Database). Only for "View raw database".
+   A troubleshooting tool, not an everyday action: a menu item inside a More menu, a small link anywhere else. *@
 @if (Helpdesk.UserHasFlag(User, EduHelpdesk.Services.Modules.Flags.RawDatabase))
 {
-    <a class="button button-secondary no-print" asp-page="/Settings/DatabaseRecord" asp-route-kind="@Model.Kind" asp-route-key="@Model.Key" title="Every row stored about this, exactly as stored">Raw data</a>
+    <a class="raw-data-link no-print" asp-page="/Settings/DatabaseRecord" asp-route-kind="@Model.Kind" asp-route-key="@Model.Key" title="Every row stored about this, exactly as stored">Raw data</a>
 }

@@ -3,14 +3,14 @@
 @model EduHelpdesk.Pages.Settings.DatabaseModel
 @{ ViewData["Title"] = "Database"; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Database</h1><p class="hero-copy">Every table exactly as it is stored, for looking into a problem. Nothing here can change anything, and each table or record you open is recorded in the audit log.</p></div>
+    <div><h1>Database</h1><p class="hero-copy">Every table exactly as it is stored, for looking into a problem. Nothing here can change anything, and each table or record you open is recorded in the audit log.</p></div>
     <a class="button button-secondary" asp-page="@(Model.CanSeeSettings ? "/Settings" : "/Index")">← @(Model.CanSeeSettings ? "Settings" : "Overview")</a>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 @{ var health = Model.Health; }
 <section class="panel" id="health">
-    <div class="panel-heading"><div><p class="eyebrow">HEALTH</p><h2>@(health.Warnings.Count == 0 ? "Nothing needs attention" : health.Warnings.Count == 1 ? "1 thing needs attention" : $"{health.Warnings.Count} things need attention")</h2></div></div>
+    <div class="panel-heading"><div><h2>@(health.Warnings.Count == 0 ? "Nothing needs attention" : health.Warnings.Count == 1 ? "1 thing needs attention" : $"{health.Warnings.Count} things need attention")</h2></div></div>
     @foreach (var warning in health.Warnings) { <div class="notice notice-warning">@warning</div> }
     <div class="metrics db-health">
         <div class="metric"><span>Database</span><strong>@HelpdeskStore.FormatSize(health.DatabaseBytes)</strong><small>@Model.Growth(health.DatabaseBytes, health.GrowthFrom?.DatabaseBytes)</small></div>
@@ -51,7 +51,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">LOOK UP A RECORD</p><h2>Everything stored about one thing</h2></div></div>
+    <div class="panel-heading"><div><h2>Everything stored about one thing</h2></div></div>
     <p class="muted">Its rows from every table that mentions it. Records also have a <strong>Raw data</strong> link on their own page.</p>
     <form method="get" asp-page-handler="Find" class="audit-filters raw-find">
         <label>What<select name="kind">@foreach (var kind in EduHelpdesk.Services.RawDatabase.Kinds) { <option value="@kind.Key">@kind.Label</option> }</select></label>
@@ -61,7 +61,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">TABLES</p><h2>@Model.Tables.Count tables</h2></div><span class="badge">Read-only</span></div>
+    <div class="panel-heading"><div><h2>@Model.Tables.Count tables</h2></div><span class="badge">Read-only</span></div>
     @if (!Model.SeesSecrets)
     {
         <p class="muted">Passwords, two-step sign-in secrets, recovery codes and session tokens show as <span class="raw-masked">@EduHelpdesk.Services.RawDatabase.Masked</span>. Only an Administrator sees them.</p>

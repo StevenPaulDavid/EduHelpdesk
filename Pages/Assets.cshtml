@@ -7,8 +7,8 @@
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / ASSET REGISTER</p><h1>Assets</h1><p class="hero-copy">Track school equipment and keep its ticket history connected.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a>@if (Model.CanAdd) { <a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">@Icons.Plus Add asset</a> }</div>
+    <div><h1>Assets</h1><p class="hero-copy">Track school equipment and keep its ticket history connected.</p></div>
+    <div class="heading-actions">@if (Model.CanAdd) { <a class="button button-secondary" asp-page="/Assets/Import">Import from CSV</a><a class="button button-primary" asp-page="/Assets/Add">@Icons.Plus Add asset</a> }</div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
@@ -44,7 +44,7 @@
 </section>
 
 <section class="panel directory-panel">
-    <div class="panel-heading"><div><p class="eyebrow">EQUIPMENT</p><h2>Asset register</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalAssets}" : Model.TotalAssets.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
+    <div class="panel-heading"><div><h2>Asset register</h2></div><div class="heading-actions"><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} of {Model.TotalAssets}" : Model.TotalAssets.ToString())</span><partial name="_ColumnPicker" model="cols" /></div></div>
     <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="asset" data-nouns="assets">
         <input type="hidden" name="q" value="@Model.Search" />
         <input type="hidden" name="status" value="@Model.Status" />
@@ -121,7 +121,7 @@
                 <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset" aria-label="Edit @asset.AssetTag">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset" aria-label="Delete @asset.AssetTag">@Icons.Bin</a> }</td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@(Model.IsFiltered ? "No assets match these filters." : "No assets have been added yet.")</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@if (Model.IsFiltered) { <text>No assets match these filters.</text> } else if (Model.ShownDesks.Count > 0) { <text>Nothing here on @Model.DeskPhrase. <a href="@Model.AllDesksUrl()">Show every desk</a></text> } else { <text>No assets have been added yet.</text> }</td></tr> }
         </tbody></table></div>
 
         @if (Model.Rows.Count > 0 && Model.CanView)

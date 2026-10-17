@@ -15,7 +15,7 @@ public class QuickLogModel(HelpdeskStore store) : PageModel
         Desks.Select(d => (d, store.CategoriesFor(d.Id))).Where(x => x.Item2.Count > 0).ToList();
     public IReadOnlyList<TechnicianRecord> People => store.Technicians.Where(x => x.IsActive && Desks.Any(d => HelpdeskStore.TechnicianOnDesk(x, d.Id))).OrderBy(x => x.Name).ToList();
     public IReadOnlyList<string> Locations => store.Locations;
-    public Guid? Me => WorkingAs.SignedInTechnicianId(store, User);
+    public Guid? Me => SignedInTechnician.Id(store, User);
 
     [BindProperty] public string? Category { get; set; }
     [BindProperty] public string? Title { get; set; }
@@ -36,7 +36,7 @@ public class QuickLogModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPost(bool another)
     {
-        if (Me is not { } me) { ModelState.AddModelError("", "Only a staff account can log jobs."); return Page(); }
+        if (Me is not { } me) { ModelState.AddModelError("", "Only a technician account can log one."); return Page(); }
         // A category on a desk they can't see is refused like one that doesn't exist.
         if (Category is not null && !CategoriesByDesk.Any(x => x.Categories.Contains(Category, StringComparer.OrdinalIgnoreCase)))
         {

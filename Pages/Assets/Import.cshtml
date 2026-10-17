@@ -3,7 +3,7 @@
 @model EduHelpdesk.Pages.Assets.ImportModel
 @{ ViewData["Title"] = "Import assets"; }
 <div class="page-heading">
-    <div><p class="eyebrow">ASSET REGISTER</p><h1>Import assets</h1><p class="hero-copy">Bring assets in from a spreadsheet. Rows are matched to existing assets by asset tag: a tag that already exists updates that asset, and any other tag adds a new one.</p></div>
+    <div><h1>Import assets</h1><p class="hero-copy">Bring assets in from a spreadsheet. Rows are matched to existing assets by asset tag: a tag that already exists updates that asset, and any other tag adds a new one.</p></div>
     <a class="button button-secondary" asp-page="/Assets">← Back to assets</a>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -114,7 +114,7 @@ else
     </section>
 
     <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">ROW BY ROW</p><h2>@(Model.Show switch { "create" => "New assets", "update" => "Updated assets", "unchanged" => "Already up to date", "error" => "Skipped rows", _ => "All rows" })</h2></div><span class="badge">@Model.ShownCount.ToString("N0") of @plan.Results.Count.ToString("N0")</span></div>
+        <div class="panel-heading"><div><h2>@(Model.Show switch { "create" => "New assets", "update" => "Updated assets", "unchanged" => "Already up to date", "error" => "Skipped rows", _ => "All rows" })</h2></div><span class="badge">@Model.ShownCount.ToString("N0") of @plan.Results.Count.ToString("N0")</span></div>
         <div class="report-nav">
             <a href="@Model.PageUrl(1, "all")">All</a><a href="@Model.PageUrl(1, "create")">New</a><a href="@Model.PageUrl(1, "update")">Updated</a><a href="@Model.PageUrl(1, "unchanged")">Up to date</a><a href="@Model.PageUrl(1, "error")">Problems</a>
         </div>

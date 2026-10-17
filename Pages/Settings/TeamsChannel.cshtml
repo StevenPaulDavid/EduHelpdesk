@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.TeamsChannelModel
 @{ ViewData["Title"] = "Teams channel"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / SYSTEM</p><h1>Teams channel</h1><p class="hero-copy">Post a short message to a Microsoft Teams channel when a requester submits a ticket in the portal, and when a ticket becomes overdue.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Teams channel</h1><p class="hero-copy">Post a short message to a Microsoft Teams channel when a requester submits a ticket in the portal, and when a ticket becomes overdue.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice@(Model.Problem ? " notice-warning" : "")">@Model.Message</div> }
 
 @if (Model.HasSeveralDesks)

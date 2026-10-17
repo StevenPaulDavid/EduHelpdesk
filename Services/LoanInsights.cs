@@ -44,7 +44,6 @@ public static class LoanInsights
         public int Count => Loans.Count;
         // Only loans that count toward flagging, which is what the repeat-borrower threshold is measured against.
         public int CountedLoans => Loans.Count(x => x.CountsTowardFlag);
-        public DateTime FirstIssued => Loans.Min(x => x.SortDate);
         public DateTime LastIssued => Loans.Max(x => x.SortDate);
         public int StillOut => Loans.Count(x => x.IsOut);
         public IReadOnlyList<(string Reason, int Count)> ByReason => Loans

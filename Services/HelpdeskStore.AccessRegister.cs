@@ -19,12 +19,6 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<string> RevokeReasons { get { lock (_sync) return _data.RevokeReasons.ToList(); } }
     public int AccessReviewDays { get { lock (_sync) return _data.AccessReviewDays; } }
 
-    // Every problem with a person's live access, for the People list, the leaver check and the Overview.
-    public int ActiveGrantCount(Guid personId)
-    {
-        lock (_sync) return _data.AccessGrants.Count(x => x.PersonId == personId && x.IsActive(AssetInsights.Today));
-    }
-
     // Version 2 of the compliance defaults (see EnsureComplianceDefaults): the access register's lists, and the
     // business manager - who the standard says reviews access with IT - able to read the register and record reviews.
     private void EnsureAccessDefaults()

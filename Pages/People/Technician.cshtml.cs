@@ -22,6 +22,8 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
     public string TeamDesk(string team) => store.DeskForTeam(team)?.Name ?? "";
     public bool IsAdministrator => string.Equals(User.FindFirst(ClaimTypes.Role)?.Value, StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase);
     public bool IsSelf => Technician is not null && Technician.Id == SignedInId;
+    // Deleting is on the account's own page, not a bin on every row of the People list - and never your own.
+    public bool CanDelete => Technician is not null && !IsSelf && store.UserCan(User, Modules.StaffAccounts, ModulePermission.Delete);
     private Guid? SignedInId => Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
 
     // One page serves adding and editing, so the convention lets in anyone with either permission and the handlers
@@ -58,7 +60,7 @@ public class TechnicianModel(HelpdeskStore store, SignInThrottle throttle, Tempo
             return Page();
         }
         var normalizedRole = store.NormalizeRoleName(role);
-        // Staff accounts: Edit is about looking after colleagues' accounts, not a way up. Only an Administrator can hand
+        // Technician accounts: Edit is about looking after colleagues' accounts, not a way up. Only an Administrator can hand
         // out Administrator or touch an Administrator's account (a password reset there is as good as the role itself),
         // and nobody changes their own role or switches their own account off.
         if (existing is { Role: StaffRoles.Administrator } && !IsAdministrator)

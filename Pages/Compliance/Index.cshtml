@@ -7,7 +7,7 @@
     var warning = Model.All.Count(x => x.Level == ComplianceFinding.Levels.Warning);
 }
 <div class="page-heading">
-    <div><p class="eyebrow">COMPLIANCE</p><h1>Compliance summary</h1><p class="hero-copy">The registers the DfE digital and technology standards ask for - assets, contracts and access control - and everything on them that needs acting on, most urgent first.</p></div>
+    <div><h1>Compliance summary</h1><p class="hero-copy">The registers the DfE digital and technology standards ask for - assets, contracts and access control - and everything on them that needs acting on, most urgent first.</p></div>
 </div>
 
 <div class="metrics">
@@ -23,7 +23,7 @@
     @foreach (var register in Model.Registers)
     {
         <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">REGISTER</p><h2><a href="@Url.Page(register.Page)">@register.Name</a></h2></div></div>
+            <div class="panel-heading"><div><h2><a href="@Url.Page(register.Page)">@register.Name</a></h2></div></div>
             <p>
                 @if (register.Danger > 0) { <a class="badge badge-warning" href="@Model.FilterUrl(register.Key, "danger")">@register.Danger to act on</a> }
                 @if (register.Warning > 0) { <a class="badge badge-soon" href="@Model.FilterUrl(register.Key, "warning")">@register.Warning coming up</a> }
@@ -49,7 +49,7 @@
 
 <section class="panel directory-panel">
     <div class="panel-heading">
-        <div><p class="eyebrow">TO DO</p><h2>What needs acting on</h2></div>
+        <div><h2>What needs acting on</h2></div>
         <div class="heading-actions"><span class="badge">@Model.Shown.Count</span></div>
     </div>
     <nav class="queue-tabs" aria-label="Register">

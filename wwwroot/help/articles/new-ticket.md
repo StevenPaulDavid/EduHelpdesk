@@ -8,7 +8,7 @@ needs: Tickets:New
 keywords: new ticket log a ticket create raise job template requester category priority assign
 order: 3
 ---
-Use **Log a ticket** in the top bar, or **New ticket** on the Tickets page, for a job that still needs doing. (Staff usually report their own problems through the staff portal; this form is for jobs you log yourself.)
+Use **Log a ticket** in the top bar for a job that still needs doing. (Staff usually report their own problems through the staff portal; this form is for jobs you log yourself.)
 
 With more than one desk, **Log a ticket** goes to the desk you're working on: **Log a Site ticket** starts the form on the Site desk's categories. On **My desks** or **All desks** it's a menu, so you pick the desk first. See [Desks](desks).
 

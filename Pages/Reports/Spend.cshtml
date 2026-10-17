@@ -21,8 +21,8 @@
     }
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Job spend</h1><p class="hero-copy">What jobs cost, from the Costs tab on tickets: by budget code, desk, month and supplier, with every line below.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a></div>
+    <div><h1>Job spend</h1><p class="hero-copy">What jobs cost, from the Costs tab on tickets: by budget code, desk, month and supplier, with every line below.</p></div>
+    <div class="heading-actions"></div>
 </div>
 <partial name="_ReportTabs" model="@("/Reports/Spend")" />
 
@@ -44,7 +44,7 @@
 </div>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">SUMMARY</p><h2>Where it went</h2></div></div>
+    <div class="panel-heading"><div><h2>Where it went</h2></div></div>
     @{ await Groups("By budget code", "Budget code", Model.ByCode); }
     @if (Model.ByDesk.Count > 0) { await Groups("By desk", "Desk", Model.ByDesk); }
     @{ await Groups("By month", "Month", Model.ByMonth); }
@@ -52,7 +52,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">DETAIL</p><h2>Every cost line</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Spend" asp-page-handler="Export" asp-route-year="@Model.Year" asp-route-desk="@Model.DeskName">⬇ CSV</a> }</div></div>
+    <div class="panel-heading"><div><h2>Every cost line</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Spend" asp-page-handler="Export" asp-route-year="@Model.Year" asp-route-desk="@Model.DeskName">⬇ CSV</a> }</div></div>
     <div class="table-wrap"><table>
         <thead><tr><th>Date</th><th>Ticket</th><th>What</th><th>Supplier</th><th>Budget code</th><th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th></tr></thead>
         <tbody>

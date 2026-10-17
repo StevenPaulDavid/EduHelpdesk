@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Desks";
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves, such as IT, Site or Cleaning. Each has its own categories, teams and people, and its own ticket numbers with their own prefix (SITE-1, SITE-2…). A ticket is on the desk its category belongs to, so moving a ticket to another desk is giving it one of that desk's categories. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><h1>Desks</h1><p class="hero-copy">A desk is a part of the school the helpdesk serves, such as IT, Site or Cleaning. Each has its own categories, teams and people, and its own ticket numbers with their own prefix (SITE-1, SITE-2…). A ticket is on the desk its category belongs to, so moving a ticket to another desk is giving it one of that desk's categories. With more than one desk, the staff portal asks which desk first and the ticket list opens on your own desks.</p></div></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 
 <section class="panel">
@@ -18,7 +18,7 @@
         </div>
         <button class="button button-primary" type="submit">@Icons.Plus Add desk</button>
     </form>
-    <p class="muted">Then give it its categories in <a asp-page="/Settings/Categories">Categories</a> and its teams in <a asp-page="/Settings/Teams">Teams</a>, and add people to it on their staff account in People.</p>
+    <p class="muted">Then give it its categories in <a asp-page="/Settings/Categories">Categories</a> and its teams in <a asp-page="/Settings/Teams">Teams</a>, and add people to it on their technician account in People.</p>
 </section>
 
 <section class="panel">

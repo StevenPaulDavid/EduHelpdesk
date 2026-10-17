@@ -20,7 +20,7 @@ You can read every article, even about parts of EduHelpdesk your role can't open
 
 ## Help for the page you're on
 
-When a page has a guide, there's a **? Help** link next to its title. It opens the guide for that page.
+When a page has a guide, there's a **?** next to its title. It opens the guide for that page.
 
 ## Tips on fields
 

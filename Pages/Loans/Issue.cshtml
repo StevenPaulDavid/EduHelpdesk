@@ -3,7 +3,7 @@
 @model EduHelpdesk.Pages.Loans.IssueModel
 @{ ViewData["Title"] = Model.Kit is null ? "Issue a loan" : $"Issue {Model.Kit.Name}"; }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / LOANS</p><h1>@(Model.Kit is null ? "Issue a loan" : $"Issue {Model.Kit.Name}")</h1></div>
+    <div><h1>@(Model.Kit is null ? "Issue a loan" : $"Issue {Model.Kit.Name}")</h1></div>
     <a class="button button-secondary" asp-page="/Loans">← Back</a>
 </div>
 <section class="panel">

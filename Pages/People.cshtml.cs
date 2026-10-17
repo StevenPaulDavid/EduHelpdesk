@@ -36,15 +36,12 @@ public class PeopleModel(HelpdeskStore store, TemporaryPasswords passwords) : Pa
     public bool CanSeeUsers => store.UserCan(User, Modules.Requesters, ModulePermission.Access);
     public bool CanOpenUser => store.UserCan(User, Modules.Requesters, ModulePermission.View);
     public bool CanAddUsers => store.UserCan(User, Modules.Requesters, ModulePermission.New);
-    public bool CanDeleteUsers => store.UserCan(User, Modules.Requesters, ModulePermission.Delete);
     public bool CanSeeTechnicians => store.UserCan(User, Modules.StaffAccounts, ModulePermission.Access);
     public bool CanEditTechnicians => store.UserCan(User, Modules.StaffAccounts, ModulePermission.Edit);
     public bool CanAddTechnicians => store.UserCan(User, Modules.StaffAccounts, ModulePermission.New);
-    public bool CanDeleteTechnicians => store.UserCan(User, Modules.StaffAccounts, ModulePermission.Delete);
     public bool CanSeeRoles => store.UserCan(User, Modules.Roles, ModulePermission.Access);
     public bool CanEditRoles => store.UserCan(User, Modules.Roles, ModulePermission.Edit);
     public bool CanAddRoles => store.UserCan(User, Modules.Roles, ModulePermission.New);
-    public bool CanDeleteRoles => store.UserCan(User, Modules.Roles, ModulePermission.Delete);
 
     public sealed record TabLink(string Key, string Label, int Count);
     // Only the tabs this role can open, in a fixed order.
@@ -91,7 +88,7 @@ public class PeopleModel(HelpdeskStore store, TemporaryPasswords passwords) : Pa
     public void OnGet()
     {
         var tabs = new List<TabLink>();
-        if (CanSeeUsers) tabs.Add(new(UsersTab, "Users", store.Users.Count));
+        if (CanSeeUsers) tabs.Add(new(UsersTab, "Requesters", store.Users.Count));
         if (CanSeeTechnicians) tabs.Add(new(TechniciansTab, "Technicians", store.Technicians.Count));
         if (CanSeeRoles) tabs.Add(new(RolesTab, "Roles", store.Roles.Count));
         Tabs = tabs;

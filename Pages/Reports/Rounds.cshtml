@@ -6,10 +6,9 @@
     var from = Model.Iso(Model.From); var to = Model.Iso(Model.To);
 }
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Cleaning rounds</h1><p class="hero-copy">Which rooms were missed on the cleaning rounds, and how they scored on spot checks. Days a round was due but nothing was recorded at all - holidays, or the supervisor off - are listed apart, not counted as missed.</p></div>
+    <div><h1>Cleaning rounds</h1><p class="hero-copy">Which rooms were missed on the cleaning rounds, and how they scored on spot checks. Days a round was due but nothing was recorded at all - holidays, or the supervisor off - are listed apart, not counted as missed.</p></div>
     <div class="heading-actions">
         @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/RoundsPrint" asp-route-from="@from" asp-route-to="@to" asp-route-round="@Model.RoundId" target="_blank">🖨 Print / Save as PDF</a> }
-        <a class="button button-secondary" asp-page="/Index">← Overview</a>
     </div>
 </div>
 <partial name="_ReportTabs" model="@("/Reports/Rounds")" />

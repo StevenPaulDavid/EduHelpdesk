@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.InventoryRulesModel
 @{ ViewData["Title"] = "Asset, part & loan rules"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -35,6 +35,6 @@
 
 <section class="panel">
     <div class="panel-heading"><h2>Repeat borrowing</h2></div>
-    <p class="muted">The loan report flags anyone who has taken this many kits inside this many days, so a line manager can be given a short list worth following up. Reasons are managed on the <a asp-page="/Settings/LoanReasons">Loan reasons</a> page, and let genuine cases (supply cover, a device in repair) be told apart from repeatedly forgetting one.</p>
+    <p class="muted">The loan report flags anyone who has taken this many kits inside this many days, so a line manager can be given a short list worth following up. Reasons are managed in <a asp-page="/Settings/Lists" asp-route-kind="LoanReasons">Lists → Loan reasons</a>, and let genuine cases (supply cover, a device in repair) be told apart from repeatedly forgetting one.</p>
     <form method="post" asp-page-handler="SaveLoanThreshold" class="import-row"><label>Flag after this many loans<input name="count" type="number" min="1" max="100" step="1" value="@Model.LoanRepeatCount" required /></label><label>Within this many days<input name="days" type="number" min="1" max="3650" step="1" value="@Model.LoanRepeatDays" required /></label><button class="button button-primary">Save</button></form>
 </section>

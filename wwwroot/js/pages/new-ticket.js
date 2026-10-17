@@ -47,12 +47,20 @@
     filterByDesk();
     filterTechnicians();
 
-    // Custom attributes that belong to particular categories only show while one of those categories is chosen.
-    categorySelect?.addEventListener("change", () => {
-        const category = categorySelect.value.toLowerCase();
+    // Custom attributes that belong to particular categories only show while one of those categories is chosen, and
+    // their section heading only while at least one of them shows.
+    const attributes = document.getElementById("ticket-attributes");
+    const showAttributes = () => {
+        const category = (categorySelect?.value || "").toLowerCase();
+        let shown = 0;
         document.querySelectorAll(".ticket-attribute-field").forEach(field => {
             const categories = JSON.parse(field.getAttribute("data-categories") || "[]");
             field.hidden = categories.length > 0 && !categories.some(c => c.toLowerCase() === category);
+            if (!field.hidden) shown++;
         });
-    });
+        if (attributes) attributes.hidden = shown === 0;
+    };
+    categorySelect?.addEventListener("change", showAttributes);
+    deskSelect?.addEventListener("change", showAttributes);
+    showAttributes();
 })();

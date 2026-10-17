@@ -32,7 +32,6 @@ public static class HelpTips
         ["ticket.due-date"] = new("Set a date by hand and it's marked Override and stays put. To go back to the SLA's date, clear the date and save, then choose the SLA again.", "due-dates-and-slas", "changing-the-due-date"),
 
         // The ticket list
-        ["tickets.working-as"] = new("Whose tickets My tickets shows. Pick a colleague to cover their queue while they're off. Remembered in this browser only.", "ticket-list", "working-as"),
         ["tickets.bulk"] = new("Tick tickets in the list, choose what to do, then Apply. Tickets an action can't apply to are skipped, and the message says why.", "update-many-tickets"),
 
         // Log a job already done
@@ -60,7 +59,6 @@ public static class HelpTips
         ["schoolday.periods"] = new("Lesson times, the same every school day. Leave gaps for break and lunch. A 1-period SLA is due at the end of the next full lesson.", "school-day", "periods"),
         ["catalogue.priority"] = new("What the portal's priority box starts on for this button. Staff can still change it. Blank starts on Normal.", "service-catalogue", "buttons"),
         ["catalogue.show"] = new("Untick to keep the item in the catalogue without offering it to staff - while a service is unavailable, say.", "service-catalogue", "buttons"),
-        ["template.portal"] = new("Shows this template as a button in the staff portal under its category. Its name is the button; staff can change the description but not the title.", "ticket-templates", "offering-it-in-the-staff-portal"),
         ["recurring.requester"] = new("Who the logged tickets are for - often yourself or the team that does the job, so replies come back to you.", "recurring-tickets", "the-ticket-it-logs"),
         ["recurring.starts"] = new("The first date it can be logged. Every 2 weeks, 3 months and so on count from here, so pick a date on the right weekday.", "recurring-tickets", "the-schedule"),
         ["recurring.school-day"] = new("Ticked, a date that falls on a weekend or day off moves to the next school day. Unticked, it's logged on the day itself.", "recurring-tickets", "the-schedule"),
@@ -85,7 +83,7 @@ public static class HelpTips
         ["account.desks"] = new("The desks they work on. They see only these desks' tickets, unless their role has See all desks.", "staff-accounts", "adding-one"),
         ["account.password"] = new("Leave blank for a temporary password they change at first sign-in, printed on their quick start guide. A password you type is theirs to keep.", "staff-accounts", "adding-one"),
         ["person.projects"] = new("Can raise projects: ask IT to source and quote for purchases from the portal. Project lead: also confirms priorities and assigns technicians.", "people", "a-requester-s-details"),
-        ["import.passwords"] = new("Gives everyone imported a temporary password and opens their quick start guides to print. Untick to import without passwords.", "imports", "requesters-and-staff-accounts"),
+        ["import.passwords"] = new("Gives everyone the import adds a temporary password and opens their quick start guides to print. Without it they have no password until you give them one from People.", "imports", "temporary-passwords"),
 
         // Assets and inventory
         ["asset.ownership"] = new("Owned by the school, or leased or loaned from someone else. For leased and loaned assets, End of support becomes the date the lease ends.", "asset-page", "details"),

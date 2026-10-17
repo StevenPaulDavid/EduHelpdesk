@@ -1,6 +1,6 @@
 ---
 title: The ticket list
-summary: The Tickets page - queues, Working as, search and filters, and updating many tickets at once.
+summary: The Tickets page - queues, search and filters, and updating many tickets at once.
 area: Tickets
 kind: page
 pages: /Jobs
@@ -12,11 +12,12 @@ order: 1
 
 ![The ticket list](tickets-list.png)
 
-## The buttons at the top
+## The More menu
 
-- **Daily sheet** - open jobs by room, ready to print and hand out. See [The daily sheet](daily-sheet).
+- **Print the daily sheet** - open tickets by room, ready to print and hand out. See [The daily sheet](daily-sheet).
 - **Log a job already done** - for something dealt with before anyone logged it. See [Logging a job already done](quick-log).
-- **New ticket** - log a job that still needs doing. See [Logging a new ticket](new-ticket).
+
+For a job that still needs doing, use **Log a ticket** in the top bar. See [Logging a new ticket](new-ticket).
 
 ## Queues
 
@@ -31,9 +32,9 @@ The tabs are the queues. The number on each tab is how many tickets are in it.
 | Onboarding | New starters' onboardings with IT tasks still to do |
 | All tickets | Everything, closed tickets included |
 
-## Working as
+## Covering a colleague
 
-**Working as** says whose tickets **My tickets** shows. Normally it's you. If your role has *Change "Working as"*, you can pick a colleague - handy for covering someone's queue while they're off. The choice is remembered in this browser only.
+**My tickets** is always your own. To work through a colleague's queue while they're off, choose them under **Technician** in the filters.
 
 ## Searching and filtering
 

@@ -18,7 +18,7 @@
         </div>
     }
 }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / RECURRING TICKETS</p><h1>Checklist - @schedule.Name</h1><p class="hero-copy">The lines each ticket this logs asks to be filled in - the fire alarm test, the water temperatures, every extinguisher. A reading outside its limits counts as a fail. The ticket can't be closed until every line is done, and closing it with fails raises one follow-up job listing them. Everything recorded is in Reports → Premises checks.</p></div><a class="button button-secondary" asp-page="/Settings/RecurringTickets">← Recurring tickets</a></div>
+<div class="page-heading"><div><h1>Checklist - @schedule.Name</h1><p class="hero-copy">The lines each ticket this logs asks to be filled in - the fire alarm test, the water temperatures, every extinguisher. A reading outside its limits counts as a fail. The ticket can't be closed until every line is done, and closing it with fails raises one follow-up job listing them. Everything recorded is in Reports → Premises checks.</p></div><a class="button button-secondary" asp-page="/Settings/RecurringTickets">← Recurring tickets</a></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
 
 <section class="panel">

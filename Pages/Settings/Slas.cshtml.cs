@@ -14,5 +14,10 @@ public class SlasModel(HelpdeskStore store) : PageModel
         TempData["Message"] = store.AddSla(name, duration, durationUnit, description, priorities, categories);
         return RedirectToPage();
     }
+    public IActionResult OnPostSave(Guid id, string name, int duration, string durationUnit, string? description, string[]? priorities, string[]? categories)
+    {
+        TempData["Message"] = store.UpdateSla(id, name, duration, durationUnit, description, priorities, categories);
+        return RedirectToPage();
+    }
     public IActionResult OnPostDelete(Guid id) { TempData["Message"] = store.DeleteSla(id); return RedirectToPage(); }
 }

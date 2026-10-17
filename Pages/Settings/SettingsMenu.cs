@@ -26,7 +26,6 @@ public static class SettingsMenu
             new("Ticket queues & closing", "/Settings/TicketRules", "due soon overdue window hours reopen reply closed days closing message requirement print template word docx"),
             new("Statuses", "/Settings/Statuses", "status on hold pause sla clock"),
             new("Categories", "/Settings/Categories", "category hardware software"),
-            new("Priorities", "/Settings/Priorities", "priority urgent high normal low"),
             new("SLAs", "/Settings/Slas", "sla service level due date target"),
             new("School day and periods", "/Settings/SchoolDay", "school day week periods lessons timetable working hours"),
             new("Service catalogue", "/Settings/ServiceCatalogue", "service catalogue catalog sub category portal common problems"),
@@ -39,40 +38,21 @@ public static class SettingsMenu
         [
             new("Asset, part & loan rules", "/Settings/InventoryRules", "review warranty replacement academic year finance reorder threshold low stock loan repeat borrowing dfe check interval end of support unsupported"),
             new("Asset types", "/Settings/AssetTypes", "type lifespan laptop"),
-            new("Asset makes", "/Settings/AssetMakes", "make manufacturer brand"),
             new("Asset models", "/Settings/AssetModels", "model"),
-            new("Asset statuses", "/Settings/AssetStatuses", "asset status disposed"),
-            new("Asset conditions", "/Settings/AssetConditions", "asset condition new used refurbished donated dfe"),
             new("Custom asset attributes", "/Settings/AssetAttributes", "custom fields attributes extra"),
-            new("Part categories", "/Settings/PartCategories", "part category"),
-            new("Part locations", "/Settings/PartLocations", "part location store cupboard"),
-            new("Loan reasons", "/Settings/LoanReasons", "loan reason kit"),
         ]),
         new("People & places",
         [
             new("Teams", "/Settings/Teams", "team"),
-            new("Departments", "/Settings/Departments", "department"),
-            new("Buildings", "/Settings/Buildings", "building block site campus dfe"),
-            new("Locations (rooms)", "/Settings/Locations", "location room building site"),
             new("Cleaning rounds", "/Settings/Rounds", "cleaning rounds rooms cleaner cleaners rota sheet supervisor spot check daily weekly", Need.Facilities),
             new("Cleaners", "/Settings/Cleaners", "cleaner cleaners cleaning staff names contractor rounds", Need.Facilities),
             new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Onboarding checklists", "/Settings/Onboarding", "onboarding new starter staff checklist template tasks"),
-        ]),
-        new("Compliance",
-        [
-            new("Contract types", "/Settings/ContractTypes", "contract type licence subscription lease support dfe register"),
-            new("Spend categories", "/Settings/SpendCategories", "spend category contracts register dfe"),
-            new("Contract durations", "/Settings/ContractDurations", "contract duration length yearly rolling"),
-            new("Contract statuses", "/Settings/ContractStatuses", "contract status active expired"),
-            new("Person types", "/Settings/PersonTypes", "person type staff pupil governor contractor service account access"),
-            new("System and area categories", "/Settings/AccessCategories", "access category system area mis cloud key fob"),
-            new("Reasons for removing access", "/Settings/RevokeReasons", "revoke remove access reason leaver"),
+            new("Lists", "/Settings/Lists", "lists dropdown options priorities asset makes asset statuses asset conditions part categories part locations loan reasons departments buildings locations (rooms) contract types spend categories contract durations contract statuses person types system and area categories reasons for removing access purchasing requirements priority urgent high normal low make manufacturer brand asset status disposed condition new used refurbished donated dfe part category location store cupboard loan reason kit department building block site campus room contract type licence subscription lease support register spend contracts duration length yearly rolling active expired person staff pupil governor contractor service account access system area mis cloud key fob revoke remove leaver purchasing requirement project request"),
         ]),
         new("Projects",
         [
             new("Spending bands", "/Settings/SpendingBands", "spending bands quotes finance policy threshold vat ex inc excluding including amounts project page"),
-            new("Purchasing requirements", "/Settings/PurchasingRequirements", "purchasing requirement project request"),
         ]),
         new("System",
         [
@@ -90,6 +70,35 @@ public static class SettingsMenu
             new("Go live & reset", "/Settings/Reset", "demo data go live factory reset erase delete everything"),
         ]),
     ];
+
+    // The plain lists the dropdowns offer - a name each, renamed or removed - on one page, Settings → Lists
+    // (Pages/Settings/Lists.cshtml), a tab each. Lists with more to them (categories and teams on desks, statuses that
+    // pause the clock, cleaners and budget codes for "Set up facilities") keep pages of their own.
+    public sealed record ListItem(string Kind, string Title, string Group, string Description);
+
+    public static readonly IReadOnlyList<ListItem> Lists =
+    [
+        new("Priorities", "Priorities", "Tickets", "How urgent a ticket is."),
+        new("AssetMakes", "Asset makes", "Assets & inventory", "Manufacturers."),
+        new("AssetStatuses", "Asset statuses", "Assets & inventory", "Where an asset is in its life."),
+        new("AssetConditions", "Asset conditions", "Assets & inventory", "The condition column of the DfE asset register."),
+        new("PartCategories", "Part categories", "Assets & inventory", "How parts are grouped."),
+        new("PartLocations", "Part locations", "Assets & inventory", "Where parts are kept."),
+        new("LoanReasons", "Loan reasons", "Assets & inventory", "Why a device was borrowed."),
+        new("Departments", "Departments", "People & places", "Requesters' departments."),
+        new("Buildings", "Buildings", "People & places", "Buildings or sites, recorded with the room on each asset."),
+        new("Locations", "Locations (rooms)", "People & places", "Rooms and areas, for tickets, assets and people."),
+        new("ContractTypes", "Contract types", "Compliance", "What kind of contract each is: licence, subscription, lease."),
+        new("SpendCategories", "Spend categories", "Compliance", "The DfE spend categories contracts are grouped under."),
+        new("ContractDurations", "Contract durations", "Compliance", "How long contracts run for."),
+        new("ContractStatuses", "Contract statuses", "Compliance", "Where a contract is. Expired takes it out of the warnings."),
+        new("PersonTypes", "Person types", "Compliance", "Staff, pupils, governors, contractors and service accounts, for the access register."),
+        new("AccessCategories", "System and area categories", "Compliance", "How systems and areas are grouped on the access register."),
+        new("RevokeReasons", "Reasons for removing access", "Compliance", "Why access was taken away: leaver, changed role, removed at review."),
+        new("PurchasingRequirements", "Purchasing requirements", "Projects", "Tick boxes offered when a project is requested."),
+    ];
+
+    public static ListItem? FindList(string? kind) => Lists.FirstOrDefault(x => string.Equals(x.Kind, kind, StringComparison.OrdinalIgnoreCase));
 
     public static bool CanOpen(HelpdeskStore store, ClaimsPrincipal user, Item item) => item.Need switch
     {

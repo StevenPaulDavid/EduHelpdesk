@@ -1,6 +1,6 @@
 ---
 title: The People page
-summary: Requesters, staff accounts and roles in one place - finding people, portal passwords, leavers and subject access.
+summary: Requesters, technician accounts and roles in one place - finding people, portal passwords, leavers and subject access.
 area: People and roles
 kind: page
 pages: /People, /People/User, /User
@@ -12,9 +12,9 @@ order: 3
 
 | Tab | Who's in it |
 | --- | --- |
-| Users | **Requesters** - staff who report problems in the staff portal |
-| Technicians | **Staff accounts** - helpdesk logins. See [Staff accounts](staff-accounts) |
-| Roles | What each kind of staff account can do. See [Roles and permissions](roles-and-permissions) |
+| Requesters | Staff who report problems in the staff portal |
+| Technicians | **Technician accounts** - helpdesk logins. See [Technician accounts](staff-accounts) |
+| Roles | What each kind of technician account can do. See [Roles and permissions](roles-and-permissions) |
 
 Filter a tab by department or team and by status (active or inactive), and search by name or email.
 
@@ -28,6 +28,12 @@ Open a requester to see and change:
 - **Project lead** - confirms each project's priority and assigns the technician, from the portal.
 - **Set a password** / **Give them a temporary password** - their staff portal password.
 - **Select tickets** - tick tickets to make this person their requester.
+
+To delete someone, open them and choose **More → Delete requester…** (or **Delete technician…** on a technician account). Marking a leaver inactive is usually better: their history keeps their name.
+
+## Importing a staff list
+
+**Import a staff list** on the Requesters tab brings requesters in from the MIS or HR system's export (.xlsx or .csv). People are matched by email, then name: new ones are added, existing ones updated, and a leave date marks someone as having left. You see a preview before anything changes. Tick the box before applying to give the people it adds a temporary portal password and print their quick start guides.
 
 ## When someone leaves
 
