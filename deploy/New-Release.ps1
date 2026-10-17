@@ -42,7 +42,9 @@ if (-not $git) { $git = Get-ChildItem "$env:LOCALAPPDATA\GitHubDesktop\app-*\res
 function Step([string]$text) { Write-Host ""; Write-Host $text -ForegroundColor Cyan }
 
 # ---- 1. Version -----------------------------------------------------------------------------------------------------
-$csproj = Get-Content $project -Raw
+# Read as UTF-8 (not Get-Content, which Windows PowerShell reads as ANSI): step 7 writes it back as UTF-8, and a
+# mismatch doubles every non-ASCII character in the file on each release.
+$csproj = [IO.File]::ReadAllText($project)
 $current = [version]([regex]::Match($csproj, '<Version>([^<]+)</Version>').Groups[1].Value)
 $released = @(Get-ChildItem $releases -Filter "EduHelpdesk-*.zip" -ErrorAction SilentlyContinue |
     ForEach-Object { [version]($_.BaseName -replace '^EduHelpdesk-', '') } | Sort-Object -Descending)
