@@ -76,7 +76,20 @@
         <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Ping.Enabled" /> Ping technicians about new tickets at these priorities</label>
         <div class="checkbox-grid">
             <div><p class="eyebrow">Priorities that ping</p>@foreach (var priority in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@priority" checked="@Model.Ping.Priorities.Contains(priority, StringComparer.OrdinalIgnoreCase)" /> @priority</label> }</div>
-            <div><p class="eyebrow">Technicians' PCs (EduNotify groups)</p>@foreach (var group in Model.PingGroupChoices) { <label class="toggle-label"><input type="checkbox" name="groups" value="@group" checked="@Model.Ping.Groups.Contains(group, StringComparer.OrdinalIgnoreCase)" /> @group</label> }@if (Model.PingGroupChoices.Count == 0) { <p class="empty">No groups to choose from yet.</p> }</div>
+            @if (Model.HasSeveralDesks)
+            {
+                @* Each desk's tickets ping its own people's PCs; a desk with none ticked doesn't ping. *@
+                foreach (var desk in Model.Desks)
+                {
+                    var chosen = Model.Ping.DeskGroups.GetValueOrDefault(desk.Id) ?? [];
+                    <div><p class="eyebrow">@desk.Name desk's PCs (EduNotify groups)</p>@foreach (var group in Model.PingGroupChoices) { <label class="toggle-label"><input type="checkbox" name="pinggroups-@desk.Id" value="@group" checked="@chosen.Contains(group, StringComparer.OrdinalIgnoreCase)" /> @group</label> }@if (Model.PingGroupChoices.Count == 0) { <p class="empty">No groups to choose from yet.</p> }</div>
+                }
+                <p class="muted">A desk with no group ticked doesn't ping, so the site team's PCs never show an IT ticket.</p>
+            }
+            else
+            {
+                <div><p class="eyebrow">Technicians' PCs (EduNotify groups)</p>@foreach (var group in Model.PingGroupChoices) { <label class="toggle-label"><input type="checkbox" name="groups" value="@group" checked="@Model.Ping.Groups.Contains(group, StringComparer.OrdinalIgnoreCase)" /> @group</label> }@if (Model.PingGroupChoices.Count == 0) { <p class="empty">No groups to choose from yet.</p> }</div>
+            }
         </div>
         <label>Template
             <select name="templateId">

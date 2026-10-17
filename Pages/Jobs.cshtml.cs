@@ -42,8 +42,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Types => TicketTypes.All;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
-    public bool HasSeveralDesks => store.HasSeveralDesks;
-    public IReadOnlyList<Desk> Desks => store.Desks;
+    // Only the desks this person can see (HelpdeskStore.Desks): with one, there's nothing to choose between.
+    public IReadOnlyList<Desk> Desks => _visibleDesks ??= store.DesksVisibleTo(User);
+    private IReadOnlyList<Desk>? _visibleDesks;
+    public bool HasSeveralDesks => Desks.Count > 1;
     // The desks being shown, empty for all of them, and the ones the account opens on.
     public List<Desk> ShownDesks { get; private set; } = [];
     private List<Desk> _myDesks = [];
@@ -83,7 +85,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         });
         Prepare();
         var context = Context();
-        var all = store.Tickets;
+        // Another desk's tickets aren't here at all for someone not on it.
+        var all = store.TicketsFor(User);
         var matches = BuildQuery().Run(all, context);
         // The queue tabs count within the desks shown, so a site technician's "Open" is the site's open tickets.
         var scoped = ShownDesks.Count == 0 ? all : all.Where(t => ShownDesks.Any(d => d.Id == _deskOf(t.Category).Id)).ToList();
@@ -106,7 +109,9 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!store.UserCan(User, Modules.Tickets, ModulePermission.Edit)) return Forbid();
         if (operation == "merge" && !store.UserCan(User, Modules.Tickets, ModulePermission.Delete)) return Forbid();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
-        var targets = selectAll ? BuildQuery().Run(store.Tickets, Context()).Select(x => x.Number).ToList() : (ids ?? []).Distinct().ToList();
+        var visible = store.TicketsFor(User);
+        var visibleNumbers = visible.Select(x => x.Number).ToHashSet();
+        var targets = selectAll ? BuildQuery().Run(visible, Context()).Select(x => x.Number).ToList() : (ids ?? []).Distinct().Where(visibleNumbers.Contains).ToList();
         if (targets.Count == 0)
         {
             Message = "Select at least one ticket.";
@@ -116,8 +121,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (operation == "export")
         {
             var chosen = targets.ToHashSet();
-            var sorted = BuildQuery().Run(store.Tickets.Where(x => chosen.Contains(x.Number)), Context());
-            var csv = TicketCsv.Build(sorted, store.Users, store.Technicians, store.Assets, store.Slas, store.TicketAttributeDefinitions, store.TicketAttributeValues, store.HasSeveralDesks ? _deskOf : null);
+            var sorted = BuildQuery().Run(visible.Where(x => chosen.Contains(x.Number)), Context());
+            var csv = TicketCsv.Build(sorted, store.Users, store.Technicians, store.Assets, store.Slas, store.TicketAttributeDefinitions, store.TicketAttributeValues.Where(x => visibleNumbers.Contains(x.TicketNumber)).ToList(), store.HasSeveralDesks ? _deskOf : null);
             var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
             return File(bytes, "text/csv; charset=utf-8", TicketCsv.FileName(DateTime.Now));
         }
@@ -127,7 +132,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         int? mergeNumber = null;
         if (operation == "merge")
         {
-            var (found, error) = store.FindTicketByRef(mergeTarget);
+            var (found, error) = store.FindTicketByRef(mergeTarget, store.TicketVisibility(User));
             if (found is null) { Message = error; return Back(); }
             mergeNumber = found;
         }
@@ -238,8 +243,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
     private void PrepareDesks()
     {
         _deskOf = store.DeskLookup();
-        if (!store.HasSeveralDesks) { ShownDesks = []; Desk = []; return; }
-        var desks = store.Desks;
+        if (!HasSeveralDesks) { ShownDesks = []; Desk = []; return; }
+        var desks = Desks;
         _myDesks = store.DesksOf(User).ToList();
         // Being on every desk is the same as no filter.
         if (_myDesks.Count == desks.Count) _myDesks = [];
@@ -253,7 +258,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
 
     // The desk part of an address: nothing when it's the account's own desks, "all" for every desk.
     private object? DeskRoute(List<Desk> desks) =>
-        !store.HasSeveralDesks || desks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id)) ? null
+        !HasSeveralDesks || desks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id)) ? null
         : desks.Count == 0 ? "all"
         : desks.Select(x => x.Name).ToArray();
 
@@ -270,7 +275,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         foreach (var value in Type) yield return ("type", value);
         if (!string.IsNullOrWhiteSpace(Technician)) yield return ("tech", Technician);
         if (!string.IsNullOrWhiteSpace(Team)) yield return ("team", Team);
-        if (store.HasSeveralDesks)
+        if (HasSeveralDesks)
         {
             if (ShownDesks.Count == 0) yield return ("desk", "all");
             foreach (var desk in ShownDesks) yield return ("desk", desk.Name);

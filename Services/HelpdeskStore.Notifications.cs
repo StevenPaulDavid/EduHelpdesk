@@ -32,7 +32,9 @@ public sealed partial class HelpdeskStore
     // table has been emptied or the app restarted, so a browser can keep "the last one I handled" and ask for later ones.
     // RecipientId is the account it is for; null means every staff account. ActorId is the technician it is about, for
     // the kinds that name one; their name is looked up when it is shown, like the rest of the wording.
-    public sealed record Notification(long Id, string Audience, Guid? RecipientId, string Kind, int? TicketNumber, DateTime CreatedAt, Guid? ActorId = null);
+    // DeskId is the desk the ticket was on when it was sent to every member of staff (HelpdeskStore.Desks): only people
+    // who see that desk's tickets hear it. Null for everything else, and for messages from before desks.
+    public sealed record Notification(long Id, string Audience, Guid? RecipientId, string Kind, int? TicketNumber, DateTime CreatedAt, Guid? ActorId = null, Guid? DeskId = null);
 
     // Everything newer than the caller asked for that is addressed to them, oldest first, and the cursor to ask from next
     // time: the newest id there is, which is also right when nothing was found. Unread is the bell's count, when it was
@@ -59,17 +61,21 @@ public sealed partial class HelpdeskStore
     public long AddNotification(string audience, Guid? recipientId, string kind, int? ticketNumber = null, Guid? actorId = null)
     {
         if (!NotificationsOpenFor(audience)) return 0;
+        // Worked out before the notification lock is taken, so the two locks are only ever taken in this order.
+        Guid? deskId = null;
+        if (audience == StaffAudience && recipientId is null && ticketNumber is { } ticket)
+            lock (_sync) deskId = _data.Tickets.FirstOrDefault(x => x.Number == ticket) is { } found ? DeskForCategoryCore(found.Category).Id : null;
         lock (_notificationSync)
         {
             var now = DateTime.UtcNow;
             var id = Math.Max(_lastNotificationId + 1, new DateTimeOffset(now).ToUnixTimeMilliseconds());
-            var notification = new Notification(id, audience, recipientId, kind, ticketNumber, now, actorId);
+            var notification = new Notification(id, audience, recipientId, kind, ticketNumber, now, actorId, deskId);
             // A ping that can't be written down must never stop the ticket or comment that caused it, so a failure is
             // logged and the ping still goes out from memory - it only won't survive a restart.
             try
             {
-                ExecuteDirect("INSERT INTO Notifications (Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt, ActorId) VALUES ($id, $audience, $recipient, $kind, $ticket, $created, $actor);",
-                    ("$id", id), ("$audience", audience), ("$recipient", recipientId?.ToString()), ("$kind", kind), ("$ticket", ticketNumber), ("$created", Iso(now)), ("$actor", actorId?.ToString()));
+                ExecuteDirect("INSERT INTO Notifications (Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt, ActorId, DeskId) VALUES ($id, $audience, $recipient, $kind, $ticket, $created, $actor, $desk);",
+                    ("$id", id), ("$audience", audience), ("$recipient", recipientId?.ToString()), ("$kind", kind), ("$ticket", ticketNumber), ("$created", Iso(now)), ("$actor", actorId?.ToString()), ("$desk", deskId?.ToString()));
             }
             catch (Exception exception) when (exception is SqliteException or IOException)
             {
@@ -96,17 +102,18 @@ public sealed partial class HelpdeskStore
     // than being told about everything still on file.
     // broadcast says whether this account may be told what is sent to every member of staff: only those who can see
     // tickets should hear that one has arrived. What is addressed to them personally always gets through.
-    public NotificationBatch NotificationsFor(string audience, Guid accountId, long after, bool broadcast = true)
+    // desks narrows that to the desks they see (HelpdeskStore.VisibleDeskIds); null for every desk.
+    public NotificationBatch NotificationsFor(string audience, Guid accountId, long after, bool broadcast = true, IReadOnlySet<Guid>? desks = null)
     {
-        lock (_notificationSync) return BatchFor(audience, accountId, after, broadcast, countUnread: false);
+        lock (_notificationSync) return BatchFor(audience, accountId, after, broadcast, desks, countUnread: false);
     }
 
-    private NotificationBatch BatchFor(string audience, Guid accountId, long after, bool broadcast, bool countUnread)
+    private NotificationBatch BatchFor(string audience, Guid accountId, long after, bool broadcast, IReadOnlySet<Guid>? desks, bool countUnread)
     {
-        int? unread = countUnread && audience == StaffAudience ? UnreadFor(accountId, broadcast) : null;
+        int? unread = countUnread && audience == StaffAudience ? UnreadFor(accountId, broadcast, desks) : null;
         if (after < 0) return new NotificationBatch(_lastNotificationId, [], unread);
         var items = _notifications
-            .Where(x => x.Id > after && x.Audience == audience && (x.RecipientId == accountId || (broadcast && x.RecipientId is null && audience == StaffAudience)))
+            .Where(x => x.Id > after && x.Audience == audience && (x.RecipientId == accountId || (audience == StaffAudience && AddressedTo(x, accountId, broadcast, desks))))
             .TakeLast(NotificationsPerAnswer)
             .ToList();
         return new NotificationBatch(_lastNotificationId, items, unread);
@@ -117,7 +124,7 @@ public sealed partial class HelpdeskStore
     // does (the browser moved to another page) and when the app is stopping.
     // knownUnread is the bell's count as the page shows it (staff only): the wait also ends when the real count differs,
     // so reading something in one tab, or on another computer, clears the badge everywhere else straight away.
-    public async Task<NotificationBatch> WaitForNotificationsAsync(string audience, Guid accountId, long after, TimeSpan wait, CancellationToken cancel, bool broadcast = true, int? knownUnread = null)
+    public async Task<NotificationBatch> WaitForNotificationsAsync(string audience, Guid accountId, long after, TimeSpan wait, CancellationToken cancel, bool broadcast = true, int? knownUnread = null, IReadOnlySet<Guid>? desks = null)
     {
         var deadline = DateTime.UtcNow + wait;
         while (true)
@@ -126,7 +133,7 @@ public sealed partial class HelpdeskStore
             Task signal;
             lock (_notificationSync)
             {
-                batch = BatchFor(audience, accountId, after, broadcast, countUnread: knownUnread is not null);
+                batch = BatchFor(audience, accountId, after, broadcast, desks, countUnread: knownUnread is not null);
                 signal = _notificationArrived.Task;
             }
             var remaining = deadline - DateTime.UtcNow;
@@ -168,17 +175,17 @@ public sealed partial class HelpdeskStore
     // The test only proves pop-ups work; it isn't something that needs doing, so it never sits in the list.
     private static bool BelongsInCentre(Notification x) => x.Audience == StaffAudience && x.Kind != NotificationKinds.Test;
 
-    private static bool AddressedTo(Notification x, Guid accountId, bool broadcast) =>
-        x.RecipientId == accountId || (broadcast && x.RecipientId is null);
+    private static bool AddressedTo(Notification x, Guid accountId, bool broadcast, IReadOnlySet<Guid>? desks = null) =>
+        x.RecipientId == accountId || (broadcast && x.RecipientId is null && (desks is null || x.DeskId is not { } desk || desks.Contains(desk)));
 
-    // How many the bell shows. broadcast as for NotificationsFor: only those who can see tickets hear about them.
-    public int UnreadNotificationCount(Guid accountId, bool broadcast)
+    // How many the bell shows. broadcast and desks as for NotificationsFor: only those who can see a ticket hear about it.
+    public int UnreadNotificationCount(Guid accountId, bool broadcast, IReadOnlySet<Guid>? desks = null)
     {
-        lock (_notificationSync) return UnreadFor(accountId, broadcast);
+        lock (_notificationSync) return UnreadFor(accountId, broadcast, desks);
     }
 
     // The newest first, up to take of them, with which are unread.
-    public NotificationInbox InboxFor(Guid accountId, bool broadcast, int take)
+    public NotificationInbox InboxFor(Guid accountId, bool broadcast, int take, IReadOnlySet<Guid>? desks = null)
     {
         lock (_notificationSync)
         {
@@ -188,10 +195,10 @@ public sealed partial class HelpdeskStore
             for (var i = _notifications.Count - 1; i >= 0 && entries.Count < take; i--)
             {
                 var x = _notifications[i];
-                if (BelongsInCentre(x) && AddressedTo(x, accountId, broadcast))
+                if (BelongsInCentre(x) && AddressedTo(x, accountId, broadcast, desks))
                     entries.Add(new InboxEntry(x, x.Id > upTo && read?.Contains(x.Id) != true));
             }
-            return new NotificationInbox(UnreadFor(accountId, broadcast), entries);
+            return new NotificationInbox(UnreadFor(accountId, broadcast, desks), entries);
         }
     }
 
@@ -249,7 +256,7 @@ public sealed partial class HelpdeskStore
     }
 
     // Called with the lock held. Messages are in id order, so counting stops at the account's mark.
-    private int UnreadFor(Guid accountId, bool broadcast)
+    private int UnreadFor(Guid accountId, bool broadcast, IReadOnlySet<Guid>? desks)
     {
         var upTo = ReadUpTo(accountId);
         var read = _readIds.GetValueOrDefault(accountId);
@@ -257,7 +264,7 @@ public sealed partial class HelpdeskStore
         for (var i = _notifications.Count - 1; i >= 0 && _notifications[i].Id > upTo; i--)
         {
             var x = _notifications[i];
-            if (BelongsInCentre(x) && AddressedTo(x, accountId, broadcast) && read?.Contains(x.Id) != true) count++;
+            if (BelongsInCentre(x) && AddressedTo(x, accountId, broadcast, desks) && read?.Contains(x.Id) != true) count++;
         }
         return count;
     }
@@ -315,13 +322,14 @@ public sealed partial class HelpdeskStore
             using var connection = new SqliteConnection($"Data Source={_path}");
             connection.Open();
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt, ActorId FROM Notifications ORDER BY Id;";
+            command.CommandText = "SELECT Id, Audience, RecipientId, Kind, TicketNumber, CreatedAt, ActorId, DeskId FROM Notifications ORDER BY Id;";
             using (var reader = command.ExecuteReader())
                 while (reader.Read())
                     _notifications.Add(new Notification(reader.GetInt64(0), reader.GetString(1),
                         !reader.IsDBNull(2) && Guid.TryParse(reader.GetString(2), out var recipient) ? recipient : null,
                         reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt32(4), Date(reader, 5),
-                        !reader.IsDBNull(6) && Guid.TryParse(reader.GetString(6), out var actor) ? actor : null));
+                        !reader.IsDBNull(6) && Guid.TryParse(reader.GetString(6), out var actor) ? actor : null,
+                        !reader.IsDBNull(7) && Guid.TryParse(reader.GetString(7), out var desk) ? desk : null));
             // Ids are times, so a mark can be ahead of the newest message left (all of them pruned); that's still right.
             _lastNotificationId = _notifications.Count > 0 ? _notifications[^1].Id : 0;
             _nextNotificationPrune = DateTime.UtcNow.AddHours(1);
@@ -355,6 +363,13 @@ public sealed partial class HelpdeskStore
         try
         {
             command.CommandText = "ALTER TABLE Notifications ADD COLUMN ActorId TEXT NULL;";
+            command.ExecuteNonQuery();
+        }
+        catch (SqliteException) { }
+        // Added for desks (HelpdeskStore.Desks).
+        try
+        {
+            command.CommandText = "ALTER TABLE Notifications ADD COLUMN DeskId TEXT NULL;";
             command.ExecuteNonQuery();
         }
         catch (SqliteException) { }

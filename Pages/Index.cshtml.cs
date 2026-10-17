@@ -118,7 +118,7 @@ public class IndexModel(HelpdeskStore store) : PageModel
             var myDesks = store.HasSeveralDesks ? store.DesksOf(User).ToList() : [];
             if (myDesks.Count == store.Desks.Count) myDesks = [];
             ShownDesks = myDesks.Select(x => x.Name).ToList();
-            var open = store.Tickets.Where(x => !TicketInsights.IsClosed(x)
+            var open = store.TicketsFor(User).Where(x => !TicketInsights.IsClosed(x)
                 && (myDesks.Count == 0 || myDesks.Any(d => d.Id == _deskOf(x.Category).Id) || (meId is { } assigned && x.TechnicianId == assigned))).ToList();
 
             // As the ticket list's My tickets: assigned to them, or an onboarding with an IT task given to them.

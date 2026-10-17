@@ -68,7 +68,8 @@ public sealed class TeamsPoster(HelpdeskStore store, IHttpClientFactory clients,
     // says what happened in words the page can show, with the secret address kept out of it.
     public async Task<(bool Ok, string Message)> SendAsync(HelpdeskStore.TeamsPost post, bool retry, CancellationToken cancel)
     {
-        var url = store.TeamsWebhookAddress;
+        // The channel of the desk the post is about (HelpdeskStore.Desks).
+        var url = store.TeamsWebhookFor(post.DeskId);
         if (url.Length == 0) return (false, "No webhook address is set.");
         var json = TeamsWebhook.Message(post);
         var client = clients.CreateClient(ClientName);

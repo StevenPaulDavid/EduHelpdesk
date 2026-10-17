@@ -30,13 +30,21 @@ public class EduNotifyModel(HelpdeskStore store, EduNotifyClient client) : PageM
         var templates = (Catalogue?.Sendable ?? []).Select(x => (x.Id, x.Name)).ToList();
         if (Ping.TemplateId.Length > 0 && templates.All(x => x.Id != Ping.TemplateId)) templates.Add((Ping.TemplateId, $"{Ping.TemplateName} (not in EduNotify's latest list)"));
         PingTemplateChoices = templates;
-        PingGroupChoices = (Catalogue?.Groups.Select(x => x.Name) ?? []).Concat(Ping.Groups).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        PingGroupChoices = (Catalogue?.Groups.Select(x => x.Name) ?? []).Concat(Ping.Groups).Concat(Ping.DeskGroups.Values.SelectMany(x => x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     // Unticked boxes aren't sent, so blank lists mean nothing ticked.
+    // With more than one desk (HelpdeskStore.Desks), each desk's tickets ping that desk's own PCs: its boxes are
+    // pinggroups-<desk id>, read here since every desk's list is posted, empty or not.
+    public bool HasSeveralDesks => store.HasSeveralDesks;
+    public IReadOnlyList<EduHelpdesk.Models.Desk> Desks => store.Desks;
+
     public IActionResult OnPostSavePing(bool enabled, string[]? priorities, string? templateId, string[]? groups)
     {
-        var (ok, message) = store.SetTechnicianPingSettings(enabled, priorities, templateId, groups);
+        Dictionary<Guid, IEnumerable<string>>? deskGroups = null;
+        if (store.HasSeveralDesks)
+            deskGroups = store.Desks.ToDictionary(x => x.Id, x => (IEnumerable<string>)Request.Form[$"pinggroups-{x.Id}"].OfType<string>().ToList());
+        var (ok, message) = store.SetTechnicianPingSettings(enabled, priorities, templateId, groups, deskGroups);
         Message = ok && enabled && !Settings.Ready ? $"{message} Nothing is sent until EduNotify's master switch above is on." : message;
         Problem = !ok;
         return RedirectToPage();

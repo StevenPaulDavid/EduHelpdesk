@@ -102,7 +102,10 @@ public sealed partial class HelpdeskStore
         public bool NotificationPrompt { get; set; } = true;
         // Settings → Teams channel: the webhook address (a secret, "" until set), whether posting is on, and which events
         // post (HelpdeskStore.Teams). Posting is off until a school turns it on; the two events default to on.
+        // From before desks; moved to the first desk's channel on load (PrepareTeams), then left blank.
         public string TeamsWebhookUrl { get; set; } = "";
+        // Each desk's Teams channel, by desk id. Replaced whole on change, never edited in place (TeamsSettings reads it unlocked).
+        public Dictionary<Guid, string> DeskTeamsWebhooks { get; set; } = [];
         public bool TeamsEnabled { get; set; }
         public bool TeamsNewTicket { get; set; } = true;
         public bool TeamsOverdue { get; set; } = true;
@@ -118,7 +121,10 @@ public sealed partial class HelpdeskStore
         public List<string> TechnicianPingPriorities { get; set; } = [];
         public string TechnicianPingTemplateId { get; set; } = "";
         public string TechnicianPingTemplateName { get; set; } = "";
+        // From before desks; moved to the first desk on load (PreparePingGroups), then left empty.
         public List<string> TechnicianPingGroups { get; set; } = [];
+        // The PC groups each desk's technician ping goes to, by desk id. A desk without any doesn't ping.
+        public Dictionary<Guid, List<string>> DeskPingGroups { get; set; } = [];
         public List<TechnicianPing> TechnicianPings { get; set; } = [];
         public HashSet<int> TechnicianPingSeen { get; set; } = [];
         // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.

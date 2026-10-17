@@ -23,7 +23,9 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public string CurrentUserName => store.CurrentActor().Name;
     public IReadOnlyList<ContractRecord> Contracts => store.Contracts;
     public bool CanOpenContracts => store.UserCan(User, Modules.Contracts, ModulePermission.View);
-    public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
+    // Only the desks this person can see (HelpdeskStore.Desks).
+    public IReadOnlyList<TicketRecord> Tickets => _tickets ??= store.TicketsFor(User);
+    private IReadOnlyList<TicketRecord>? _tickets;
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
     public IReadOnlyList<string> LoanReasons => store.LoanReasons;
     // The date the asset is due for replacement, from the typed date or the asset type's lifespan.

@@ -12,7 +12,8 @@ public class PrintLabelModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGet(int number)
     {
-        Ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
+        // Another desk's ticket isn't there for someone not on it (HelpdeskStore.Desks).
+        Ticket = store.TicketsFor(User).FirstOrDefault(x => x.Number == number);
         return Ticket is null ? NotFound() : Page();
     }
 }

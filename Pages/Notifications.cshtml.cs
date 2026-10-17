@@ -18,7 +18,7 @@ public class NotificationsModel(HelpdeskStore store, LinkGenerator links) : Page
     public void OnGet()
     {
         if (AccountId() is { } id && store.NotificationsOpenFor(HelpdeskStore.StaffAudience))
-            Inbox = store.InboxFor(id, NotificationEndpoints.Broadcast(store, User), ListSize);
+            Inbox = store.InboxFor(id, NotificationEndpoints.Broadcast(store, User), ListSize, store.VisibleDeskIds(User));
     }
 
     // A row in the bell or the list: marks that one read and goes where it points. Opening the ticket would mark it read

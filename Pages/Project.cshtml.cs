@@ -61,7 +61,8 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
         BandsIncludeVat = store.SpendingBandsIncludeVat;
         BandBasis = store.BandBasisFor(Project);
         CurrentBand = store.BandFor(BandBasis);
-        LinkedTickets = store.Tickets.Where(x => Project.TicketNumbers.Contains(x.Number)).OrderBy(x => x.Number).ToList();
+        // Linked tickets on desks this person isn't on stay linked, out of sight (HelpdeskStore.Desks).
+        LinkedTickets = store.TicketsFor(User).Where(x => Project.TicketNumbers.Contains(x.Number)).OrderBy(x => x.Number).ToList();
         ContractsByItem = store.Contracts.Where(x => x.ProjectNumber == number && x.ProjectItemId is not null)
             .GroupBy(x => x.ProjectItemId!.Value).ToDictionary(g => g.Key, g => g.First());
         return Page();
@@ -71,7 +72,7 @@ public class ProjectModel(HelpdeskStore store, ILogger<ProjectModel> logger) : P
     public IActionResult OnPostLinkTicket(int number, string? ticket)
     {
         if (!CanEdit) return Forbid();
-        var (found, error) = store.FindTicketByRef(ticket);
+        var (found, error) = store.FindTicketByRef(ticket, store.TicketVisibility(User));
         return Linked(number, found is { } ticketNumber ? store.LinkProjectTicket(number, ticketNumber) : (false, error!));
     }
 

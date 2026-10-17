@@ -57,7 +57,8 @@ public class TeamsTests
 
         Assert.True(test.Store.SetTeamsSettings(Address, false, true, true, false).Ok);
         var store = test.Reopen();
-        Assert.Equal(new HelpdeskStore.TeamsSettingsView(true, "prod-12.westeurope.logic.azure.com", true, true, false), store.TeamsSettings);
+        var saved = store.TeamsSettings;
+        Assert.Equal((true, "prod-12.westeurope.logic.azure.com", true, true, false, true), (saved.HasUrl, saved.Host, saved.Enabled, saved.NewTicket, saved.Overdue, saved.Ready));
         Assert.Equal(Address, store.TeamsWebhookAddress);
         Assert.Null(store.CompareDatabaseWithMemory());
 
@@ -86,7 +87,8 @@ public class TeamsTests
         var hidden = raw.Read("Metadata", everything, showSecrets: false, page: 0)!;
         var key = hidden.Columns.ToList().FindIndex(x => x.Name == "Key");
         var value = hidden.Columns.ToList().FindIndex(x => x.Name == "Value");
-        var row = hidden.Rows.Single(x => Equals(x[key], "TeamsWebhookUrl"));
+        // The address is kept as the first desk's (TeamsWebhookUrl:<desk id>).
+        var row = hidden.Rows.Single(x => x[key] is string name && name.StartsWith("TeamsWebhookUrl:") && x[value] is RawDatabase.Hidden);
         Assert.IsType<RawDatabase.Hidden>(row[value]);
         // Other settings stay readable, and searching can't reach the secret.
         Assert.Contains(hidden.Rows, x => Equals(x[key], "TeamsEnabled") && Equals(x[value], "1"));

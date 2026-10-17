@@ -113,7 +113,7 @@ public class ReportsModel(HelpdeskStore store) : PageModel
         PeriodKey = period.Key;
         var since = period.Months is { } months ? DateTime.UtcNow.AddMonths(-months) : DateTime.MinValue;
         var byAsset = new Dictionary<Guid, List<TicketRecord>>();
-        foreach (var ticket in store.Tickets.Where(x => x.CreatedAt >= since))
+        foreach (var ticket in store.TicketsFor(User).Where(x => x.CreatedAt >= since))
             foreach (var assetId in ticket.AssetIds.Distinct())
             {
                 if (!byAsset.TryGetValue(assetId, out var list)) byAsset[assetId] = list = [];

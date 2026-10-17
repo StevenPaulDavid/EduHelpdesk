@@ -112,6 +112,38 @@ public sealed partial class HelpdeskStore
                 : [];
     }
 
+    // ---- Who sees which desk's tickets ----
+    // Someone sees only the tickets of the desks they're on, unless their role has "See all desks" (Administrator always
+    // has). Another desk's tickets are not shown anywhere - lists, counts, search, reports, a requester's history - and
+    // opening one by its address is refused. With one desk there is nothing to keep apart.
+
+    public bool SeesAllDesks(ClaimsPrincipal user) => !HasSeveralDesks || UserHasFlag(user, Modules.Flags.AllDesks);
+
+    // The desks whose tickets this person sees; null for all of them.
+    public IReadOnlySet<Guid>? VisibleDeskIds(ClaimsPrincipal user) => SeesAllDesks(user) ? null : DesksOf(user).Select(x => x.Id).ToHashSet();
+
+    // A test for a list of tickets, worked out once for the request.
+    public Func<TicketRecord, bool> TicketVisibility(ClaimsPrincipal user)
+    {
+        if (VisibleDeskIds(user) is not { } desks) return _ => true;
+        var deskOf = DeskLookup();
+        return ticket => desks.Contains(deskOf(ticket.Category).Id);
+    }
+
+    public bool CanSeeTicket(ClaimsPrincipal user, int number) =>
+        Tickets.FirstOrDefault(x => x.Number == number) is { } ticket && TicketVisibility(user)(ticket);
+
+    // Every ticket this person may see, newest first, as Tickets.
+    public IReadOnlyList<TicketRecord> TicketsFor(ClaimsPrincipal user)
+    {
+        var visible = TicketVisibility(user);
+        return Tickets.Where(visible).ToList();
+    }
+
+    // The desks this person can choose between in filters: theirs, or every desk.
+    public IReadOnlyList<Desk> DesksVisibleTo(ClaimsPrincipal user) =>
+        VisibleDeskIds(user) is { } ids ? Desks.Where(x => ids.Contains(x.Id)).ToList() : Desks;
+
     // ---- Numbering ----
     // Each desk counts its own tickets (SITE-1, SITE-2...) in DeskNumber. A ticket's Number is its key and never shown.
 
@@ -132,7 +164,8 @@ public sealed partial class HelpdeskStore
     // A ticket number someone typed: "SITE-5", "site 5", "#5" or "5", or a number it had before it moved desk. A bare
     // number on its own is only enough when one desk has it.
     private static readonly Regex TypedRef = new(@"^\s*(?:([A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*)\s*-?\s*)?#?\s*(\d{1,9})\s*$", RegexOptions.Compiled);
-    public (int? Number, string? Error) FindTicketByRef(string? typed)
+    // visible (TicketVisibility) leaves out tickets the person may not see, as if they didn't exist.
+    public (int? Number, string? Error) FindTicketByRef(string? typed, Func<TicketRecord, bool>? visible = null)
     {
         var text = (typed ?? "").Trim();
         if (text.Length == 0) return (null, "Enter a ticket number, such as SITE-5.");
@@ -141,16 +174,17 @@ public sealed partial class HelpdeskStore
         var shown = int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
         lock (_sync)
         {
+            var tickets = visible is null ? _data.Tickets : _data.Tickets.Where(visible).ToList();
             if (match.Groups[1].Success)
             {
                 var prefix = match.Groups[1].Value;
                 var wanted = $"{prefix}-{shown}";
-                var current = _data.Tickets.FirstOrDefault(t => ShownNumber(t) == shown && string.Equals(DeskForCategoryCore(t.Category).Prefix, prefix, StringComparison.OrdinalIgnoreCase));
+                var current = tickets.FirstOrDefault(t => ShownNumber(t) == shown && string.Equals(DeskForCategoryCore(t.Category).Prefix, prefix, StringComparison.OrdinalIgnoreCase));
                 if (current is not null) return (current.Number, null);
-                var former = _data.Tickets.FirstOrDefault(t => FormerRefsOf(t).Contains(wanted, StringComparer.OrdinalIgnoreCase));
+                var former = tickets.FirstOrDefault(t => FormerRefsOf(t).Contains(wanted, StringComparer.OrdinalIgnoreCase));
                 return former is not null ? (former.Number, null) : (null, $"There's no ticket {wanted.ToUpperInvariant()}.");
             }
-            var candidates = _data.Tickets.Where(t => ShownNumber(t) == shown).ToList();
+            var candidates = tickets.Where(t => ShownNumber(t) == shown).ToList();
             return candidates.Count switch
             {
                 1 => (candidates[0].Number, null),

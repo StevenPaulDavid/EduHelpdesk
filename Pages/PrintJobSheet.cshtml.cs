@@ -17,7 +17,8 @@ public class PrintJobSheetModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnGet(int number)
     {
-        Ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
+        // Another desk's ticket isn't there for someone not on it (HelpdeskStore.Desks).
+        Ticket = store.TicketsFor(User).FirstOrDefault(x => x.Number == number);
         if (Ticket is null) return NotFound();
         Requester = store.Users.FirstOrDefault(x => x.Id == Ticket.RequesterId);
         LinkedAssets = store.Assets.Where(x => Ticket.AssetIds.Contains(x.Id)).ToList();

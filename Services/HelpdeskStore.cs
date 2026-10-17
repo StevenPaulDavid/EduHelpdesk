@@ -151,6 +151,8 @@ public sealed partial class HelpdeskStore
         EnsureSystemOptions();
         // After the lists it places on desks are complete.
         EnsureDesks();
+        PrepareTeams();
+        PreparePingGroups();
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
         EnsureOptions(_data.Buildings, _data.Assets.Select(x => x.Building).Where(x => !string.IsNullOrWhiteSpace(x)));
         EnsureOptions(_data.AssetConditions, _data.Assets.Select(x => x.Condition).Where(x => !string.IsNullOrWhiteSpace(x)));

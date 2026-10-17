@@ -13,6 +13,14 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // right way round for a permission check. Delete and merge need more than Edit and check for themselves.
     public override void OnPageHandlerExecuting(Microsoft.AspNetCore.Mvc.Filters.PageHandlerExecutingContext context)
     {
+        // Another desk's ticket is not there, for anyone not on that desk (HelpdeskStore.Desks) - opening, printing,
+        // its files and every change alike. Not found rather than refused, so its existence isn't given away either.
+        if (context.HandlerArguments.TryGetValue("number", out var value) && value is int asked && !store.CanSeeTicket(User, asked)
+            && store.Tickets.Any(x => x.Number == asked))
+        {
+            context.Result = NotFound();
+            return;
+        }
         if (HttpMethods.IsPost(Request.Method) && !store.UserCan(User, Modules.Tickets, ModulePermission.Edit))
             context.Result = Forbid();
     }
@@ -47,9 +55,10 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IReadOnlyDictionary<Guid, string> TicketAttributeValues => Ticket is null ? new Dictionary<Guid, string>() : store.GetTicketAttributeValues(Ticket.Number);
     public IReadOnlyList<(PartRecord Part, int Quantity)> TicketParts => Ticket is null ? [] : store.GetTicketParts(Ticket.Number);
     public IReadOnlyList<PartRecord> Parts => store.Parts;
-    public IReadOnlyList<TicketRecord> MergeCandidates => Ticket is null ? [] : store.Tickets.Where(x => x.Number != Ticket.Number).OrderByDescending(x => x.Number).ToList();
+    public IReadOnlyList<TicketRecord> MergeCandidates => Ticket is null ? [] : store.TicketsFor(User).Where(x => x.Number != Ticket.Number).OrderByDescending(x => x.Number).ToList();
     public IReadOnlyList<TicketAttachment> Attachments => Ticket is null ? [] : store.GetTicketAttachments(Ticket.Number);
-    public IReadOnlyList<HelpdeskStore.TicketRelation> Relations => Ticket is null ? [] : store.GetTicketRelations(Ticket.Number);
+    // A link to another desk's ticket stays, but only those on that desk see it.
+    public IReadOnlyList<HelpdeskStore.TicketRelation> Relations => Ticket is null ? [] : store.GetTicketRelations(Ticket.Number).Where(x => store.CanSeeTicket(User, x.Number)).ToList();
     public string TemplateHtml { get; private set; } = string.Empty;
     [TempData] public string? Message { get; set; }
 
@@ -475,7 +484,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // Typed as people see it - SITE-5 - and looked up (HelpdeskStore.FindTicketByRef).
     public IActionResult OnPostLinkRelated(int number, string? other)
     {
-        var (found, error) = store.FindTicketByRef(other);
+        var (found, error) = store.FindTicketByRef(other, store.TicketVisibility(User));
         Message = found is { } otherNumber ? store.LinkRelatedTickets(number, otherNumber) ?? $"Linked to {store.Ref(otherNumber)}." : error;
         return RedirectToPage(new { number });
     }
@@ -639,6 +648,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IActionResult OnPostMerge(int number, int targetNumber)
     {
         if (!store.UserCan(User, Modules.Tickets, ModulePermission.Delete)) return Forbid();
+        if (!store.CanSeeTicket(User, targetNumber)) return NotFound();
         var message = store.MergeTicket(number, targetNumber);
         if (message is not null)
         {

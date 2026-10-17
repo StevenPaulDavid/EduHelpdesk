@@ -26,8 +26,9 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "type")] public string? Type { get; set; }
     // A desk's name (HelpdeskStore.Desks), or blank for every desk. Only offered with more than one desk.
     [BindProperty(SupportsGet = true, Name = "desk")] public string? DeskName { get; set; }
-    public bool HasSeveralDesks => store.HasSeveralDesks;
-    public IReadOnlyList<Desk> Desks => store.Desks;
+    public bool HasSeveralDesks => Desks.Count > 1;
+    // Only the desks this person can see (HelpdeskStore.Desks).
+    public IReadOnlyList<Desk> Desks => store.DesksVisibleTo(User);
     public Desk? ReportDesk { get; private set; }
     public string DeskLabel => ReportDesk is { } desk ? $"the {desk.Name} desk" : "every desk";
     public IReadOnlyList<TicketReports.SlaRow> ByDesk { get; private set; } = [];
@@ -123,15 +124,16 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         Since = period.Days is { } days ? Now.AddDays(-days) : period.Months is { } months ? Now.AddMonths(-months) : DateTime.MinValue;
         HasPreviousPeriod = period.Key != "all";
 
-        ReportDesk = store.HasSeveralDesks ? store.FindDesk(DeskName) : null;
+        ReportDesk = HasSeveralDesks ? Desks.FirstOrDefault(x => string.Equals(x.Name, DeskName?.Trim(), StringComparison.OrdinalIgnoreCase)) : null;
         DeskName = ReportDesk?.Name;
         var deskOf = store.DeskLookup();
-        var all = store.Tickets.Where(t => (Type is null || t.Type == Type) && (ReportDesk is null || deskOf(t.Category).Id == ReportDesk.Id)).ToList();
+        var all = store.TicketsFor(User).Where(t => (Type is null || t.Type == Type) && (ReportDesk is null || deskOf(t.Category).Id == ReportDesk.Id)).ToList();
         var cohort = all.Where(t => t.CreatedAt >= Since).ToList();
         var previous = HasPreviousPeriod ? all.Where(t => t.CreatedAt < Since && t.CreatedAt >= Since - (Now - Since)).ToList() : [];
         var users = store.Users;
         // A desk's workload is its own people's.
-        var technicians = ReportDesk is null ? store.Technicians : store.Technicians.Where(x => HelpdeskStore.TechnicianOnDesk(x, ReportDesk.Id)).ToList();
+        List<Guid>? shownDesks = ReportDesk is not null ? new List<Guid> { ReportDesk.Id } : store.VisibleDeskIds(User)?.ToList();
+        var technicians = shownDesks is null ? store.Technicians : store.Technicians.Where(x => shownDesks.Any(d => HelpdeskStore.TechnicianOnDesk(x, d))).ToList();
         var technicianNames = technicians.ToDictionary(x => x.Id, x => x.Name);
 
         TicketsInPeriod = cohort.Count;
@@ -141,7 +143,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         OverdueNow = open.Count(t => TicketInsights.IsOverdue(t, Now));
         OverdueOpen = open.Where(t => TicketInsights.IsOverdue(t, Now)).OrderBy(t => t.DueDate).Take(OverdueLimit).ToList();
 
-        ByDesk = store.HasSeveralDesks && ReportDesk is null ? TicketReports.SlaBy(cohort, t => deskOf(t.Category).Name, Now) : [];
+        ByDesk = HasSeveralDesks && ReportDesk is null ? TicketReports.SlaBy(cohort, t => deskOf(t.Category).Name, Now) : [];
         ByType = TicketReports.SlaBy(cohort, t => t.Type, Now);
         ByPriority = TicketReports.SlaBy(cohort, t => t.Priority, Now);
         ByCategory = TicketReports.SlaBy(cohort, t => t.Category, Now);

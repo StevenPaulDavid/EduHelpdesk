@@ -36,7 +36,7 @@ public static class NotificationEndpoints
     {
         if (Account(context, store, portal, HelpdeskStore.StaffAudience) is not { } account) return Results.Json(new { signedIn = false }, statusCode: StatusCodes.Status401Unauthorized);
         if (!store.NotificationsOpenFor(HelpdeskStore.StaffAudience)) return Results.Json(new { signedIn = true, disabled = true });
-        var inbox = store.InboxFor(account, Broadcast(store, context.User), InboxSize);
+        var inbox = store.InboxFor(account, Broadcast(store, context.User), InboxSize, store.VisibleDeskIds(context.User));
         return Results.Json(new
         {
             signedIn = true,
@@ -81,7 +81,9 @@ public static class NotificationEndpoints
         var broadcast = staff && Broadcast(store, context.User);
         // A page with the bell sends the count it is showing (-1 when it doesn't know), and hears back when that changes.
         int? knownUnread = staff && unread is not null ? unread : null;
-        var batch = await store.WaitForNotificationsAsync(audience!, account, after ?? -1, TimeSpan.FromSeconds(seconds), ending.Token, broadcast, knownUnread);
+        // Only the desks they see (HelpdeskStore.Desks), worked out on every ask like the rest.
+        var desks = staff ? store.VisibleDeskIds(context.User) : null;
+        var batch = await store.WaitForNotificationsAsync(audience!, account, after ?? -1, TimeSpan.FromSeconds(seconds), ending.Token, broadcast, knownUnread, desks);
         return Results.Json(new
         {
             signedIn = true,

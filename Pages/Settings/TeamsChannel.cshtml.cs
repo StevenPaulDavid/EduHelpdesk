@@ -1,4 +1,4 @@
-﻿using EduHelpdesk.Services;
+using EduHelpdesk.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -12,6 +12,9 @@ public class TeamsChannelModel(HelpdeskStore store, TeamsPoster poster) : PageMo
     public HelpdeskStore.TeamsSettingsView Settings => store.TeamsSettings;
     public HelpdeskStore.TeamsAttempt? LastAttempt => store.TeamsLastAttempt;
     public string SiteAddress => store.SiteAddress;
+    // With more than one desk (HelpdeskStore.Desks) each has its own channel; the switches are shared.
+    public IReadOnlyList<EduHelpdesk.Models.Desk> Desks => store.Desks;
+    public bool HasSeveralDesks => store.HasSeveralDesks;
     [TempData] public string? Message { get; set; }
     // Whether Message is a problem rather than good news, for the colour of the notice.
     [TempData] public bool Problem { get; set; }
@@ -19,18 +22,19 @@ public class TeamsChannelModel(HelpdeskStore store, TeamsPoster poster) : PageMo
     public void OnGet() { }
 
     // An unticked box isn't sent, so each flag is simply whether its box was ticked. A blank address keeps the saved one.
-    public IActionResult OnPostSave(string? webhook, bool enabled, bool newTicket, bool overdue)
+    public IActionResult OnPostSave(string? webhook, bool enabled, bool newTicket, bool overdue, Guid? deskId)
     {
-        var (ok, message) = store.SetTeamsSettings(webhook, remove: false, enabled, newTicket, overdue);
+        var (ok, message) = store.SetTeamsSettings(webhook, remove: false, enabled, newTicket, overdue, deskId);
         Message = message;
         Problem = !ok;
         return RedirectToPage();
     }
 
-    public IActionResult OnPostRemove()
+    // Removing one desk's address leaves posting on for the others.
+    public IActionResult OnPostRemove(Guid? deskId)
     {
         var settings = store.TeamsSettings;
-        var (ok, message) = store.SetTeamsSettings(null, remove: true, false, settings.NewTicket, settings.Overdue);
+        var (ok, message) = store.SetTeamsSettings(null, remove: true, deskId is null ? false : settings.Enabled, settings.NewTicket, settings.Overdue, deskId);
         Message = message;
         Problem = !ok;
         return RedirectToPage();
@@ -38,9 +42,9 @@ public class TeamsChannelModel(HelpdeskStore store, TeamsPoster poster) : PageMo
 
     // Sends one message now and says how it went, whether or not posting is switched on: the point is to find out that the
     // address works before relying on it.
-    public async Task<IActionResult> OnPostTestAsync(CancellationToken cancel)
+    public async Task<IActionResult> OnPostTestAsync(Guid? deskId, CancellationToken cancel)
     {
-        var (ok, message) = await poster.SendAsync(store.TeamsTestPost(), retry: false, cancel);
+        var (ok, message) = await poster.SendAsync(store.TeamsTestPost(deskId), retry: false, cancel);
         store.RecordTeamsAttempt(ok, message);
         Message = ok ? "The test message was sent. Look in the Teams channel for it." : $"The test message didn't go. {message}";
         Problem = !ok;

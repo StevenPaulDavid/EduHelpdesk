@@ -67,6 +67,7 @@ public static class Modules
     {
         public const string WorkingAs = "Tickets.WorkingAs";
         public const string NotifyStaff = "Tickets.NotifyStaff";
+        public const string AllDesks = "Tickets.AllDesks";
         public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
@@ -83,6 +84,8 @@ public static class Modules
         public static readonly Definition[] All =
         [
             new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
+            // Without it, someone sees only the tickets of the desks they're on (HelpdeskStore.Desks) - for the site manager, SLT, IT leads.
+            new(AllDesks, "See all desks", "See and work every desk's tickets (IT, Site, Cleaning...), not just those of the desks they're on. Only matters once there is more than one desk.", "Tickets"),
             // Puts a message on staff PCs through EduNotify (Settings → EduNotify), so it is kept apart from working tickets.
             new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
             // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.

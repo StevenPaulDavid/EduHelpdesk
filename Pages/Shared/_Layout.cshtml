@@ -56,7 +56,7 @@
     // Ticket news reaches only those who can see tickets; messages addressed to the account itself - the compliance
     // reminders - reach anyone, so a business manager with no ticket access still has the bell.
     var bell = notifyAudience == HelpdeskStore.StaffAudience && Helpdesk.NotificationsOpenFor(HelpdeskStore.StaffAudience)
-        ? Helpdesk.InboxFor(notifyAccount!.Value, broadcast: Can(Modules.Tickets), take: 15)
+        ? Helpdesk.InboxFor(notifyAccount!.Value, broadcast: Can(Modules.Tickets), take: 15, desks: Helpdesk.VisibleDeskIds(User))
         : null;
     string BellLabel(int unread) => unread == 0 ? "Notifications, none unread" : $"Notifications, {unread} unread";
 

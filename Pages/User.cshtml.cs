@@ -10,7 +10,9 @@ public class UserModel(HelpdeskStore store, SignInThrottle throttle, TemporaryPa
     public UserRecord? Person { get; private set; }
     public IReadOnlyList<string> Departments => store.Departments;
     public IReadOnlyList<string> Locations => store.Locations;
-    public IReadOnlyList<TicketRecord> Tickets => store.Tickets;
+    // Only the desks this person can see (HelpdeskStore.Desks).
+    public IReadOnlyList<TicketRecord> Tickets => _tickets ??= store.TicketsFor(User);
+    private IReadOnlyList<TicketRecord>? _tickets;
     [TempData] public string? Message { get; set; }
     // What they still have - assets, kits, open tickets, active projects - for the leaver check.
     public HelpdeskStore.LeaverHoldings? Holdings { get; private set; }

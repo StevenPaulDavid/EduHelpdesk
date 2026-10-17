@@ -154,7 +154,9 @@ public sealed class RawDatabase(HelpdeskStore store)
     // and left out of a search or filter, for anyone but an Administrator.
     private static readonly string[] SecretMetadataKeys = ["TeamsWebhookUrl", "EduNotifyApiKey"];
     public static bool IsSecretMetadata(string table, string key) =>
-        string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase) && SecretMetadataKeys.Contains(key, StringComparer.OrdinalIgnoreCase);
+        string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase)
+            // Each desk's Teams address is TeamsWebhookUrl:<desk id> (HelpdeskStore.Desks), as secret as the first.
+            && SecretMetadataKeys.Any(x => string.Equals(key, x, StringComparison.OrdinalIgnoreCase) || key.StartsWith(x + ":", StringComparison.OrdinalIgnoreCase));
 
     // What a masked cell holds instead of its value, so the page can tell it from text that happens to read the same.
     public const string Masked = "•••• set";
@@ -239,7 +241,11 @@ public sealed class RawDatabase(HelpdeskStore store)
         }
         // Searching or filtering must not be a way to read a secret setting a letter at a time, so its row drops out.
         if (clauses.Count > 0 && !showSecrets && string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase) && columns.Any(c => c.Name == "Key"))
+        {
             clauses.Add($"\"Key\" NOT IN ({string.Join(", ", SecretMetadataKeys.Select(k => "'" + k.Replace("'", "''") + "'"))})");
+            // And the per-desk ones (TeamsWebhookUrl:<desk id>). The keys are constants, so there's nothing to escape in LIKE.
+            foreach (var secret in SecretMetadataKeys) clauses.Add($"\"Key\" NOT LIKE '{secret}:%'");
+        }
         return (clauses.Count == 0 ? "" : " WHERE " + string.Join(" AND ", clauses), parameters, problem);
     }
 
