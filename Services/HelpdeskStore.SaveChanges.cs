@@ -61,7 +61,7 @@ public sealed partial class HelpdeskStore
         ["TicketActivities"] = "TicketNumber", ["TicketAssets"] = "TicketNumber", ["TicketAttachments"] = "TicketNumber",
         ["TicketAttributeValues"] = "TicketNumber", ["TicketComments"] = "TicketNumber", ["TicketLinks"] = "TicketNumber",
         ["TicketParts"] = "TicketNumber", ["TicketSlaPauses"] = "TicketNumber", ["TicketCosts"] = "TicketNumber", ["CheckLines"] = "TicketNumber",
-        ["TicketTemplateAttributes"] = "TemplateId"
+        ["TicketTemplateAttributes"] = "TemplateId", ["RoundVisits"] = "RoundId"
     };
 
     // ---- Capturing ----

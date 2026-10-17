@@ -1,0 +1,19 @@
+@page
+@model RoundSheetModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = Model.Round.Name;
+    ViewData["ReportSubtitle"] = Model.Date.ToString("dddd d MMMM yyyy");
+    ViewData["ReportFootnote"] = "Hand this sheet back to the cleaning supervisor at the end of the shift.";
+}
+<p class="note">Cleaner: <strong>@(Model.Round.Cleaner.Length > 0 ? Model.Round.Cleaner : "________________")</strong>. Tick each room when it's done, and write a note for any you couldn't do (locked, in use, needs a deep clean).</p>
+<table>
+    <thead><tr><th style="width:12mm">Done</th><th>Room</th><th style="width:30mm">Cleaned by<br />(if not above)</th><th style="width:70mm">Note</th></tr></thead>
+    <tbody>
+        @foreach (var room in Model.Round.Rooms)
+        {
+            <tr style="height:10mm"><td style="font-size:14pt">☐</td><td class="count">@room</td><td></td><td></td></tr>
+        }
+    </tbody>
+</table>
+<p class="sub" style="margin-top:6mm">@(Model.Round.Rooms.Count == 1 ? "1 room" : $"{Model.Round.Rooms.Count} rooms"). Supervisor's initials: ________</p>

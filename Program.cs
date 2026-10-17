@@ -150,6 +150,12 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Reports/ProjectsPrint", Modules.Flags.ReportExport);
     options.Conventions.AuthorizePage("/Reports/Onboarding", Modules.Flags.ReportOnboarding);
     options.Conventions.AuthorizePage("/Reports/Spend", Modules.Flags.ReportSpend);
+    // Cleaning rounds: the supervisor's page and the sheets it prints, and the report.
+    options.Conventions.AuthorizePage("/Rounds", Modules.Flags.Rounds);
+    options.Conventions.AuthorizePage("/RoundSheet", Modules.Flags.Rounds);
+    options.Conventions.AuthorizePage("/Reports/Rounds", Modules.Flags.ReportRounds);
+    options.Conventions.AuthorizePage("/Reports/RoundsPrint", Modules.Flags.ReportRounds);
+    options.Conventions.AuthorizePage("/Reports/RoundsPrint", Modules.Flags.ReportExport);
     options.Conventions.AuthorizePage("/Reports/Checks", Modules.Flags.ReportChecks);
     options.Conventions.AuthorizePage("/Reports/ChecksPrint", Modules.Flags.ReportChecks);
     options.Conventions.AuthorizePage("/Reports/ChecksPrint", Modules.Flags.ReportExport);

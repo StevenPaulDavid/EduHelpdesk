@@ -397,6 +397,24 @@ public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = f
     public bool FromRequester { get; init; }
 }
 public record SlaPause(DateTime StartedAt, DateTime? EndedAt);
+// A cleaning round (HelpdeskStore.Rounds): rooms (from the Locations list) cleaned on its days, by its usual cleaner.
+// Not tickets - a school with 60 rooms would otherwise log 300 tickets a week.
+public record CleaningRound(Guid Id, string Name, IReadOnlyList<string> Rooms, IReadOnlyList<DayOfWeek> Days, string Cleaner, bool IsActive = true)
+{
+    // The day it was set up: days before it aren't counted as missed.
+    public DateOnly StartedOn { get; init; }
+}
+
+// What the supervisor recorded for one room on one day's round: done or not, by whom, a note, and an optional spot-check
+// score (1-5). A room with no visit on a day it was due wasn't ticked.
+public record RoundVisit(Guid Id, Guid RoundId, DateOnly Date, string Room, bool Done, string Cleaner, string Note)
+{
+    public int? Score { get; init; }
+    public string ScoreNote { get; init; } = "";
+    public DateTime RecordedAt { get; init; }
+    public Actor? By { get; init; }
+}
+
 // One line of what a job cost (HelpdeskStore.Costs): net and VAT as typed, in pounds; BudgetCode blank for none.
 public record TicketCost(Guid Id, int TicketNumber, DateOnly Date, string Description, Guid? SupplierId, decimal Net, decimal Vat, string BudgetCode)
 {

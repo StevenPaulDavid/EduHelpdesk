@@ -229,6 +229,11 @@ internal static class AuditTracker
         AddList(s, "Lists", "System and area category", d.AccessCategories);
         AddList(s, "Lists", "Reason for removing access", d.RevokeReasons);
         AddList(s, "Lists", "Budget code", d.BudgetCodes);
+        AddList(s, "Lists", "Cleaner", d.Cleaners);
+        // Cleaning rounds as set up; what's ticked off each day is the round's own record, so it isn't logged twice.
+        foreach (var x in d.CleaningRounds)
+            Add(s, "Settings", "Cleaning round", x.Id.ToString(), $"Cleaning round: {x.Name}", Track.All,
+                ("Name", x.Name), ("Rooms", string.Join(", ", x.Rooms)), ("Days", string.Join(", ", x.Days.Select(day => day.ToString()[..3]))), ("Usual cleaner", x.Cleaner), ("Counted from", x.StartedOn.ToString("yyyy-MM-dd")), ("Active", Yn(x.IsActive)));
         // What a job cost: every line's whole life is on the record, since it is money.
         var supplierNames = d.Suppliers.ToDictionary(x => x.Id, x => x.Name);
         foreach (var x in d.TicketCosts)

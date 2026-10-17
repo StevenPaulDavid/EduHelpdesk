@@ -176,6 +176,8 @@ public sealed partial class HelpdeskStore
                 if (kind == "Location" && string.Equals(_data.Users[i].Location, oldValue, StringComparison.OrdinalIgnoreCase))
                     _data.Users[i] = _data.Users[i] with { Location = newValue };
             if (kind == "Location") RenameInRecurringTickets("Location", oldValue, newValue);
+            if (kind == "Location") RenameInRounds(oldValue, newValue);
+            if (kind == "Cleaner") RenameCleaner(oldValue, newValue);
             for (var i = 0; i < _data.Assets.Count; i++)
             {
                 var asset = _data.Assets[i];
@@ -279,6 +281,11 @@ public sealed partial class HelpdeskStore
                 "Budget code" => _data.TicketCosts.Any(x => string.Equals(x.BudgetCode, item, StringComparison.OrdinalIgnoreCase)),
                 _ => false
             };
+            // A room on a cleaning round, or a round's usual cleaner, stays until the round changes (HelpdeskStore.Rounds).
+            if (kind == "Location" && _data.CleaningRounds.FirstOrDefault(x => x.Rooms.Contains(item, StringComparer.OrdinalIgnoreCase)) is { } roomRound)
+                return $"That location cannot be deleted because it's on the cleaning round \"{roomRound.Name}\".";
+            if (kind == "Cleaner" && _data.CleaningRounds.FirstOrDefault(x => string.Equals(x.Cleaner, item, StringComparison.OrdinalIgnoreCase)) is { } cleanerRound)
+                return $"That cleaner cannot be deleted because they're the usual cleaner on \"{cleanerRound.Name}\".";
             if (IsProtectedContractStatus(kind, item)) return ProtectedContractStatusMessage;
             if (inUse) return $"That {kind.ToLowerInvariant()} cannot be deleted because it is in use.";
             if (kind == "Asset type" && _data.RecurringTickets.FirstOrDefault(x => x.Checklist.Any(c => string.Equals(c.AssetType, item, StringComparison.OrdinalIgnoreCase))) is { } checking)
@@ -745,6 +752,7 @@ public sealed partial class HelpdeskStore
         "AccessCategories" => "Access category",
         "RevokeReasons" => "Revoke reason",
         "BudgetCodes" => "Budget code",
+        "Cleaners" => "Cleaner",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -772,11 +780,13 @@ public sealed partial class HelpdeskStore
         "Access category" => _data.AccessCategories,
         "Revoke reason" => _data.RevokeReasons,
         "Budget code" => _data.BudgetCodes,
+        // Deleting one keeps the name on what was already recorded.
+        "Cleaner" => _data.Cleaners,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
         NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement" or "Building" or "Asset condition"
-            or "Contract type" or "Spend category" or "Contract duration" or "Contract status" or "Person type" or "Access category" or "Revoke reason" or "Budget code";
+            or "Contract type" or "Spend category" or "Contract duration" or "Contract status" or "Person type" or "Access category" or "Revoke reason" or "Budget code" or "Cleaner";
     // Expired is how the register knows a contract has ended (ContractRules.IsLive).
     private static bool IsProtectedContractStatus(string kind, string value) =>
         kind == "Contract status" && string.Equals(value.Trim(), ContractStatusDefaults.Expired, StringComparison.OrdinalIgnoreCase);

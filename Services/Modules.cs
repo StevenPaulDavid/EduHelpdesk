@@ -71,6 +71,8 @@ public static class Modules
         public const string Costs = "Tickets.Costs";
         public const string ReportSpend = "Reports.Spend";
         public const string ReportChecks = "Reports.Checks";
+        public const string Rounds = "Rounds.Record";
+        public const string ReportRounds = "Reports.Rounds";
         public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
@@ -94,6 +96,8 @@ public static class Modules
             // Puts a message on staff PCs through EduNotify (Settings → EduNotify), so it is kept apart from working tickets.
             new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
             // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.
+            // Cleaning supervisors; cleaners themselves don't sign in and work from the printed sheet (HelpdeskStore.Rounds).
+            new(Rounds, "Record cleaning rounds", "Open the day's cleaning rounds, print the sheets, and tick off which rooms were cleaned, by whom, with spot-check scores.", "Cleaning"),
             new(AssignProjects, "Assign projects", "Reassign a project from the helpdesk when the project lead can't. The lead normally does this from the staff portal.", "Projects"),
             new(ReportAssets, "Asset reports", "The asset register report: review list, fleet age, warranty, problem devices.", "Reports"),
             new(ReportTickets, "Ticket reports", "SLA performance, workload and repeat problems.", "Reports"),
@@ -103,6 +107,7 @@ public static class Modules
             new(ReportProjects, "Project reports", "Purchasing projects: where they are, technician workload, turnaround, and spend by outcome. Shows quote values.", "Reports"),
             new(ReportOnboarding, "Onboarding report", "New staff onboardings: how many, how long they take to finish, and which tasks run late.", "Reports"),
             new(ReportChecks, "Premises checks log", "Every check with a checklist done in the year: when, by whom, on time or not, and the readings and failures.", "Reports"),
+            new(ReportRounds, "Cleaning rounds report", "Rooms missed on cleaning rounds, days nothing was recorded, and spot-check scores by room and round.", "Reports"),
             new(ReportSpend, "Spend report", "What jobs cost, by budget code, desk, month and supplier. Shows amounts.", "Reports"),
             new(ReportExport, "Export and print reports", "Download report CSVs and open the print views.", "Reports"),
             // Every table exactly as stored, for looking into a problem. Read-only, and each look is in the audit log.

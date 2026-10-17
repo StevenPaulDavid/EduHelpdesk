@@ -1,0 +1,73 @@
+@page
+@using EduHelpdesk.Models
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Settings.RoundsModel
+@{
+    ViewData["Title"] = "Cleaning rounds";
+    var byRoom = Model.RoundsByRoom;
+}
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Cleaning rounds</h1><p class="hero-copy">A round is a set of rooms cleaned on the same days, usually by the same cleaner. The cleaning supervisor prints each day's sheet from <a asp-page="/Rounds">Rounds</a>, and ticks off afterwards which rooms were done and by whom. Rooms come from <a asp-page="/Settings/Locations">Locations</a> and names from <a asp-page="/Settings/Cleaners">Cleaners</a>.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+@if (Model.Message is { } message) { <div class="notice">@message</div> }
+
+@{
+    async Task RoundForm(CleaningRound? round)
+    {
+        <form method="post" asp-page-handler="Save" class="settings-form">
+            @if (round is not null) { <input type="hidden" name="id" value="@round.Id" /> }
+            <div class="template-fields">
+                <label>Name<input name="name" value="@round?.Name" required maxlength="@HelpdeskStore.MaxRoundNameLength" placeholder="e.g. Ground floor classrooms" /></label>
+                <label>Usual cleaner<select name="cleaner"><option value="">Nobody set</option>@foreach (var cleaner in Model.Cleaners) { <option value="@cleaner" selected="@string.Equals(cleaner, round?.Cleaner, StringComparison.OrdinalIgnoreCase)">@cleaner</option> }</select><small class="muted">Filled in on each room; the supervisor can change it on the day.</small></label>
+                <label>Counted from<input type="date" name="startsOn" value="@((round?.StartedOn ?? DateOnly.FromDateTime(DateTime.Now)).ToString("yyyy-MM-dd"))" /><small class="muted">Days before this aren't due, so they never show as missed.</small></label>
+            </div>
+            <fieldset class="desk-choices"><legend>Days it's done</legend>
+                @foreach (var day in EduHelpdesk.Pages.Settings.RoundsModel.Week)
+                {
+                    <label class="toggle-label"><input type="checkbox" name="days" value="@day" checked="@(round is null ? day is not DayOfWeek.Saturday and not DayOfWeek.Sunday : round.Days.Contains(day))" /> @day.ToString()[..3]</label>
+                }
+            </fieldset>
+            <fieldset class="desk-choices round-rooms"><legend>Rooms</legend>
+                @if (Model.Rooms.Count == 0) { <p class="muted">Add the rooms in <a asp-page="/Settings/Locations">Locations</a> first.</p> }
+                @foreach (var room in Model.Rooms)
+                {
+                    var elsewhere = byRoom[room].Where(x => x != round?.Name).ToList();
+                    <label class="toggle-label" title="@(elsewhere.Count > 0 ? "Also on " + string.Join(", ", elsewhere) : null)"><input type="checkbox" name="rooms" value="@room" checked="@(round?.Rooms.Contains(room, StringComparer.OrdinalIgnoreCase) == true)" /> @room@if (elsewhere.Count > 0) { <small class="muted"> (@string.Join(", ", elsewhere))</small> }</label>
+                }
+            </fieldset>
+            @if (round is not null)
+            {
+                <label class="toggle-label"><input type="checkbox" name="active" value="true" checked="@round.IsActive" /> In use<small class="muted">Untick to stop it showing on Rounds and counting as missed, while keeping what was recorded.</small></label>
+            }
+            <button class="button button-primary" type="submit">@(round is null ? "Add round" : "Save round")</button>
+        </form>
+    }
+}
+
+<section class="panel">
+    <div class="panel-heading"><h2>Add a round</h2></div>
+    @{ await RoundForm(null); }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>The rounds</h2><span class="badge">@Model.Rounds.Count</span></div>
+    @if (Model.Rounds.Count == 0) { <p class="muted">No rounds yet.</p> }
+    @{ var uncovered = Model.Rooms.Where(x => !byRoom[x].Any()).ToList(); }
+    @if (Model.Rounds.Count > 0 && uncovered.Count > 0)
+    {
+        <p class="muted">Not on any round: @string.Join(", ", uncovered.Take(30))@(uncovered.Count > 30 ? $" and {uncovered.Count - 30} more" : "").</p>
+    }
+    @foreach (var round in Model.Rounds)
+    {
+        <details class="template-item">
+            <summary>
+                <strong>@round.Name</strong>
+                <span class="muted">@(round.Rooms.Count == 1 ? "1 room" : $"{round.Rooms.Count} rooms") · @EduHelpdesk.Pages.Settings.RoundsModel.DaysText(round)@(round.Cleaner.Length > 0 ? $" · {round.Cleaner}" : "")@(round.IsActive ? "" : " · not in use")</span>
+            </summary>
+            @{ await RoundForm(round); }
+            <form method="post" asp-page-handler="Delete" data-confirm="Delete @round.Name, and everything recorded on it?">
+                <input type="hidden" name="id" value="@round.Id" />
+                <button class="button button-danger" type="submit">@Icons.Bin Delete round</button>
+                <small class="muted">Deleting also deletes what was ticked off on it. To keep that, untick In use instead.</small>
+            </form>
+        </details>
+    }
+</section>

@@ -1,0 +1,77 @@
+@page
+@using EduHelpdesk.Services
+@model RoundsModel
+@{
+    ViewData["Title"] = "Cleaning rounds";
+    var iso = Model.Date.ToString("yyyy-MM-dd");
+}
+<div class="page-heading">
+    <div><p class="eyebrow">CLEANING</p><h1>Cleaning rounds</h1><p class="hero-copy">Print the day's sheets for the cleaners, then tick off what was done when they hand them back. A room left unticked counts as missed on the rounds report.</p></div>
+    @if (Model.CanReport) { <a class="button button-secondary" asp-page="/Reports/Rounds">Rounds report</a> }
+</div>
+@if (Model.Message is { } message) { <div class="notice">@message</div> }
+
+<form method="get" class="rounds-day">
+    <label>Day<input type="date" name="date" value="@iso" max="@Model.Today.ToString("yyyy-MM-dd")" data-autosubmit /></label>
+    <a class="button button-secondary" asp-route-date="@Model.Date.AddDays(-1).ToString("yyyy-MM-dd")">← @Model.Date.AddDays(-1).ToString("ddd d")</a>
+    @if (Model.Date < Model.Today) { <a class="button button-secondary" asp-route-date="@Model.Date.AddDays(1).ToString("yyyy-MM-dd")">@Model.Date.AddDays(1).ToString("ddd d") →</a> <a class="button button-secondary" asp-page="/Rounds">Today</a> }
+    <noscript><button class="button button-secondary" type="submit">Show</button></noscript>
+</form>
+
+<h2 class="rounds-date">@Model.Date.ToString("dddd d MMMM yyyy")</h2>
+@if (!Model.HasRounds)
+{
+    <section class="panel"><p class="muted">No cleaning rounds are set up yet. They're added in <a asp-page="/Settings/Rounds">Settings → Cleaning rounds</a>.</p></section>
+}
+else if (Model.Due.Count == 0)
+{
+    <section class="panel"><p class="muted">No rounds are due on @Model.Date.ToString("dddd")s.</p></section>
+}
+@foreach (var round in Model.Due)
+{
+    var visits = Model.VisitsFor(round);
+    var recorded = visits.Count > 0;
+    var done = visits.Count(x => x.Done);
+    var last = visits.OrderByDescending(x => x.RecordedAt).FirstOrDefault();
+    <section class="panel" id="round-@round.Id">
+        <div class="panel-heading">
+            <h2>@round.Name</h2>
+            <span class="badge @(recorded ? done == round.Rooms.Count ? "badge-good" : "badge-warning" : "")">@(recorded ? $"{done} of {round.Rooms.Count} done" : "Not recorded yet")</span>
+            <a class="button button-secondary" asp-page="/RoundSheet" asp-route-id="@round.Id" asp-route-date="@iso" target="_blank">🖨 Print sheet</a>
+        </div>
+        @if (last is not null) { <p class="muted">Recorded by @(Model.Who(last).Length > 0 ? Model.Who(last) : "someone") at @last.RecordedAt.ToLocalTime().ToString("HH:mm, ddd d MMM").</p> }
+        <form method="post" class="round-form">
+            <input type="hidden" name="id" value="@round.Id" /><input type="hidden" name="date" value="@iso" />
+            <div class="table-wrap">
+                <table class="round-table">
+                    <thead><tr><th>Room</th><th>Done</th><th>Cleaner</th><th>Note</th><th title="Spot-check score, 1 (poor) to 5 (excellent)">Spot check</th><th>Spot-check note</th></tr></thead>
+                    <tbody>
+                        @for (var i = 0; i < round.Rooms.Count; i++)
+                        {
+                            var room = round.Rooms[i];
+                            var visit = visits.FirstOrDefault(x => string.Equals(x.Room, room, StringComparison.OrdinalIgnoreCase));
+                            var cleaner = visit is { Done: true } ? visit.Cleaner : round.Cleaner;
+                            <tr class="@(recorded && visit?.Done != true ? "round-missed" : null)">
+                                <th scope="row"><input type="hidden" name="v[@i].Room" value="@room" />@room</th>
+                                <td><label class="round-done"><input type="checkbox" name="v[@i].Done" value="true" checked="@(visit?.Done == true)" /><span class="visually-hidden">@room done</span></label></td>
+                                <td><label class="visually-hidden" for="cleaner-@round.Id-@i">Cleaner for @room</label>
+                                    <select id="cleaner-@round.Id-@i" name="v[@i].Cleaner"><option value="">-</option>@foreach (var name in Model.Cleaners) { <option value="@name" selected="@string.Equals(name, cleaner, StringComparison.OrdinalIgnoreCase)">@name</option> }</select></td>
+                                <td><label class="visually-hidden" for="note-@round.Id-@i">Note for @room</label><input id="note-@round.Id-@i" name="v[@i].Note" value="@visit?.Note" maxlength="@HelpdeskStore.MaxRoundNoteLength" placeholder="e.g. Room locked" /></td>
+                                <td><label class="visually-hidden" for="score-@round.Id-@i">Spot-check score for @room</label>
+                                    <select id="score-@round.Id-@i" name="v[@i].Score"><option value="">-</option>@for (var s = 1; s <= 5; s++) { <option value="@s" selected="@(visit?.Score == s)">@s</option> }</select></td>
+                                <td><label class="visually-hidden" for="scorenote-@round.Id-@i">Spot-check note for @room</label><input id="scorenote-@round.Id-@i" name="v[@i].ScoreNote" value="@visit?.ScoreNote" maxlength="@HelpdeskStore.MaxRoundNoteLength" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button class="button button-primary" type="submit">Save @round.Name</button>
+                <button class="button button-secondary" type="button" data-all-done>Tick all done</button>
+            </div>
+        </form>
+    </section>
+}
+@section Scripts {
+<script src="~/js/pages/rounds.js" asp-append-version="true"></script>
+}

@@ -169,6 +169,10 @@ public sealed partial class HelpdeskStore
         public List<TicketCost> TicketCosts { get; set; } = [];
         // Premises checks done on tickets (HelpdeskStore.Checks), and which desk each asset type belongs to.
         public List<CheckLine> CheckLines { get; set; } = [];
+        // Cleaning rounds, what was recorded on them, and the cleaners' names (HelpdeskStore.Rounds).
+        public List<CleaningRound> CleaningRounds { get; set; } = [];
+        public List<RoundVisit> RoundVisits { get; set; } = [];
+        public List<string> Cleaners { get; set; } = [];
         public Dictionary<string, Guid> AssetTypeDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> BudgetCodes { get; set; } = [];
         public bool BudgetCodesSeeded { get; set; }

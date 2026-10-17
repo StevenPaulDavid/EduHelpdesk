@@ -2468,3 +2468,14 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .checklist-table .toggle-label { display: inline-flex; margin-right: var(--space-3); }
 .checklist-reading { width: 6rem; margin-right: 4px; }
 .checklist-failed { background: var(--warning-soft, #fbf0e2); }
+/* Cleaning rounds (Pages/Rounds, Pages/Settings/Rounds) */
+.round-rooms { max-height: 260px; overflow-y: auto; }
+.round-rooms small { flex-basis: auto; }
+.rounds-day { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2); margin-bottom: var(--space-3); }
+.rounds-date { margin: var(--space-2) 0 var(--space-3); }
+.round-table th[scope=row] { font-size: inherit; text-transform: none; letter-spacing: normal; color: inherit; font-weight: 600; white-space: nowrap; }
+.round-table input[type=text], .round-table input:not([type]), .round-table select { width: 100%; min-width: 7rem; }
+.round-table .round-done input { width: 20px; height: 20px; }
+.round-table tr.round-missed th[scope=row] { color: var(--red); }
+.round-form .form-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.round-unrecorded { margin: 0; padding-left: 1.2rem; }

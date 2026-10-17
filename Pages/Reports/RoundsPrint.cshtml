@@ -1,0 +1,56 @@
+@page
+@model EduHelpdesk.Pages.Reports.RoundsPrintModel
+@{
+    Layout = "_ReportPrint";
+    ViewData["ReportTitle"] = "Cleaning rounds";
+    ViewData["ReportSubtitle"] = Model.Span;
+}
+@if (Model.Days.Count == 0)
+{
+    <p>No rounds were due in these days.</p>
+}
+else
+{
+    <p class="note">@Model.RoomsDone of @Model.RoomsDue rooms done on the days that were recorded. @(Model.Unrecorded.Count == 1 ? "1 round day" : $"{Model.Unrecorded.Count} round days") had nothing recorded and aren't counted. Spot-check average @RoundsReportModel.Score(Model.AverageScore) out of 5.</p>
+    <section>
+        <h2>By round</h2>
+        <table>
+            <thead><tr><th>Round</th><th class="num">Days due</th><th class="num">Recorded</th><th class="num">Rooms done</th><th class="num">Missed</th><th class="num">Done</th><th class="num">Spot check</th></tr></thead>
+            <tbody>
+                @foreach (var line in Model.ByRound)
+                {
+                    <tr class="@(line.Missed > 0 ? "flag" : "")"><td class="count">@line.Round.Name</td><td class="num">@line.Due</td><td class="num">@line.Recorded</td><td class="num">@line.RoomsDone of @line.RoomsDue</td><td class="num">@line.Missed</td><td class="num">@(line.PercentDone is { } p ? $"{p}%" : "-")</td><td class="num">@RoundsReportModel.Score(line.AverageScore)</td></tr>
+                }
+            </tbody>
+        </table>
+    </section>
+    <section>
+        <h2>Rooms missed</h2>
+        @if (Model.Missed.Count == 0) { <p class="empty">Every room was done on every day that was recorded.</p> }
+        else
+        {
+            <table>
+                <thead><tr><th>Room</th><th>Round</th><th class="num">Missed</th><th>Last missed</th><th>Notes</th></tr></thead>
+                <tbody>@foreach (var room in Model.Missed) { <tr><td class="count">@room.Room</td><td>@room.Round</td><td class="num">@room.Times of @room.Of</td><td>@room.Last.ToString("ddd d MMM")</td><td>@string.Join("; ", room.Notes)</td></tr> }</tbody>
+            </table>
+        }
+    </section>
+    <section>
+        <h2>Spot-check scores</h2>
+        @if (Model.Scores.Count == 0) { <p class="empty">No spot checks were scored in these days.</p> }
+        else
+        {
+            <table>
+                <thead><tr><th>Room</th><th>Round</th><th class="num">Average</th><th class="num">Checks</th><th class="num">Lowest</th><th>Notes</th></tr></thead>
+                <tbody>@foreach (var room in Model.Scores) { <tr class="@(room.Average < 3 ? "flag" : "")"><td class="count">@room.Room</td><td>@room.Round</td><td class="num">@RoundsReportModel.Score(room.Average)</td><td class="num">@room.Count</td><td class="num">@room.Lowest</td><td>@string.Join("; ", room.Notes)</td></tr> }</tbody>
+            </table>
+        }
+    </section>
+    @if (Model.Unrecorded.Count > 0)
+    {
+        <section>
+            <h2>Days nothing was recorded</h2>
+            <p>@string.Join("; ", Model.Unrecorded.GroupBy(x => x.Date).Select(d => $"{d.Key:ddd d MMM}: {string.Join(", ", d.Select(x => x.Round.Name))}"))</p>
+        </section>
+    }
+}

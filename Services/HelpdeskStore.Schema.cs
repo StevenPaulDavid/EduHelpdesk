@@ -273,6 +273,7 @@ public sealed partial class HelpdeskStore
         EnsureCostSchema(connection);
         // After the recurring tickets' table, which it adds a column to.
         EnsureCheckSchema(connection);
+        EnsureRoundSchema(connection);
     }
 
     private static void MigrateAssetAttributeTypeToNullable(SqliteConnection connection)

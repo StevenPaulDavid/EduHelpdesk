@@ -1,0 +1,108 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.RoundsReportModel
+@{
+    ViewData["Title"] = "Cleaning rounds report"; ViewData["Wide"] = true;
+    var from = Model.Iso(Model.From); var to = Model.Iso(Model.To);
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Cleaning rounds</h1><p class="hero-copy">Which rooms were missed on the cleaning rounds, and how they scored on spot checks. Days a round was due but nothing was recorded at all - holidays, or the supervisor off - are listed apart, not counted as missed.</p></div>
+    <div class="heading-actions">
+        @if (Model.CanExport) { <a class="button button-primary" asp-page="/Reports/RoundsPrint" asp-route-from="@from" asp-route-to="@to" asp-route-round="@Model.RoundId" target="_blank">🖨 Print / Save as PDF</a> }
+        <a class="button button-secondary" asp-page="/Index">← Overview</a>
+    </div>
+</div>
+<partial name="_ReportTabs" model="@("/Reports/Rounds")" />
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>From<input type="date" name="from" value="@from" max="@to" /></label>
+        <label>To<input type="date" name="to" value="@to" /></label>
+        <label>Round<select name="round"><option value="">Every round</option>@foreach (var round in Model.AllRounds) { <option value="@round.Id" selected="@(round.Id == Model.RoundId)">@round.Name</option> }</select></label>
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Rounds">Last @RoundsReportModel.DefaultDays days</a>@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Rounds" asp-page-handler="Export" asp-route-from="@from" asp-route-to="@to" asp-route-round="@Model.RoundId">⬇ CSV of every room</a> }</div>
+    </form>
+    <p class="muted">@Model.Span. Rounds are set up in Settings → Cleaning rounds and ticked off on <a asp-page="/Rounds">Rounds</a>.</p>
+</section>
+
+@if (Model.Days.Count == 0)
+{
+    <section class="panel"><p class="muted">No rounds were due in these days.</p></section>
+}
+else
+{
+    <div class="metrics">
+        <div class="metric"><span>Rooms done</span><strong>@Model.RoomsDone of @Model.RoomsDue</strong><small>on days that were recorded</small></div>
+        <div class="metric"><span>Rooms missed</span><strong>@(Model.RoomsDue - Model.RoomsDone)</strong><small>@(Model.Missed.Count == 1 ? "1 room" : $"{Model.Missed.Count} rooms") at least once</small></div>
+        <div class="metric"><span>Days not recorded</span><strong>@Model.Unrecorded.Count</strong><small>of @Model.Days.Count round days due</small></div>
+        <div class="metric"><span>Spot-check average</span><strong>@RoundsReportModel.Score(Model.AverageScore)</strong><small>out of 5, @Model.Scores.Sum(x => x.Count) checks</small></div>
+    </div>
+
+    <section class="panel">
+        <div class="panel-heading"><h2>By round</h2></div>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Round</th><th>Days due</th><th>Recorded</th><th>Not recorded</th><th>Rooms done</th><th>Missed</th><th>Done</th><th>Spot-check average</th></tr></thead>
+            <tbody>
+                @foreach (var line in Model.ByRound)
+                {
+                    <tr>
+                        <td><strong>@line.Round.Name</strong>@if (!line.Round.IsActive) { <span class="muted"> (not in use)</span> }</td>
+                        <td>@line.Due</td><td>@line.Recorded</td><td>@line.NotRecorded</td><td>@line.RoomsDone of @line.RoomsDue</td>
+                        <td>@if (line.Missed > 0) { <span class="badge badge-warning">@line.Missed</span> } else { <span>0</span> }</td>
+                        <td>@(line.PercentDone is { } p ? $"{p}%" : "-")</td>
+                        <td>@RoundsReportModel.Score(line.AverageScore)@(line.Scores > 0 ? $" ({line.Scores})" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading"><h2>Rooms missed</h2><span class="badge">@Model.Missed.Count</span></div>
+        @if (Model.Missed.Count == 0) { <p class="muted">Every room was done on every day that was recorded.</p> }
+        else
+        {
+            <div class="table-wrap"><table>
+                <thead><tr><th>Room</th><th>Round</th><th>Missed</th><th>Last missed</th><th>Notes</th></tr></thead>
+                <tbody>
+                    @foreach (var room in Model.Missed)
+                    {
+                        <tr><td><strong>@room.Room</strong></td><td>@room.Round</td><td>@room.Times of @room.Of days</td><td>@room.Last.ToString("ddd d MMM")</td><td class="muted">@string.Join("; ", room.Notes)</td></tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading"><h2>Spot-check scores</h2><span class="badge">@Model.Scores.Count</span></div>
+        @if (Model.Scores.Count == 0) { <p class="muted">No spot checks were scored in these days.</p> }
+        else
+        {
+            <p class="muted">Lowest average first. 1 is poor, 5 excellent.</p>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Room</th><th>Round</th><th>Average</th><th>Checks</th><th>Lowest</th><th>Notes</th></tr></thead>
+                <tbody>
+                    @foreach (var room in Model.Scores)
+                    {
+                        <tr><td><strong>@room.Room</strong></td><td>@room.Round</td><td>@if (room.Average < 3) { <span class="badge badge-warning">@RoundsReportModel.Score(room.Average)</span> } else { @RoundsReportModel.Score(room.Average) }</td><td>@room.Count</td><td>@room.Lowest</td><td class="muted">@string.Join("; ", room.Notes)</td></tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading"><h2>Days nothing was recorded</h2><span class="badge">@Model.Unrecorded.Count</span></div>
+        @if (Model.Unrecorded.Count == 0) { <p class="muted">Every round was recorded on every day it was due.</p> }
+        else
+        {
+            <p class="muted">Usually holidays and training days, since the helpdesk doesn't hold term dates. A school day here means the round wasn't ticked off.</p>
+            <ul class="round-unrecorded">
+                @foreach (var day in Model.Unrecorded.GroupBy(x => x.Date))
+                {
+                    <li><a asp-page="/Rounds" asp-route-date="@Model.Iso(day.Key)">@day.Key.ToString("ddd d MMM")</a>: @string.Join(", ", day.Select(x => x.Round.Name))</li>
+                }
+            </ul>
+        }
+    </section>
+}

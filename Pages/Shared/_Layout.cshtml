@@ -35,6 +35,7 @@
         ("/Reports/Parts", Modules.Flags.ReportParts), ("/Reports/Loans", Modules.Flags.ReportLoans),
         ("/Reports/Finance", Modules.Flags.ReportFinance), ("/Reports/Projects", Modules.Flags.ReportProjects),
         ("/Reports/Onboarding", Modules.Flags.ReportOnboarding), ("/Reports/Spend", Modules.Flags.ReportSpend), ("/Reports/Checks", Modules.Flags.ReportChecks),
+        ("/Reports/Rounds", Modules.Flags.ReportRounds),
     };
     var firstReport = Can(Modules.Reports) ? reportPages.FirstOrDefault(x => Helpdesk.UserHasFlag(User, x.Flag)).Page : null;
 
@@ -107,6 +108,7 @@
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
             @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
             @if (Can(Modules.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
+            @if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) { <a asp-page="/Rounds" class="@(NavOn("/Rounds", "/RoundSheet") ? "active" : null)">Rounds</a> }
             @* HR groups People and Onboarding, but only for someone who can reach both. Someone with just one of them - the
                onboarding officer, say - gets a plain link rather than a menu with a single item in it. *@
             @if (canPeople && canOnboarding)

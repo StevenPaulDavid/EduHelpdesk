@@ -54,6 +54,8 @@ public static class SettingsMenu
             new("Departments", "/Settings/Departments", "department"),
             new("Buildings", "/Settings/Buildings", "building block site campus dfe"),
             new("Locations (rooms)", "/Settings/Locations", "location room building site"),
+            new("Cleaning rounds", "/Settings/Rounds", "cleaning rounds rooms cleaner cleaners rota sheet supervisor spot check daily weekly"),
+            new("Cleaners", "/Settings/Cleaners", "cleaner cleaners cleaning staff names contractor rounds"),
             new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Onboarding checklists", "/Settings/Onboarding", "onboarding new starter staff checklist template tasks"),
         ]),
