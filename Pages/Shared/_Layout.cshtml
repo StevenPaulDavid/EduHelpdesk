@@ -204,8 +204,14 @@
             </details>
         }
         @* Outside the site menu too, so help is one tap away on a phone. *@
-        <a class="header-help @(onHelp ? "active" : null)" asp-page="/Help/Index" title="Help" aria-label="Help"><span aria-hidden="true">?</span></a>
+        @if (NavOn("/Portal")) { <a class="header-help @(NavOn("/Portal/Help") ? "active" : null)" asp-page="/Portal/Help" title="Help with the staff portal" aria-label="Help with the staff portal"><span aria-hidden="true">?</span></a> }
+        else { <a class="header-help @(onHelp ? "active" : null)" asp-page="/Help/Index" title="Help" aria-label="Help"><span aria-hidden="true">?</span></a> }
         <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="site-menu"><span aria-hidden="true">☰</span> Menu</button>
+    }
+    else if (NavOn("/Portal"))
+    {
+        @* Staff using the portal aren't signed in to the helpdesk; their help is the portal's own (Pages/Portal/Help). *@
+        <a class="header-help header-help-portal @(NavOn("/Portal/Help") ? "active" : null)" asp-page="/Portal/Help" title="Help with the staff portal"><span aria-hidden="true">?</span> Help</a>
     }
     </header>
     <main class="@shellClass" id="main" tabindex="-1">

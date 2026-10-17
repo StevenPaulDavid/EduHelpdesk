@@ -1,0 +1,30 @@
+@page
+@model EduHelpdesk.Pages.Portal.HelpModel
+@{
+    ViewData["Title"] = "Help with the staff portal";
+    var contents = Model.Rendered.Headings.Where(x => x.Level == 2).ToList();
+}
+<div class="portal-shell">
+    <div class="page-heading">
+        <div><p class="eyebrow">STAFF PORTAL</p><h1>Help</h1><p class="hero-copy">How to report a problem, follow it up, and request a project.</p></div>
+        <a class="button button-secondary" asp-page="/Portal/Index">← Back</a>
+    </div>
+    @if (Model.SchoolNote is { } note)
+    {
+        <aside class="help-school-note">
+            <p class="eyebrow">FROM YOUR SCHOOL</p>
+            @Html.Raw(note.Html)
+        </aside>
+    }
+    @if (contents.Count > 2)
+    {
+        <nav class="panel portal-help-contents" aria-label="On this page">
+            <p class="eyebrow">ON THIS PAGE</p>
+            <ul>@foreach (var heading in contents) { <li><a href="#@heading.Id">@heading.Text</a></li> }</ul>
+        </nav>
+    }
+    <article class="panel help-article">
+        @if (Model.Rendered.Html.Length == 0) { <p class="muted">The help isn't available at the moment. Ask the IT team.</p> }
+        @Html.Raw(Model.Rendered.Html)
+    </article>
+</div>

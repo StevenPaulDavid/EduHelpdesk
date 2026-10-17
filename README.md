@@ -43,7 +43,7 @@ Plain-HTTP requests are then redirected, browsers are told to stay on HTTPS, and
 
 ### Backups and the data folder
 
-Backups run nightly - see **Settings → Backups & data** for the schedule, folder, retention and restore steps. The data lives in `App_Data` unless `"EduHelpdesk": { "DataPath": "C:\\EduHelpdeskData" }` points elsewhere. Keep it out of OneDrive and other synced folders. The first start with a new DataPath copies the data across. See `docs/Technical-Guide.md` section 15.
+Backups run nightly - see **Settings → Backups & data** for the schedule, folder, retention and restore steps. The data lives in `App_Data` unless `"EduHelpdesk": { "DataPath": "C:\\EduHelpdeskData" }` points elsewhere. Keep it out of OneDrive and other synced folders. The first start with a new DataPath copies the data across. See **Help → Backups and data** in the app.
 
 On the Tickets page, "Working as" (which technician you're logging work under) is preset to your own account. Only a role with the "change Working as" permission can change it to someone else - everyone else is always themselves.
 

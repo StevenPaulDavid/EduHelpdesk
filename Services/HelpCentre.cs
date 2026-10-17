@@ -24,7 +24,7 @@ public sealed class HelpCentre
     public static readonly string[] Areas =
     [
         "Getting started", "Tickets", "Site and cleaning", "Assets and inventory", "Compliance", "Projects", "Onboarding",
-        "People and roles", "Reports", "Settings", "Your account", "School articles"
+        "People and roles", "Reports", "Settings", "Staff portal", "Your account", "School articles"
     ];
     public static readonly string[] Kinds = ["start", "task", "page"];
 
@@ -44,6 +44,7 @@ public sealed class HelpCentre
     private IReadOnlyList<Article> _articles = [];
     private IReadOnlyList<Problem> _problems = [];
     private string _whatsNew = "";
+    private string _portalHelp = "";
     private DateTime _loadedStamp = DateTime.MinValue;
     private DateTime _checkedAt = DateTime.MinValue;
 
@@ -58,6 +59,11 @@ public sealed class HelpCentre
     // Articles that couldn't be read, for the tests and the help centre's own admin view.
     public IReadOnlyList<Problem> Problems { get { Refresh(); lock (_sync) return _problems; } }
     public string WhatsNew { get { Refresh(); lock (_sync) return _whatsNew; } }
+    // The staff portal's own short help (wwwroot/help/portal.md, Pages/Portal/Help) - plain language for requesters,
+    // kept out of the technicians' articles.
+    public string PortalHelp { get { Refresh(); lock (_sync) return _portalHelp; } }
+    // The helpdesk-side article about the portal; the school's note on it also heads the portal's help page.
+    public const string PortalArticle = "staff-portal";
 
     public Article? Find(string? slug) => Articles.FirstOrDefault(x => string.Equals(x.Slug, slug, StringComparison.OrdinalIgnoreCase));
 
@@ -175,11 +181,14 @@ public sealed class HelpCentre
             }
         var whatsNewFile = Path.Combine(_folder, "whats-new.md");
         if (File.Exists(whatsNewFile)) whatsNew = File.ReadAllText(whatsNewFile);
+        var portalFile = Path.Combine(_folder, "portal.md");
+        var portalHelp = File.Exists(portalFile) ? File.ReadAllText(portalFile) : "";
         lock (_sync)
         {
             _articles = articles.OrderBy(x => Array.IndexOf(Areas, x.Area)).ThenBy(x => x.Order).ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ToList();
             _problems = problems;
             _whatsNew = whatsNew;
+            _portalHelp = portalHelp;
             _loadedStamp = stamp;
         }
     }

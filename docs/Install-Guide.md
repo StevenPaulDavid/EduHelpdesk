@@ -66,7 +66,7 @@ Everything the school name, colours, logo and backups questions set can be chang
 - **People**: add your technicians (Staff accounts) and give them roles, and import staff who will use the portal (Requesters, from a CSV). Each account you add gets a temporary password and a one-page **quick start guide** to print and hand over; an import prints a guide for everyone in it.
 - **Sign-in security → Helpdesk address**: check it's the address staff will type. It's printed on every quick start guide.
 - **Backups & data**: after the first night, check the backup ran.
-- The **Technical Guide** (`docs\Technical-Guide.md` in the zip) explains every setting, and the **Staff Guide** (`docs\Staff-Guide.md`) is written for the staff who use the portal.
+- Every setting and page is explained in the app's own **Help centre** - sign in and press the **?** in the top bar. Staff using the portal have their own help from the **? Help** in its top bar. (`docs\Technical-Guide.md` and `docs\Staff-Guide.md` in the zip point to these.)
 
 ## HTTPS
 

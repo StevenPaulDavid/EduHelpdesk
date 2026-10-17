@@ -88,7 +88,15 @@ public class HelpCentreTests
         Assert.NotEmpty(help.Articles);
         var slugs = help.Articles.Select(x => x.Slug).ToHashSet();
         var images = Path.Combine(root, "wwwroot", "help", "images");
-        foreach (var article in help.Articles.Append(new HelpCentre.Article("whats-new", "", "", "", "", [], [], [], 0, help.WhatsNew)))
+        bool PageExists(string path)
+        {
+            var file = path.Split('?', '#')[0].TrimEnd('/');
+            file = file.Length == 0 ? "Index" : file.TrimStart('/');
+            return File.Exists(Path.Combine(root, "Pages", file + ".cshtml")) || File.Exists(Path.Combine(root, "Pages", file, "Index.cshtml"));
+        }
+        Assert.Contains("## Reporting a problem", help.PortalHelp);
+        var extras = new[] { new HelpCentre.Article("whats-new", "", "", "", "", [], [], [], 0, help.WhatsNew), new HelpCentre.Article("portal-help", "", "", "", "", [], [], [], 0, help.PortalHelp) };
+        foreach (var article in help.Articles.Concat(extras))
         {
             foreach (var page in article.Pages)
             {
@@ -98,7 +106,8 @@ public class HelpCentreTests
             foreach (Match link in Regex.Matches(article.Body, @"\]\(([^)\s]+)\)"))
             {
                 var target = link.Groups[1].Value;
-                if (target.StartsWith("http") || target.StartsWith('/') || Regex.IsMatch(target, @"\.(png|jpg|jpeg|gif|webp)$")) continue;
+                if (target.StartsWith('/')) { Assert.True(PageExists(target), $"{article.Slug} links to a page that doesn't exist: {target}"); continue; }
+                if (target.StartsWith("http") || Regex.IsMatch(target, @"\.(png|jpg|jpeg|gif|webp)$")) continue;
                 var slug = target.Replace("help:", "").Split('#')[0];
                 Assert.True(slugs.Contains(slug), $"{article.Slug} links to a missing article: {target}");
             }

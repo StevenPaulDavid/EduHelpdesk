@@ -13,7 +13,7 @@ One zip, `releases\EduHelpdesk-<version>.zip`, with a `.sha256.txt` checksum bes
 | `install-answers.example.json` | For unattended installs |
 | `app\` | The published program, for 64-bit Windows, with the .NET runtime inside |
 | `INSTALL.pdf`, `INSTALL.md` | The school install guide (`docs\Install-Guide.md`), with the version filled in |
-| `docs\` | The Technical Guide and the Staff Guide |
+| `docs\` | Short pointers to the in-app help (Technical Guide, Staff Guide) |
 | `README.txt`, `VERSION.txt`, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt` | What they say |
 
 Nothing from your own install goes in it. The release script refuses to zip if it finds a database, sign-in keys, attachments, backups, logs or an install's own settings.

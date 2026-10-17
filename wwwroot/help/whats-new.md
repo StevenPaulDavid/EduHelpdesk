@@ -1,6 +1,6 @@
 ## Next version (not released yet)
 
-- **Help centre** - this help: step-by-step guides, a guide to each page, a **?** beside fields that need explaining, and the school's own articles and notes.
+- **Help centre** - this help: Getting started guides, a guide to every page, step-by-step articles, a **?** beside fields that need explaining, a **Help** link by each page's title, and the school's own articles and notes. Staff using the portal get their own short help from the **? Help** in its top bar.
 - **Cleaning rounds** - rooms grouped into rounds on chosen days, a printed sheet for the cleaners, ticking off rooms with spot-check scores, and a report of missed rooms. See [Getting started: cleaning rounds](getting-started-cleaning).
 - **Premises checks** - recurring checks can have a checklist with readings (water temperatures, say). A ticket can't be closed until it's filled in, and failures raise a follow-up job. A new **Premises checks** report is the compliance log.
 - **Plant** - each asset type belongs to a desk, so boilers and extinguishers are the Site desk's.
@@ -28,3 +28,44 @@
 
 - **Notification bell** with an unread count.
 - **On my way** button on tickets.
+
+## 1.8
+
+- **Teams channel** - post new portal tickets and overdue tickets to a Microsoft Teams channel.
+- Sign-in security shows a green **Encrypted** badge when the helpdesk is reached over https.
+
+## 1.6 and 1.7
+
+- **Service catalogue** - staff report problems by tapping a category tile, then a common problem, with *Something else* for anything not listed. Tiles have icons, colours and a set order.
+- **Notifications** - a ping and pop-up for technicians when a ticket arrives or a requester replies, and for requesters when a technician ticks **Notify the requester**. Settings can switch them off for everyone or one side, and remind people to switch them on.
+- The installer can make a **self-signed HTTPS certificate**, and `Enable-Https` adds one to a running install.
+
+## 1.5
+
+- **Import from Spiceworks** - bring tickets, comments and people across from a Spiceworks export, import again while both are in use, and undo the last import.
+- **Settings → Database** - every table as stored, read-only, behind its own permission, with a health check and warnings on the Overview.
+- Saving is much faster: only what changed is written.
+- Comments posted by mistake can be removed from tickets, assets, projects and onboardings.
+
+## 1.4
+
+- **Onboarding** - one checklist per new starter, with tasks owned by whoever does them, templates per kind of role, tasks that make the portal account or issue a laptop, a welcome pack PDF and an onboarding report.
+- People and Onboarding sit under a new **HR** menu.
+
+## 1.3
+
+- **Recovery keys** - technicians can reset a forgotten password themselves.
+- Projects are banded on the highest quote for each item, before any is chosen, and project amounts show excluding VAT by default.
+- The project lead gets **View projects** in the staff portal, with the number waiting to be assigned.
+
+## 1.2
+
+- New accounts get a **temporary password** and a printable **quick start guide**, one at a time or for a whole import.
+
+## 1.1
+
+- The installer makes the helpdesk reachable from other PCs on the school network.
+
+## 1.0
+
+The first release for schools, with a one-script installer: tickets with SLAs (including work days and lesson periods), templates and reports; the asset register with loans, kits and the finance and audit report; parts; the staff portal; purchasing projects with quotes and a proposal PDF; custom roles; backups, data retention and subject access; two-step sign-in; and running as a Windows service.

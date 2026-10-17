@@ -2531,3 +2531,7 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .help-note-edit summary { cursor: pointer; font-weight: 700; }
 .help-note-edit textarea { width: 100%; margin: var(--space-2) 0; }
 .help-delete { margin-bottom: var(--space-5); }
+.header-help-portal { width: auto; height: 32px; margin-left: auto; padding: 0 12px; gap: 6px; display: inline-flex; align-items: center; border-radius: 16px; font-size: 13px; }
+.portal-help-contents ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: 13px; }
+.portal-help-contents a { color: var(--teal-text); text-decoration: none; }
+.portal-help-contents a:hover { text-decoration: underline; }
