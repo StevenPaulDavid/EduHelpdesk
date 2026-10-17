@@ -10,6 +10,7 @@ namespace EduHelpdesk.Pages.People;
 public class UserModel(HelpdeskStore store, SignInThrottle throttle, TemporaryPasswords passwords) : PageModel
 {
     public IReadOnlyList<string> Departments => store.Departments;
+    public bool ShowProjects => store.IsFeatureOn(Features.Projects);
     public IReadOnlyList<string> Locations => store.Locations;
 
     public IActionResult OnGet() => store.UserCan(User, Modules.Requesters, ModulePermission.New) ? Page() : Forbid();

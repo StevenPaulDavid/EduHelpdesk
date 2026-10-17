@@ -51,7 +51,22 @@ public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", 
     public bool HasOwnHours => WorkWindows.Count > 0;
     // The parts of the top bar it doesn't use (Services/DeskAreas.cs). Empty: all of them.
     public IReadOnlyList<string> HiddenAreas { get; init; } = [];
+    // DeskKinds.It or DeskKinds.Facilities for the two built into every helpdesk; blank for one a school added.
+    public string Kind { get; init; } = "";
+    public bool IsBuiltIn => Kind.Length > 0;
 }
+
+// The two desks every helpdesk has. Either can be renamed or switched off (HelpdeskStore.BuiltInDesks); neither can be
+// deleted. A school can add more of its own.
+public static class DeskKinds
+{
+    public const string It = "it";
+    public const string Facilities = "facilities";
+}
+
+// A built-in desk that is switched off, and what belonged to it - its categories, teams, own statuses, the asset types
+// placed on it and the people on it - set aside until it is switched back on.
+public sealed record OffDesk(Desk Desk, List<string> Categories, List<string> Teams, List<string> Statuses, List<string> AssetTypes, List<Guid> Technicians);
 
 // Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.
 public sealed record RecoveryKeySetup(string Hash, DateTime CreatedAt);
@@ -107,7 +122,13 @@ public readonly record struct Actor(Guid? Id, string Name)
     // system genuinely does not know who did it, and saying so is better than implying it was nobody or the system.
     public static string Label(Actor? actor) => actor?.Name ?? "—";
 }
-public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
+public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt)
+{
+    // A contractor the site team calls out - an electrician, a plumber - listed under Facilities → Contractors, with
+    // their trade. Any supplier can be one as well as selling kit.
+    public bool IsContractor { get; init; }
+    public string Trade { get; init; } = "";
+}
 public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt)
 {
     // Where it's physically kept (shelf, cupboard, room) - free text, not the shared building-level Locations list.

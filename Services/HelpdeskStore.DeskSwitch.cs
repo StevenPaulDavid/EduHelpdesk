@@ -39,6 +39,7 @@ public partial class HelpdeskStore
     // The role's own permission is asked separately. With one desk, always.
     public bool AreaOn(ClaimsPrincipal user, string area)
     {
+        if (DeskAreas.All.FirstOrDefault(x => x.Key == area)?.Feature is { } feature && !IsFeatureOn(feature)) return false;
         if (!HasSeveralDesks) return true;
         var working = WorkingDesks(user);
         return (working.Count == 0 ? Desks : working).Any(x => DeskUses(x, area));

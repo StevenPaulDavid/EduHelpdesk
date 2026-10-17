@@ -9,6 +9,15 @@ public class EditModel(HelpdeskStore store) : PageModel
 {
     [BindProperty]
     public SupplierRecord Supplier { get; set; } = new(Guid.Empty, "", "", "", "", "", "", "", "", "", "", "", "", DateTime.UtcNow);
+    // A contractor the site team calls out, and their trade (Facilities → Contractors). Bound on their own: a record's
+    // init-only extras aren't.
+    [BindProperty] public bool IsContractor { get; set; }
+    [BindProperty] public string? Trade { get; set; }
+    public const int MaxTradeLength = 60;
+    // Offered as suggestions; any trade can be typed.
+    public static readonly string[] Trades = ["Electrician", "Plumber", "Heating engineer", "Gas engineer", "Roofer", "Builder", "Carpenter or joiner", "Glazier",
+        "Locksmith", "Decorator", "Fire safety", "Water hygiene (legionella)", "Lift maintenance", "Pest control", "Grounds maintenance", "Cleaning contractor",
+        "Security and CCTV", "Waste collection"];
 
     // One page serves adding and editing, so the convention lets in anyone with either permission and the handlers
     // sort out which of the two this actually is. See Program.cs.
@@ -19,7 +28,7 @@ public class EditModel(HelpdeskStore store) : PageModel
         if (!store.UserCan(User, Modules.Suppliers, Needed(!id.HasValue))) return Forbid();
         if (!id.HasValue) return Page();
         var existing = store.Suppliers.FirstOrDefault(x => x.Id == id);
-        if (existing is not null) Supplier = existing;
+        if (existing is not null) (Supplier, IsContractor, Trade) = (existing, existing.IsContractor, existing.Trade);
         return Page();
     }
 
@@ -44,8 +53,15 @@ public class EditModel(HelpdeskStore store) : PageModel
             PostalCode = Supplier.PostalCode?.Trim() ?? "",
             Country = Supplier.Country?.Trim() ?? "",
             Website = Supplier.Website?.Trim() ?? "",
-            Notes = Supplier.Notes?.Trim() ?? ""
+            Notes = Supplier.Notes?.Trim() ?? "",
+            IsContractor = IsContractor,
+            Trade = IsContractor ? (Trade ?? "").Trim() : ""
         };
+        if (item.Trade.Length > MaxTradeLength)
+        {
+            ModelState.AddModelError("", $"Keep the trade to {MaxTradeLength} characters.");
+            return Page();
+        }
         if (item.Id == Guid.Empty)
         {
             store.AddSupplier(item with { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow });

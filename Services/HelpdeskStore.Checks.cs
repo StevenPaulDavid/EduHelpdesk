@@ -120,6 +120,8 @@ public sealed partial class HelpdeskStore
     // still on the estate, by room then tag, as someone would walk round them.
     private void AddChecklistCore(int number, RecurringTicket schedule)
     {
+        // With premises checks switched off (Services/Features.cs) the schedule logs a plain ticket.
+        if (_data.FeaturesOff.Contains(Features.Checks)) return;
         var position = 0;
         foreach (var item in schedule.Checklist)
         {
@@ -144,7 +146,8 @@ public sealed partial class HelpdeskStore
 
     // How many lines still need an answer; 0 for a ticket with no checklist.
     public int UnansweredChecks(int number) { lock (_sync) return UnansweredChecksCore(number); }
-    private int UnansweredChecksCore(int number) => _data.CheckLines.Count(x => x.TicketNumber == number && !x.Answered);
+    // None while premises checks are switched off: the checklist is out of sight, so it can't hold a ticket open.
+    private int UnansweredChecksCore(int number) => _data.FeaturesOff.Contains(Features.Checks) ? 0 : _data.CheckLines.Count(x => x.TicketNumber == number && !x.Answered);
 
     public sealed record CheckAnswer(string? Result, string? Reading, string? Note);
 

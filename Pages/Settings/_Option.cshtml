@@ -4,7 +4,7 @@
     // the page heading and passes the list's name. The heading is the name people know, not the store's key - which
     // read "Manage AssetMakes".
     var listTitle = ViewData["ListTitle"] as string;
-    var title = listTitle ?? SettingsMenu.For(Context.Request.Path.Value ?? "")?.Title ?? ViewData["Title"] as string ?? Model.Kind;
+    var title = listTitle ?? SettingsMenu.For(Context.Request.Path.Value ?? "", Context.Request.Query["kind"])?.Title ?? ViewData["Title"] as string ?? Model.Kind;
 }
 @if (listTitle is null)
 {

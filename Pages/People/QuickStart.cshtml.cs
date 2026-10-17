@@ -17,6 +17,8 @@ namespace EduHelpdesk.Pages.People;
 // (TemporaryPasswords). After that the sheet has a line to write one on.
 public class QuickStartModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {
+    // The projects lines, while projects are switched on (Services/Features.cs).
+    public bool ShowProjects => store.IsFeatureOn(Features.Projects);
     private const string JustAddedKey = "QuickStartAdded";
 
     public sealed record Sheet(string Name, string Email, string? Password, bool MustChange, TechnicianRecord? Technician, UserRecord? Person)

@@ -11,7 +11,9 @@ public sealed class TestStore : IDisposable
     public string Root { get; } = Path.Combine(Path.GetTempPath(), "eduhelpdesk-tests", Guid.NewGuid().ToString("N"));
     public HelpdeskStore Store { get; private set; }
 
-    public TestStore(string? copyOf = null)
+    // A new install has two desks, IT and Facilities (HelpdeskStore.BuiltInDesks). Most tests are about something else
+    // and are written against one desk, so Facilities starts switched off unless asked for.
+    public TestStore(string? copyOf = null, bool facilities = false)
     {
         Directory.CreateDirectory(Root);
         // A copy of an existing database, taken through SQLite's own backup so the original is only ever read.
@@ -25,6 +27,7 @@ public sealed class TestStore : IDisposable
             source.BackupDatabase(target);
         }
         Store = Open();
+        if (copyOf is null && !facilities && Store.BuiltInDesk(DeskKinds.Facilities) is { } desk) Assert.True(Store.SwitchDeskOff(desk.Id).Ok);
     }
 
     // A second store on the same folder: what the app sees after a restart.

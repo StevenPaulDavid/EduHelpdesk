@@ -11,7 +11,7 @@ namespace EduHelpdesk.Pages;
 public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
 {
     public sealed record Card(string Title, string Page, string Description, string Keywords, string? Badge = null, bool Warn = false,
-        bool Open = true, IDictionary<string, string>? Route = null, bool Info = false, bool Good = false);
+        bool Open = true, bool Info = false, bool Good = false);
     public sealed record Group(string Title, IReadOnlyList<Card> Cards);
 
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
@@ -24,6 +24,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     public int ActiveStaff => store.Technicians.Count(x => x.IsActive);
     public int TwoFactorCount => store.Technicians.Count(x => x.IsActive && x.TwoFactor is not null);
     public bool HasDemoData => store.HasDemoData;
+    public bool FacilitiesChoicePending => store.FacilitiesChoicePending;
     public int RecentErrors { get; private set; }
     public IReadOnlyList<Group> Groups { get; private set; } = [];
     // 1.2.0, from the version New-Release.ps1 builds with.
@@ -89,7 +90,9 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         // pages' own menu uses too.
         var details = new Dictionary<string, Detail>(StringComparer.OrdinalIgnoreCase)
         {
-            ["/Settings/Desks"] = List(store.Desks.Select(x => x.Name).ToList(), "The parts of the school the helpdesk serves, such as IT, Site and Cleaning, each with its own categories, teams, people and ticket prefix."),
+            // The plain lists, a card for each group in its own section (SettingsMenu.ListGroups).
+
+            ["/Settings/Desks"] = List(store.Desks.Select(x => x.Name).ToList(), "IT and Facilities, built in and each switchable, and any desks of your own: each with its own categories, teams, people and ticket prefix."),
             ["/Settings/Rounds"] = List(store.CleaningRounds.Select(x => x.Name).ToList(), "Rooms grouped into cleaning rounds, the days each is done and its usual cleaner, for the supervisor to tick off."),
             ["/Settings/Cleaners"] = List(store.Cleaners, "The cleaners' names, for cleaning rounds. Cleaners don't need a sign-in."),
             ["/Settings/BudgetCodes"] = List(store.BudgetCodes, "What job costs are charged to, such as reactive or planned maintenance, for the spend report."),
@@ -107,10 +110,11 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/AssetModels"] = List(store.AssetModels, "Models, each linked to its make."),
             ["/Settings/AssetAttributes"] = List(store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type."),
             ["/Settings/Teams"] = List(store.TechnicianTeams, "Technician teams that tickets can be assigned to."),
-            ["/Settings/Lists"] = new("Rooms, departments, buildings, makes, statuses and the other plain lists the dropdowns offer.", $"{SettingsMenu.Lists.Count} lists"),
             ["/Settings/Imports"] = new("Technician accounts and option lists from CSV files."),
             ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
             ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
+            ["/Settings/Features"] = new(store.FeaturesOff.Count == 0 ? "Switch off the parts of the helpdesk your school doesn't use, such as assets or projects. Everything is on." : $"Switch off the parts of the helpdesk your school doesn't use. Off: {string.Join(", ", Features.All.Where(x => store.FeaturesOff.Contains(x.Key)).Select(x => x.Label.ToLowerInvariant()))}.",
+                store.FeaturesOff.Count == 0 ? null : $"{store.FeaturesOff.Count} off"),
             ["/Settings/Branding"] = new($"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()})."),
             ["/Settings/Backups"] = new(lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""), backupBadge,
                 backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
@@ -128,11 +132,25 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/Reset"] = new(HasDemoData ? "Remove the worked example a new install starts with, or reset everything." : "Reset the helpdesk to how a new install starts.", HasDemoData ? "Demo data present" : null),
         };
 
-        Groups = SettingsMenu.Sections.Select(section => new Group(section.Title, section.Items.Select(item =>
+        foreach (var group in SettingsMenu.ListGroups)
+        {
+            var count = SettingsMenu.ListsShown(store, group.Key).Count;
+            // A group of one list counts its values, like the other list cards; a group of several counts its lists.
+            var single = count == 1 ? SettingsMenu.ListsShown(store, group.Key)[0].Kind switch
+            {
+                "Priorities" => store.Priorities.Count,
+                "PurchasingRequirements" => store.PurchasingRequirements.Count,
+                _ => (int?)null
+            } : null;
+            details[SettingsMenu.ListPage(group.Key)] = new(group.Description, count > 1 ? $"{count} lists" : single?.ToString());
+        }
+
+        // Less anything belonging to a switched-off feature, and a section left with nothing.
+        Groups = SettingsMenu.Sections.Select(section => new Group(section.Title, section.Items.Where(item => SettingsMenu.Shown(store, item)).Select(item =>
         {
             var detail = details.GetValueOrDefault(item.Page) ?? new Detail("");
             return new Card(item.Title, item.Page, detail.Description, item.Keywords, detail.Badge, detail.Warn,
                 Open: SettingsMenu.CanOpen(store, User, item), Info: item.Need == SettingsMenu.Need.Info, Good: detail.Good);
-        }).ToList())).ToList();
+        }).ToList())).Where(x => x.Cards.Count > 0).ToList();
     }
 }

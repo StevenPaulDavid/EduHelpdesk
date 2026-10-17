@@ -1,23 +1,35 @@
-@page
+@page "{group?}"
 @model EduHelpdesk.Pages.Settings.OptionModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
-    // Settings → Lists: every plain list the dropdowns offer (SettingsMenu.Lists), a tab each, grouped by what they're
-    // for. The tab is ?kind=; the add, rename and delete forms are the shared option list's (_Option, OptionModel).
-    var current = SettingsMenu.FindList(Model.Kind) ?? SettingsMenu.Lists[0];
-    ViewData["Title"] = current.Title;
+    // Settings → Lists: the plain lists the dropdowns offer (SettingsMenu.Lists). Each group of them sits in its own
+    // section of the settings menu - /Settings/Lists/assets is the asset, part and loan lists - with a tab per list
+    // when there is more than one. The tab is ?kind=; the add, rename and delete forms are the shared option list's
+    // (_Option, OptionModel), which post back to /Settings/Lists?kind=.
+    var asked = SettingsMenu.FindList(Model.Kind) ?? SettingsMenu.Lists[0];
+    var group = SettingsMenu.FindListGroup(asked.Group)!;
+    // Less the lists of switched-off features (Services/Features.cs).
+    var tabs = SettingsMenu.ListsShown(Helpdesk, group.Key);
+    var current = tabs.Contains(asked) ? asked : tabs.FirstOrDefault() ?? asked;
+    ViewData["Title"] = tabs.Count == 1 ? group.Title : $"{current.Title} - {group.Title}";
     ViewData["ListTitle"] = current.Title;
     ViewData["ListDescription"] = current.Description;
 }
 <div class="page-heading">
-    <div><h1>Lists</h1><p class="hero-copy">The plain lists the dropdowns offer. Rename one with the pencil; the bin takes it off the list.</p></div>
+    <div><h1>@group.Title</h1><p class="hero-copy">@group.Description Rename one with the pencil; the bin takes it off the list.</p></div>
 </div>
-<nav class="list-tabs" aria-label="Lists">
-    @foreach (var group in SettingsMenu.Lists.GroupBy(x => x.Group))
-    {
-        <div class="list-tab-group">
-            <span class="list-tab-group-name">@group.Key</span>
-            @foreach (var item in group) { <a class="queue-tab @(item == current ? "active" : null)" asp-page="/Settings/Lists" asp-route-kind="@item.Kind" aria-current="@(item == current ? "page" : null)">@item.Title</a> }
-        </div>
-    }
-</nav>
-<partial name="_Option" model="Model" />
+@if (tabs.Count > 1)
+{
+    <nav class="queue-tabs list-tabs" aria-label="@group.Title">
+        @foreach (var item in tabs) { <a class="queue-tab @(item == current ? "active" : null)" href="@Url.Content("~" + SettingsMenu.ListUrl(item.Kind))" aria-current="@(item == current ? "page" : null)">@item.Title</a> }
+    </nav>
+}
+@if (!tabs.Contains(current))
+{
+    <section class="panel"><p class="muted">These lists belong to parts of the helpdesk that are switched off in <a asp-page="/Settings/Features">Features</a>.</p></section>
+}
+else
+{
+    Model.Kind = current.Kind;
+    <partial name="_Option" model="Model" />
+}

@@ -115,7 +115,7 @@ else
         </table>
         <div class="print-section"><h2>Description</h2><p>@Model.Ticket.Description</p></div>
         <div class="print-section"><h2>Requester</h2><p>@(Model.Requester?.Name ?? "Unknown")<br />@Model.Requester?.Email<br />@Model.Requester?.Department · @Model.Requester?.Location</p></div>
-        @if (Model.LinkedAssets.Count > 0)
+        @if (Model.ShowAssets && Model.LinkedAssets.Count > 0)
         {
             <div class="print-section">
                 <h2>Assets</h2>
@@ -218,8 +218,8 @@ else
             <div class="ticket-tab-buttons" role="tablist">
                 <button class="ticket-tab-button active" type="button" role="tab" aria-selected="true" aria-controls="comments-tab">Comments <span class="badge">@Model.Ticket.Comments.Count</span></button>
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab">History <span class="badge">@Model.Ticket.History.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="assets-tab">Assets <span class="badge">@Model.LinkedAssets.Count</span></button>
-                <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="parts-tab">Parts <span class="badge">@Model.TicketParts.Count</span></button>
+                @if (Model.ShowAssets) { <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="assets-tab">Assets <span class="badge">@Model.LinkedAssets.Count</span></button> }
+                @if (Model.ShowParts) { <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="parts-tab">Parts <span class="badge">@Model.TicketParts.Count</span></button> }
                 @if (Model.CanSeeCosts) { <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="costs-tab">Costs <span class="badge">@Model.Costs.Count</span></button> }
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="attachments-tab">Attachments <span class="badge">@Model.Attachments.Count</span></button>
             </div>
@@ -290,6 +290,8 @@ else
                     <p class="muted">No ticket changes have been recorded.</p>
                 }
             </div>
+            @if (Model.ShowAssets)
+            {
             <div id="assets-tab" class="ticket-tab-panel" role="tabpanel" hidden>
                 @if (Model.LinkedAssets.Count > 0)
                 {
@@ -314,6 +316,9 @@ else
                 }
                 <button class="button button-secondary" type="button" data-open-blade="asset-blade">@Icons.Plus Link assets</button>
             </div>
+            }
+            @if (Model.ShowParts)
+            {
             <div id="parts-tab" class="ticket-tab-panel" role="tabpanel" hidden>
                 @if (Model.TicketParts.Count > 0)
                 {
@@ -338,6 +343,7 @@ else
                 }
                 <button class="button button-secondary" type="button" data-open-blade="part-blade">@Icons.Plus Use a part</button>
             </div>
+            }
             @if (Model.CanSeeCosts)
             {
                 @* What the job cost, line by line. Only for roles with "See and add job costs" (HelpdeskStore.Costs). *@
@@ -517,6 +523,8 @@ else
 </div>
 
 @* Slide-in panels for the Assets, Parts and Attachments tabs (actions.js). *@
+@if (Model.ShowAssets)
+{
 <div id="asset-blade" class="blade-backdrop no-print">
     <div class="blade blade-wide" role="dialog" aria-modal="true" aria-labelledby="asset-blade-title">
         <div class="blade-head"><h2 id="asset-blade-title">Linked assets</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
@@ -528,6 +536,9 @@ else
         </form>
     </div>
 </div>
+}
+@if (Model.ShowParts)
+{
 <div id="part-blade" class="blade-backdrop no-print">
     <div class="blade" role="dialog" aria-modal="true" aria-labelledby="part-blade-title">
         <div class="blade-head"><h2 id="part-blade-title">Use a part</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
@@ -540,6 +551,7 @@ else
         </form>
     </div>
 </div>
+}
 <div id="upload-blade" class="blade-backdrop no-print">
     <div class="blade" role="dialog" aria-modal="true" aria-labelledby="upload-blade-title">
         <div class="blade-head"><h2 id="upload-blade-title">Attach files</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>

@@ -56,7 +56,13 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketReports.WorkloadRow> Workload { get; private set; } = [];
     // The summary charts: tickets logged, and open, each week (or month) of the period.
     public IReadOnlyList<TicketReports.TrendPoint> Trend { get; private set; } = [];
-    public string TrendStep => Trend.Count > 0 && Trend[0].Label.StartsWith("w/c") ? "week" : "month";
+    public string TrendStep => Trend.Count > 0 ? Trend[0].Step.Unit : TimeSteps.Month;
+    // The tickets a step's bar counts, in the ticket list: logged then, of this type, on this desk.
+    public string? LoggedUrl(TimeSteps.Step step) => Url.Page("/Jobs", new
+    {
+        view = "all", from = step.From.ToString("yyyy-MM-dd"), to = step.To.ToString("yyyy-MM-dd"), type = Type,
+        desk = HasSeveralDesks ? ReportDesk?.Name ?? "all" : null
+    });
     public IReadOnlyList<TicketReports.TeamRow> Teams { get; private set; } = [];
     public IReadOnlyList<TicketReports.AssetRow> Assets { get; private set; } = [];
     public IReadOnlyList<TicketReports.RepeatFaultRow> RepeatFaults { get; private set; } = [];

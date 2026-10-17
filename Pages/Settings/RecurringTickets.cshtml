@@ -20,7 +20,8 @@
             <label>Team<select name="Input.TeamName"><option value="">No team</option>@foreach (var team in Model.Teams) { <option value="@team" selected="@string.Equals(team, f.TeamName, StringComparison.OrdinalIgnoreCase)">@team</option> }</select></label>
             <label>Technician<select name="Input.TechnicianId"><option value="">Unassigned</option>@foreach (var technician in Model.Technicians.Where(x => x.IsActive || x.Id == f.TechnicianId).OrderBy(x => x.Name)) { <option value="@technician.Id" selected="@(technician.Id == f.TechnicianId)">@technician.Name@(string.IsNullOrWhiteSpace(technician.Team) ? "" : $" ({technician.Team})")</option> }</select></label>
             <label>Location<select name="Input.Location"><option value="">None</option>@foreach (var location in Model.Locations) { <option value="@location" selected="@string.Equals(location, f.Location, StringComparison.OrdinalIgnoreCase)">@location</option> }</select></label>
-            <label>Assets<input name="Input.AssetTags" value="@f.AssetTags" list="asset-tags" placeholder="Asset tags, separated by commas" /><small class="muted">Optional - e.g. the server whose backup is checked.</small></label>
+            @if (Helpdesk.IsFeatureOn(Features.Assets)) { <label>Assets<input name="Input.AssetTags" value="@f.AssetTags" list="asset-tags" placeholder="Asset tags, separated by commas" /><small class="muted">Optional - e.g. the server whose backup is checked.</small></label> }
+            else { <input type="hidden" name="Input.AssetTags" value="@f.AssetTags" /> }
             <label class="full">Ticket title<input name="Input.Title" value="@f.Title" maxlength="200" placeholder="Leave blank to use the name" /></label>
             <label class="full">Description<textarea name="Input.Description" rows="4" placeholder="What to do - a checklist works well">@f.Description</textarea></label>
         </div>
@@ -68,7 +69,7 @@
                 <div class="heading-actions"><button class="button button-primary" type="submit">Save changes</button></div>
             </form>
             <div class="heading-actions">
-                <a class="button button-secondary" asp-page="/Settings/Checklist" asp-route-id="@item.Id" title="Readings each ticket it logs asks for - for premises checks">Checklist@(item.Checklist.Count > 0 ? $" ({item.Checklist.Count})" : "")</a>
+                @if (Helpdesk.IsFeatureOn(Features.Checks)) { <a class="button button-secondary" asp-page="/Settings/Checklist" asp-route-id="@item.Id" title="Readings each ticket it logs asks for - for premises checks">Checklist@(item.Checklist.Count > 0 ? $" ({item.Checklist.Count})" : "")</a> }
                 <form method="post" asp-page-handler="LogNow" asp-route-id="@item.Id" data-confirm="Log a ticket from this now? The schedule carries on as it is."><button class="button button-secondary" type="submit">Log one now</button></form>
                 <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" data-confirm="Delete this recurring ticket? Tickets it already logged are not affected."><button class="button button-danger" type="submit">Delete</button></form>
             </div>

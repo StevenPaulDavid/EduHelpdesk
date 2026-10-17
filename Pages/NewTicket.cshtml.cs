@@ -12,6 +12,8 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> TechnicianTeams => store.TechnicianTeams;
     // Disposed assets can't be linked to a new ticket - they have left the estate.
     public IReadOnlyList<AssetRecord> Assets => store.Assets.Where(x => !HelpdeskStore.IsDisposed(x)).ToList();
+    // Off with assets switched off (Services/Features.cs).
+    public bool ShowAssets => store.IsFeatureOn(Features.Assets);
     public IReadOnlyList<string> Categories => store.Categories;
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Locations => store.Locations;
@@ -80,7 +82,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         var createdAt = DateTime.UtcNow;
         var selectedSla = Ticket.SlaId ?? store.SlaFor(Ticket.Priority, Ticket.Category);
         var dueDate = Ticket.DueDate ?? store.CalculateDueDate(selectedSla, createdAt, Ticket.Category);
-        var assetIds = (Ticket.AssetIds ?? []).Where(id => store.Assets.Any(a => a.Id == id)).Distinct().ToList();
+        var assetIds = !ShowAssets ? [] : (Ticket.AssetIds ?? []).Where(id => store.Assets.Any(a => a.Id == id)).Distinct().ToList();
         var number = store.AddTicket(new TicketRecord(
             0,
             Ticket.Title.Trim(),

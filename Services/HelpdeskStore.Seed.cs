@@ -278,7 +278,9 @@ public sealed partial class HelpdeskStore
         EnsureProjectDefaults();
         EnsureOnboardingDefaults();
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
-        // One desk, IT, holding every category and team: a single-desk helpdesk looks exactly as it did before desks.
+        // IT holding every category and team so far, then Facilities with its own (HelpdeskStore.BuiltInDesks).
+        EnsureDesks();
+        SeedFacilitiesDesk();
         EnsureDesks();
         EnsureBudgetCodes();
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",

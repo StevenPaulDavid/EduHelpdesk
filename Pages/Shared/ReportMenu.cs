@@ -12,8 +12,13 @@ public static class ReportMenu
 {
     public sealed record Item(string Page, string Label, string Tab, string Flag, string? Area);
 
+    // The dashboard comes first. It has no flag of its own: it opens for anyone who has any report it charts
+    // (Reports/DashboardModel.Sections), and shows only those parts.
+    public const string DashboardPage = "/Reports/Dashboard";
+
     public static readonly IReadOnlyList<Item> Items =
     [
+        new(DashboardPage, "Dashboard", "Dashboard", "", null),
         new("/Reports", "Assets", "Asset reports", Modules.Flags.ReportAssets, DeskAreas.Assets),
         new("/Reports/Tickets", "Tickets", "Ticket reports", Modules.Flags.ReportTickets, null),
         new("/Reports/Parts", "Parts", "Parts reports", Modules.Flags.ReportParts, DeskAreas.Parts),
@@ -23,13 +28,14 @@ public static class ReportMenu
         new("/Reports/Onboarding", "Onboarding", "Onboarding", Modules.Flags.ReportOnboarding, DeskAreas.People),
         new("/Reports/Spend", "Job spend", "Job spend", Modules.Flags.ReportSpend, null),
         new("/Reports/Checks", "Premises checks", "Premises checks", Modules.Flags.ReportChecks, null),
-        new("/Reports/Rounds", "Cleaning rounds", "Cleaning rounds", Modules.Flags.ReportRounds, DeskAreas.Rounds),
+        new("/Reports/Rounds", "Cleaning rounds", "Cleaning rounds", Modules.Flags.ReportRounds, DeskAreas.Facilities),
     ];
 
     // The reports this person can open, for the areas the desks being worked on use. current - the report being looked
     // at - always stays, so its own tab is never missing.
     public static IReadOnlyList<Item> For(HelpdeskStore store, ClaimsPrincipal user, string? current = null) =>
         store.UserCan(user, Modules.Reports, ModulePermission.Access)
-            ? Items.Where(x => store.UserHasFlag(user, x.Flag) && (x.Area is null || x.Page == current || store.AreaOn(user, x.Area))).ToList()
+            ? Items.Where(x => x.Page == DashboardPage ? Reports.DashboardModel.Sections(store, user).Count > 0
+                : store.UserHasFlag(user, x.Flag) && (x.Area is null || x.Page == current || store.AreaOn(user, x.Area))).ToList()
             : [];
 }

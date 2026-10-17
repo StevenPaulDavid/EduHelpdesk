@@ -53,7 +53,8 @@ internal static class AuditTracker
         foreach (var x in d.Suppliers)
             Add(s, "Suppliers", "Supplier", x.Id.ToString(), x.Name, Track.All,
                 ("Name", x.Name), ("Contact", x.ContactName), ("Email", x.Email), ("Phone", x.Phone), ("Address line 1", x.AddressLine1), ("Address line 2", x.AddressLine2),
-                ("City", x.City), ("State / region", x.StateRegion), ("Postal code", x.PostalCode), ("Country", x.Country), ("Website", x.Website), ("Notes", x.Notes));
+                ("City", x.City), ("State / region", x.StateRegion), ("Postal code", x.PostalCode), ("Country", x.Country), ("Website", x.Website), ("Notes", x.Notes),
+                ("Contractor", Yn(x.IsContractor)), ("Trade", x.Trade));
         var supplierNamesById = d.Suppliers.ToDictionary(x => x.Id, x => x.Name);
         // Every field, so the contract page's history and an auditor can see who changed a cost or a date, and when.
         foreach (var x in d.Contracts)

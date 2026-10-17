@@ -20,7 +20,7 @@ public class IndexModel(HelpdeskStore store, HelpCentre help) : PageModel
 
     public void OnGet()
     {
-        All = [.. help.Articles, .. store.SchoolHelpAsArticles()];
+        All = [.. help.Articles.Where(x => !HelpCentre.SwitchedOff(x, store)), .. store.SchoolHelpAsArticles()];
         if (!string.IsNullOrWhiteSpace(Query)) Hits = HelpCentre.Search(All, Query);
         StartHere = help.Articles.Where(x => x.Kind == "start" && CanUse(x)).ToList();
     }

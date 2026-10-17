@@ -62,19 +62,21 @@ public partial class HelpdeskStore
         lock (_sync) return _data.Users.FirstOrDefault(x => x.Id == userId) is { } user ? HoldingsCore(user) : null;
     }
 
+    // Only what the switched-on features hold (Services/Features.cs): with assets off, nobody is held up leaving by a laptop.
     private LeaverHoldings HoldingsCore(UserRecord user)
     {
+        bool On(string feature) => !_data.FeaturesOff.Contains(feature);
         // Assets inside a kit that is out are listed under the kit, not one by one.
-        var assets = _data.Assets.Where(x => x.AssignedUserId == user.Id && !IsDisposed(x) && KitLoanHoldingCore(x.Id) is null)
+        var assets = !On(Features.Assets) ? [] : _data.Assets.Where(x => x.AssignedUserId == user.Id && !IsDisposed(x) && KitLoanHoldingCore(x.Id) is null)
             .OrderBy(x => x.AssetTag, NaturalComparer.Instance).ToList();
-        var kits = _data.KitLoans.Where(x => x.IsOut && x.BorrowerUserId == user.Id)
+        var kits = !On(Features.Loans) ? [] : _data.KitLoans.Where(x => x.IsOut && x.BorrowerUserId == user.Id)
             .Select(x => (Kit: _data.LoanKits.FirstOrDefault(k => k.Id == x.KitId), Loan: x))
             .Where(x => x.Kit is not null).Select(x => (x.Kit!, x.Loan)).ToList();
         var tickets = _data.Tickets.Where(x => x.RequesterId == user.Id && !TicketInsights.IsClosed(x)).OrderBy(x => x.Number).ToList();
-        var projects = _data.Projects.Where(x => x.RequesterId == user.Id && x.IsActive).OrderBy(x => x.Number).ToList();
-        var onlyLead = user.IsProjectLead && !_data.Users.Any(x => x.Id != user.Id && x.IsActive && x.IsProjectLead);
+        var projects = !On(Features.Projects) ? [] : _data.Projects.Where(x => x.RequesterId == user.Id && x.IsActive).OrderBy(x => x.Number).ToList();
+        var onlyLead = On(Features.Projects) && user.IsProjectLead && !_data.Users.Any(x => x.Id != user.Id && x.IsActive && x.IsProjectLead);
         var today = AssetInsights.Today;
-        var access = _data.AccessGrants.Where(x => x.PersonId == user.Id && x.IsActive(today))
+        var access = !On(Features.Compliance) ? [] : _data.AccessGrants.Where(x => x.PersonId == user.Id && x.IsActive(today))
             .Select(x => (Grant: x, Resource: _data.AccessResources.FirstOrDefault(r => r.Id == x.ResourceId)))
             .Where(x => x.Resource is not null).Select(x => (x.Grant, x.Resource!)).OrderBy(x => x.Item2.Name, NaturalComparer.Instance).ToList();
         return new LeaverHoldings(user, assets, kits, tickets, projects, onlyLead) { Access = access };

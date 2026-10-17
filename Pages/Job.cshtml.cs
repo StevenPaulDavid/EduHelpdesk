@@ -57,6 +57,9 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IReadOnlyList<PartRecord> Parts => store.Parts;
     // What the job cost (HelpdeskStore.Costs), for roles with "See and add job costs".
     public bool CanSeeCosts => store.UserHasFlag(User, Modules.Flags.Costs);
+    // The parts of a ticket that belong to a feature the school can switch off (Services/Features.cs).
+    public bool ShowAssets => store.IsFeatureOn(Features.Assets);
+    public bool ShowParts => store.IsFeatureOn(Features.Parts);
     public IReadOnlyList<TicketCost> Costs => Ticket is null || !CanSeeCosts ? [] : store.CostsFor(Ticket.Number);
     public IReadOnlyList<SupplierRecord> Suppliers => store.Suppliers;
     public IReadOnlyList<string> BudgetCodes => store.BudgetCodes;
@@ -91,7 +94,8 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IActionResult OnGet(int number)
     {
         // An onboarding is worked from its own page: the checklist, with the ticket's notes and history below it.
-        if (store.IsOnboardingTicket(number)) return RedirectToPage("/Onboarding/Details", new { number });
+        // With onboarding switched off (Services/Features.cs) it is an ordinary ticket.
+        if (store.IsFeatureOn(Features.Onboarding) && store.IsOnboardingTicket(number)) return RedirectToPage("/Onboarding/Details", new { number });
         Ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (Ticket is null) return NotFound();
         // Whatever the bell was holding about this ticket has now been seen, however the technician got here.
@@ -320,6 +324,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
     public IActionResult OnPostUpdateAssets(int number, Guid[]? assetIds)
     {
+        if (!ShowAssets) return NotFound();
         var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
         if (ticket is null) return NotFound();
         var validAssetIds = (assetIds ?? []).Where(id => store.Assets.Any(x => x.Id == id)).Distinct().ToList();
@@ -330,6 +335,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
     public IActionResult OnPostAssignPart(int number, Guid partId, int quantity)
     {
+        if (!ShowParts) return NotFound();
         if (partId == Guid.Empty || quantity <= 0)
         {
             Message = "Select a part and a quantity to assign.";
@@ -341,16 +347,19 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
     public IActionResult OnPostUpdatePartQuantity(int number, Guid partId, int quantity)
     {
+        if (!ShowParts) return NotFound();
         Message = store.SetTicketPartQuantity(number, partId, quantity) ?? (quantity <= 0 ? "Part removed." : "Part quantity updated.");
         return RedirectToPage(null, null, new { number }, "parts-tab");
     }
 
     // The premises checklist on this ticket (HelpdeskStore.Checks), if it came from a recurring ticket that has one.
-    public IReadOnlyList<CheckLine> Checklist => Ticket is null ? [] : store.ChecklistFor(Ticket.Number);
+    // None while premises checks are switched off.
+    public IReadOnlyList<CheckLine> Checklist => Ticket is null || !store.IsFeatureOn(Features.Checks) ? [] : store.ChecklistFor(Ticket.Number);
 
     // Every line's boxes are result-<id>, reading-<id> and note-<id>, so the form is read here rather than bound.
     public IActionResult OnPostSaveChecklist(int number)
     {
+        if (!store.IsFeatureOn(Features.Checks)) return NotFound();
         var answers = store.ChecklistFor(number).ToDictionary(x => x.Id, x => new HelpdeskStore.CheckAnswer(
             Request.Form[$"result-{x.Id}"].FirstOrDefault(), Request.Form[$"reading-{x.Id}"].FirstOrDefault(), Request.Form[$"note-{x.Id}"].FirstOrDefault()));
         Message = store.SaveChecklist(number, answers).Message;

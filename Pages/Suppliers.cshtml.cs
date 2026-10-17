@@ -20,9 +20,12 @@ public class SuppliersModel(HelpdeskStore store) : PageModel
     // The directory as a list like the others: a search, one filter (what the supplier is used for) and columns to choose.
     [BindProperty(SupportsGet = true, Name = "q")] public string? Search { get; set; }
     [BindProperty(SupportsGet = true, Name = "use")] public string? Use { get; set; }
-    public static readonly string[] Uses = ["assets", "parts", "projects", "unused"];
+    // contractors is what Facilities → Contractors opens: the same directory, its contractors by trade.
+    public static readonly string[] Uses = ["contractors", "assets", "parts", "projects", "unused"];
+    public bool ContractorsOnly => Use == "contractors";
     public static string UseLabel(string? use) => use switch
     {
+        "contractors" => "Contractors",
         "assets" => "Bought assets from",
         "parts" => "Supplies parts",
         "projects" => "Asked to quote on a project",
@@ -49,18 +52,20 @@ public class SuppliersModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Search))
         {
             var terms = Search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            query = query.Where(s => terms.All(t => new[] { s.Name, s.ContactName, s.Email, s.Phone, s.City, s.PostalCode, s.Website, s.Notes }
+            query = query.Where(s => terms.All(t => new[] { s.Name, s.ContactName, s.Email, s.Phone, s.City, s.PostalCode, s.Website, s.Notes, s.Trade }
                 .Any(x => (x ?? "").Contains(t, StringComparison.OrdinalIgnoreCase))));
         }
         query = Use switch
         {
+            "contractors" => query.Where(s => s.IsContractor),
             "assets" => query.Where(s => AssetCounts.ContainsKey(s.Id)),
             "parts" => query.Where(s => PartCounts.ContainsKey(s.Id)),
             "projects" => query.Where(s => quoting.Contains(s.Id)),
             "unused" => query.Where(s => !AssetCounts.ContainsKey(s.Id) && !PartCounts.ContainsKey(s.Id) && !quoting.Contains(s.Id)),
             _ => query
         };
-        Rows = query.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        Rows = (ContractorsOnly ? query.OrderBy(s => s.Trade.Length == 0).ThenBy(s => s.Trade, StringComparer.OrdinalIgnoreCase).ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            : query.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)).ToList();
     }
 
     // Every filter in force as a chip that takes just that one off.

@@ -1,11 +1,11 @@
 @page
 @model SuppliersModel
 @{
-    ViewData["Title"] = "Suppliers"; ViewData["Wide"] = true;
+    ViewData["Title"] = Model.ContractorsOnly ? "Contractors" : "Suppliers"; ViewData["Wide"] = true;
     var cols = Model.Columns;
     string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 }
-<div class="page-heading"><div><h1>Suppliers</h1><p class="hero-copy">Who the school buys from: the assets bought from each, the parts they supply and the projects they've quoted on.</p></div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Suppliers/Edit">@Icons.Plus Add supplier</a> }</div>
+<div class="page-heading"><div>@if (Model.ContractorsOnly) { <h1>Contractors</h1><p class="hero-copy">The contractors the site team calls out, by trade. A supplier is marked as one, with its trade, on its edit page.</p> } else { <h1>Suppliers</h1><p class="hero-copy">Who the school buys from and the contractors it calls out: the assets bought from each, the parts they supply and the projects they've quoted on.</p> }</div>@if (Model.CanAdd) { <a class="button button-primary" asp-page="/Suppliers/Edit">@Icons.Plus Add supplier</a> }</div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -14,7 +14,7 @@
         {
             Id = "supplier-filters",
             Search = Model.Search,
-            SearchPlaceholder = "Name, contact, email, phone, town, postcode",
+            SearchPlaceholder = "Name, trade, contact, email, phone, town, postcode",
             Title = "Filter suppliers",
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
@@ -44,7 +44,7 @@
     @foreach (var item in Model.Rows)
     {
         <tr>
-            <td><strong>@if (Model.CanView) { <a asp-page="/Supplier" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong></td>
+            <td><strong>@if (Model.CanView) { <a asp-page="/Supplier" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>@if (item.IsContractor) { <br /><span class="muted">@(item.Trade.Length > 0 ? item.Trade : "Contractor")</span> }</td>
             @if (cols.Show("contact")) { <td>@Text(item.ContactName)</td> }
             @if (cols.Show("email")) { <td>@if (string.IsNullOrWhiteSpace(item.Email)) { <span>—</span> } else { <a href="mailto:@item.Email">@item.Email</a> }</td> }
             @if (cols.Show("phone")) { <td>@Text(item.Phone)</td> }

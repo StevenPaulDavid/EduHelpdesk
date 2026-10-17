@@ -87,6 +87,9 @@ public sealed class TicketListQuery
     // "(none)" for tickets with no location.
     public string? Location { get; set; }
     public Guid? Asset { get; set; }
+    // Logged on or between these days (local), either end open - what a dashboard chart's bar opens.
+    public DateOnly? LoggedFrom { get; set; }
+    public DateOnly? LoggedTo { get; set; }
     public string Sort { get; set; } = "number";
     public bool Descending { get; set; } = true;
 
@@ -135,6 +138,8 @@ public sealed class TicketListQuery
         if (!string.IsNullOrWhiteSpace(Location))
             query = query.Where(t => Location == None ? string.IsNullOrWhiteSpace(t.Location) : Same(t.Location, Location));
         if (Asset is { } assetId) query = query.Where(t => t.AssetIds.Contains(assetId));
+        if (LoggedFrom is { } from) query = query.Where(t => DateOnly.FromDateTime(t.CreatedAt.ToLocalTime()) >= from);
+        if (LoggedTo is { } to) query = query.Where(t => DateOnly.FromDateTime(t.CreatedAt.ToLocalTime()) <= to);
         if (!string.IsNullOrWhiteSpace(Search))
         {
             var terms = Search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => x.TrimStart('#')).Where(x => x.Length > 0).ToList();

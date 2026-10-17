@@ -5,12 +5,20 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Settings;
 
-// Settings → Desks: the parts of the school the helpdesk serves (HelpdeskStore.Desks). Categories, teams and statuses
-// are placed on a desk on their own Settings pages; people on their technician account.
+// Settings → Desks: the parts of the school the helpdesk serves (HelpdeskStore.Desks) - IT and Facilities built in
+// (HelpdeskStore.BuiltInDesks), and any the school adds. Categories, teams and statuses are placed on a desk on their
+// own Settings pages; people on their technician account.
 public class DesksModel(HelpdeskStore store) : PageModel
 {
     public IReadOnlyList<Desk> Desks => store.Desks;
+    // The built-in desks that are switched off.
+    public IReadOnlyList<Desk> OffDesks => store.AllDesks.Where(x => !store.IsDeskOn(x.Id)).ToList();
+    public bool FacilitiesChoicePending => store.FacilitiesChoicePending;
+    // The school's own desks, any of which could be the Facilities desk.
+    public IReadOnlyList<Desk> OwnDesks => store.Desks.Where(x => !x.IsBuiltIn).ToList();
+    public static string KindLabel(Desk desk) => desk.Kind == DeskKinds.It ? "Built in: IT" : desk.Kind == DeskKinds.Facilities ? "Built in: Facilities" : "";
     public CategoryStyle StyleFor(Desk desk) => store.StyleForDesk(desk);
+    public bool FeatureOn(string feature) => store.IsFeatureOn(feature);
     public IReadOnlyList<string> CategoriesOn(Desk desk) => store.CategoriesFor(desk.Id);
     public IReadOnlyList<string> TeamsOn(Desk desk) => store.TeamsFor(desk.Id);
     public int PeopleOn(Desk desk) => store.TechniciansOnDesk(desk.Id).Count(x => x.IsActive);
@@ -63,6 +71,31 @@ public class DesksModel(HelpdeskStore store) : PageModel
     public IActionResult OnPostMove(Guid id, int direction)
     {
         Message = store.MoveDesk(id, direction);
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostSwitchOff(Guid id)
+    {
+        Message = store.SwitchDeskOff(id).Message;
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostSwitchOn(Guid id)
+    {
+        Message = store.SwitchDeskOn(id).Message;
+        return RedirectToPage();
+    }
+
+    // Asked once on an install from before Facilities was built in: make one of its desks Facilities, add one, or not now.
+    public IActionResult OnPostFacilities(string? choice, Guid? id)
+    {
+        Message = choice switch
+        {
+            "make" when id is { } deskId => store.MakeFacilitiesDesk(deskId).Message,
+            "add" => store.AddFacilitiesDesk().Message,
+            "later" => store.DeclineFacilitiesDesk().Message,
+            _ => "Choose what to do."
+        };
         return RedirectToPage();
     }
 
