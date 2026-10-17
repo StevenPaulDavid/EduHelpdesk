@@ -147,13 +147,13 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // The desks an asset page shows: "" for the person's own (all of them for someone on every desk), "all", or one desk's name.
+    // The desks an asset page shows: "" for the desk switcher's choice (HelpdeskStore.DeskSwitch), "all", or one desk's
+    // name. Empty for every desk.
     public IReadOnlyList<Desk> AssetDesksShown(ClaimsPrincipal user, string? choice)
     {
         if (!HasSeveralDesks || string.Equals(choice, "all", StringComparison.OrdinalIgnoreCase)) return [];
         if (FindDesk(choice) is { } one) return [one];
-        var mine = DesksOf(user);
-        return mine.Count == 0 || mine.Count == Desks.Count ? [] : mine;
+        return WorkingDesks(user);
     }
 
     // ---- Who sees which desk's tickets ----

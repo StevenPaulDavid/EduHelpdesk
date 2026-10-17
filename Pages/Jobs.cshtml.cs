@@ -21,7 +21,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "type")] public List<string> Type { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "tech")] public string? Technician { get; set; }
     [BindProperty(SupportsGet = true, Name = "team")] public string? Team { get; set; }
-    // Desk names (HelpdeskStore.Desks), or "all". Left out, the list opens on the desks the signed-in account is on.
+    // Desk names (HelpdeskStore.Desks), or "all". Left out, the list opens on the top bar's desk switcher (HelpdeskStore.DeskSwitch).
     [BindProperty(SupportsGet = true, Name = "desk")] public List<string> Desk { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "requester")] public string? Requester { get; set; }
     [BindProperty(SupportsGet = true, Name = "dept")] public string? Department { get; set; }
@@ -46,13 +46,13 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<Desk> Desks => _visibleDesks ??= store.DesksVisibleTo(User);
     private IReadOnlyList<Desk>? _visibleDesks;
     public bool HasSeveralDesks => Desks.Count > 1;
-    // The desks being shown, empty for all of them, and the ones the account opens on.
+    // The desks being shown, empty for all of them, and the ones the desk switcher opens it on.
     public List<Desk> ShownDesks { get; private set; } = [];
-    private List<Desk> _myDesks = [];
+    private List<Desk> _defaultDesks = [];
     private Func<string?, Desk> _deskOf = _ => null!;
     public string Ref(TicketRecord ticket) => HelpdeskStore.RefFor(_deskOf(ticket.Category), ticket);
     public string DeskName(TicketRecord ticket) => _deskOf(ticket.Category).Name;
-    private bool DesksAreDefault => ShownDesks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id));
+    private bool DesksAreDefault => ShownDesks.Select(x => x.Id).ToHashSet().SetEquals(_defaultDesks.Select(x => x.Id));
     public int DueSoonHours => store.TicketDueSoonHours;
     [TempData] public string? Message { get; set; }
 
@@ -238,27 +238,27 @@ public class JobsModel(HelpdeskStore store) : PageModel
         PrepareDesks();
     }
 
-    // Which desks to show. Nothing asked for opens on the account's own desks; "all" is every desk. With one desk there
-    // is nothing to choose.
+    // Which desks to show. Nothing asked for opens on the desk switcher's choice; "all" is every desk. With one desk
+    // there is nothing to choose.
     private void PrepareDesks()
     {
         _deskOf = store.DeskLookup();
         if (!HasSeveralDesks) { ShownDesks = []; Desk = []; return; }
         var desks = Desks;
-        _myDesks = store.DesksOf(User).ToList();
-        // Being on every desk is the same as no filter.
-        if (_myDesks.Count == desks.Count) _myDesks = [];
+        _defaultDesks = store.WorkingDesks(User).ToList();
+        // Every desk is the same as no filter.
+        if (_defaultDesks.Count == desks.Count) _defaultDesks = [];
         var asked = Request.Query.ContainsKey("desk") || (Request.HasFormContentType && Request.Form.ContainsKey("desk"));
-        if (!asked) ShownDesks = _myDesks.ToList();
+        if (!asked) ShownDesks = _defaultDesks.ToList();
         else if (Desk.Any(x => string.Equals(x, "all", StringComparison.OrdinalIgnoreCase))) ShownDesks = [];
         else ShownDesks = desks.Where(d => Desk.Any(x => string.Equals(x, d.Name, StringComparison.OrdinalIgnoreCase))).ToList();
         if (ShownDesks.Count == desks.Count) ShownDesks = [];
         Desk = ShownDesks.Select(x => x.Name).ToList();
     }
 
-    // The desk part of an address: nothing when it's the account's own desks, "all" for every desk.
+    // The desk part of an address: nothing when it's the desk switcher's choice, "all" for every desk.
     private object? DeskRoute(List<Desk> desks) =>
-        !HasSeveralDesks || desks.Select(x => x.Id).ToHashSet().SetEquals(_myDesks.Select(x => x.Id)) ? null
+        !HasSeveralDesks || desks.Select(x => x.Id).ToHashSet().SetEquals(_defaultDesks.Select(x => x.Id)) ? null
         : desks.Count == 0 ? "all"
         : desks.Select(x => x.Name).ToArray();
 
@@ -361,7 +361,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             chips.Add(new($"Technician: {name}", Without("tech", null)));
         }
         if (!string.IsNullOrWhiteSpace(Team)) chips.Add(new($"Team: {(Team == TicketListQuery.None ? "No team" : Team)}", Without("team", null)));
-        // Shown even when it's the account's own desks, so the list says it isn't everything.
+        // Shown even when it's the desk switcher's choice, so the list says it isn't everything.
         foreach (var desk in ShownDesks)
             chips.Add(new($"Desk: {desk.Name}", Without("desk", DeskRoute(ShownDesks.Where(x => x.Id != desk.Id).ToList()))));
         if (!string.IsNullOrWhiteSpace(Requester))

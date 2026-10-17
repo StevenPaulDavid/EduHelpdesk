@@ -2539,3 +2539,22 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 .portal-help-contents ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: 13px; }
 .portal-help-contents a { color: var(--teal-text); text-decoration: none; }
 .portal-help-contents a:hover { text-decoration: underline; }
+
+/* The desk switcher (Pages/Shared/_Layout.cshtml, HelpdeskStore.DeskSwitch): a pill after the brand naming the desk
+   being worked on, its colour as a dot. It sits outside .site-menu, so on a phone it stays in the bar. "Many" is
+   My desks or All desks, drawn as a ring rather than one desk's colour. */
+.desk-switch > summary { gap: 7px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.desk-switch[open] > summary, .desk-switch > summary:hover { border-color: var(--teal-text); }
+.desk-switch-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.desk-dot { flex: none; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--desk-color, var(--teal)); }
+.desk-dot-many { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); }
+.desk-switch-panel { min-width: 180px; max-width: calc(100vw - 32px); }
+.nav-panel .desk-switch-form { display: grid; gap: 2px; border-top: 0; margin-top: 0; padding-top: 0; }
+.desk-switch-form button { display: flex; align-items: center; gap: 9px; }
+.desk-switch-form button[aria-current="true"] { background: var(--accent); color: var(--teal-strong); font-weight: 750; }
+.desk-switch-form button[aria-current="true"]::after { content: "✓"; margin-left: auto; }
+.nav-rule { border: 0; border-top: 1px solid var(--line); margin: 3px 0; }
+
+@media(max-width:980px) {
+    .desk-switch-label { max-width: 110px; }
+}

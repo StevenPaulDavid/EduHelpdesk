@@ -79,6 +79,14 @@
         ? NavOn("/Rounds", "/RoundSheet", "/QuickLog", "/DailySheet") || (deskAsked is not null && NavOn("/Jobs", "/Assets"))
         : NavOn("/Rounds", "/RoundSheet");
 
+    // The desk switcher (HelpdeskStore.DeskSwitch): for whoever can see more than one desk. It goes back to the page it
+    // was pressed on without that page's own ?desk=, so the page opens on the desk just chosen. Only a GET's query
+    // string is kept, as for the Appearance switch.
+    var deskSwitch = User.Identity?.IsAuthenticated == true ? Helpdesk.SwitcherFor(User) : null;
+    var deskReturn = Context.Request.Path + (HttpMethods.IsGet(Context.Request.Method)
+        ? QueryString.Create(Context.Request.Query.Where(x => !string.Equals(x.Key, "desk", StringComparison.OrdinalIgnoreCase))).ToString() : "");
+    string DeskColor(EduHelpdesk.Models.Desk desk) => PortalLook.FindColor(Helpdesk.StyleForDesk(desk).Color)?.Hex ?? "";
+
     // Pings and pop-ups (wwwroot/js/notifications.js) ask for the notifications of whoever the page is signed in as: the
     // requester on the staff portal's pages, the helpdesk account everywhere else. Nobody signed in, nothing to ask for.
     string? notifyAudience = null;
@@ -151,6 +159,27 @@
     <header class="topbar"><div class="brand">@if (Helpdesk.LogoVersion is { } logoVersion) { <img class="brand-logo" src="@Url.Content("~/branding/logo")?v=@logoVersion" alt="" /> } else { <span class="brand-mark">EH</span> }<span>@Helpdesk.Branding.BrandName</span></div>
     @if (User.Identity?.IsAuthenticated == true)
     {
+        @* Outside the site menu, so it stays in the bar on a phone. One form, a button per choice, so it works without
+           JavaScript. *@
+        @if (deskSwitch is not null)
+        {
+            <details class="nav-menu desk-switch">
+                <summary title="The desk you're working on: the ticket list, assets and daily sheet open on it" aria-label="Desk: @deskSwitch.Label">
+                    <span class="desk-dot@(deskSwitch.Chosen is null ? " desk-dot-many" : null)" style="@(deskSwitch.Chosen is { } chosenDesk ? $"--desk-color:{DeskColor(chosenDesk)}" : null)" aria-hidden="true"></span><span class="desk-switch-label">@deskSwitch.Label</span><span class="chev" aria-hidden="true">▾</span>
+                </summary>
+                <div class="nav-panel desk-switch-panel">
+                    <form method="post" asp-page="/DeskSwitch" class="desk-switch-form">
+                        <input type="hidden" name="returnUrl" value="@deskReturn" />
+                        @if (deskSwitch.OffersMine) { <button type="submit" name="desk" value="" aria-current="@(deskSwitch.IsMine ? "true" : null)"><span class="desk-dot desk-dot-many" aria-hidden="true"></span>My desks</button><hr class="nav-rule" /> }
+                        @foreach (var desk in deskSwitch.Choices)
+                        {
+                            <button type="submit" name="desk" value="@desk.Id" aria-current="@(deskSwitch.Chosen?.Id == desk.Id ? "true" : null)"><span class="desk-dot" style="--desk-color:@DeskColor(desk)" aria-hidden="true"></span>@desk.Name</button>
+                        }
+                        @if (deskSwitch.OffersAll) { <hr class="nav-rule" /><button type="submit" name="desk" value="@HelpdeskStore.AllDesksChoice" aria-current="@(deskSwitch.IsAll ? "true" : null)"><span class="desk-dot desk-dot-many" aria-hidden="true"></span>All desks</button> }
+                    </form>
+                </div>
+            </details>
+        }
         @* Below tablet width the nav and the account menu fold behind the Menu button (wwwroot/js/layout.js). On a wider
            screen the wrapper is display:contents, so they sit in the bar as they always have. *@
         <div class="site-menu" id="site-menu">

@@ -32,8 +32,9 @@ public class DailySheetModel(HelpdeskStore store) : PageModel
         _deskOf = store.DeskLookup();
         var visible = store.DesksVisibleTo(User);
         var asked = visible.Where(d => Desk.Any(x => string.Equals(x, d.Name, StringComparison.OrdinalIgnoreCase))).ToList();
-        var mine = store.DesksOf(User).Where(d => visible.Any(v => v.Id == d.Id)).ToList();
-        ShownDesks = asked.Count > 0 ? asked : mine.Count > 0 && mine.Count < visible.Count ? mine : store.HasSeveralDesks ? visible : [];
+        // Nothing asked for: the desk switcher's choice (HelpdeskStore.DeskSwitch), named in the subtitle even when it is every desk.
+        var working = store.WorkingDesks(User);
+        ShownDesks = asked.Count > 0 ? asked : working.Count > 0 ? working.ToList() : store.HasSeveralDesks ? visible : [];
         var deskIds = ShownDesks.Select(x => x.Id).ToHashSet();
         var tickets = store.TicketsFor(User)
             .Where(t => !TicketInsights.IsClosed(t))
