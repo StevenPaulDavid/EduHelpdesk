@@ -20,7 +20,7 @@
                 <p class="muted">Tickets closed more than this many months ago are deleted: their updates, internal notes, history, attached files and custom fields, and their lines in the audit log. Open tickets are never touched. Ticket numbers are never reused, and reports covering those months will no longer count them.</p>
                 <p class="retention-now">@(rules.TicketMonths == 0 ? "Off." : preview.Tickets == 0 ? $"Nothing to delete now (nothing closed before {When(preview.TicketCutoff)})." : $"Would delete {preview.Tickets} ticket{(preview.Tickets == 1 ? "" : "s")} now - closed before {When(preview.TicketCutoff)}.")</p>
             </div>
-            <label>Months after closing<input name="ticketMonths" type="number" min="0" max="@HelpdeskStore.MaxRetentionMonths" step="1" value="@rules.TicketMonths" required /></label>
+            <label><span>Months after closing <help-tip key="retention.tickets" /></span><input name="ticketMonths" type="number" min="0" max="@HelpdeskStore.MaxRetentionMonths" step="1" value="@rules.TicketMonths" required /></label>
         </div>
         <div class="retention-rule">
             <div>
@@ -28,7 +28,7 @@
                 <p class="muted">Requesters marked inactive more than this many months ago lose their name, email, department and location - they become "@HelpdeskStore.AnonymisedName" on their record, their tickets and projects, loans and asset history, and in the audit log. Their tickets and loans stay, so counts and history still add up. Anyone who still holds an asset or kit, or has an open ticket or active project, is left alone until that is sorted out. What other people typed about them in free text on other tickets isn't rewritten.</p>
                 <p class="retention-now">@(rules.LeaverMonths == 0 ? "Off." : (preview.People == 0 ? $"Nobody to anonymise now (nobody left before {When(preview.LeaverCutoff)})." : $"Would anonymise {preview.People} {(preview.People == 1 ? "person" : "people")} now - left before {When(preview.LeaverCutoff)}.") + (preview.LeaversWaiting > 0 ? $" {preview.LeaversWaiting} more left that long ago but still hold something - see People, Status: Left, still holding equipment." : ""))</p>
             </div>
-            <label>Months after leaving<input name="leaverMonths" type="number" min="0" max="@HelpdeskStore.MaxRetentionMonths" step="1" value="@rules.LeaverMonths" required /></label>
+            <label><span>Months after leaving <help-tip key="retention.leavers" /></span><input name="leaverMonths" type="number" min="0" max="@HelpdeskStore.MaxRetentionMonths" step="1" value="@rules.LeaverMonths" required /></label>
         </div>
         <div class="retention-rule">
             <div>
@@ -36,7 +36,7 @@
                 <p class="muted">Audit entries older than this are deleted. At least @HelpdeskStore.MinAuditRetentionMonths months, because the log is how the school shows who changed what. Ticket, asset and project history is kept with the records themselves and isn't affected.</p>
                 <p class="retention-now">@(rules.AuditMonths == 0 ? "Off." : preview.AuditEntries == 0 ? $"Nothing to delete now (nothing from before {When(preview.AuditCutoff)})." : $"Would delete {preview.AuditEntries} entr{(preview.AuditEntries == 1 ? "y" : "ies")} now - from before {When(preview.AuditCutoff)}.")</p>
             </div>
-            <label>Months to keep<input name="auditMonths" type="number" min="0" max="@HelpdeskStore.MaxRetentionMonths" step="1" value="@rules.AuditMonths" required /></label>
+            <label><span>Months to keep <help-tip key="retention.audit" /></span><input name="auditMonths" type="number" min="0" max="@HelpdeskStore.MaxRetentionMonths" step="1" value="@rules.AuditMonths" required /></label>
         </div>
         <div><button class="button button-primary" type="submit">Save rules</button></div>
     </form>

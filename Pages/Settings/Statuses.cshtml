@@ -12,7 +12,7 @@
     <form method="post" asp-page-handler="Add" class="settings-form"><label>Add status<input name="value" required /></label>
         @if (Model.HasSeveralDesks)
         {
-            <label>Used on<select name="deskId"><option value="">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Id">The @desk.Name desk only</option> }</select></label>
+            <label><span>Used on <help-tip key="status.desk" /></span><select name="deskId"><option value="">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Id">The @desk.Name desk only</option> }</select></label>
         }
         <button class="button button-primary">Add</button></form>
     <div class="directory-list">
@@ -49,7 +49,7 @@
                     <form method="post" asp-page-handler="SetPause" class="status-pause-form">
                         <input type="hidden" name="status" value="@status" /><input type="hidden" name="pauses" value="@(pauses ? "false" : "true")" />
                         @if (pauses) { <span class="badge">Stops the SLA clock</span> }
-                        <button class="link-button" type="submit">@(pauses ? "Let the SLA clock run in this status" : "Stop the SLA clock in this status")</button>
+                        <button class="link-button" type="submit">@(pauses ? "Let the SLA clock run in this status" : "Stop the SLA clock in this status")</button> <help-tip key="status.pause" />
                     </form>
                 }
                 <form method="post" asp-page-handler="SaveDescription" class="status-description-form">

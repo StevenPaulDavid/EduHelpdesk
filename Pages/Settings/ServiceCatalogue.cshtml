@@ -13,9 +13,9 @@
         <div class="template-fields">
             <label>Category<select name="category">@foreach (var value in Model.Categories) { <option value="@value" selected="@string.Equals(value, category, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
             <label>Name<input name="name" value="@item?.Name" maxlength="@HelpdeskStore.MaxServiceItemNameLength" required placeholder="e.g. Projector has no signal" /></label>
-            <label>Starting priority<select name="priority"><option value="">None - the portal starts on Normal</option>@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, item?.DefaultPriority, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
+            <label><span>Starting priority <help-tip key="catalogue.priority" /></span><select name="priority"><option value="">None - the portal starts on Normal</option>@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, item?.DefaultPriority, StringComparison.OrdinalIgnoreCase)">@value</option> }</select></label>
             <label class="full">Helper line<input name="helperLine" value="@item?.HelperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under the button, e.g. Blank, blue or flickering screen" /></label>
-            <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@(item?.ShowInPortal ?? true)" /> Show in the staff portal<small class="muted">Untick to keep it in the catalogue without offering it to staff.</small></label>
+            <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@(item?.ShowInPortal ?? true)" /> Show in the staff portal <help-tip key="catalogue.show" /><small class="muted">Untick to keep it in the catalogue without offering it to staff.</small></label>
         </div>
     }
 

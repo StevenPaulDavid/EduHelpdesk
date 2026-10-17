@@ -20,7 +20,7 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">TIMETABLE</p><h2>Periods</h2></div><span class="badge">@Model.Rows.Count(x => x.Name.Length > 0)</span></div>
+    <div class="panel-heading"><div><p class="eyebrow">TIMETABLE</p><h2>Periods <help-tip key="schoolday.periods" /></h2></div><span class="badge">@Model.Rows.Count(x => x.Name.Length > 0)</span></div>
     <p class="muted">The same timings are used on every school day. Leave gaps for break, lunch and after school - they don't count. A period SLA starts counting from the next period to begin, so the one already under way when a ticket is logged doesn't count.</p>
     @if (Model.Error is not null) { <div class="notice notice-warning">@Model.Error</div> }
     <form method="post" asp-page-handler="Periods" id="periods-form">

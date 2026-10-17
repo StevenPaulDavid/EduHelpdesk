@@ -18,7 +18,7 @@
             <label>Background colour<input asp-for="Branding.BackgroundColor" pattern="^#[0-9A-Fa-f]{6}$" /></label>
         </div>
         <p class="muted">Six-digit hex values, such as #067A78. The primary colour is used for buttons, links and headings; the accent behind secondary buttons and highlights; the background behind every page. In dark, the background and accent are replaced with dark ones and the primary is lightened for text, so any colour stays readable.</p>
-        <label>Default appearance<select asp-for="Branding.DefaultAppearance">@foreach (var option in Themes.All) { <option value="@option">@Themes.Label(option)</option> }</select></label>
+        <label><span>Default appearance <help-tip key="branding.appearance" /></span><select asp-for="Branding.DefaultAppearance">@foreach (var option in Themes.All) { <option value="@option">@Themes.Label(option)</option> }</select></label>
         <p class="muted">For devices that haven't chosen. Anyone can pick Light, Dark or Match device for their own computer or phone from the Appearance switch at the bottom of every page, including the staff portal, and that choice wins. Match device follows the computer's own light or dark setting.</p>
         <button class="button button-primary">Save branding</button>
     </form>

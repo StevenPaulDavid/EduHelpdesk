@@ -18,7 +18,7 @@
                 <form method="post" asp-page-handler="Save" class="settings-form">
                     <input type="hidden" name="deskId" value="@desk.Id" />
                     <input type="hidden" name="enabled" value="@(Model.Settings.Enabled ? "true" : "false")" /><input type="hidden" name="newTicket" value="@(Model.Settings.NewTicket ? "true" : "false")" /><input type="hidden" name="overdue" value="@(Model.Settings.Overdue ? "true" : "false")" />
-                    <label>@(host is null ? "Webhook address" : "New webhook address")<input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://…" required /></label>
+                    <label><span>@(host is null ? "Webhook address" : "New webhook address") <help-tip key="teams.webhook" /></span><input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://…" required /></label>
                     <div class="heading-actions"><button class="button button-primary">Save @desk.Name's address</button></div>
                 </form>
                 @if (host is not null)
@@ -58,7 +58,7 @@ else
         <p class="muted">No webhook is saved yet. Create one in Teams (the steps are further down), then paste its address here.</p>
     }
     <form method="post" asp-page-handler="Save" class="settings-form">
-        <label>@(Model.Settings.HasUrl ? "New webhook address (leave blank to keep the current one)" : "Webhook address")<input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://…" /></label>
+        <label><span>@(Model.Settings.HasUrl ? "New webhook address (leave blank to keep the current one)" : "Webhook address") <help-tip key="teams.webhook" /></span><input name="webhook" type="text" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://…" /></label>
         <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Settings.Enabled" /> Post to Teams (the master switch - off pauses everything and keeps the address)</label>
         <label class="toggle-label"><input type="checkbox" name="newTicket" value="true" checked="@Model.Settings.NewTicket" /> A requester submits a new ticket in the staff portal</label>
         <label class="toggle-label"><input type="checkbox" name="overdue" value="true" checked="@Model.Settings.Overdue" /> A ticket becomes overdue (checked every few minutes)</label>

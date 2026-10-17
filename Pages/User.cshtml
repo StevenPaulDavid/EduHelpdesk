@@ -164,7 +164,7 @@
                 <label>Left on<input name="leftOn" type="date" value="@(Model.Person.LeftAt?.ToLocalTime().ToString("yyyy-MM-dd"))" /><small class="muted">Only kept for someone marked inactive. Blank means the day they were marked inactive.</small></label>
                 <label>Set a password<input name="password" type="password" placeholder="Leave blank to keep the current password" autocomplete="new-password" maxlength="@EduHelpdesk.Services.PasswordRules.MaximumLength" /><small class="muted">For the staff portal. At least @EduHelpdesk.Services.PasswordRules.MinimumLength characters, which they keep until they choose to change it - for one they must change, use Give them a temporary password above.</small></label>
                 <label class="toggle-label"><input type="checkbox" name="canRaiseProjects" value="true" checked="@Model.Person.CanRaiseProjects" /> Can raise projects <small class="muted">For line managers and SLT: lets them ask IT to source and quote for purchases from the staff portal.</small></label>
-                <label class="toggle-label"><input type="checkbox" name="isProjectLead" value="true" checked="@Model.Person.IsProjectLead" /> Project lead <small class="muted">Confirms each project's priority and assigns the technician, from the staff portal. Can also raise projects.</small></label>
+                <label class="toggle-label"><input type="checkbox" name="isProjectLead" value="true" checked="@Model.Person.IsProjectLead" /> Project lead <help-tip key="person.projects" /> <small class="muted">Confirms each project's priority and assigns the technician, from the staff portal. Can also raise projects.</small></label>
             </div>
         </section>
         <section class="panel">

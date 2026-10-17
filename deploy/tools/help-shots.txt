@@ -7,3 +7,6 @@ ticket-page | /Job?number=1001 |
 new-ticket | /NewTicket |
 quick-log | /QuickLog | main form.new-ticket-form
 checklist | /Job?number=1003 | #checklist
+settings | /Settings |
+role-editor | /People/Role?name=Technician | main table
+sla-form | /Settings/Slas | main section.panel

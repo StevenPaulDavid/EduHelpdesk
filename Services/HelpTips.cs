@@ -48,6 +48,44 @@ public static class HelpTips
         ["check.limits"] = new("Readings only. Lowest allowed for 'at least' (hot water: 50), highest allowed for 'no more than' (cold water: 20), or both. Outside them is a fail.", "set-up-premises-checks", "2-add-the-checklist"),
         ["check.asset-type"] = new("For 'every asset of a type': one pass/fail line for each asset of this type on the register when the ticket is logged, e.g. every extinguisher.", "set-up-premises-checks", "what-changes-affect"),
 
+        // Settings: tickets
+        ["sla.unit"] = new("Minutes, hours and days are clock time, nights and weekends included. Work days skip non-school days; periods count lessons from the next one to start.", "slas", "units"),
+        ["sla.applies"] = new("A new ticket gets an SLA that lists its category first, otherwise one that lists its priority. Tick none of either and the SLA is only picked by hand.", "slas", "which-sla-a-ticket-gets"),
+        ["status.desk"] = new("Keep a status to one desk, such as Awaiting contractor for Site. Only that desk's tickets can use it; a ticket moved away goes back to the new desk's first status.", "statuses", "statuses-kept-to-one-desk"),
+        ["status.pause"] = new("For waiting on someone else. While a ticket is in a paused status it isn't overdue, and its SLA due date moves on by the time it waited.", "statuses", "stopping-the-sla-clock"),
+        ["rules.due-soon"] = new("How many hours before its due date a ticket joins the Overdue / due soon queue, e.g. 4. Overdue tickets are always in it.", "ticket-rules", "due-soon"),
+        ["rules.reopen"] = new("A requester's portal reply within this many days of closing reopens the ticket. After that they're asked to report it as a new one. 0 = never reopen.", "ticket-rules", "replies-to-closed-tickets"),
+        ["rules.closing"] = new("Ticked priorities and categories need a closing message before a ticket can be closed. The requester sees it in the portal.", "ticket-rules", "closing-requirements"),
+        ["schoolday.periods"] = new("Lesson times, the same every school day. Leave gaps for break and lunch. A 1-period SLA is due at the end of the next full lesson.", "school-day", "periods"),
+        ["catalogue.priority"] = new("What the portal's priority box starts on for this button. Staff can still change it. Blank starts on Normal.", "service-catalogue", "buttons"),
+        ["catalogue.show"] = new("Untick to keep the item in the catalogue without offering it to staff - while a service is unavailable, say.", "service-catalogue", "buttons"),
+        ["template.portal"] = new("Shows this template as a button in the staff portal under its category. Its name is the button; staff can change the description but not the title.", "ticket-templates", "offering-it-in-the-staff-portal"),
+        ["recurring.requester"] = new("Who the logged tickets are for - often yourself or the team that does the job, so replies come back to you.", "recurring-tickets", "the-ticket-it-logs"),
+        ["recurring.starts"] = new("The first date it can be logged. Every 2 weeks, 3 months and so on count from here, so pick a date on the right weekday.", "recurring-tickets", "the-schedule"),
+        ["recurring.school-day"] = new("Ticked, a date that falls on a weekend or day off moves to the next school day. Unticked, it's logged on the day itself.", "recurring-tickets", "the-schedule"),
+        ["attribute.type"] = new("Single-line or multi-line text, a dropdown of fixed choices (one per line), or a checkbox. A dropdown keeps answers consistent for reports.", "custom-fields", "adding-a-field"),
+
+        // Settings: system
+        ["branding.appearance"] = new("Light or dark for devices that haven't chosen. Anyone can pick their own from the Appearance switch at the foot of every page.", "branding", "default-appearance"),
+        ["backup.folder"] = new("Blank keeps backups beside the data. Another drive, a network share or a OneDrive folder survives this computer's disk failing. Keep it private.", "backups", "automatic-backups"),
+        ["backup.keep"] = new("Older backups are deleted automatically; the newest few are always kept. Longer gives more to go back to but uses more space.", "backups", "automatic-backups"),
+        ["signin.two-step"] = new("A code from a phone app after the password. Required, anyone without it sets it up next time they use the helpdesk.", "sign-in-security", "two-step-sign-in"),
+        ["signin.recovery"] = new("Lets a technician who forgets their password reset it once from the sign-in page, without an administrator.", "sign-in-security", "recovery-keys"),
+        ["signin.address"] = new("The web address staff type to reach the helpdesk, printed on new accounts' quick start guides, e.g. https://helpdesk.school.org.uk/", "sign-in-security", "helpdesk-address"),
+        ["notifications.reminder"] = new("A bar under the header for anyone who hasn't switched pings and pop-ups on. They can dismiss it for a week.", "notifications-setup", "who-gets-notifications"),
+        ["teams.webhook"] = new("The address from a Teams workflow that posts to the channel. It's a secret - anyone with it can post - so it's never shown again once saved.", "teams-channel", "channels"),
+        ["edunotify.ping"] = new("A notice on technicians' PCs when a ticket at a ticked priority arrives with nobody assigned. It comes down when someone is assigned.", "edunotify", "technician-ping"),
+        ["retention.tickets"] = new("Closed tickets older than this are deleted for good, with their files and history, after the nightly backup. 0 keeps them forever.", "data-retention", "rules"),
+        ["retention.leavers"] = new("People marked inactive longer than this lose their name and contact details everywhere. Their tickets stay, anonymised. 0 = never.", "data-retention", "rules"),
+        ["retention.audit"] = new("Audit log entries older than this are deleted. There's a minimum, because the log shows who changed what.", "data-retention", "rules"),
+
+        // People
+        ["role.ticks"] = new("Access: open the list. View: read a record. New: add. Edit: change. Delete: remove. Each box is separate - tick exactly what the job needs.", "roles-and-permissions", "the-five-ticks-per-area"),
+        ["account.desks"] = new("The desks they work on. They see only these desks' tickets, unless their role has See all desks.", "staff-accounts", "adding-one"),
+        ["account.password"] = new("Leave blank for a temporary password they change at first sign-in, printed on their quick start guide. A password you type is theirs to keep.", "staff-accounts", "adding-one"),
+        ["person.projects"] = new("Can raise projects: ask IT to source and quote for purchases from the portal. Project lead: also confirms priorities and assigns technicians.", "people", "a-requester-s-details"),
+        ["import.passwords"] = new("Gives everyone imported a temporary password and opens their quick start guides to print. Untick to import without passwords.", "imports", "requesters-and-staff-accounts"),
+
         // Settings → Cleaning rounds
         ["round.cleaner"] = new("Filled in against every room when the supervisor ticks the round off. They can change it on the day if someone else covered.", "getting-started-cleaning", "setting-up-a-round"),
         ["round.counted-from"] = new("The first day this round is due. Days before it never show as missed, so set it to the day the cleaners start working from the sheet.", "getting-started-cleaning", "setting-up-a-round"),

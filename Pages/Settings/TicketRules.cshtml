@@ -8,17 +8,17 @@
 <section class="panel" id="queues">
     <div class="panel-heading"><h2>Due soon</h2></div>
     <p class="muted">The Overdue / due soon queue on the ticket list, and the overview, show open tickets that are past their due date, or due within this many hours. Overdue tickets are always included.</p>
-    <form method="post" asp-page-handler="SaveTicketDueSoon" class="import-row"><label>Due soon window (hours)<input name="hours" type="number" min="0" max="720" step="1" value="@Model.TicketDueSoonHours" required /></label><button class="button button-primary">Save</button></form>
+    <form method="post" asp-page-handler="SaveTicketDueSoon" class="import-row"><label>Due soon window (hours) <help-tip key="rules.due-soon" /><input name="hours" type="number" min="0" max="720" step="1" value="@Model.TicketDueSoonHours" required /></label><button class="button button-primary">Save</button></form>
 </section>
 
 <section class="panel" id="reopen">
     <div class="panel-heading"><h2>Replies to closed tickets</h2></div>
     <p class="muted">When the requester replies in the staff portal to a ticket that was closed within this many days, it reopens so the team see it. After that, the portal asks them to report it again as a new ticket, linked to the old one. 0 means a closed ticket never reopens. Which statuses stop the SLA clock is set on the <a asp-page="/Settings/Statuses">Statuses</a> page.</p>
-    <form method="post" asp-page-handler="SaveReopenWindow" class="import-row"><label>Replies reopen closed tickets for (days)<input name="days" type="number" min="0" max="@HelpdeskStore.MaxReopenWindowDays" step="1" value="@Model.ReopenWindowDays" required /></label><button class="button button-primary">Save</button></form>
+    <form method="post" asp-page-handler="SaveReopenWindow" class="import-row"><label>Replies reopen closed tickets for (days) <help-tip key="rules.reopen" /><input name="days" type="number" min="0" max="@HelpdeskStore.MaxReopenWindowDays" step="1" value="@Model.ReopenWindowDays" required /></label><button class="button button-primary">Save</button></form>
 </section>
 
 <section class="panel" id="closing">
-    <div class="panel-heading"><h2>Closing requirements</h2></div>
+    <div class="panel-heading"><h2>Closing requirements <help-tip key="rules.closing" /></h2></div>
     <p class="muted">Tick a priority or category to require technicians to enter a closing message before a matching ticket can be marked closed. Everything else can still be closed with one click.</p>
     <form method="post" asp-page-handler="SaveCloseRequirements" class="settings-form">
         <div class="checkbox-grid">

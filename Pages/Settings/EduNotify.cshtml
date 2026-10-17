@@ -73,7 +73,7 @@
         <p class="muted">Use <strong>Test the connection</strong> above first, so the templates and groups EduNotify has can be chosen here.</p>
     }
     <form method="post" asp-page-handler="SavePing" class="settings-form">
-        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Ping.Enabled" /> Ping technicians about new tickets at these priorities</label>
+        <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@Model.Ping.Enabled" /> Ping technicians about new tickets at these priorities <help-tip key="edunotify.ping" /></label>
         <div class="checkbox-grid">
             <div><p class="eyebrow">Priorities that ping</p>@foreach (var priority in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priorities" value="@priority" checked="@Model.Ping.Priorities.Contains(priority, StringComparer.OrdinalIgnoreCase)" /> @priority</label> }</div>
             @if (Model.HasSeveralDesks)

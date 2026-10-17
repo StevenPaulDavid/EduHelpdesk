@@ -9,7 +9,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <h2>Two-step sign-in</h2>
+    <h2>Two-step sign-in <help-tip key="signin.two-step" /></h2>
     <p>@withTwoFactor of @Model.Staff.Count active staff account@(Model.Staff.Count == 1 ? " has" : "s have") it set up. The DfE's cyber security standard for schools expects it on accounts like these, which can change anything in the helpdesk.</p>
     <form method="post" asp-page-handler="Require" data-confirm="@(Model.Required ? "Make two-step sign-in optional? Those who have it keep it." : "Require two-step sign-in for every staff account? Anyone without it will have to set it up before they can do anything else.")">
         <input type="hidden" name="required" value="@(Model.Required ? "false" : "true")" />
@@ -30,7 +30,7 @@
 </section>
 
 <section class="panel" id="recovery">
-    <h2>Recovery keys</h2>
+    <h2>Recovery keys <help-tip key="signin.recovery" /></h2>
     <p>@Model.Staff.Count(x => x.RecoveryKey is not null) of @Model.Staff.Count active staff account@(Model.Staff.Count == 1 ? " has" : "s have") a recovery key. With one, a technician who forgets their password can set a new one from the sign-in page, once, without waiting for an administrator. Two-step sign-in still applies when they sign in.</p>
     <form method="post" asp-page-handler="RecoveryKeys" data-confirm="@(Model.RecoveryKeysAllowed ? "Turn recovery keys off? Keys people have made are kept, but stop working until you turn them back on." : "Let technicians reset a forgotten password with a recovery key?")">
         <input type="hidden" name="allowed" value="@(Model.RecoveryKeysAllowed ? "false" : "true")" />
@@ -43,7 +43,7 @@
     <h2>Helpdesk address</h2>
     <p>The address staff type to reach the helpdesk, printed on the quick start guide given to each new account. Leave it empty to use the address the guide is printed from - at the moment that would be <strong>@Model.GuessedAddress</strong>.</p>
     <form method="post" asp-page-handler="Address" class="settings-form field-narrow">
-        <label>Address<input name="address" type="url" value="@Model.SiteAddress" placeholder="https://helpdesk.school.org.uk/" maxlength="200" /></label>
+        <label><span>Address <help-tip key="signin.address" /></span><input name="address" type="url" value="@Model.SiteAddress" placeholder="https://helpdesk.school.org.uk/" maxlength="200" /></label>
         <button class="button button-primary">Save address</button>
     </form>
 </section>

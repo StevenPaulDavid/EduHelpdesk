@@ -67,12 +67,12 @@
     <div class="panel-heading"><div><p class="eyebrow">SETTINGS</p><h2>Automatic backups</h2></div></div>
     <form method="post" asp-page-handler="Save" class="settings-form backup-settings">
         <label class="toggle-label"><input type="checkbox" name="enabled" value="true" checked="@backups.Enabled" /> Make a backup automatically every night</label>
-        <label>Backup folder
+        <label><span>Backup folder <help-tip key="backup.folder" /></span>
             <input name="folder" value="@(backups.FolderIsDefault ? "" : backups.Folder)" placeholder="@Model.DefaultBackupFolder" />
             <small class="muted">Leave blank for the default. Another drive, a network share (<code>\\server\share\helpdesk</code>) or a OneDrive / SharePoint folder protects against this computer's disk failing. Backups hold everything, including personal data and password hashes, so keep the folder private.</small>
         </label>
         <div class="inline-fields">
-            <label>Keep backups for<select name="keepDays">@foreach (var days in new[] { 7, 14, 30, 60, 90, 180, 365 }.Append(backups.KeepDays).Distinct().Order()) { <option value="@days" selected="@(days == backups.KeepDays)">@days days</option> }</select></label>
+            <label><span>Keep backups for <help-tip key="backup.keep" /></span><select name="keepDays">@foreach (var days in new[] { 7, 14, 30, 60, 90, 180, 365 }.Append(backups.KeepDays).Distinct().Order()) { <option value="@days" selected="@(days == backups.KeepDays)">@days days</option> }</select></label>
             <label>Run at<select name="hour">@for (var hour = 0; hour < 24; hour++) { <option value="@hour" selected="@(hour == backups.Hour)">@hour.ToString("00"):00</option> }</select></label>
         </div>
         <p class="muted">Older backups are deleted automatically, but the newest @HelpdeskStore.MinimumBackupsKept are always kept. Only this app's own backup files are ever deleted.</p>

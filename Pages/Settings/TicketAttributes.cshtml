@@ -6,7 +6,7 @@
 <section class="panel">
     <form method="post" class="settings-form">
         <label>Name<input name="name" required /></label>
-        <label>Field type<select name="fieldType"><option value="single-line">Single-line text</option><option value="multi-line">Multi-line text</option><option value="dropdown">Dropdown</option><option value="checkbox">Checkbox</option></select></label>
+        <label><span>Field type <help-tip key="attribute.type" /></span><select name="fieldType"><option value="single-line">Single-line text</option><option value="multi-line">Multi-line text</option><option value="dropdown">Dropdown</option><option value="checkbox">Checkbox</option></select></label>
         <label>Dropdown choices<input name="choices" placeholder="One, Two, Three" /></label>
         <div class="checkbox-grid">
             <div><p class="eyebrow">Applies to categories</p>@foreach (var category in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="categories" value="@category" /> @category</label> }@if (Model.Categories.Count == 0) { <p class="empty">No categories configured yet.</p> }</div>
