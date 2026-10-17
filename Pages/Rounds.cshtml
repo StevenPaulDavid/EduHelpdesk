@@ -44,7 +44,7 @@ else if (Model.Due.Count == 0)
             <input type="hidden" name="id" value="@round.Id" /><input type="hidden" name="date" value="@iso" />
             <div class="table-wrap">
                 <table class="round-table">
-                    <thead><tr><th>Room</th><th>Done</th><th>Cleaner</th><th>Note</th><th title="Spot-check score, 1 (poor) to 5 (excellent)">Spot check</th><th>Spot-check note</th></tr></thead>
+                    <thead><tr><th>Room</th><th>Done</th><th>Cleaner</th><th>Note</th><th title="Spot-check score, 1 (poor) to 5 (excellent)">Spot check <help-tip key="round.spot-check" /></th><th>Spot-check note</th></tr></thead>
                     <tbody>
                         @for (var i = 0; i < round.Rooms.Count; i++)
                         {

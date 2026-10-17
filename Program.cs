@@ -150,6 +150,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Reports/ProjectsPrint", Modules.Flags.ReportExport);
     options.Conventions.AuthorizePage("/Reports/Onboarding", Modules.Flags.ReportOnboarding);
     options.Conventions.AuthorizePage("/Reports/Spend", Modules.Flags.ReportSpend);
+    // The help centre is open to every signed-in account (the folder rule above); adding the school's own articles
+    // and notes changes what everyone reads, so it takes Settings: Edit, like the rest of the school's setup.
+    options.Conventions.AuthorizePage("/Help/Edit", Policy(Modules.Settings, ModulePermission.Edit));
     // Cleaning rounds: the supervisor's page and the sheets it prints, and the report.
     options.Conventions.AuthorizePage("/Rounds", Modules.Flags.Rounds);
     options.Conventions.AuthorizePage("/RoundSheet", Modules.Flags.Rounds);
@@ -234,6 +237,8 @@ builder.Services.AddSingleton<PortalIdentity>();
 builder.Services.AddSingleton<TwoFactorPending>();
 builder.Services.AddSingleton<HelpdeskStore>();
 builder.Services.AddSingleton<RawDatabase>();
+// The help centre's built-in articles (wwwroot/help), read from the files that ship with the release.
+builder.Services.AddSingleton(services => new HelpCentre(Path.Combine(services.GetRequiredService<IWebHostEnvironment>().WebRootPath, "help")));
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<TemporaryPasswords>();
 builder.Services.AddScoped<PortalSessionFilter>();

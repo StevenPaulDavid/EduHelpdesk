@@ -12,7 +12,7 @@
     <form method="post" asp-page-handler="Add" class="settings-form">
         <div class="template-fields">
             <label>Name<input name="name" required maxlength="@HelpdeskStore.MaxDeskNameLength" placeholder="e.g. Site" /></label>
-            <label>Ticket number prefix<input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. SITE" autocapitalize="characters" /><small class="muted">Its tickets show as SITE-1, SITE-2… Leave blank for #1.</small></label>
+            <label><span>Ticket number prefix <help-tip key="desk.prefix" /></span><input name="prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" placeholder="e.g. SITE" autocapitalize="characters" /><small class="muted">Its tickets show as SITE-1, SITE-2… Leave blank for #1.</small></label>
             <label>First ticket number<input name="firstNumber" type="number" min="1" step="1" value="1" /><small class="muted">Each desk counts its own tickets. Start higher (1001, say) to keep numbers the same length.</small></label>
             <label class="full">Helper line<input name="helperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" placeholder="A few words under its portal tile, e.g. Heating, leaks, doors and furniture" /></label>
         </div>
@@ -54,7 +54,7 @@
                     <input type="hidden" name="id" value="@desk.Id" />
                     <div class="template-fields">
                         <label>Name<input name="name" value="@desk.Name" required maxlength="@HelpdeskStore.MaxDeskNameLength" /></label>
-                        <label>Ticket number prefix<input name="prefix" value="@desk.Prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" autocapitalize="characters" /><small class="muted">Changing it changes how every ticket on this desk is shown, old ones included.</small></label>
+                        <label><span>Ticket number prefix <help-tip key="desk.prefix" /></span><input name="prefix" value="@desk.Prefix" maxlength="@HelpdeskStore.MaxDeskPrefixLength" autocapitalize="characters" /><small class="muted">Changing it changes how every ticket on this desk is shown, old ones included.</small></label>
                         <label class="full">Helper line<input name="helperLine" value="@desk.HelperLine" maxlength="@HelpdeskStore.MaxHelperLineLength" /></label>
                         <label class="toggle-label full"><input type="checkbox" name="showInPortal" value="true" checked="@desk.ShowInPortal" /> Offer this desk in the staff portal<small class="muted">Untick for a desk that only takes work logged by its own staff.</small></label>
                     </div>
@@ -67,7 +67,7 @@
                 </form>
                 <form method="post" asp-page-handler="Hours" class="settings-form">
                     <input type="hidden" name="id" value="@desk.Id" />
-                    <fieldset class="desk-choices"><legend>Working hours for its SLAs</legend>
+                    <fieldset class="desk-choices"><legend>Working hours for its SLAs <help-tip key="desk.hours" /></legend>
                         <label class="toggle-label"><input type="radio" name="useOwn" value="false" checked="@(!desk.HasOwnHours)" /> The school day (Settings → School day and periods)</label>
                         <label class="toggle-label"><input type="radio" name="useOwn" value="true" checked="@desk.HasOwnHours" /> Its own hours</label>
                     </fieldset>

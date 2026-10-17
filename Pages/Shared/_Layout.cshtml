@@ -2,6 +2,7 @@
 @using EduHelpdesk.Services
 @inject HelpdeskStore Helpdesk
 @inject PortalIdentity Portal
+@inject HelpCentre HelpArticles
 @{
     // Which top-level nav item is current, so the Inventory menu still shows where you are.
     var navPath = Context.Request.Path.Value ?? string.Empty;
@@ -71,6 +72,15 @@
     // Lists, queues, reports and the overview set ViewData["Wide"] = true and use the whole screen. Everything else -
     // a ticket, a project, a form - stops at a readable width (.shell in site.css).
     var shellClass = ViewData["Wide"] is true ? "shell shell-wide" : "shell";
+
+    // Help (Pages/Help): for signed-in helpdesk accounts, not the portal. A page with a guide gets a Help link that
+    // wwwroot/js/help.js moves beside its heading; a first sign-in gets a welcome note until it's dismissed.
+    var helpdeskSignedIn = User.Identity?.IsAuthenticated == true && !NavOn("/Portal");
+    var onHelp = NavOn("/Help");
+    var pageHelp = helpdeskSignedIn && !onHelp ? HelpArticles.ForPage(navPath) : null;
+    var showWelcome = helpdeskSignedIn && !onHelp && !NavOn("/ChangePassword", "/LoginCode", "/TwoFactor")
+        && Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var welcomeAccount)
+        && Helpdesk.Preference(welcomeAccount, HelpdeskStore.HelpWelcomePreference) is null;
 }
 <!DOCTYPE html>
 <html lang="en" data-theme="@Themes.Key(theme)">
@@ -93,6 +103,7 @@
     <script src="~/js/actions.js" asp-append-version="true" defer></script>
     <script src="~/js/layout.js" asp-append-version="true" defer></script>
     <script src="~/js/picker.js" asp-append-version="true" defer></script>
+    <script src="~/js/help.js" asp-append-version="true" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -158,6 +169,7 @@
         <details class="nav-menu user-menu">
             <summary><span class="user-name">@User.Identity!.Name</span><span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">
+                <a asp-page="/Help/Index">Help</a>
                 <a asp-page="/ChangePassword">Change password</a>
                 <a asp-page="/TwoFactor">Two-step sign-in</a>
                 <a asp-page="/Notifications">Notifications</a>
@@ -191,10 +203,22 @@
                 </div>
             </details>
         }
+        @* Outside the site menu too, so help is one tap away on a phone. *@
+        <a class="header-help @(onHelp ? "active" : null)" asp-page="/Help/Index" title="Help" aria-label="Help"><span aria-hidden="true">?</span></a>
         <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="site-menu"><span aria-hidden="true">☰</span> Menu</button>
     }
     </header>
-    <main class="@shellClass" id="main" tabindex="-1">@RenderBody()</main>
+    <main class="@shellClass" id="main" tabindex="-1">
+        @if (showWelcome)
+        {
+            <div class="help-welcome" role="region" aria-label="Welcome">
+                <p><strong>New to EduHelpdesk?</strong> Start with <a asp-page="/Help/Index">Help</a>: there's a short Getting started guide for what you do. A <span class="help-tip-mark help-tip-sample" aria-hidden="true">?</span> beside a field explains it, and the Help link by a page's title opens its guide.</p>
+                <form method="post" asp-page="/Help/Index" asp-page-handler="DismissWelcome"><input type="hidden" name="returnUrl" value="@themeReturn" /><button class="button button-secondary" type="submit">Got it</button></form>
+            </div>
+        }
+        @if (pageHelp is not null) { <a class="page-help-link" id="page-help-link" asp-page="/Help/Article" asp-route-slug="@pageHelp.Slug" title="Help with this page: @pageHelp.Title"><span class="help-tip-mark" aria-hidden="true">?</span> Help</a> }
+        @RenderBody()
+    </main>
     <footer class="footer@(ViewData["Wide"] is true ? " shell-wide" : null)">
         <span>EduHelpdesk · Local technician operations</span>
         @* Per browser, so a technician's dark laptop and the staffroom PC can each have their own. Pressing the one

@@ -1,0 +1,5 @@
+# The help centre's screenshots, taken by deploy/tools/HelpScreenshots.cs from a scratch copy with the demo data.
+# name | page | element to crop to (blank = whole window) | script to run first
+overview | / |
+tickets-list | /Jobs |
+help-tip | /Settings/Rounds | main section.panel | document.querySelectorAll('main .help-tip-mark[aria-controls]')[0].click()

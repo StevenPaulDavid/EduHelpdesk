@@ -230,6 +230,11 @@ internal static class AuditTracker
         AddList(s, "Lists", "Reason for removing access", d.RevokeReasons);
         AddList(s, "Lists", "Budget code", d.BudgetCodes);
         AddList(s, "Lists", "Cleaner", d.Cleaners);
+        // The school's own help: its articles and its notes on the built-in ones.
+        foreach (var x in d.SchoolHelpArticles)
+            Add(s, "Settings", "Help article", x.Id.ToString(), $"Help article: {x.Title}", Track.All, ("Title", x.Title), ("Summary", x.Summary), ("Text", x.Body));
+        foreach (var x in d.HelpNotes)
+            Add(s, "Settings", "Help note", x.Slug, $"Help note on {x.Slug}", Track.All, ("Note", x.Text));
         // Cleaning rounds as set up; what's ticked off each day is the round's own record, so it isn't logged twice.
         foreach (var x in d.CleaningRounds)
             Add(s, "Settings", "Cleaning round", x.Id.ToString(), $"Cleaning round: {x.Name}", Track.All,

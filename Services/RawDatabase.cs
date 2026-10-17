@@ -119,6 +119,8 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["AssetTypeDesks"] = "Which desk each asset type belongs to, so plant (boilers, extinguishers) is the Site desk's and kept out of IT's lists.",
         ["TicketCosts"] = "What jobs cost: one row per line on a ticket's Costs tab - net and VAT as typed, in pounds, the supplier and the budget code.",
         ["BudgetCodes"] = "What job costs can be charged to (Settings → Budget codes).",
+        ["SchoolHelpArticles"] = "The school's own articles in the help centre, written in the app (Help → Add a school article). The built-in articles are files that come with each release.",
+        ["HelpNotes"] = "The school's local note on a built-in help article, by the article's name (e.g. getting-started-technician).",
         ["Cleaners"] = "The cleaners' names, for cleaning rounds (Settings → Cleaners). Cleaners don't sign in.",
         ["CleaningRounds"] = "Cleaning rounds: the rooms each covers (one per line), the weekdays it's done (0 = Sunday), its usual cleaner, and the day it was set up.",
         ["RoundVisits"] = "What the cleaning supervisor recorded on a round: one row per room per day - done or not, who cleaned it, a note, and any spot-check score (1-5).",

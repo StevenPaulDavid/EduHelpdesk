@@ -16,8 +16,8 @@
             @if (round is not null) { <input type="hidden" name="id" value="@round.Id" /> }
             <div class="template-fields">
                 <label>Name<input name="name" value="@round?.Name" required maxlength="@HelpdeskStore.MaxRoundNameLength" placeholder="e.g. Ground floor classrooms" /></label>
-                <label>Usual cleaner<select name="cleaner"><option value="">Nobody set</option>@foreach (var cleaner in Model.Cleaners) { <option value="@cleaner" selected="@string.Equals(cleaner, round?.Cleaner, StringComparison.OrdinalIgnoreCase)">@cleaner</option> }</select><small class="muted">Filled in on each room; the supervisor can change it on the day.</small></label>
-                <label>Counted from<input type="date" name="startsOn" value="@((round?.StartedOn ?? DateOnly.FromDateTime(DateTime.Now)).ToString("yyyy-MM-dd"))" /><small class="muted">Days before this aren't due, so they never show as missed.</small></label>
+                <label><span>Usual cleaner <help-tip key="round.cleaner" /></span><select name="cleaner"><option value="">Nobody set</option>@foreach (var cleaner in Model.Cleaners) { <option value="@cleaner" selected="@string.Equals(cleaner, round?.Cleaner, StringComparison.OrdinalIgnoreCase)">@cleaner</option> }</select><small class="muted">Filled in on each room; the supervisor can change it on the day.</small></label>
+                <label><span>Counted from <help-tip key="round.counted-from" /></span><input type="date" name="startsOn" value="@((round?.StartedOn ?? DateOnly.FromDateTime(DateTime.Now)).ToString("yyyy-MM-dd"))" /><small class="muted">Days before this aren't due, so they never show as missed.</small></label>
             </div>
             <fieldset class="desk-choices"><legend>Days it's done</legend>
                 @foreach (var day in EduHelpdesk.Pages.Settings.RoundsModel.Week)
@@ -35,7 +35,7 @@
             </fieldset>
             @if (round is not null)
             {
-                <label class="toggle-label"><input type="checkbox" name="active" value="true" checked="@round.IsActive" /> In use<small class="muted">Untick to stop it showing on Rounds and counting as missed, while keeping what was recorded.</small></label>
+                <label class="toggle-label"><input type="checkbox" name="active" value="true" checked="@round.IsActive" /> In use <help-tip key="round.active" /><small class="muted">Untick to stop it showing on Rounds and counting as missed, while keeping what was recorded.</small></label>
             }
             <button class="button button-primary" type="submit">@(round is null ? "Add round" : "Save round")</button>
         </form>

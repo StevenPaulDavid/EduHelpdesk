@@ -1,0 +1,62 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Help.IndexModel
+@{
+    ViewData["Title"] = "Help";
+    async Task Item(HelpCentre.Article article)
+    {
+        var usable = Model.CanUse(article);
+        <li class="help-item">
+            <a asp-page="/Help/Article" asp-route-slug="@article.Slug"><strong>@article.Title</strong></a>
+            <span class="help-kind">@article.KindLabel</span>
+            @if (!usable) { <span class="badge badge-soon" title="Your role can't open this part of EduHelpdesk. Ask an administrator if you need it.">Needs permission: @HelpCentre.NeedsLabel(article)</span> }
+            @if (article.Summary.Length > 0) { <span class="muted help-item-summary">@article.Summary</span> }
+        </li>
+    }
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK</p><h1>Help</h1><p class="hero-copy">How to use EduHelpdesk: step-by-step guides for common jobs, and a guide to each page. The <span class="help-tip-mark help-tip-sample" aria-hidden="true">?</span> beside a field explains it in a sentence; the Help link by a page's title opens its guide.</p></div>
+    <div class="heading-actions">
+        <a class="button button-secondary" asp-page="/Help/WhatsNew">What's new</a>
+        @if (Model.CanEdit) { <a class="button button-primary" asp-page="/Help/Edit">@Icons.Plus Add a school article</a> }
+    </div>
+</div>
+@if (Model.Message is { } message) { <div class="notice">@message</div> }
+
+<form method="get" class="help-search" role="search">
+    <label class="visually-hidden" for="help-q">Search the help</label>
+    <input id="help-q" name="q" value="@Model.Query" type="search" placeholder="Search the help, e.g. close a ticket, SLA, cleaning round" autocomplete="off" />
+    <button class="button button-primary" type="submit">@Icons.Search Search</button>
+</form>
+
+@if (!string.IsNullOrWhiteSpace(Model.Query))
+{
+    <section class="panel">
+        <div class="panel-heading"><h2>Results for "@Model.Query"</h2><span class="badge">@Model.Hits.Count</span><a class="button button-secondary" asp-page="/Help/Index">Clear</a></div>
+        @if (Model.Hits.Count == 0) { <p class="muted">Nothing matched. Try fewer or different words, or browse the areas below.</p> }
+        <ul class="help-list">@foreach (var hit in Model.Hits.Take(30)) { await Item(hit.Article); }</ul>
+    </section>
+}
+
+@if (Model.StartHere.Count > 0)
+{
+    <section class="panel help-start">
+        <div class="panel-heading"><h2>Start here</h2></div>
+        <p class="muted">Getting started for what your role can do.</p>
+        <ul class="help-list">@foreach (var article in Model.StartHere) { await Item(article); }</ul>
+    </section>
+}
+
+<div class="help-areas">
+    @foreach (var area in Model.ByArea())
+    {
+        <section class="panel">
+            <div class="panel-heading"><h2>@area.Key</h2><span class="badge">@area.Count()</span></div>
+            <ul class="help-list">@foreach (var article in area) { await Item(article); }</ul>
+        </section>
+    }
+</div>
+@if (Model.All.All(x => !x.IsSchool) && Model.CanEdit)
+{
+    <p class="muted">The school can add its own articles here - who to ring for what, local procedures - with <a asp-page="/Help/Edit">Add a school article</a>, and a note on any built-in article.</p>
+}

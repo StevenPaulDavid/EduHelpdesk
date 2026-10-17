@@ -173,6 +173,9 @@ public sealed partial class HelpdeskStore
         public List<CleaningRound> CleaningRounds { get; set; } = [];
         public List<RoundVisit> RoundVisits { get; set; } = [];
         public List<string> Cleaners { get; set; } = [];
+        // The school's own help articles and its notes on the built-in ones (HelpdeskStore.Help).
+        public List<SchoolHelpArticle> SchoolHelpArticles { get; set; } = [];
+        public List<HelpNote> HelpNotes { get; set; } = [];
         public Dictionary<string, Guid> AssetTypeDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> BudgetCodes { get; set; } = [];
         public bool BudgetCodesSeeded { get; set; }

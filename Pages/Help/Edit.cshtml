@@ -1,0 +1,35 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Help.EditModel
+@{
+    ViewData["Title"] = (Model.Id is null ? "Add a school article" : "Edit school article") + " · Help";
+}
+<div class="page-heading">
+    <div><p class="eyebrow"><a asp-page="/Help/Index">HELP</a></p><h1>@(Model.Id is null ? "Add a school article" : "Edit school article")</h1><p class="hero-copy">Your school's own help, shown in the help centre under School articles: who to ring for what, how your school does something, local rules. Everyone signed in to the helpdesk can read it.</p></div>
+    <a class="button button-secondary" asp-page="/Help/Index">← Help</a>
+</div>
+@if (Model.Error is { } error) { <div class="notice notice-warning">@error</div> }
+
+<section class="panel">
+    <form method="post" class="settings-form">
+        @if (Model.Id is { } id) { <input type="hidden" name="id" value="@id" /> }
+        <div class="template-fields">
+            <label class="full">Title<input name="Title" value="@Model.Title" required maxlength="@HelpdeskStore.MaxHelpTitleLength" placeholder="e.g. Who to call out of hours" /></label>
+            <label class="full">Summary<input name="Summary" value="@Model.Summary" maxlength="@HelpdeskStore.MaxHelpSummaryLength" placeholder="One line shown in lists and search results" /></label>
+            <label class="full">Article<textarea name="Body" rows="16" maxlength="@HelpdeskStore.MaxHelpBodyLength" required>@Model.Body</textarea>
+                <small class="muted">Formatting: a line starting ## is a heading; - starts a bullet, 1. a numbered step; **bold**; [link text](/Jobs) links to a page; a line starting &gt; **Tip:** is a tip box. Leave a blank line between paragraphs.</small></label>
+        </div>
+        <div class="form-actions">
+            <button class="button button-primary" type="submit">Save article</button>
+            <button class="button button-secondary" type="submit" name="preview" value="1" formnovalidate>Preview</button>
+        </div>
+    </form>
+</section>
+@if (Model.Preview is { } preview)
+{
+    <section class="panel help-article">
+        <p class="eyebrow">PREVIEW - NOT SAVED YET</p>
+        <h1>@Model.Title</h1>
+        @Html.Raw(preview.Html)
+    </section>
+}

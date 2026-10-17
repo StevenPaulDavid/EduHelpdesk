@@ -1,0 +1,83 @@
+@page "{slug}"
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Help.ArticleModel
+@{
+    ViewData["Title"] = Model.Article.Title + " · Help";
+    var article = Model.Article;
+    var contents = Model.Rendered.Headings.Where(x => x.Level == 2).ToList();
+}
+<div class="page-heading">
+    <div>
+        <p class="eyebrow"><a asp-page="/Help/Index">HELP</a> / @article.Area.ToUpperInvariant()</p>
+        <h1>@article.Title</h1>
+        @if (article.Summary.Length > 0) { <p class="hero-copy">@article.Summary</p> }
+    </div>
+    <div class="heading-actions">
+        @if (Model.School is not null && Model.CanEdit)
+        {
+            <a class="button button-secondary" asp-page="/Help/Edit" asp-route-id="@Model.School.Id">@Icons.Edit Edit</a>
+        }
+        <a class="button button-secondary" asp-page="/Help/Index">← Help</a>
+    </div>
+</div>
+@if (Model.Message is { } message) { <div class="notice">@message</div> }
+
+@if (!Model.CanUse)
+{
+    <div class="help-callout help-callout-important"><p><strong>Needs permission.</strong> This is about a part of EduHelpdesk your role can't open (@HelpCentre.NeedsLabel(article)). You can still read it; ask an administrator if you need to use it.</p></div>
+}
+
+@if (Model.RenderedNote is { } note)
+{
+    <aside class="help-school-note">
+        <p class="eyebrow">FROM YOUR SCHOOL</p>
+        @Html.Raw(note.Html)
+        <p class="muted help-note-by">Added by @(Model.Note!.By?.Name ?? "an administrator"), @Model.Note.UpdatedAt.ToLocalTime().ToString("d MMM yyyy").</p>
+    </aside>
+}
+
+<div class="help-layout">
+    <article class="panel help-article">
+        @Html.Raw(Model.Rendered.Html)
+        @if (Model.School is not null)
+        {
+            <p class="muted help-note-by">Written by your school@(Model.School.By is { } by ? $" ({by.Name})" : ""), last changed @Model.School.UpdatedAt.ToLocalTime().ToString("d MMM yyyy").</p>
+        }
+    </article>
+    @if (contents.Count > 2 || Model.Related.Count > 0)
+    {
+        <nav class="help-side" aria-label="On this page">
+            @if (contents.Count > 2)
+            {
+                <p class="eyebrow">ON THIS PAGE</p>
+                <ul>@foreach (var heading in contents) { <li><a href="#@heading.Id">@heading.Text</a></li> }</ul>
+            }
+            @if (Model.Related.Count > 0)
+            {
+                <p class="eyebrow">MORE IN @article.Area.ToUpperInvariant()</p>
+                <ul>@foreach (var other in Model.Related) { <li><a asp-page="/Help/Article" asp-route-slug="@other.Slug">@other.Title</a></li> }</ul>
+            }
+        </nav>
+    }
+</div>
+
+@if (Model.CanEdit && !article.IsSchool)
+{
+    <details class="panel help-note-edit">
+        <summary>@(Model.Note is null ? "Add a note from the school" : "Change the school's note")</summary>
+        <p class="muted">Shown above this article for everyone, e.g. who to ring, or how your school does it. The article itself comes with EduHelpdesk and updates with each release; your note stays. Same formatting as the help: **bold**, - lists, [links](/Jobs). Leave it empty and save to remove it.</p>
+        <form method="post" asp-page-handler="Note">
+            <input type="hidden" name="slug" value="@article.Slug" />
+            <label class="visually-hidden" for="help-note">The school's note</label>
+            <textarea id="help-note" name="text" rows="5" maxlength="@HelpdeskStore.MaxHelpNoteLength">@Model.Note?.Text</textarea>
+            <button class="button button-primary" type="submit">Save note</button>
+        </form>
+    </details>
+}
+@if (Model.CanEdit && Model.School is not null)
+{
+    <form method="post" asp-page-handler="Delete" data-confirm="Delete &quot;@article.Title&quot; from the help centre?" class="help-delete">
+        <input type="hidden" name="slug" value="@article.Slug" />
+        <button class="button button-danger" type="submit">@Icons.Bin Delete this article</button>
+    </form>
+}

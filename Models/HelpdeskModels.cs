@@ -397,6 +397,20 @@ public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = f
     public bool FromRequester { get; init; }
 }
 public record SlaPause(DateTime StartedAt, DateTime? EndedAt);
+// The school's own help (HelpdeskStore.Help): an article of its own in the help centre, and a local note shown on a
+// built-in article ("ring the site office on 214 for leaks"). Bodies use the help centre's Markdown (HelpMarkdown).
+public record SchoolHelpArticle(Guid Id, string Title, string Summary, string Body)
+{
+    public DateTime UpdatedAt { get; init; }
+    public Actor? By { get; init; }
+}
+
+public record HelpNote(string Slug, string Text)
+{
+    public DateTime UpdatedAt { get; init; }
+    public Actor? By { get; init; }
+}
+
 // A cleaning round (HelpdeskStore.Rounds): rooms (from the Locations list) cleaned on its days, by its usual cleaner.
 // Not tickets - a school with 60 rooms would otherwise log 300 tickets a week.
 public record CleaningRound(Guid Id, string Name, IReadOnlyList<string> Rooms, IReadOnlyList<DayOfWeek> Days, string Cleaner, bool IsActive = true)

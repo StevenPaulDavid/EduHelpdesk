@@ -1,0 +1,13 @@
+@page
+@model EduHelpdesk.Pages.Help.WhatsNewModel
+@{
+    ViewData["Title"] = "What's new · Help";
+}
+<div class="page-heading">
+    <div><p class="eyebrow"><a asp-page="/Help/Index">HELP</a></p><h1>What's new</h1><p class="hero-copy">What changed in each version of EduHelpdesk, newest first. This copy is version @(typeof(Program).Assembly.GetName().Version?.ToString(2)).</p></div>
+    <a class="button button-secondary" asp-page="/Help/Index">← Help</a>
+</div>
+<article class="panel help-article">
+    @if (Model.Rendered.Html.Length == 0) { <p class="muted">Nothing here yet.</p> }
+    @Html.Raw(Model.Rendered.Html)
+</article>
