@@ -188,6 +188,24 @@ public sealed partial class HelpdeskStore
     public IReadOnlyList<Desk> DesksVisibleTo(ClaimsPrincipal user) =>
         VisibleDeskIds(user) is { } ids ? Desks.Where(x => ids.Contains(x.Id)).ToList() : Desks;
 
+    // The Facilities menu's desk links (Site tickets, Cleaning plant...): every desk this person can see but the first,
+    // which is the helpdesk's own - IT on every upgraded install, and where an unplaced category or asset type lands.
+    public IReadOnlyList<Desk> FacilitiesDesksVisibleTo(ClaimsPrincipal user)
+    {
+        if (!HasSeveralDesks) return [];
+        var first = Desks[0].Id;
+        return DesksVisibleTo(user).Where(x => x.Id != first).ToList();
+    }
+
+    // The facilities setup pages (Modules.FacilitiesSetupPages): Settings: Edit, or "Set up facilities" on its own.
+    public bool CanSetUpFacilities(ClaimsPrincipal user) =>
+        UserCan(user, Modules.Settings, ModulePermission.Edit) || UserHasFlag(user, Modules.Flags.FacilitiesSetup);
+
+    // Someone with only "Set up facilities" works on their own desks' recurring schedules; Settings: Edit sees them all.
+    // Null for every desk.
+    public IReadOnlySet<Guid>? RecurringDeskScope(ClaimsPrincipal user) =>
+        UserCan(user, Modules.Settings, ModulePermission.Edit) ? null : VisibleDeskIds(user);
+
     // ---- Numbering ----
     // Each desk counts its own tickets (SITE-1, SITE-2...) in DeskNumber. A ticket's Number is its key and never shown.
 

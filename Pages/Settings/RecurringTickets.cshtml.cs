@@ -7,8 +7,13 @@ namespace EduHelpdesk.Pages.Settings;
 
 public class RecurringTicketsModel(HelpdeskStore store) : PageModel
 {
-    public IReadOnlyList<RecurringTicket> Items => store.RecurringTickets;
-    public IReadOnlyList<string> Categories => store.Categories;
+    // Someone here on "Set up facilities" alone (the site manager) sees and makes only their own desks' schedules, as
+    // another desk's tickets are shown nowhere else either (HelpdeskStore.RecurringDeskScope).
+    public IReadOnlyList<RecurringTicket> Items => store.RecurringTickets.Where(x => InScope(x.Category)).ToList();
+    public IReadOnlyList<string> Categories => store.Categories.Where(InScope).ToList();
+    private bool InScope(string? category) => store.RecurringDeskScope(User) is not { } desks || desks.Contains(store.DeskForCategory(category).Id);
+    private bool InScope(Guid id) => store.GetRecurringTicket(id) is { } item && InScope(item.Category);
+    public bool CanOpenSettings => store.UserCan(User, Modules.Settings, ModulePermission.Access);
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<UserRecord> Users => store.Users;
     public IReadOnlyList<TechnicianRecord> Technicians => store.Technicians;
@@ -34,10 +39,12 @@ public class RecurringTicketsModel(HelpdeskStore store) : PageModel
     public void OnGet() { }
 
     public FormInput FormFor(RecurringTicket item) => EditingId == item.Id ? Input : FormInput.From(item, store.Assets);
-    public FormInput NewForm() => EditingId is null && Error is not null ? Input : FormInput.Blank(store.Categories, store.Priorities);
+    public FormInput NewForm() => EditingId is null && Error is not null ? Input : FormInput.Blank(Categories, store.Priorities);
 
     public IActionResult OnPostSave(Guid? id)
     {
+        if (id is { } existing && !InScope(existing)) return NotFound();
+        if (!InScope(Input.Category)) return Forbid();
         var (ok, message) = store.SaveRecurringTicket(id, Input.ToStore(), DateTime.Now);
         if (!ok)
         {
@@ -51,6 +58,7 @@ public class RecurringTicketsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostLogNow(Guid id)
     {
+        if (!InScope(id)) return NotFound();
         var (ok, message, number) = store.LogRecurringTicketNow(id);
         Message = message;
         return ok && number is { } n ? RedirectToPage("/Job", new { number = n }) : RedirectToPage();
@@ -58,6 +66,7 @@ public class RecurringTicketsModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDelete(Guid id)
     {
+        if (!InScope(id)) return NotFound();
         Message = store.DeleteRecurringTicket(id).Message;
         return RedirectToPage();
     }

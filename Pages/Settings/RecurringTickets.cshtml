@@ -39,12 +39,12 @@
             <label>At<input name="Input.At" type="time" value="@f.At?.ToString("HH:mm")" required /></label>
             <label><span>Starts <help-tip key="recurring.starts" /></span><input name="Input.StartDate" type="date" value="@f.StartDate?.ToString("yyyy-MM-dd")" required /><small class="muted">Every 2 weeks, 3 months and so on count from here.</small></label>
             <label>Ends<input name="Input.EndDate" type="date" value="@f.EndDate?.ToString("yyyy-MM-dd")" /><small class="muted">Optional.</small></label>
-            <label class="toggle-label full"><input type="checkbox" name="Input.MoveToSchoolDay" value="true" checked="@f.MoveToSchoolDay" /> Move to the next school day when it falls on a day off <help-tip key="recurring.school-day" /><small class="muted">Uses the school days in <a asp-page="/Settings/SchoolDay">School day and periods</a>. Unticked, it is logged on the day itself, weekend or not.</small></label>
+            <label class="toggle-label full"><input type="checkbox" name="Input.MoveToSchoolDay" value="true" checked="@f.MoveToSchoolDay" /> Move to the next school day when it falls on a day off <help-tip key="recurring.school-day" /><small class="muted">Uses the school days in @if (Model.CanOpenSettings) { <a asp-page="/Settings/SchoolDay">School day and periods</a> } else { <text>Settings → School day and periods</text> }. Unticked, it is logged on the day itself, weekend or not.</small></label>
             <label class="toggle-label full"><input type="checkbox" name="Input.IsActive" value="true" checked="@f.IsActive" /> On<small class="muted">Untick to pause it. Switching it back on starts from then - nothing missed meanwhile is logged.</small></label>
         </div>
     }
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Recurring tickets</h1><p class="hero-copy">Tickets logged automatically on a schedule - a weekly backup check, a termly clean of the projectors, a yearly licence renewal. While the last one a schedule logged is still open, the next date is skipped rather than adding another.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Recurring tickets</h1><p class="hero-copy">Tickets logged automatically on a schedule - a weekly backup check, a termly clean of the projectors, a yearly licence renewal. While the last one a schedule logged is still open, the next date is skipped rather than adding another.</p></div>@if (Model.CanOpenSettings) { <a class="button button-secondary" asp-page="/Settings">← Settings</a> }</div>
 @if (Model.Message is { } message) { <div class="notice">@message</div> }
 
 <datalist id="asset-tags">@foreach (var asset in Model.Assets.Where(x => !HelpdeskStore.IsDisposed(x)).OrderBy(x => x.AssetTag)) { <option value="@asset.AssetTag">@asset.Make @asset.Model</option> }</datalist>

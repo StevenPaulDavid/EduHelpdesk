@@ -16,6 +16,9 @@ public class RoundsModel(HelpdeskStore store) : PageModel
     // Rooms already on another round, so a room left out (or put on two) is easy to spot.
     public ILookup<string, string> RoundsByRoom => store.CleaningRounds.SelectMany(r => r.Rooms.Select(room => (room, r.Name))).ToLookup(x => x.room, x => x.Name, StringComparer.OrdinalIgnoreCase);
     [TempData] public string? Message { get; set; }
+    // Someone here on "Set up facilities" alone can't open the rest of Settings, so those links become plain names.
+    public bool CanOpenSettings => store.UserCan(User, Modules.Settings, ModulePermission.Access);
+    public bool CanEditSettings => store.UserCan(User, Modules.Settings, ModulePermission.Edit);
 
     public static string DaysText(CleaningRound round) =>
         round.Days.Count == 5 && !round.Days.Contains(DayOfWeek.Saturday) && !round.Days.Contains(DayOfWeek.Sunday) ? "Mon to Fri"

@@ -171,7 +171,10 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddFolderApplicationModelConvention("/Settings", model =>
     {
         if (model.ViewEnginePath is "/Settings/Audit" or "/Settings/AuditPrint" or "/Settings/Database" or "/Settings/DatabaseTable" or "/Settings/DatabaseRecord") return;
-        model.Filters.Add(new AuthorizeFilter(Policy(Modules.Settings, ModulePermission.Edit)));
+        // The facilities setup pages (the Facilities menu's Setup section) open for Settings: Edit or "Set up facilities".
+        // The pages themselves keep someone with only the tick to their own desks' schedules and their own two lists.
+        model.Filters.Add(new AuthorizeFilter(Modules.FacilitiesSetupPages.Contains(model.ViewEnginePath)
+            ? PermissionRequirement.FacilitiesSetupPolicy : Policy(Modules.Settings, ModulePermission.Edit)));
     });
     options.Conventions.AuthorizePage("/Settings/Audit", Policy(Modules.AuditLog, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Settings/AuditPrint", Policy(Modules.AuditLog, ModulePermission.Access));
@@ -306,6 +309,8 @@ builder.Services.AddAuthorization(options =>
         PermissionRequirement.ForAny(Modules.Requesters, Modules.StaffAccounts, Modules.Roles)));
     options.AddPolicy(PermissionRequirement.OnboardingPolicy, policy => policy.Requirements.Add(
         PermissionRequirement.ForAny(Modules.Onboarding, Modules.Tickets)));
+    options.AddPolicy(PermissionRequirement.FacilitiesSetupPolicy, policy => policy.Requirements.Add(
+        PermissionRequirement.ForModuleOrFlag(Modules.Settings, ModulePermission.Edit, Modules.Flags.FacilitiesSetup)));
 });
 
 var app = builder.Build();

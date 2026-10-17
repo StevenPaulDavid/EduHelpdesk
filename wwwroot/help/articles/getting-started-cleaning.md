@@ -4,7 +4,7 @@ summary: For cleaning supervisors - printing the day's round sheets, ticking off
 area: Getting started
 kind: start
 pages: /Rounds, /RoundSheet, /Settings/Rounds, /Settings/Cleaners
-needs: Rounds.Record, Settings:Edit, Reports.Rounds
+needs: Rounds.Record, Settings:Edit, Facilities.Setup, Reports.Rounds
 keywords: cleaning cleaner supervisor rounds rooms sheet spot check score missed rota
 order: 3
 ---
@@ -12,10 +12,10 @@ A **cleaning round** is a set of rooms cleaned on the same days, usually by the 
 
 ## Setting up a round
 
-Rounds are set up in **Settings → Cleaning rounds** by someone who can change settings. First make sure:
+Rounds are set up in **Facilities → Cleaning rounds setup** (also in **Settings → Cleaning rounds**) by someone who can change settings or whose role has **Set up facilities**. First make sure:
 
 - every room is in **Settings → Locations**, and
-- every cleaner's name is in **Settings → Cleaners**.
+- every cleaner's name is in **Facilities → Cleaners**.
 
 Then add a round:
 
@@ -28,11 +28,11 @@ To stop a round for a while (over the summer, say) without losing what was recor
 
 ## Printing the day's sheets
 
-Open **Rounds** from the top menu. It shows the rounds due today. Press **Print sheet** on each and hand it to the cleaner: it lists the rooms with a box to tick and space for a note.
+Open **Facilities → Cleaning rounds** from the top menu. It shows the rounds due today. Press **Print sheet** on each and hand it to the cleaner: it lists the rooms with a box to tick and space for a note.
 
 ## Ticking off a round
 
-When the sheets come back, open **Rounds** again (use the day picker or the arrows for an earlier day). For each room:
+When the sheets come back, open **Cleaning rounds** again (use the day picker or the arrows for an earlier day). For each room:
 
 - tick **Done** if it was cleaned, and check the **cleaner**,
 - add a **note** for any room that wasn't done, such as *Room locked*,

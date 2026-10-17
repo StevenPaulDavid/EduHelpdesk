@@ -11,8 +11,8 @@ public static class SettingsMenu
 {
     // What opening the page takes. Most need Settings: Edit (Program.cs); the audit log and the raw database have
     // their own permissions, so someone given only those - a DPO, say - still reaches them. Info is the About card,
-    // which isn't a page.
-    public enum Need { Settings, AuditLog, RawDatabase, Info }
+    // which isn't a page. Facilities is Settings: Edit or "Set up facilities" (Modules.FacilitiesSetupPages).
+    public enum Need { Settings, AuditLog, RawDatabase, Info, Facilities }
 
     // Also: pages inside this one (a table under Database, the Spiceworks import under Imports), which highlight it.
     public sealed record Item(string Title, string Page, string Keywords, Need Need = Need.Settings, string[]? Also = null);
@@ -31,9 +31,9 @@ public static class SettingsMenu
             new("School day and periods", "/Settings/SchoolDay", "school day week periods lessons timetable working hours"),
             new("Service catalogue", "/Settings/ServiceCatalogue", "service catalogue catalog sub category portal common problems"),
             new("Ticket templates", "/Settings/TicketTemplates", "template repeat job"),
-            new("Recurring tickets", "/Settings/RecurringTickets", "recurring reoccurring repeating scheduled schedule routine regular weekly monthly termly yearly checks maintenance checklist readings premises fire alarm water temperature legionella emergency lighting", Also: ["/Settings/Checklist"]),
+            new("Recurring tickets", "/Settings/RecurringTickets", "recurring reoccurring repeating scheduled schedule routine regular weekly monthly termly yearly checks maintenance checklist readings premises fire alarm water temperature legionella emergency lighting", Need.Facilities, Also: ["/Settings/Checklist"]),
             new("Ticket custom attributes", "/Settings/TicketAttributes", "custom fields attributes extra"),
-            new("Budget codes", "/Settings/BudgetCodes", "budget code cost spend reactive planned maintenance ppm finance job costs"),
+            new("Budget codes", "/Settings/BudgetCodes", "budget code cost spend reactive planned maintenance ppm finance job costs", Need.Facilities),
         ]),
         new("Assets & inventory",
         [
@@ -54,8 +54,8 @@ public static class SettingsMenu
             new("Departments", "/Settings/Departments", "department"),
             new("Buildings", "/Settings/Buildings", "building block site campus dfe"),
             new("Locations (rooms)", "/Settings/Locations", "location room building site"),
-            new("Cleaning rounds", "/Settings/Rounds", "cleaning rounds rooms cleaner cleaners rota sheet supervisor spot check daily weekly"),
-            new("Cleaners", "/Settings/Cleaners", "cleaner cleaners cleaning staff names contractor rounds"),
+            new("Cleaning rounds", "/Settings/Rounds", "cleaning rounds rooms cleaner cleaners rota sheet supervisor spot check daily weekly", Need.Facilities),
+            new("Cleaners", "/Settings/Cleaners", "cleaner cleaners cleaning staff names contractor rounds", Need.Facilities),
             new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Onboarding checklists", "/Settings/Onboarding", "onboarding new starter staff checklist template tasks"),
         ]),
@@ -96,6 +96,7 @@ public static class SettingsMenu
         Need.AuditLog => store.UserCan(user, Modules.AuditLog, ModulePermission.Access),
         Need.RawDatabase => store.UserHasFlag(user, Modules.Flags.RawDatabase),
         Need.Info => false,
+        Need.Facilities => store.CanSetUpFacilities(user),
         _ => store.UserCan(user, Modules.Settings, ModulePermission.Edit)
     };
 

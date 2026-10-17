@@ -8,18 +8,20 @@ namespace EduHelpdesk.Services;
 // can be generated from the module list rather than hand-written.
 public sealed class PermissionRequirement : IAuthorizationRequirement
 {
-    private PermissionRequirement(string? module, ModulePermission action, string? flag, string[]? anyOf)
+    private PermissionRequirement(string? module, ModulePermission action, string? flag, string[]? anyOf, string? orFlag = null)
     {
         Module = module;
         Action = action;
         Flag = flag;
         AnyOf = anyOf;
+        OrFlag = orFlag;
     }
 
     public string? Module { get; }
     public ModulePermission Action { get; }
     public string? Flag { get; }
     public string[]? AnyOf { get; }
+    public string? OrFlag { get; }
 
     // Action is a mask and is satisfied by ANY of its bits, which for a single action is the same as an exact check.
     // The combined form exists for the add/edit pages: one page serves both, so it opens for New or Edit and the page
@@ -29,6 +31,9 @@ public sealed class PermissionRequirement : IAuthorizationRequirement
     // Satisfied by Access on any one of the modules. /People lists requesters, staff accounts and roles on one page,
     // so being allowed any of the three is enough to open it - the page then shows only the sections it may.
     public static PermissionRequirement ForAny(params string[] modules) => new(null, ModulePermission.Access, null, modules);
+    // Satisfied by the module action or by the flag: the facilities setup pages open for Settings: Edit, as the rest of
+    // Settings does, or for "Set up facilities" alone.
+    public static PermissionRequirement ForModuleOrFlag(string module, ModulePermission action, string flag) => new(module, action, null, null, flag);
 
     // The policy name for a module action, e.g. "Assets:View". Flags are their own key ("Reports.Finance") and are
     // registered under it directly, which is why they never contain a colon.
@@ -39,6 +44,7 @@ public sealed class PermissionRequirement : IAuthorizationRequirement
     // An onboarding opens for the onboarding officer (Onboarding) and for technicians coming from the ticket list
     // (Tickets); the page then checks what each action needs.
     public const string OnboardingPolicy = "Onboarding:OrTickets";
+    public const string FacilitiesSetupPolicy = "Settings:OrFacilitiesSetup";
 }
 
 // Looks up the signed-in account's current role permissions from the store on every check, rather than baking them
@@ -51,6 +57,7 @@ public sealed class PermissionAuthorizationHandler(HelpdeskStore store) : Author
         {
             { Flag: { } flag } => store.UserHasFlag(context.User, flag),
             { AnyOf: { } modules } => modules.Any(x => store.UserCan(context.User, x, requirement.Action)),
+            { OrFlag: { } orFlag } => store.UserHasFlag(context.User, orFlag) || store.UserCanAny(context.User, requirement.Module!, requirement.Action),
             _ => store.UserCanAny(context.User, requirement.Module!, requirement.Action)
         };
         if (allowed) context.Succeed(requirement);

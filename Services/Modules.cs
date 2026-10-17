@@ -54,6 +54,10 @@ public static class Modules
 
     public static Definition? Find(string key) => All.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
 
+    // The Settings pages that Settings: Edit or Flags.FacilitiesSetup opens (Program.cs), the Facilities menu's Setup section.
+    public static readonly string[] FacilitiesSetupPages =
+        ["/Settings/RecurringTickets", "/Settings/Checklist", "/Settings/Rounds", "/Settings/Cleaners", "/Settings/BudgetCodes"];
+
     // The boxes a module actually offers, in a fixed order, for the role editor's grid.
     public static IReadOnlyList<ModulePermission> ActionsFor(Definition module) =>
         ModulePermissions.Ordered.Where(x => module.Supports.HasFlag(x)).ToList();
@@ -73,6 +77,7 @@ public static class Modules
         public const string ReportChecks = "Reports.Checks";
         public const string Rounds = "Rounds.Record";
         public const string ReportRounds = "Reports.Rounds";
+        public const string FacilitiesSetup = "Facilities.Setup";
         public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
@@ -97,7 +102,9 @@ public static class Modules
             new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
             // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.
             // Cleaning supervisors; cleaners themselves don't sign in and work from the printed sheet (HelpdeskStore.Rounds).
-            new(Rounds, "Record cleaning rounds", "Open the day's cleaning rounds, print the sheets, and tick off which rooms were cleaned, by whom, with spot-check scores.", "Cleaning"),
+            new(Rounds, "Record cleaning rounds", "Open the day's cleaning rounds, print the sheets, and tick off which rooms were cleaned, by whom, with spot-check scores.", "Facilities"),
+            // The site manager, who runs these but shouldn't hold the keys to the rest of Settings. Settings: Edit opens them too.
+            new(FacilitiesSetup, "Set up facilities", "Recurring checks and their checklists (for the desks they can see), cleaning rounds, the cleaners list and budget codes - without the rest of Settings.", "Facilities"),
             new(AssignProjects, "Assign projects", "Reassign a project from the helpdesk when the project lead can't. The lead normally does this from the staff portal.", "Projects"),
             new(ReportAssets, "Asset reports", "The asset register report: review list, fleet age, warranty, problem devices.", "Reports"),
             new(ReportTickets, "Ticket reports", "SLA performance, workload and repeat problems.", "Reports"),

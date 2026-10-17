@@ -961,6 +961,10 @@ tr.row-urgent td:nth-child(2) strong::after {
 
 .nav-panel a:hover, .nav-panel button:hover { background: var(--accent); color: var(--teal-strong); }
 .nav-panel form { margin: 0; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+/* A menu in labelled sections (Facilities): a small heading over each group, a rule between them. */
+.nav-panel-sections { min-width: 220px; }
+.nav-panel .nav-section { margin: 0; padding: 7px 11px 3px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.nav-panel .nav-section:not(:first-child) { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
 .user-menu > summary .user-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {

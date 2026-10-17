@@ -6,7 +6,7 @@
     ViewData["Title"] = "Cleaning rounds";
     var byRoom = Model.RoundsByRoom;
 }
-<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Cleaning rounds</h1><p class="hero-copy">A round is a set of rooms cleaned on the same days, usually by the same cleaner. The cleaning supervisor prints each day's sheet from <a asp-page="/Rounds">Rounds</a>, and ticks off afterwards which rooms were done and by whom. Rooms come from <a asp-page="/Settings/Locations">Locations</a> and names from <a asp-page="/Settings/Cleaners">Cleaners</a>.</p></div><a class="button button-secondary" asp-page="/Settings">← Settings</a></div>
+<div class="page-heading"><div><p class="eyebrow">EDUHELPDESK / SETTINGS</p><h1>Cleaning rounds</h1><p class="hero-copy">A round is a set of rooms cleaned on the same days, usually by the same cleaner. The cleaning supervisor prints each day's sheet from <a asp-page="/Rounds">Rounds</a>, and ticks off afterwards which rooms were done and by whom. Rooms come from @if (Model.CanEditSettings) { <a asp-page="/Settings/Locations">Locations</a> } else { <text>Settings → Locations</text> } and names from <a asp-page="/Settings/Cleaners">Cleaners</a>.</p></div>@if (Model.CanOpenSettings) { <a class="button button-secondary" asp-page="/Settings">← Settings</a> }</div>
 @if (Model.Message is { } message) { <div class="notice">@message</div> }
 
 @{
@@ -26,7 +26,7 @@
                 }
             </fieldset>
             <fieldset class="desk-choices round-rooms"><legend>Rooms</legend>
-                @if (Model.Rooms.Count == 0) { <p class="muted">Add the rooms in <a asp-page="/Settings/Locations">Locations</a> first.</p> }
+                @if (Model.Rooms.Count == 0) { <p class="muted">Add the rooms in @if (Model.CanEditSettings) { <a asp-page="/Settings/Locations">Locations</a> } else { <text>Settings → Locations</text> } first.</p> }
                 @foreach (var room in Model.Rooms)
                 {
                     var elsewhere = byRoom[room].Where(x => x != round?.Name).ToList();

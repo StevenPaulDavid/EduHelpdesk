@@ -40,6 +40,36 @@
     };
     var firstReport = Can(Modules.Reports) ? reportPages.FirstOrDefault(x => Helpdesk.UserHasFlag(User, x.Flag)).Page : null;
 
+    // Facilities: the site and cleaning pages in one menu, in sections, each link only for whoever can open it - a menu
+    // with two or more, a plain link with one, nothing with none (like HR and Compliance). The desk links are one per
+    // desk this person sees apart from the first (IT): that desk's tickets, and its plant in the asset register.
+    var facilitiesDesks = Helpdesk.FacilitiesDesksVisibleTo(User);
+    var deskQuery = Context.Request.Query["desk"];
+    var deskAsked = deskQuery.Count == 1 ? facilitiesDesks.FirstOrDefault(x => string.Equals(x.Name, deskQuery[0], StringComparison.OrdinalIgnoreCase)) : null;
+    string Href(string page, string? desk = null) => desk is null ? Url.Page(page)! : Url.Page(page, new { desk })!;
+    var facilities = new List<(string Section, string Href, string Label, bool NewTab)>();
+    if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) facilities.Add(("Daily work", Href("/Rounds"), "Cleaning rounds", false));
+    if (Can(Modules.Tickets, ModulePermission.New)) facilities.Add(("Daily work", Href("/QuickLog"), "Log a job already done", false));
+    if (Can(Modules.Tickets, ModulePermission.View)) facilities.Add(("Daily work", Href("/DailySheet"), "Daily sheet", true));
+    if (Can(Modules.Tickets)) foreach (var desk in facilitiesDesks) facilities.Add(("Daily work", Href("/Jobs", desk.Name), $"{desk.Name} tickets", false));
+    if (Can(Modules.Assets)) foreach (var desk in facilitiesDesks) facilities.Add(("Checks & plant", Href("/Assets", desk.Name), $"{desk.Name} plant", false));
+    if (Can(Modules.Reports))
+    {
+        if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportChecks)) facilities.Add(("Reports", Href("/Reports/Checks"), "Premises checks", false));
+        if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportSpend)) facilities.Add(("Reports", Href("/Reports/Spend"), "Job spend", false));
+        if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportRounds)) facilities.Add(("Reports", Href("/Reports/Rounds"), "Cleaning rounds report", false));
+    }
+    if (Helpdesk.CanSetUpFacilities(User))
+    {
+        facilities.Add(("Setup", Href("/Settings/RecurringTickets"), "Recurring checks", false));
+        facilities.Add(("Setup", Href("/Settings/Rounds"), "Cleaning rounds setup", false));
+        facilities.Add(("Setup", Href("/Settings/Cleaners"), "Cleaners", false));
+        facilities.Add(("Setup", Href("/Settings/BudgetCodes"), "Budget codes", false));
+    }
+    // Lit for its own pages, and for a ticket list or asset list showing just one facilities desk - what its desk links
+    // open. The reports and settings pages keep their own item lit, so their tabs and menus still make sense.
+    var onFacilities = NavOn("/Rounds", "/RoundSheet", "/QuickLog", "/DailySheet") || (deskAsked is not null && NavOn("/Jobs", "/Assets"));
+
     // Pings and pop-ups (wwwroot/js/notifications.js) ask for the notifications of whoever the page is signed in as: the
     // requester on the staff portal's pages, the helpdesk account everywhere else. Nobody signed in, nothing to ask for.
     string? notifyAudience = null;
@@ -117,9 +147,22 @@
         <div class="site-menu" id="site-menu">
         <nav>
             <a asp-page="/Index" class="@(navPath == "/" ? "active" : null)">Overview</a>
-            @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
+            @if (Can(Modules.Tickets)) { <a asp-page="/Jobs" class="@(!onFacilities && NavOn("/Jobs", "/Job", "/NewTicket") ? "active" : null)">Tickets</a> }
+            @if (facilities.Count > 1)
+            {
+                <details class="nav-menu">
+                    <summary class="@(onFacilities ? "active" : null)">Facilities<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel nav-panel-sections">
+                        @foreach (var group in facilities.GroupBy(x => x.Section))
+                        {
+                            <p class="nav-section">@group.Key</p>
+                            @foreach (var link in group) { <a href="@link.Href" target="@(link.NewTab ? "_blank" : null)" rel="@(link.NewTab ? "noopener" : null)">@link.Label</a> }
+                        }
+                    </div>
+                </details>
+            }
+            else if (facilities.Count == 1) { <a href="@facilities[0].Href" class="@(onFacilities ? "active" : null)" target="@(facilities[0].NewTab ? "_blank" : null)" rel="@(facilities[0].NewTab ? "noopener" : null)">@facilities[0].Label</a> }
             @if (Can(Modules.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
-            @if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) { <a asp-page="/Rounds" class="@(NavOn("/Rounds", "/RoundSheet") ? "active" : null)">Rounds</a> }
             @* HR groups People and Onboarding, but only for someone who can reach both. Someone with just one of them - the
                onboarding officer, say - gets a plain link rather than a menu with a single item in it. *@
             @if (canPeople && canOnboarding)
@@ -137,7 +180,7 @@
             @if (canInventory)
             {
                 <details class="nav-menu">
-                    <summary class="@(onInventory ? "active" : null)">Inventory<span class="chev" aria-hidden="true">▾</span></summary>
+                    <summary class="@(onInventory && !onFacilities ? "active" : null)">Inventory<span class="chev" aria-hidden="true">▾</span></summary>
                     <div class="nav-panel">
                         @if (Can(Modules.Assets)) { <a asp-page="/Assets">Assets</a> }
                         @if (Can(Modules.Kits)) { <a asp-page="/Kits">Kits</a> }
