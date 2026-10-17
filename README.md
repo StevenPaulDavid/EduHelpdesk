@@ -1,6 +1,24 @@
 # EduHelpdesk
 
-Technician-first education IT helpdesk for logging jobs, tracking school assets, and preserving the relationship between every job and the equipment it concerns.
+A helpdesk for schools, run on the school's own server. Technicians log and work tickets, and staff report problems through a simple portal. It also covers the jobs around the tickets:
+
+- **Desks** - IT, Site and Cleaning share one helpdesk, each with its own categories, people, hours and ticket numbers.
+- **Inventory** - assets, loan kits and loans, parts and suppliers, each linked to the tickets about it.
+- **Site and cleaning** - premises checks with checklists, and cleaning rounds.
+- **Projects** - purchasing requests from the portal, with supplier quotes and a printed proposal.
+- **Onboarding** - one checklist per new starter, with tasks owned by IT, HR and others.
+- **DfE registers** - assets, contracts and access control, with a compliance summary.
+- **Reports**, recurring tickets, SLAs that count in the school day, desktop notifications, Teams and EduNotify.
+
+## Help
+
+Everything in the app is explained in its own **Help centre**. Sign in and press the **?** in the top bar, or go to `/Help`. Pages with a guide have a **? Help** link next to their title, and a **?** beside a field explains what to put in it. Staff using the portal have their own short help at `/Portal/Help`.
+
+## Installing
+
+Schools install EduHelpdesk from a release zip. Unzip it and double-click `Install.cmd`. It installs EduHelpdesk as a Windows service with its own .NET runtime, asks about the data folder, HTTPS, branding and backups, and upgrades an existing install in place. See [docs/Install-Guide.md](docs/Install-Guide.md).
+
+To make the zip, run `deploy/New-Release.ps1`. See [docs/Release-Guide.md](docs/Release-Guide.md).
 
 ## Run locally
 
@@ -8,53 +26,25 @@ Technician-first education IT helpdesk for logging jobs, tracking school assets,
 dotnet run
 ```
 
-Open the local URL printed by ASP.NET Core. Data is stored in the SQLite database `App_Data/helpdesk.db`, which is created automatically on first run and should be backed up in production. Existing installations are migrated from `App_Data/helpdesk.json` the first time the application starts after this update.
-
-The database uses separate tables for users, technicians and teams, departments, ticket options, assets, tickets, comments, ticket activity, branding, and migration metadata. Existing databases that used the earlier single-payload `Store` table are migrated automatically.
-
-## Running it for real
-
-`dotnet run` is for development. Schools - this one included - install EduHelpdesk from a release zip: unzip it and double-click `Install.cmd`, which installs it as a Windows service with its own .NET runtime, asks about the data folder, branding and backups, and upgrades an existing install in place. See `docs/Install-Guide.md`. To make the zip, run `deploy/New-Release.ps1` - see `docs/Release-Guide.md`.
+This is for development. It opens on `https://localhost:5277`, and the repository's `appsettings.json` turns `RequireHttps` on, so the .NET development certificate must be trusted (`dotnet dev-certs https --trust`). Data goes in the SQLite database `App_Data/helpdesk.db`, which is made on first run with some demo data marked *(demo)*. **Settings → Go live & reset** removes the demo data. Older databases are upgraded automatically when the app starts.
 
 ## Signing in
 
-Staff sign in with an email and password. **Roles are fully custom**, managed from the Roles panel on the **People** page: each role is a name plus nine permission toggles (Settings, manage roles, manage staff accounts, manage requesters, manage assets, manage suppliers, manage parts, delete/merge tickets, change "Working as"). Anyone signed in can already do the day-to-day ticket work (comment, assign, change status/priority/category, attachments, close) regardless of role - only the two destructive ticket actions are permission-gated.
-
-**Administrator** is the one hardcoded, protected role: it always has every permission and can't be edited, renamed or deleted, guaranteeing there's always a way into the system. Every other role - including the three seeded on first run (Senior Technician, Technician, Junior Technician) - is an ordinary editable/deletable row; a role can't be deleted while a technician account still holds it.
-
-On first run (or the first run after upgrading a database with no logins configured), an Administrator account is created automatically:
+On first run, or the first run on a database with no Administrator, this account is created:
 
 - Email: `admin@eduhelpdesk.local`
 - Password: `ChangeMe123!`
 
-Sign in and change this password immediately (you'll be prompted automatically). New staff accounts are created and assigned a role from **People → Add technician** (requires the "manage staff accounts" permission); a new account has no password until someone with access sets one there. Passwords are reset the same way - there's no self-service "forgot password" email flow yet.
+You must change the password when you first sign in. Then set up two-step sign-in and a recovery key, both in the menu under your name.
 
-Passwords must be at least 8 characters, and common or name-based passwords are refused. A password someone else set must be changed on first use; this holds on every page, not just straight after signing in. Five wrong passwords lock that email for 15 minutes, and thirty from one computer block that computer. Setting a new password unlocks the account at once, and lockouts are recorded in the audit log.
+**Roles** are on the Roles tab of the **People** page. Each role has five ticks per area (Access, View, New, Edit, Delete), each independent of the others, for areas such as tickets, projects, onboarding, assets, loans, parts, contracts, access control, people, reports, settings and the audit log. Some roles also need extra on/off ticks, such as *See all desks*, *See and add job costs*, *Change "Working as"*, *Record cleaning rounds*, one per report, and *View raw database*. **Administrator** can do everything and can't be changed or deleted. Three ordinary roles are made on first run: Senior Technician, Technician and Junior Technician. See **Help → Roles and permissions**.
 
-### HTTPS
+Staff accounts and portal users are added in **People**. A new account gets a temporary password to change at first sign-in, plus a quick start guide to print and hand over. **Give them a temporary password** resets a forgotten one. A technician with a recovery key can also reset their own password from the sign-in page, unless recovery keys are turned off in **Settings → Sign-in security**. Portal users have no self-service reset. See **Help → Sign-in security** and **Help → Staff accounts**.
 
-The site starts as plain `http://`, and Settings → Sign-in security warns that passwords then cross the network unencrypted. Once the site has a certificate (in Kestrel, IIS or a reverse proxy), turn HTTPS on in `appsettings.json`:
+## HTTPS
 
-```json
-"EduHelpdesk": { "RequireHttps": true }
-```
+The installer sets up HTTPS when you ask it to. To switch over an install that runs on plain `http://`, run `Enable-Https.cmd` from the installer folder. Underneath, this is the `EduHelpdesk:RequireHttps` setting. When it's on, plain-HTTP requests are redirected, browsers are told to stay on HTTPS, and every cookie is marked Secure. Only turn it on once HTTPS works, or nobody can reach the site. Behind a proxy that handles HTTPS itself (Azure App Service, IIS ARR, nginx), also set the environment variable `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`. See *HTTPS* in [docs/Install-Guide.md](docs/Install-Guide.md).
 
-Plain-HTTP requests are then redirected, browsers are told to stay on HTTPS, and every cookie is marked Secure. Only do this once HTTPS works, or nobody can reach the site. Behind a proxy that handles HTTPS itself (Azure App Service, IIS ARR, nginx), also set the environment variable `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`.
+## Backups and the data folder
 
-### Backups and the data folder
-
-Backups run nightly - see **Settings → Backups & data** for the schedule, folder, retention and restore steps. The data lives in `App_Data` unless `"EduHelpdesk": { "DataPath": "C:\\EduHelpdeskData" }` points elsewhere. Keep it out of OneDrive and other synced folders. The first start with a new DataPath copies the data across. See **Help → Backups and data** in the app.
-
-On the Tickets page, "Working as" (which technician you're logging work under) is preset to your own account. Only a role with the "change Working as" permission can change it to someone else - everyone else is always themselves.
-
-## CSV imports
-
-Users: `name,email,department,location`
-
-Technicians: `name,email,team,role` (role is optional, defaults to Technician; must match the name of an existing role, seeded or custom). Imported technician accounts have no password until someone sets one.
-
-## Staff portal
-
-Anyone on the network can reach `/Portal`, and signs in with their own email and password - a separate, much lighter login than the technician one (no roles, no permissions, just "is this really them"). Once signed in, staff can report a problem, see the status of tickets they've submitted, and add a follow-up comment. It's deliberately minimal: no requester/technician/team/SLA/asset pickers, and staff can never see internal notes or another person's ticket.
-
-New staff need a **People → Add user** entry before they can sign in (requires the "manage requesters" permission). Left blank, the password is a temporary one they must change at first sign-in; a password typed there is theirs to keep. Saving opens a quick start guide to print and hand over. A forgotten password is reset with **Give them a temporary password** on their page; there's no self-service "forgot password" flow. They can change their password from the portal home page. A portal sign-in lasts until the browser closes (or 2 hours idle), unless they tick "Keep me signed in", which lasts 30 days.
+Backups run every night. **Settings → Backups & data** has the schedule, folder, retention and restore steps. Data is kept in `App_Data` unless `"EduHelpdesk": { "DataPath": "C:\\EduHelpdeskData" }` points somewhere else. The first start with a new, empty DataPath copies the data across. Keep the data out of OneDrive and other synced folders. See **Help → Backups and data**.
