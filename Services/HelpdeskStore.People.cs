@@ -137,35 +137,6 @@ public sealed partial class HelpdeskStore
             return null;
         }
     }
-    public (int Imported, int Skipped) ImportUsers(IEnumerable<UserRecord> users)
-    {
-        lock (_sync)
-        {
-            var imported = 0;
-            var skipped = 0;
-            var existingEmails = _data.Users.Select(x => x.Email).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var user in users)
-            {
-                var name = (user.Name ?? string.Empty).Trim();
-                var email = (user.Email ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email) || !existingEmails.Add(email))
-                {
-                    skipped++;
-                    continue;
-                }
-                var department = (user.Department ?? string.Empty).Trim();
-                var location = (user.Location ?? string.Empty).Trim();
-                if (!string.IsNullOrWhiteSpace(department) && !_data.Departments.Contains(department, StringComparer.OrdinalIgnoreCase))
-                    _data.Departments.Add(department);
-                if (!string.IsNullOrWhiteSpace(location) && !_data.Locations.Contains(location, StringComparer.OrdinalIgnoreCase))
-                    _data.Locations.Add(location);
-                _data.Users.Add(user with { Name = name, Email = email, Department = department, Location = location });
-                imported++;
-            }
-            Save();
-            return (imported, skipped);
-        }
-    }
     public (int Imported, int Skipped) ImportTechnicians(IEnumerable<TechnicianRecord> technicians)
     {
         lock (_sync)

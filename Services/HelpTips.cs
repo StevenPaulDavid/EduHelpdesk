@@ -84,7 +84,7 @@ public static class HelpTips
         ["account.desks"] = new("The desks they work on. They see only these desks' tickets, unless their role has See all desks.", "staff-accounts", "adding-one"),
         ["account.password"] = new("Leave blank for a temporary password they change at first sign-in, printed on their quick start guide. A password you type is theirs to keep.", "staff-accounts", "adding-one"),
         ["person.projects"] = new("Can raise projects: ask IT to source and quote for purchases from the portal. Project lead: also confirms priorities and assigns technicians.", "people", "a-requester-s-details"),
-        ["import.passwords"] = new("Gives everyone imported a temporary password and opens their quick start guides to print. Untick to import without passwords.", "imports", "requesters-and-staff-accounts"),
+        ["import.passwords"] = new("Gives everyone the import adds a temporary password and opens their quick start guides to print. Without it they have no password until you give them one from People.", "imports", "temporary-passwords"),
 
         // Assets and inventory
         ["asset.ownership"] = new("Owned by the school, or leased or loaned from someone else. For leased and loaned assets, End of support becomes the date the lease ends.", "asset-page", "details"),

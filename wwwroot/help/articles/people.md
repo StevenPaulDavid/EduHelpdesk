@@ -29,6 +29,10 @@ Open a requester to see and change:
 - **Set a password** / **Give them a temporary password** - their staff portal password.
 - **Select tickets** - tick tickets to make this person their requester.
 
+## Importing a staff list
+
+**Import a staff list** on the Users tab brings requesters in from the MIS or HR system's export (.xlsx or .csv). People are matched by email, then name: new ones are added, existing ones updated, and a leave date marks someone as having left. You see a preview before anything changes. Tick the box before applying to give the people it adds a temporary portal password and print their quick start guides.
+
 ## When someone leaves
 
 The requester's page shows everything still **held by** them: assets, loan kits, open tickets, active projects and live access on the access control register. **Book everything back in** and **Remove all access** sort the assets and access in one go. Pass open tickets to whoever took over.

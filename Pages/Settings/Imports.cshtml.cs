@@ -5,63 +5,25 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EduHelpdesk.Pages.Settings;
 
-// Settings → Imports: requesters, staff accounts and option lists from CSV. Needs Settings: Edit (Program.cs).
+// Settings → Imports: staff accounts and option lists from CSV. Requesters come in from People → Import a staff list,
+// the one import for them. Needs Settings: Edit (Program.cs).
 public class ImportsModel(HelpdeskStore store, TemporaryPasswords passwords) : PageModel
 {
-    [BindProperty] public IFormFile? UserCsv { get; set; }
     [BindProperty] public IFormFile? TechnicianCsv { get; set; }
     // Give everyone imported a temporary password, and print a quick start guide for each (Pages/People/QuickStart).
     [BindProperty] public bool TemporaryPasswords { get; set; }
     [TempData] public string? Message { get; set; }
 
     // Issuing passwords is the same as setting them on each account, so it needs what the account pages need.
-    public bool CanIssueUserPasswords => store.UserCanAny(User, Modules.Requesters, ModulePermission.New | ModulePermission.Edit);
     public bool CanIssueTechnicianPasswords => store.UserCanAny(User, Modules.StaffAccounts, ModulePermission.New | ModulePermission.Edit);
     private string IssuedBy => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
 
     public void OnGet() { }
 
-    public IActionResult OnGetUserImportTemplate()
-    {
-        const string csv = "Name,Email,Department,Location\r\nJane Doe,jane.doe@example.com,IT,Main Building\r\n";
-        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "users-import-template.csv");
-    }
-
     public IActionResult OnGetTechnicianImportTemplate()
     {
         const string csv = "Name,Email,Team,Role\r\nJohn Smith,john.smith@example.com,IT Support,Technician\r\n";
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "technicians-import-template.csv");
-    }
-
-    public async Task<IActionResult> OnPostImportUsersAsync()
-    {
-        if (UserCsv is null || UserCsv.Length == 0) { Message = "Choose a users CSV file first."; return RedirectToPage(); }
-        var records = new List<UserRecord>();
-        var invalidRows = 0;
-        using var reader = new StreamReader(UserCsv.OpenReadStream());
-        await reader.ReadLineAsync();
-        while (await reader.ReadLineAsync() is { } line)
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            var cells = line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
-            var name = cells.ElementAtOrDefault(0) ?? "";
-            var email = cells.ElementAtOrDefault(1) ?? "";
-            if (string.IsNullOrWhiteSpace(name) || !Mail(email)) { invalidRows++; continue; }
-            var department = cells.ElementAtOrDefault(2) ?? "";
-            var location = cells.ElementAtOrDefault(3) ?? "";
-            records.Add(new(Guid.NewGuid(), name, email, department, location));
-        }
-        var (imported, duplicates) = store.ImportUsers(records);
-        var skipped = invalidRows + duplicates;
-        Message = skipped > 0 ? $"{imported} users imported, {skipped} row(s) skipped (missing name/email or email already in use)." : $"{imported} users imported.";
-        if (TemporaryPasswords && CanIssueUserPasswords && imported > 0)
-        {
-            // Only the rows that went in: a skipped duplicate is someone else's existing account.
-            var added = records.Select(x => x.Id).ToHashSet();
-            var batch = passwords.IssueToRequesters(store, store.Users.Where(x => added.Contains(x.Id)), IssuedBy);
-            return RedirectToPage("/People/QuickStart", new { batch });
-        }
-        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostImportTechniciansAsync()

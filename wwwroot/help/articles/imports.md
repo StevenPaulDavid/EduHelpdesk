@@ -1,6 +1,6 @@
 ---
 title: Importing from spreadsheets
-summary: Bringing requesters, staff accounts and lists in from CSV files, and where assets and Spiceworks tickets are imported.
+summary: Bringing staff accounts and lists in from CSV files, and where requesters, assets and Spiceworks tickets are imported.
 area: Settings
 kind: page
 pages: /Settings/Imports, /Settings/SpiceworksImport
@@ -10,16 +10,13 @@ order: 20
 ---
 Rather than typing people and lists in one at a time, import them from **CSV** files (save a spreadsheet *as CSV* in Excel). Each import has a template to download, with example rows to replace.
 
-## Requesters and staff accounts
+## Staff accounts
 
-| File | Columns, in order, with a header row |
-| --- | --- |
-| Users (requesters) | Name, Email, Department, Location |
-| Technicians (staff accounts) | Name, Email, Team, Role |
+The technicians file has these columns, in order, with a header row: **Name, Email, Team, Role**. **Role** is optional and defaults to *Technician*; it must match the name of an existing role.
 
-For technicians, **Role** is optional and defaults to *Technician*; it must match the name of an existing role.
+## Temporary passwords
 
-Tick **Give each a temporary password and print their quick start guides** to give everyone imported a temporary password (changed the first time they sign in) and go straight to their quick start guides, one per page, to print and hand out. Untick it to import them without passwords; you can give temporary passwords later from **People**.
+Tick **Give each a temporary password and print their quick start guides** to give everyone imported a temporary password (changed the first time they sign in) and go straight to their quick start guides, one per page, to print and hand out. Without it they're imported with no password; you can give them one later from **People**. The staff list import below has the same box.
 
 ## Option lists
 
@@ -27,5 +24,6 @@ List files have one column, **Name**, with a header row and one value per row - 
 
 ## Elsewhere
 
+- **Requesters** - the staff who use the portal - come from the MIS or HR system's staff list: **People → Import a staff list** (.xlsx or .csv, with a preview). It adds new people and updates existing ones, and records start and leave dates for the access register.
 - **Assets** are imported on their own page, with column matching and a preview (from the asset list).
 - **Spiceworks** - moving from Spiceworks Cloud Help Desk, its data export brings tickets, comments, history and the people on them across in one go. It can be run again while both systems are in use; it updates rather than duplicates, and the last import can be undone.

@@ -42,6 +42,10 @@ else
                 </tr>
             }
             </tbody></table></div>
+            @if (Model.OffersPortalPasswords)
+            {
+                <label class="toggle-label"><input type="checkbox" name="TemporaryPasswords" value="true" /> Give each person it adds a temporary staff portal password, and print their quick start guides <help-tip key="import.passwords" /></label>
+            }
             <div class="asset-form-actions">
                 <button class="button button-primary" type="submit">Apply the ticked rows</button>
                 <a class="button button-secondary" href="@Url.Page(null)">Start again</a>
