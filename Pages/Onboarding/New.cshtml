@@ -17,7 +17,7 @@
             <label>Line manager<select asp-for="LineManagerId" data-picker><option value="">Not set</option>@foreach (var person in Model.People) { <option value="@person.Id" data-search="@person.Email @person.Department">@person.Name</option> }</select></label>
             <label>Technician leading the IT side <small class="muted">Optional</small><select asp-for="TechnicianId"><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name</option> }</select></label>
         </div>
-        <label>Checklist<select asp-for="TemplateId"><option value="">An empty checklist</option>@foreach (var template in Model.Templates) { <option value="@template.Id">@template.Name (@template.Tasks.Count task@(template.Tasks.Count == 1 ? "" : "s"))</option> }</select><small class="muted">Templates are set up in Settings → Onboarding checklists. Tasks can be added or removed for this person afterwards.</small></label>
+        <label><span>Checklist <help-tip key="onboarding.checklist" /></span><select asp-for="TemplateId"><option value="">An empty checklist</option>@foreach (var template in Model.Templates) { <option value="@template.Id">@template.Name (@template.Tasks.Count task@(template.Tasks.Count == 1 ? "" : "s"))</option> }</select><small class="muted">Templates are set up in Settings → Onboarding checklists. Tasks can be added or removed for this person afterwards.</small></label>
         <button class="button button-primary" type="submit">Start onboarding</button>
     </form>
 </section>

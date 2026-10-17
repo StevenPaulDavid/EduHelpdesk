@@ -12,3 +12,6 @@ role-editor | /People/Role?name=Technician | main table
 sla-form | /Settings/Slas | main section.panel
 asset-register | /Assets |
 compliance-summary | /Compliance |
+project-page | /Project?number=1 |
+onboarding-page | /Onboarding/Details?number=1002 |
+ticket-report | /Reports/Tickets |

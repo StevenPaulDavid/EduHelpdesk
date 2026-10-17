@@ -6,7 +6,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
-    <div class="panel-heading"><div><p class="eyebrow">MEASURED ON</p><h2>Which total a project is banded on</h2></div></div>
+    <div class="panel-heading"><div><p class="eyebrow">MEASURED ON</p><h2>Which total a project is banded on <help-tip key="band.basis" /></h2></div></div>
     <p class="muted">A project is placed in a band by the highest quote for each of its items, added up over the whole contract: every payment over the full term. So the band shows as soon as prices come in, before any quote is chosen, and choosing a cheaper quote doesn't move the project into a band that needs fewer quotes. Declined quotes don't count. Most finance policies and procurement thresholds are set excluding VAT.</p>
     <form method="post" asp-page-handler="Basis" class="settings-form">
         <label class="toggle-label"><input type="radio" name="includeVat" value="false" checked="@(!Model.IncludeVat)" /> Excluding VAT</label>
@@ -34,7 +34,7 @@
             <input type="hidden" name="id" value="@band.Id" />
             <label>Name<input name="name" value="@band.Name" maxlength="100" required /></label>
             <label>From (£)<input name="from" value="@EduHelpdesk.Pages.Settings.SpendingBandsModel.Amount(band.From)" inputmode="decimal" required /></label>
-            <label>Up to (£)<input name="upTo" value="@EduHelpdesk.Pages.Settings.SpendingBandsModel.Amount(band.UpTo)" inputmode="decimal" placeholder="No limit" /></label>
+            <label><span>Up to (£) <help-tip key="band.up-to" /></span><input name="upTo" value="@EduHelpdesk.Pages.Settings.SpendingBandsModel.Amount(band.UpTo)" inputmode="decimal" placeholder="No limit" /></label>
             <label>Quotes needed<input name="quotesNeeded" type="number" min="0" max="@HelpdeskStore.MaxBandQuotes" value="@band.QuotesNeeded" required /></label>
             <label class="band-notes">Requirements<textarea name="requirements" rows="2" maxlength="@HelpdeskStore.MaxBandRequirementsLength">@band.Requirements</textarea></label>
             <span class="band-actions">
@@ -47,7 +47,7 @@
     <form method="post" asp-page-handler="Add" class="band-row band-new">
         <label>Name<input name="name" maxlength="100" placeholder="e.g. High value" required /></label>
         <label>From (£)<input name="from" inputmode="decimal" placeholder="5000" required /></label>
-        <label>Up to (£)<input name="upTo" inputmode="decimal" placeholder="No limit" /></label>
+        <label><span>Up to (£) <help-tip key="band.up-to" /></span><input name="upTo" inputmode="decimal" placeholder="No limit" /></label>
         <label>Quotes needed<input name="quotesNeeded" type="number" min="0" max="@HelpdeskStore.MaxBandQuotes" value="3" required /></label>
         <label class="band-notes">Requirements<textarea name="requirements" rows="2" maxlength="@HelpdeskStore.MaxBandRequirementsLength" placeholder="e.g. Three written quotes; business manager approval"></textarea></label>
         <span class="band-actions"><button class="button button-primary" type="submit">Add band</button></span>

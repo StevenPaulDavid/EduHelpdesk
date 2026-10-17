@@ -135,7 +135,8 @@ public class HelpCentreTests
         var help = Help();
         Assert.Equal("getting-started-cleaning", help.ForPage("/Rounds")?.Slug);
         Assert.Equal("getting-started-cleaning", help.ForPage("/Settings/Rounds/")?.Slug);
-        Assert.Equal("getting-started-onboarding", help.ForPage("/Onboarding")?.Slug);
+        // A page guide wins over a Getting started article that names the same page.
+        Assert.Equal("onboarding-list", help.ForPage("/Onboarding")?.Slug);
         Assert.Equal("getting-started-technician", help.ForPage("/")?.Slug);
         Assert.Null(help.ForPage("/Nowhere"));
         Assert.Equal("getting-started-cleaning", HelpCentre.Search(help.Articles, "cleaning round spot check").First().Article.Slug);

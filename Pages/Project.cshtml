@@ -113,7 +113,7 @@
         {
             <form method="post" asp-page-handler="Status" class="pj-status-form">
                 <input type="hidden" name="number" value="@project.Number" />
-                <label>Status <select name="status" data-autosubmit>@foreach (var status in steps.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select></label>
+                <label>Status <help-tip key="project.status" /> <select name="status" data-autosubmit>@foreach (var status in steps.Where(x => x != ProjectStatuses.Closed)) { <option value="@status" selected="@(status == project.Status)">@status</option> }</select></label>
                 <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
             </form>
         }
@@ -419,7 +419,7 @@
                 <input type="hidden" name="number" value="@project.Number" />
                 <label for="project-note">Add a note</label>
                 <textarea id="project-note" name="text" rows="3" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="An update for the requester, or a note for the team…" required></textarea>
-                <label class="toggle-label"><input type="checkbox" name="isInternal" value="true" /> Internal note (IT team only - the requester won't see it in the portal)</label>
+                <label class="toggle-label"><input type="checkbox" name="isInternal" value="true" /> Internal note (IT team only - the requester won't see it in the portal) <help-tip key="project.internal-note" /></label>
                 <button class="button button-primary" type="submit">Add note</button>
             </form>
         }
@@ -482,14 +482,14 @@
                             <div class="pj-two">
                                 <form method="post" asp-page-handler="QuoteStatus">
                                     <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                    <label>Status<select name="status" data-autosubmit>@foreach (var status in QuoteStatuses.All) { <option value="@status" selected="@(status == row.Status)">@status</option> }</select></label>
+                                    <label><span>Status <help-tip key="quote.status" /></span><select name="status" data-autosubmit>@foreach (var status in QuoteStatuses.All) { <option value="@status" selected="@(status == row.Status)">@status</option> }</select></label>
                                     <noscript><button class="button button-secondary" type="submit">Set</button></noscript>
                                 </form>
                                 @if (row.HasQuote || row.ValidUntil is not null)
                                 {
                                     <form method="post" asp-page-handler="ValidUntil">
                                         <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
-                                        <label>Valid until<input name="validUntil" type="date" value="@row.ValidUntil?.ToString("yyyy-MM-dd")" data-autosubmit /></label>
+                                        <label><span>Valid until <help-tip key="quote.valid-until" /></span><input name="validUntil" type="date" value="@row.ValidUntil?.ToString("yyyy-MM-dd")" data-autosubmit /></label>
                                     </form>
                                 }
                             </div>
@@ -536,7 +536,7 @@
                                 @if (updating && (row.Documents.Count > 0 || row.PaymentLines.Count > 0))
                                 {
                                     <p class="muted">An update was asked for, so these files replace the current ones and the prices are cleared for the new quote's.</p>
-                                    <label class="toggle-label"><input type="checkbox" name="keepPrevious" value="true" checked /> Keep the current files and prices under Previous versions</label>
+                                    <label class="toggle-label"><input type="checkbox" name="keepPrevious" value="true" checked /> Keep the current files and prices under Previous versions <help-tip key="quote.keep-previous" /></label>
                                 }
                                 else if (row.Status is not (QuoteStatuses.Received or QuoteStatuses.UpdateReceived or QuoteStatuses.UpdateRequested))
                                 {
@@ -557,10 +557,10 @@
                                 <form method="post" asp-page-handler="UpdatePaymentLine" class="pj-pay">
                                     <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" /><input type="hidden" name="lineId" value="@line.Id" />
                                     <label class="pj-pay-wide">What for<input name="description" value="@line.Description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. Hardware" /></label>
-                                    <label>Amount (£)<input name="amount" value="@line.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" inputmode="decimal" required /></label>
-                                    <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often" selected="@(often == line.Frequency)">@often</option> }</select></label>
+                                    <label><span>Amount (£) <help-tip key="quote.amount" /></span><input name="amount" value="@line.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" inputmode="decimal" required /></label>
+                                    <label><span>How often <help-tip key="quote.frequency" /></span><select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often" selected="@(often == line.Frequency)">@often</option> }</select></label>
                                     <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="@line.TermYears" /></label>
-                                    <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
+                                    <label><span>VAT <help-tip key="quote.vat" /></span><select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat" selected="@(vat == line.Vat)">@vat</option> }</select></label>
                                     <div class="pj-pay-foot">
                                         <span><strong>@Money(Model.LineTerm(line))</strong> <span class="muted">@line.PaymentCount @(line.PaymentCount == 1 ? "payment" : "payments"), @Model.VatLabel</span></span>
                                         <span class="pj-pay-actions"><button class="button button-secondary" type="submit">Save</button><button class="icon-button delete-icon" type="submit" formaction="@Url.Page("/Project", "DeletePaymentLine")" formnovalidate title="Remove line" aria-label="Remove line">@Icons.Bin</button></span>
@@ -576,10 +576,10 @@
                                 <form method="post" asp-page-handler="AddPaymentLine" class="pj-pay">
                                     <input type="hidden" name="number" value="@project.Number" /><input type="hidden" name="itemId" value="@item.Id" /><input type="hidden" name="supplierId" value="@row.SupplierId" />
                                     <label class="pj-pay-wide">What for<input name="description" maxlength="@HelpdeskStore.MaxItemNameLength" placeholder="e.g. AppleCare+" /></label>
-                                    <label>Amount (£)<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
-                                    <label>How often<select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often">@often</option> }</select></label>
+                                    <label><span>Amount (£) <help-tip key="quote.amount" /></span><input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
+                                    <label><span>How often <help-tip key="quote.frequency" /></span><select name="frequency">@foreach (var often in PaymentFrequencies.All) { <option value="@often">@often</option> }</select></label>
                                     <label>Years<input name="termYears" type="number" min="1" max="@HelpdeskStore.MaxPaymentTermYears" value="1" /></label>
-                                    <label>VAT<select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat">@vat</option> }</select></label>
+                                    <label><span>VAT <help-tip key="quote.vat" /></span><select name="vat">@foreach (var vat in VatTreatments.All) { <option value="@vat">@vat</option> }</select></label>
                                     <div class="pj-pay-foot"><span class="muted">Years only count for regular payments.</span><button class="button button-primary" type="submit">Add price</button></div>
                                 </form>
                             </details>
@@ -681,7 +681,7 @@
                     <p class="muted pj-or">or a new supplier, added to the directory:</p>
                     <label>Name<input name="newName" maxlength="@HelpdeskStore.MaxItemNameLength" /></label>
                     <label>Email (optional)<input name="newEmail" type="email" /></label>
-                    @if (project.Items.Count > 1) { <label class="toggle-label"><input type="checkbox" name="everyItem" value="true" /> Add to every item on this project</label> }
+                    @if (project.Items.Count > 1) { <label class="toggle-label"><input type="checkbox" name="everyItem" value="true" /> Add to every item on this project <help-tip key="quote.every-item" /></label> }
                     <div class="blade-actions"><button class="button button-primary" type="submit">Add supplier</button><button class="button button-secondary" type="button" data-close-blade>Cancel</button></div>
                 </form>
             </div>
@@ -786,7 +786,7 @@
             <p class="muted">The project lead normally assigns projects from the staff portal. Use this to reassign one when they can't.</p>
             <form method="post" asp-page-handler="Assign" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
-                <label>Priority
+                <label><span>Priority <help-tip key="project.priority" /></span>
                     <select name="priority">@foreach (var level in ProjectPriorities.All) { <option value="@level" selected="@(level == selectedPriority)">@ProjectPriorities.Label(level) — @ProjectPriorities.Describe(level)</option> }</select>
                     <small class="muted">@(project.Priority is null ? "Not confirmed yet." : $"Confirmed as {ProjectPriorities.Label(project.Priority.Value)}.") The requester suggested @ProjectPriorities.Label(project.SuggestedPriority).</small>
                 </label>
@@ -804,7 +804,7 @@
             <p class="muted">Record how the project ended. It can be reopened later if it comes back.</p>
             <form method="post" asp-page-handler="Close" class="blade-form">
                 <input type="hidden" name="number" value="@project.Number" />
-                <fieldset class="outcome-choices"><legend>Outcome</legend>
+                <fieldset class="outcome-choices"><legend>Outcome <help-tip key="project.outcome" /></legend>
                     @foreach (var outcome in ProjectOutcomes.All) { <label class="toggle-label"><input type="radio" name="outcome" value="@outcome" required /> @outcome</label> }
                 </fieldset>
                 <label>Note (optional)<textarea name="note" rows="4" maxlength="@HelpdeskStore.MaxProjectTextLength" placeholder="e.g. approved by the business manager, order placed via the Trust"></textarea></label>

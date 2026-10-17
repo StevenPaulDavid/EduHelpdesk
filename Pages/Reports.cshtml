@@ -13,7 +13,7 @@
 
 <section class="panel">
     <form method="get" class="audit-filters">
-        <label>Warranty window<select name="warranty">@foreach (var days in Model.WarrantyOptions) { <option value="@days" selected="@(days == Model.EffectiveWarrantyDays)">@days days@(days == Model.ReviewWindowDays ? " (review window)" : "")</option> }</select></label>
+        <label>Warranty window <help-tip key="report.warranty-window" /><select name="warranty">@foreach (var days in Model.WarrantyOptions) { <option value="@days" selected="@(days == Model.EffectiveWarrantyDays)">@days days@(days == Model.ReviewWindowDays ? " (review window)" : "")</option> }</select></label>
         <label>Problem devices<select name="period">@foreach (var period in ReportsModel.Periods) { <option value="@period.Key" selected="@(period.Key == Model.PeriodKey)">@period.Label</option> }</select></label>
         @if (Model.HasSeveralDesks)
         {

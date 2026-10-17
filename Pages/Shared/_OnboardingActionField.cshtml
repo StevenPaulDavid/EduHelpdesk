@@ -11,7 +11,7 @@
     var currentSystem = OnboardingActions.AccessResourceId(action, current);
     var systems = Helpdesk.AccessResources.Where(x => !x.IsRetired || x.Id == currentSystem).ToList();
 }
-<label>Does<select name="action">
+<label><span>Does <help-tip key="onboarding.does" /></span><select name="action">
     <option value="">Nothing more</option>
     <option value="portal" selected="@(action == OnboardingActions.PortalAccount)">Makes their staff portal account</option>
     @foreach (var type in types)

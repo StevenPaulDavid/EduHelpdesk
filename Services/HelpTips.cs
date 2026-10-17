@@ -117,6 +117,29 @@ public static class HelpTips
         ["review.remove"] = new("Everything is kept unless ticked. Ticked access is removed when you record the review, with the reason you give.", "access-review", "doing-a-review"),
         ["review.every"] = new("How often access should be reviewed. About 120 days is once a term; access not reviewed within this shows as overdue.", "access-review", "how-often"),
 
+        // Projects
+        ["project.priority"] = new("P1 · Urgent (teaching, safety or statutory work affected now) to P5 · When possible. Saving confirms the requester's suggested priority, or changes it.", "how-projects-work", "who-does-what"),
+        ["project.status"] = new("New, Gathering quotes or Proposal ready. At Proposal ready the requester can download the proposal in the staff portal. Close it with an outcome instead of a status.", "how-projects-work", "the-steps"),
+        ["project.outcome"] = new("How it ended. Approved is counted as agreed spend in the projects report; not approved and cancelled show what didn't go ahead.", "how-projects-work", "the-steps"),
+        ["project.internal-note"] = new("Ticked, the note is for the IT team only. Unticked, the requester sees it on their project in the staff portal.", "project-page", "the-tabs"),
+        ["quote.status"] = new("Where this supplier's quote is. A quote awaited for 7 days is flagged to chase. Update requested lets the next upload replace the files.", "quotes-and-prices", "suppliers"),
+        ["quote.valid-until"] = new("When the supplier's quote expires. Expired quotes are flagged, so you know to ask for a new one before the decision.", "quotes-and-prices", "adding-their-quote"),
+        ["quote.amount"] = new("The amount of each payment, excluding VAT - e.g. 45.00 a month, not the whole contract. The VAT box adds the VAT.", "quotes-and-prices", "adding-their-quote"),
+        ["quote.frequency"] = new("One-off, or how often it's paid. With Years, it gives the first-year and whole-term totals, e.g. monthly for 3 years = 36 payments.", "quotes-and-prices", "adding-their-quote"),
+        ["quote.vat"] = new("The VAT on this line: standard 20%, reduced 5%, zero-rated or none. Each line can differ, e.g. a zero-rated service with standard-rated hardware.", "quotes-and-prices", "adding-their-quote"),
+        ["quote.keep-previous"] = new("Keeps the old files and prices together under Previous versions, for reference. Unticked, they're replaced.", "quotes-and-prices", "when-a-supplier-updates-their-quote"),
+        ["quote.every-item"] = new("Puts this supplier on every item in the project at once - handy when one firm is quoting for everything.", "quotes-and-prices", "suppliers"),
+        ["band.basis"] = new("The highest quote for each item, summed over the whole contract. Choosing a cheaper quote doesn't drop a project into a band needing fewer quotes.", "spending-bands", "which-total-a-project-is-banded-on"),
+        ["band.up-to"] = new("The top of the band, inclusive to the penny (999.99, then the next band starts at 1,000). Blank for the top band.", "spending-bands", "the-bands"),
+
+        // Onboarding
+        ["onboarding.checklist"] = new("The template for their kind of role, from Settings → Onboarding checklists. Its tasks are copied and can be changed for this person.", "onboarding-page", "starting-an-onboarding"),
+        ["onboarding.days"] = new("When the task is due, counted from their start date: -5 is five days before, 0 is their first day, 3 is three days after.", "onboarding-checklists", "tasks"),
+        ["onboarding.does"] = new("What ticking the task does as well: make their portal account, issue a free device of a type, or record their access to a system.", "onboarding-checklists", "tasks"),
+
+        // Reports
+        ["report.warranty-window"] = new("How far ahead to look for warranties ending. Replacement and review windows are set in Settings → Asset, part & loan rules.", "asset-report", "the-sections"),
+
         // Settings → Cleaning rounds
         ["round.cleaner"] = new("Filled in against every room when the supervisor ticks the round off. They can change it on the day if someone else covered.", "getting-started-cleaning", "setting-up-a-round"),
         ["round.counted-from"] = new("The first day this round is due. Days before it never show as missed, so set it to the day the cleaners start working from the sheet.", "getting-started-cleaning", "setting-up-a-round"),
