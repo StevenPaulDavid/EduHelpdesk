@@ -165,6 +165,10 @@ public sealed partial class HelpdeskStore
         public Dictionary<string, Guid> CategoryDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> TeamDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> StatusDesks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        // What jobs cost, and the budget codes they're charged to (HelpdeskStore.Costs).
+        public List<TicketCost> TicketCosts { get; set; } = [];
+        public List<string> BudgetCodes { get; set; } = [];
+        public bool BudgetCodesSeeded { get; set; }
         // 0: tickets from before each desk counted its own, which keep their key as their number (EnsureDesks). A brand
         // new store starts at 1 (SeedStarterData), so its tickets are counted per desk from the start.
         public int DeskNumberingVersion { get; set; }

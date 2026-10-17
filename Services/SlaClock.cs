@@ -45,21 +45,31 @@ public static class SlaClock
     // Times are stored in UTC, but the school week and its periods are local wall-clock times, so the working-out is
     // done in the school's time zone (the server's, since the helpdesk runs on the school's own machine) and converted
     // back. Null when the SLA can't be worked out - a periods SLA with no periods set up.
+    // windowed: a desk with its own working hours (HelpdeskStore.Desks), whose periods are its working windows - minutes
+    // and hours then count only inside them, so a spill reported at 17:55 for a 30-minute SLA is due 30 working minutes
+    // later, the next morning, not overnight.
     public static DateTime? Due(DateTime createdUtc, int duration, string unit, IReadOnlyCollection<DayOfWeek> schoolDays,
-        IReadOnlyList<SchoolPeriod> periods, TimeZoneInfo? zone = null)
+        IReadOnlyList<SchoolPeriod> periods, TimeZoneInfo? zone = null, bool windowed = false)
     {
         zone ??= TimeZoneInfo.Local;
         var created = DateTime.SpecifyKind(createdUtc, DateTimeKind.Utc);
-        switch (SlaUnits.Normalize(unit))
-        {
-            case SlaUnits.Minutes: return created.AddMinutes(duration);
-            case SlaUnits.Days: return created.AddDays(duration);
-            case SlaUnits.Hours: return created.AddHours(duration);
-        }
+        var normalized = SlaUnits.Normalize(unit);
+        if (!(windowed && periods.Count > 0 && normalized is SlaUnits.Minutes or SlaUnits.Hours))
+            switch (normalized)
+            {
+                case SlaUnits.Minutes: return created.AddMinutes(duration);
+                case SlaUnits.Days: return created.AddDays(duration);
+                case SlaUnits.Hours: return created.AddHours(duration);
+            }
 
         var local = TimeZoneInfo.ConvertTimeFromUtc(created, zone);
         // An empty week would never reach a school day; treat it as every day rather than never being due.
         var days = schoolDays.Count == 0 ? Enum.GetValues<DayOfWeek>().ToHashSet() : schoolDays.ToHashSet();
+        if (normalized is SlaUnits.Minutes or SlaUnits.Hours)
+        {
+            var wanted = normalized == SlaUnits.Minutes ? TimeSpan.FromMinutes(duration) : TimeSpan.FromHours(duration);
+            return AddWorkingTime(local, wanted, days, periods) is { } windowDue ? TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(windowDue, DateTimeKind.Unspecified), zone) : null;
+        }
         var due = SlaUnits.Normalize(unit) == SlaUnits.WorkDays
             ? AddWorkDays(local, duration, days)
             : AddPeriods(local, duration, days, periods);
@@ -71,10 +81,12 @@ public static class SlaClock
     // time. The due date then moves on through the same kind of time - so a pause that covered one whole period moves
     // the due date to the end of the next period, not simply 60 minutes later.
     public static DateTime Extend(DateTime dueUtc, DateTime pausedUtc, DateTime resumedUtc, string unit, IReadOnlyCollection<DayOfWeek> schoolDays,
-        IReadOnlyList<SchoolPeriod> periods, TimeZoneInfo? zone = null)
+        IReadOnlyList<SchoolPeriod> periods, TimeZoneInfo? zone = null, bool windowed = false)
     {
         if (resumedUtc <= pausedUtc) return dueUtc;
         var normalized = SlaUnits.Normalize(unit);
+        // With a desk's own hours, minutes and hours are working time too: only the time paused inside its windows comes back.
+        if (windowed && periods.Count > 0 && normalized is SlaUnits.Minutes or SlaUnits.Hours) normalized = SlaUnits.Periods;
         // Clock units, and a periods SLA with no timetable (which has no due date to move anyway), count every minute.
         if (normalized is SlaUnits.Minutes or SlaUnits.Hours or SlaUnits.Days || (normalized == SlaUnits.Periods && periods.Count == 0))
             return dueUtc + (resumedUtc - pausedUtc);
@@ -118,6 +130,21 @@ public static class SlaClock
             if (unit == SlaUnits.WorkDays) { yield return (day, day.AddDays(1)); continue; }
             foreach (var period in ordered) yield return (day + period.Start.ToTimeSpan(), day + period.End.ToTimeSpan());
         }
+    }
+
+    // Working minutes and hours: the time inside the windows (periods) of working days, from the moment logged - or from
+    // the next window's start when logged outside one.
+    private static DateTime? AddWorkingTime(DateTime local, TimeSpan wanted, HashSet<DayOfWeek> days, IReadOnlyList<SchoolPeriod> windows)
+    {
+        var left = wanted;
+        foreach (var (start, end) in WorkingTime(local, SlaUnits.Periods, days, windows))
+        {
+            var begin = start > local ? start : local;
+            if (end <= begin) continue;
+            if (end - begin >= left) return begin + left;
+            left -= end - begin;
+        }
+        return null;
     }
 
     // Like "days", but only school days count. Due at the same time of day, N school days on. Logged on a weekend, the

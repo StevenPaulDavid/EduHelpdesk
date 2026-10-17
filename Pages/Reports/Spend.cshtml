@@ -1,0 +1,75 @@
+@page
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.Reports.SpendReportModel
+@{
+    ViewData["Title"] = "Job spend"; ViewData["Wide"] = true;
+
+    // One summary table: lines, jobs, net, VAT and gross for each group.
+    async Task Groups(string heading, string first, IReadOnlyList<SpendReportModel.Group> rows)
+    {
+        <h3>@heading</h3>
+        <div class="table-wrap"><table>
+            <thead><tr><th>@first</th><th class="num">Jobs</th><th class="num">Lines</th><th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th></tr></thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    <tr><td>@row.Name</td><td class="num">@row.Jobs</td><td class="num">@row.Lines</td><td class="num">@HelpdeskStore.FormatMoney(row.Net)</td><td class="num">@HelpdeskStore.FormatMoney(row.Vat)</td><td class="num"><strong>@HelpdeskStore.FormatMoney(row.Gross)</strong></td></tr>
+                }
+                @if (rows.Count == 0) { <tr><td colspan="6" class="muted">Nothing recorded.</td></tr> }
+            </tbody>
+        </table></div>
+    }
+}
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / REPORTS</p><h1>Job spend</h1><p class="hero-copy">What jobs cost, from the Costs tab on tickets: by budget code, desk, month and supplier, with every line below.</p></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a></div>
+</div>
+<partial name="_ReportTabs" model="@("/Reports/Spend")" />
+
+<section class="panel">
+    <form method="get" class="audit-filters">
+        <label>Academic year<select name="year">@foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.Year)">@AcademicYear.Label(y, Model.StartMonth)</option> }</select></label>
+        @if (Model.HasSeveralDesks)
+        {
+            <label>Desk<select name="desk"><option value="">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Name" selected="@(desk.Id == Model.ReportDesk?.Id)">@desk.Name</option> }</select></label>
+        }
+        <div class="audit-filter-actions"><button class="button button-primary" type="submit">Apply</button><a class="button button-secondary" asp-page="/Reports/Spend">This year</a></div>
+    </form>
+    <p class="muted">Academic year @Model.YearLabel@(Model.ReportDesk is { } shown ? $", the {shown.Name} desk" : ""), by the date on each cost line. Net and VAT are as typed; gross is the two together.</p>
+</section>
+
+<div class="metrics">
+    <div class="metric"><span>Gross</span><strong>@HelpdeskStore.FormatMoney(Model.Total.Gross)</strong><small>@HelpdeskStore.FormatMoney(Model.Total.Net) net + @HelpdeskStore.FormatMoney(Model.Total.Vat) VAT</small></div>
+    <div class="metric"><span>Jobs with costs</span><strong>@Model.Total.Jobs</strong><small>@Model.Total.Lines cost lines</small></div>
+</div>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">SUMMARY</p><h2>Where it went</h2></div></div>
+    @{ await Groups("By budget code", "Budget code", Model.ByCode); }
+    @if (Model.ByDesk.Count > 0) { await Groups("By desk", "Desk", Model.ByDesk); }
+    @{ await Groups("By month", "Month", Model.ByMonth); }
+    @{ await Groups("By supplier", "Supplier", Model.BySupplier); }
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">DETAIL</p><h2>Every cost line</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Spend" asp-page-handler="Export" asp-route-year="@Model.Year" asp-route-desk="@Model.DeskName">⬇ CSV</a> }</div></div>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Ticket</th><th>What</th><th>Supplier</th><th>Budget code</th><th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th></tr></thead>
+        <tbody>
+            @foreach (var line in Model.Lines)
+            {
+                <tr>
+                    <td>@line.Cost.Date.ToString("d MMM yyyy")</td>
+                    <td><a asp-page="/Job" asp-route-number="@line.Cost.TicketNumber"><strong>@line.Ref</strong></a> <span class="muted">@line.Title</span></td>
+                    <td>@line.Cost.Description</td>
+                    <td>@line.Supplier</td>
+                    <td>@line.Cost.BudgetCode</td>
+                    <td class="num">@HelpdeskStore.FormatMoney(line.Cost.Net)</td>
+                    <td class="num">@HelpdeskStore.FormatMoney(line.Cost.Vat)</td>
+                    <td class="num">@HelpdeskStore.FormatMoney(line.Cost.Gross)</td>
+                </tr>
+            }
+            @if (Model.Lines.Count == 0) { <tr><td colspan="8" class="muted">No costs recorded for this year.</td></tr> }
+        </tbody>
+    </table></div>
+</section>

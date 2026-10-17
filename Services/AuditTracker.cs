@@ -228,6 +228,14 @@ internal static class AuditTracker
         AddList(s, "Lists", "Person type", d.PersonTypes);
         AddList(s, "Lists", "System and area category", d.AccessCategories);
         AddList(s, "Lists", "Reason for removing access", d.RevokeReasons);
+        AddList(s, "Lists", "Budget code", d.BudgetCodes);
+        // What a job cost: every line's whole life is on the record, since it is money.
+        var supplierNames = d.Suppliers.ToDictionary(x => x.Id, x => x.Name);
+        foreach (var x in d.TicketCosts)
+            Add(s, "Tickets", "Ticket cost", x.Id.ToString(), $"Job cost: {x.Description}", Track.All,
+                ("Date", x.Date.ToString("yyyy-MM-dd")), ("Description", x.Description),
+                ("Supplier", x.SupplierId is { } supplier ? supplierNames.GetValueOrDefault(supplier, "") : ""),
+                ("Net", x.Net.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), ("VAT", x.Vat.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)), ("Budget code", x.BudgetCode));
         Add(s, "Settings", "Access review", "access-review", "Access review interval", Track.Update, ("Days", d.AccessReviewDays.ToString()));
         AddList(s, "Settings", "Closing message required for priority", d.RequireCloseMessagePriorities);
         AddList(s, "Settings", "Closing message required for category", d.RequireCloseMessageCategories);

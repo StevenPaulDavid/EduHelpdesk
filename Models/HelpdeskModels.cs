@@ -42,7 +42,14 @@ public record TechnicianRecord(Guid Id, string Name, string Email, string Team, 
 // categories. Each desk numbers its own tickets: Prefix goes in front (SITE-5; blank shows #5) and NextNumber is the
 // number its next ticket gets. Icon and Color are keys into PortalLook for the desk's tile in the staff portal, blank
 // for the built-in look.
-public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", string Icon = "", string Color = "", bool ShowInPortal = true, int NextNumber = 1);
+public record Desk(Guid Id, string Name, string Prefix, string HelperLine = "", string Icon = "", string Color = "", bool ShowInPortal = true, int NextNumber = 1)
+{
+    // Its own working hours for SLA clocks (the cleaners' 06:00-09:00 and 15:00-18:00), or none to follow the school day.
+    // With windows set, minute and hour SLAs count only inside them, work days are WorkDays, and periods are the windows.
+    public IReadOnlyList<DayOfWeek> WorkDays { get; init; } = [];
+    public IReadOnlyList<SchoolPeriod> WorkWindows { get; init; } = [];
+    public bool HasOwnHours => WorkWindows.Count > 0;
+}
 
 // Only the SHA-256 of the key is kept: it is random enough that a slow password hash adds nothing.
 public sealed record RecoveryKeySetup(string Hash, DateTime CreatedAt);
@@ -358,6 +365,13 @@ public record TicketComment(string Text, DateTime CreatedAt, bool IsInternal = f
     public bool FromRequester { get; init; }
 }
 public record SlaPause(DateTime StartedAt, DateTime? EndedAt);
+// One line of what a job cost (HelpdeskStore.Costs): net and VAT as typed, in pounds; BudgetCode blank for none.
+public record TicketCost(Guid Id, int TicketNumber, DateOnly Date, string Description, Guid? SupplierId, decimal Net, decimal Vat, string BudgetCode)
+{
+    public decimal Gross => Net + Vat;
+    public DateTime AddedAt { get; init; }
+    public Actor? By { get; init; }
+}
 public record TicketActivity(string Action, string Details, DateTime CreatedAt)
 {
     public Actor? By { get; init; }

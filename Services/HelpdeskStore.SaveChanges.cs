@@ -60,7 +60,7 @@ public sealed partial class HelpdeskStore
         ["RolePermissions"] = "RoleName", ["SlaCategories"] = "SlaId", ["SlaPriorities"] = "SlaId",
         ["TicketActivities"] = "TicketNumber", ["TicketAssets"] = "TicketNumber", ["TicketAttachments"] = "TicketNumber",
         ["TicketAttributeValues"] = "TicketNumber", ["TicketComments"] = "TicketNumber", ["TicketLinks"] = "TicketNumber",
-        ["TicketParts"] = "TicketNumber", ["TicketSlaPauses"] = "TicketNumber",
+        ["TicketParts"] = "TicketNumber", ["TicketSlaPauses"] = "TicketNumber", ["TicketCosts"] = "TicketNumber",
         ["TicketTemplateAttributes"] = "TemplateId"
     };
 

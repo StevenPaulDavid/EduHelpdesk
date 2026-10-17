@@ -27,6 +27,15 @@ public class DesksModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public IActionResult OnPostHours(Guid id, bool useOwn, DayOfWeek[]? days, string? windows)
+    {
+        Message = store.SetDeskHours(id, useOwn, days, windows).Message;
+        return RedirectToPage();
+    }
+
+    // Monday first, as the school week reads.
+    public static readonly DayOfWeek[] Week = [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
     public IActionResult OnPostNextNumber(Guid id, int? next)
     {
         Message = next is { } value ? store.SetDeskNextNumber(id, value).Message : "Enter the number the next ticket should get.";

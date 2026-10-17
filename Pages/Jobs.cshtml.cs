@@ -326,6 +326,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public string? PageUrl(int page) => Url.Page("/Jobs", RouteFor(page, Sort!, Dir!, View));
     // A queue tab keeps the search and filters but starts on the first page and that queue's own sort order.
     public string? ViewUrl(string view) => Url.Page("/Jobs", RouteFor(1, TicketListQuery.DefaultSort(view).Sort, TicketListQuery.DefaultSort(view).Descending ? "desc" : "asc", view));
+    // The printable daily sheet for what the list is showing: the same desks, and the team if one is chosen.
+    public string? DailySheetUrl() => Url.Page("/DailySheet", new Dictionary<string, object?> { ["desk"] = ShownDesks.Count == 0 ? null : ShownDesks.Select(x => x.Name).ToArray(), ["team"] = string.IsNullOrWhiteSpace(Team) || Team == TicketListQuery.None ? null : Team });
     public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View });
 
     // Filters in the Filters panel that are switched on - the number on its button.

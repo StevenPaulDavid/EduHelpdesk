@@ -280,6 +280,7 @@ public sealed partial class HelpdeskStore
         EnsureOptions(_data.TechnicianTeams, ["IT Support"]);
         // One desk, IT, holding every category and team: a single-desk helpdesk looks exactly as it did before desks.
         EnsureDesks();
+        EnsureBudgetCodes();
         EnsureOptions(_data.AssetTypes, ["Laptop", "Desktop", "Tablet", "Monitor", "Printer", "Projector",
             "Interactive display", "Phone", "Server", "Networking", "Peripheral", "Other"]);
         SeedServiceCatalogue();

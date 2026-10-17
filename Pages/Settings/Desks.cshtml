@@ -65,6 +65,21 @@
                     <label>Next ticket number<input name="next" type="number" min="1" step="1" value="@desk.NextNumber" /><small class="muted">The next @desk.Name ticket will be @HelpdeskStore.RefFor(desk, desk.NextNumber). It can be moved on, but not back below a number already used.</small></label>
                     <button class="button button-secondary" type="submit">Save next number</button>
                 </form>
+                <form method="post" asp-page-handler="Hours" class="settings-form">
+                    <input type="hidden" name="id" value="@desk.Id" />
+                    <fieldset class="desk-choices"><legend>Working hours for its SLAs</legend>
+                        <label class="toggle-label"><input type="radio" name="useOwn" value="false" checked="@(!desk.HasOwnHours)" /> The school day (Settings → School day and periods)</label>
+                        <label class="toggle-label"><input type="radio" name="useOwn" value="true" checked="@desk.HasOwnHours" /> Its own hours</label>
+                    </fieldset>
+                    <fieldset class="desk-choices"><legend>Days it works</legend>
+                        @foreach (var day in EduHelpdesk.Pages.Settings.DesksModel.Week)
+                        {
+                            <label class="toggle-label"><input type="checkbox" name="days" value="@day" checked="@(desk.HasOwnHours ? desk.WorkDays.Contains(day) : day is not DayOfWeek.Saturday and not DayOfWeek.Sunday)" /> @day.ToString()[..3]</label>
+                        }
+                    </fieldset>
+                    <label>Times it works<input name="windows" value="@HelpdeskStore.DescribeWindows(desk.WorkWindows)" placeholder="e.g. 06:00-09:00, 15:00-18:00" autocomplete="off" /><small class="muted">With its own hours, minute and hour SLAs count only inside these times, so a spill reported at 17:55 with a 30-minute SLA is due by 06:25 the next working morning. Work-day SLAs use these days, and period SLAs count these times as its periods. Tickets already logged keep their due dates.</small></label>
+                    <button class="button button-secondary" type="submit">Save working hours</button>
+                </form>
                 <form method="post" asp-page-handler="Style" class="tile-style-form">
                     <input type="hidden" name="id" value="@desk.Id" />
                     <fieldset><legend>Portal tile icon</legend>

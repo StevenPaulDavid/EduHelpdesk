@@ -33,6 +33,7 @@ public static class SettingsMenu
             new("Ticket templates", "/Settings/TicketTemplates", "template repeat job"),
             new("Recurring tickets", "/Settings/RecurringTickets", "recurring reoccurring repeating scheduled schedule routine regular weekly monthly termly yearly checks maintenance"),
             new("Ticket custom attributes", "/Settings/TicketAttributes", "custom fields attributes extra"),
+            new("Budget codes", "/Settings/BudgetCodes", "budget code cost spend reactive planned maintenance ppm finance job costs"),
         ]),
         new("Assets & inventory",
         [

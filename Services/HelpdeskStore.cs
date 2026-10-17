@@ -153,6 +153,7 @@ public sealed partial class HelpdeskStore
         EnsureDesks();
         PrepareTeams();
         PreparePingGroups();
+        EnsureBudgetCodes();
         EnsureOptions(_data.AssetStatuses, _data.Assets.Select(x => x.Status));
         EnsureOptions(_data.Buildings, _data.Assets.Select(x => x.Building).Where(x => !string.IsNullOrWhiteSpace(x)));
         EnsureOptions(_data.AssetConditions, _data.Assets.Select(x => x.Condition).Where(x => !string.IsNullOrWhiteSpace(x)));

@@ -55,6 +55,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public IReadOnlyDictionary<Guid, string> TicketAttributeValues => Ticket is null ? new Dictionary<Guid, string>() : store.GetTicketAttributeValues(Ticket.Number);
     public IReadOnlyList<(PartRecord Part, int Quantity)> TicketParts => Ticket is null ? [] : store.GetTicketParts(Ticket.Number);
     public IReadOnlyList<PartRecord> Parts => store.Parts;
+    // What the job cost (HelpdeskStore.Costs), for roles with "See and add job costs".
+    public bool CanSeeCosts => store.UserHasFlag(User, Modules.Flags.Costs);
+    public IReadOnlyList<TicketCost> Costs => Ticket is null || !CanSeeCosts ? [] : store.CostsFor(Ticket.Number);
+    public IReadOnlyList<SupplierRecord> Suppliers => store.Suppliers;
+    public IReadOnlyList<string> BudgetCodes => store.BudgetCodes;
     public IReadOnlyList<TicketRecord> MergeCandidates => Ticket is null ? [] : store.TicketsFor(User).Where(x => x.Number != Ticket.Number).OrderByDescending(x => x.Number).ToList();
     public IReadOnlyList<TicketAttachment> Attachments => Ticket is null ? [] : store.GetTicketAttachments(Ticket.Number);
     // A link to another desk's ticket stays, but only those on that desk see it.
@@ -210,7 +215,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
                 Message = "Select a valid SLA.";
                 return RedirectToPage(new { number });
             }
-            ticket = ticket with { SlaId = slaId, SlaOverridden = slaId.HasValue, DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(slaId, ticket.CreatedAt, ticket.SlaPauses), DueDateOverridden = ticket.DueDateOverridden };
+            ticket = ticket with { SlaId = slaId, SlaOverridden = slaId.HasValue, DueDate = ticket.DueDateOverridden ? ticket.DueDate : store.CalculateDueDate(slaId, ticket.CreatedAt, ticket.SlaPauses, ticket.Category), DueDateOverridden = ticket.DueDateOverridden };
         }
 
         else if (field == "location")
@@ -332,6 +337,20 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     {
         Message = store.SetTicketPartQuantity(number, partId, quantity) ?? (quantity <= 0 ? "Part removed." : "Part quantity updated.");
         return RedirectToPage(null, null, new { number }, "parts-tab");
+    }
+
+    public IActionResult OnPostAddCost(int number, DateOnly? date, string? description, Guid? supplierId, string? net, string? vat, string? budgetCode)
+    {
+        if (!CanSeeCosts) return Forbid();
+        Message = store.AddTicketCost(number, new HelpdeskStore.CostInput(date, description, supplierId, net, vat, budgetCode)).Message;
+        return RedirectToPage(null, null, new { number }, "costs-tab");
+    }
+
+    public IActionResult OnPostRemoveCost(int number, Guid id)
+    {
+        if (!CanSeeCosts) return Forbid();
+        Message = store.RemoveTicketCost(number, id).Message;
+        return RedirectToPage(null, null, new { number }, "costs-tab");
     }
 
     public IActionResult OnPostUpdateAttributes(int number, Dictionary<Guid, string>? customAttributes)

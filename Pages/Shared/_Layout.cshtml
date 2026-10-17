@@ -34,7 +34,7 @@
         ("/Reports", Modules.Flags.ReportAssets), ("/Reports/Tickets", Modules.Flags.ReportTickets),
         ("/Reports/Parts", Modules.Flags.ReportParts), ("/Reports/Loans", Modules.Flags.ReportLoans),
         ("/Reports/Finance", Modules.Flags.ReportFinance), ("/Reports/Projects", Modules.Flags.ReportProjects),
-        ("/Reports/Onboarding", Modules.Flags.ReportOnboarding),
+        ("/Reports/Onboarding", Modules.Flags.ReportOnboarding), ("/Reports/Spend", Modules.Flags.ReportSpend),
     };
     var firstReport = Can(Modules.Reports) ? reportPages.FirstOrDefault(x => Helpdesk.UserHasFlag(User, x.Flag)).Page : null;
 

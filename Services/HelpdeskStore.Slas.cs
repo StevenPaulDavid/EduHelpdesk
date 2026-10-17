@@ -107,8 +107,21 @@ public sealed partial class HelpdeskStore
 
     // Work days and periods follow the school week and timetable - see SlaClock. Callers pass UTC; anything marked
     // local is converted first, since the clock works the school's wall-clock time out from UTC itself.
-    public DateTime? CalculateDueDate(Guid? slaId, DateTime createdAt) =>
-        slaId is Guid id && _data.Slas.FirstOrDefault(x => x.Id == id) is { } sla
-            ? SlaClock.Due(createdAt.Kind == DateTimeKind.Local ? createdAt.ToUniversalTime() : createdAt, sla.Duration, sla.DurationUnit, _data.SchoolDays, _data.Periods)
-            : null;
+    // category: the ticket's, so a desk with its own working hours (HelpdeskStore.Desks) counts in those instead.
+    public DateTime? CalculateDueDate(Guid? slaId, DateTime createdAt, string? category = null)
+    {
+        lock (_sync)
+        {
+            if (slaId is not Guid id || _data.Slas.FirstOrDefault(x => x.Id == id) is not { } sla) return null;
+            var (days, periods, windowed) = ClockFor(category);
+            return SlaClock.Due(createdAt.Kind == DateTimeKind.Local ? createdAt.ToUniversalTime() : createdAt, sla.Duration, sla.DurationUnit, days, periods, windowed: windowed);
+        }
+    }
+
+    // The week and times an SLA counts in for a ticket in this category: its desk's own hours, or the school day.
+    // Called with the lock held.
+    private (IReadOnlyCollection<DayOfWeek> Days, IReadOnlyList<SchoolPeriod> Periods, bool Windowed) ClockFor(string? category) =>
+        category is not null && _data.Desks.Count > 0 && DeskForCategoryCore(category) is { HasOwnHours: true } desk
+            ? (desk.WorkDays.Count > 0 ? desk.WorkDays : _data.SchoolDays, desk.WorkWindows, true)
+            : (_data.SchoolDays, _data.Periods, false);
 }

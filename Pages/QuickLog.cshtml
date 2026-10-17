@@ -1,0 +1,43 @@
+@page
+@model QuickLogModel
+@{
+    ViewData["Title"] = "Log a job already done";
+    var several = Model.CategoriesByDesk.Count > 1;
+}
+
+<div class="page-heading">
+    <div><p class="eyebrow">EDUHELPDESK / TICKETS</p><h1>Log a job already done</h1><p class="hero-copy">For a job called in on the radio or in passing and dealt with before anyone reached a computer. It is saved as a closed ticket, so the work is on the record and in the reports. Nobody is notified.</p></div>
+    <a class="button button-secondary" asp-page="/Jobs">← Back to tickets</a>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+
+<form method="post" class="panel new-ticket-form">
+    <div asp-validation-summary="All" class="validation-summary-errors"></div>
+    <div class="form-grid compact">
+        <label>What kind of job<select asp-for="Category" id="quicklog-category">
+            @if (several)
+            {
+                foreach (var (desk, categories) in Model.CategoriesByDesk)
+                {
+                    <optgroup label="@desk.Name">@foreach (var category in categories) { <option value="@category" data-desk="@desk.Id">@category</option> }</optgroup>
+                }
+            }
+            else
+            {
+                foreach (var (desk, categories) in Model.CategoriesByDesk) { foreach (var category in categories) { <option value="@category" data-desk="@desk.Id">@category</option> } }
+            }
+        </select></label>
+        <label>What was dealt with<input asp-for="Title" maxlength="@EduHelpdesk.Services.HelpdeskStore.MaxTicketTitleLength" placeholder="e.g. Spill cleaned up outside the hall" required autofocus /></label>
+        <label>Where<select asp-for="Location"><option value="">Not specified</option>@foreach (var location in Model.Locations) { <option value="@location">@location</option> }</select></label>
+        <label>Who dealt with it<select asp-for="TechnicianId" id="quicklog-person">@foreach (var person in Model.People) { <option value="@person.Id" data-desks="@string.Join(" ", person.DeskIds)">@person.Name</option> }</select><small>Only people on the job's desk.</small></label>
+        <label>When<input asp-for="At" type="datetime-local" value="@(Model.At?.ToString("yyyy-MM-ddTHH:mm"))" required /></label>
+        <label class="full">Notes (optional)<textarea asp-for="Notes" rows="3" maxlength="@EduHelpdesk.Services.HelpdeskStore.MaxTicketTextLength" placeholder="Anything worth keeping - what was used, anything to follow up"></textarea></label>
+    </div>
+    <div class="heading-actions">
+        <button class="button button-primary" type="submit">Save</button>
+        <button class="button button-secondary" type="submit" name="another" value="true">Save and log another</button>
+    </div>
+</form>
+@section Scripts {
+<script src="~/js/pages/quick-log.js" asp-append-version="true"></script>
+}

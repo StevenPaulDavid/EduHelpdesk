@@ -91,6 +91,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
         var details = new Dictionary<string, Detail>(StringComparer.OrdinalIgnoreCase)
         {
             ["/Settings/Desks"] = List(store.Desks.Select(x => x.Name).ToList(), "The parts of the school the helpdesk serves, such as IT, Site and Cleaning, each with its own categories, teams, people and ticket prefix."),
+            ["/Settings/BudgetCodes"] = List(store.BudgetCodes, "What job costs are charged to, such as reactive or planned maintenance, for the spend report."),
             ["/Settings/TicketRules"] = new("Due-soon window, how long replies reopen closed tickets, which tickets need a closing message, and the print template.", store.HasPrintTemplate ? "Template uploaded" : null),
             ["/Settings/Statuses"] = List(store.Statuses, "The steps a ticket moves through, what each means, and which stop the SLA clock."),
             ["/Settings/Categories"] = List(store.Categories, "What a ticket is about, for filters, reports and templates."),

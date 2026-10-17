@@ -146,7 +146,7 @@ public class NewTicketModel(HelpdeskStore store, PortalIdentity portal) : PageMo
         // A template's own SLA is kept as chosen (it stops following the priority), as on the technician's form.
         Guid? templateSla = template?.SlaId is { } slaId && store.Slas.Any(x => x.Id == slaId) ? slaId : null;
         var sla = templateSla ?? store.SlaFor(priority!, category);
-        var dueDate = store.CalculateDueDate(sla, createdAt);
+        var dueDate = store.CalculateDueDate(sla, createdAt, category);
         var title = template is not null ? (string.IsNullOrWhiteSpace(template.Title) ? template.Name : template.Title) : item?.Name ?? Title!.Trim();
         var number = store.AddTicket(new TicketRecord(
             0, title, (Description ?? "").Trim(), id.Value, [], null,

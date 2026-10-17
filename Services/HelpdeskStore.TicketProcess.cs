@@ -59,17 +59,18 @@ public sealed partial class HelpdeskStore
 
     // A due date from the SLA, moved on by every finished pause since `start`. What a priority, category or SLA change
     // recalculates with, so time already spent On Hold isn't lost when the due date is worked out again.
-    public DateTime? CalculateDueDate(Guid? slaId, DateTime start, IReadOnlyList<SlaPause> pauses)
+    public DateTime? CalculateDueDate(Guid? slaId, DateTime start, IReadOnlyList<SlaPause> pauses, string? category = null)
     {
         lock (_sync)
         {
-            var due = CalculateDueDate(slaId, start);
+            var due = CalculateDueDate(slaId, start, category);
             if (due is null || _data.Slas.FirstOrDefault(x => x.Id == slaId) is not { } sla) return due;
+            var (days, periods, windowed) = ClockFor(category);
             foreach (var pause in pauses.Where(x => x.EndedAt is not null && x.StartedAt >= start).OrderBy(x => x.StartedAt))
             {
                 // A pause only ever starts before the ticket is due (see WithSlaClock), so this just keeps a recalculation honest.
                 if (pause.StartedAt >= due.Value) continue;
-                due = SlaClock.Extend(due.Value, pause.StartedAt, pause.EndedAt!.Value, sla.DurationUnit, _data.SchoolDays, _data.Periods);
+                due = SlaClock.Extend(due.Value, pause.StartedAt, pause.EndedAt!.Value, sla.DurationUnit, days, periods, windowed: windowed);
             }
             return due;
         }
@@ -89,7 +90,10 @@ public sealed partial class HelpdeskStore
             var pauses = ticket.SlaPauses.Take(ticket.SlaPauses.Count - 1).Append(open with { EndedAt = now }).ToList();
             var due = ticket.DueDate;
             if (due is { } current && !ticket.DueDateOverridden && _data.Slas.FirstOrDefault(x => x.Id == ticket.SlaId) is { } sla)
-                due = SlaClock.Extend(current, open.StartedAt, now, sla.DurationUnit, _data.SchoolDays, _data.Periods);
+            {
+                var (days, periods, windowed) = ClockFor(ticket.Category);
+                due = SlaClock.Extend(current, open.StartedAt, now, sla.DurationUnit, days, periods, windowed: windowed);
+            }
             return ticket with { SlaPauses = pauses, DueDate = due };
         }
         if (!ticket.IsSlaPaused && shouldPause && ticket.DueDate is { } dueDate && dueDate > now)

@@ -11,7 +11,7 @@
 
 <div class="page-heading">
     <div><p class="eyebrow">EDUHELPDESK / TICKETS</p><h1>Tickets</h1><p class="hero-copy">Work through queues, search and filter, and update many tickets at once.</p></div>
-    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-primary" asp-page="/NewTicket">@Icons.Plus New ticket</a></div>
+    <div class="heading-actions"><a class="button button-secondary" asp-page="/Index">← Overview</a><a class="button button-secondary" href="@Model.DailySheetUrl()" target="_blank" rel="noopener" title="Open jobs for the desks and team shown, by room, to print and hand out">🖨 Daily sheet</a><a class="button button-secondary" asp-page="/QuickLog" title="For a job dealt with before it was logged - saved as a closed ticket">Log a job already done</a><a class="button button-primary" asp-page="/NewTicket">@Icons.Plus New ticket</a></div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 

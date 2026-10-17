@@ -115,6 +115,8 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Suppliers"] = "The supplier directory.",
         ["TechnicianTeams"] = "The list of technician teams.",
         ["Technicians"] = "Staff accounts that sign in to the helpdesk.",
+        ["TicketCosts"] = "What jobs cost: one row per line on a ticket's Costs tab - net and VAT as typed, in pounds, the supplier and the budget code.",
+        ["BudgetCodes"] = "What job costs can be charged to (Settings → Budget codes).",
         ["Desks"] = "The parts of the school the helpdesk serves, such as IT, Site and Cleaning (Settings → Desks), in tile order, with their ticket number prefix and portal tile look.",
         ["CategoryDesks"] = "Which desk each ticket category belongs to. A ticket is on its category's desk.",
         ["TeamDesks"] = "Which desk each technician team works on.",

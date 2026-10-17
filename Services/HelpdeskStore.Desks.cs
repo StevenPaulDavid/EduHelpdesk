@@ -424,6 +424,60 @@ public sealed partial class HelpdeskStore
         return (cleanName, cleanPrefix, helper, null);
     }
 
+    // ---- Working hours ----
+
+    // A desk's own hours for its SLA clocks. useOwn false goes back to the school day. windows is typed as
+    // "06:00-09:00, 15:00-18:00".
+    public (bool Ok, string Message) SetDeskHours(Guid id, bool useOwn, IEnumerable<DayOfWeek>? days, string? windows)
+    {
+        lock (_sync)
+        {
+            var index = _data.Desks.FindIndex(x => x.Id == id);
+            if (index < 0) return (false, "That desk was not found.");
+            var desk = _data.Desks[index];
+            if (!useOwn)
+            {
+                if (!desk.HasOwnHours) return (true, $"The {desk.Name} desk already follows the school day.");
+                _data.Desks[index] = desk with { WorkDays = [], WorkWindows = [] };
+                Save();
+                return (true, $"The {desk.Name} desk's SLAs now follow the school day. Tickets already logged keep their due dates.");
+            }
+            var chosenDays = (days ?? []).Distinct().OrderBy(x => ((int)x + 6) % 7).ToList();
+            if (chosenDays.Count == 0) return (false, "Tick the days the desk works.");
+            var (parsed, problem) = ParseWindows(windows);
+            if (parsed is null) return (false, problem!);
+            if (parsed.Count == 0) return (false, "Enter the times the desk works, such as 06:00-09:00, 15:00-18:00.");
+            _data.Desks[index] = desk with { WorkDays = chosenDays, WorkWindows = parsed };
+            Save();
+            return (true, $"The {desk.Name} desk's SLAs now count only {DescribeWindows(parsed)} on {string.Join(", ", chosenDays.Select(x => x.ToString()[..3]))}. Tickets already logged keep their due dates.");
+        }
+    }
+
+    private static List<DayOfWeek> ParseDays(string text) =>
+        text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => int.TryParse(x, out var n) && n is >= 0 and <= 6 ? (DayOfWeek?)n : null).OfType<DayOfWeek>().Distinct().ToList();
+
+    // "06:00-09:00, 15:00-18:00" into windows in time order. Null with the reason when it can't be read, or the windows overlap.
+    public static (List<SchoolPeriod>? Windows, string? Problem) ParseWindows(string? text)
+    {
+        var windows = new List<SchoolPeriod>();
+        foreach (var part in (text ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var ends = part.Split('-', StringSplitOptions.TrimEntries);
+            if (ends.Length != 2 || !TimeOnly.TryParse(ends[0], System.Globalization.CultureInfo.InvariantCulture, out var start) || !TimeOnly.TryParse(ends[1], System.Globalization.CultureInfo.InvariantCulture, out var end))
+                return (null, $"\"{part}\" isn't a time range. Write each like 06:00-09:00.");
+            if (end <= start) return (null, $"In \"{part}\" the end has to be after the start.");
+            windows.Add(new SchoolPeriod($"{start:HH\\:mm}-{end:HH\\:mm}", start, end));
+        }
+        windows = windows.OrderBy(x => x.Start).ToList();
+        for (var i = 1; i < windows.Count; i++)
+            if (windows[i].Start < windows[i - 1].End) return (null, $"{windows[i - 1].Name} and {windows[i].Name} overlap.");
+        return (windows, null);
+    }
+
+    public static string DescribeWindows(IEnumerable<SchoolPeriod> windows) =>
+        string.Join(", ", windows.Select(x => $"{x.Start:HH\\:mm}-{x.End:HH\\:mm}"));
+
     // ---- Placing categories, teams and statuses ----
 
     // Its open tickets go with it, losing a team, technician or status that belongs to the old desk.
@@ -601,21 +655,24 @@ public sealed partial class HelpdeskStore
         // No foreign keys: the placings are rewritten from the lists on every save, and a stale row is ignored on load.
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS Desks (Id TEXT PRIMARY KEY, Name TEXT NOT NULL, Prefix TEXT NOT NULL DEFAULT '', HelperLine TEXT NOT NULL DEFAULT '',
-                Icon TEXT NOT NULL DEFAULT '', Color TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1, NextNumber INTEGER NOT NULL DEFAULT 0);
+                Icon TEXT NOT NULL DEFAULT '', Color TEXT NOT NULL DEFAULT '', ShowInPortal INTEGER NOT NULL DEFAULT 1, NextNumber INTEGER NOT NULL DEFAULT 0,
+                WorkDays TEXT NOT NULL DEFAULT '', WorkWindows TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS CategoryDesks (Category TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TeamDesks (Team TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS StatusDesks (Status TEXT PRIMARY KEY, DeskId TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS TechnicianDesks (TechnicianId TEXT NOT NULL, DeskId TEXT NOT NULL, PRIMARY KEY (TechnicianId, DeskId));
             """;
         command.ExecuteNonQuery();
-        // Desks made before each desk counted its own tickets. 0 is worked out from its tickets on load (EnsureDesks).
-        try
-        {
-            using var column = connection.CreateCommand();
-            column.CommandText = "ALTER TABLE Desks ADD COLUMN NextNumber INTEGER NOT NULL DEFAULT 0;";
-            column.ExecuteNonQuery();
-        }
-        catch (SqliteException) { }
+        // Columns added since desks first shipped: the next number (0 is worked out from its tickets on load, EnsureDesks)
+        // and its own working hours (blank: the school day).
+        foreach (var added in new[] { "NextNumber INTEGER NOT NULL DEFAULT 0", "WorkDays TEXT NOT NULL DEFAULT ''", "WorkWindows TEXT NOT NULL DEFAULT ''" })
+            try
+            {
+                using var column = connection.CreateCommand();
+                column.CommandText = $"ALTER TABLE Desks ADD COLUMN {added};";
+                column.ExecuteNonQuery();
+            }
+            catch (SqliteException) { }
     }
 
     private static void ReadDesks(SqliteConnection connection, StoreData data)
@@ -623,10 +680,14 @@ public sealed partial class HelpdeskStore
         data.DeskNumberingVersion = int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'DeskNumberingVersion';") as string, out var version) ? version : 0;
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber FROM Desks ORDER BY rowid;";
+            command.CommandText = "SELECT Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber, WorkDays, WorkWindows FROM Desks ORDER BY rowid;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
-                data.Desks.Add(new Desk(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetInt32(6) != 0, reader.GetInt32(7)));
+                data.Desks.Add(new Desk(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetInt32(6) != 0, reader.GetInt32(7))
+                {
+                    WorkDays = ParseDays(reader.GetString(8)),
+                    WorkWindows = ParseWindows(reader.GetString(9)).Windows ?? []
+                });
         }
         void ReadMap(string table, string column, Dictionary<string, Guid> target)
         {
@@ -661,8 +722,9 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "DeskNumberingVersion", data.DeskNumberingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var known = data.Desks.Select(x => x.Id).ToHashSet();
         foreach (var desk in data.Desks)
-            Execute(connection, transaction, "INSERT INTO Desks (Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber) VALUES ($id,$name,$prefix,$helper,$icon,$color,$portal,$next);",
-                ("$id", desk.Id.ToString()), ("$name", desk.Name), ("$prefix", desk.Prefix), ("$helper", desk.HelperLine), ("$icon", desk.Icon), ("$color", desk.Color), ("$portal", desk.ShowInPortal ? 1 : 0), ("$next", desk.NextNumber));
+            Execute(connection, transaction, "INSERT INTO Desks (Id, Name, Prefix, HelperLine, Icon, Color, ShowInPortal, NextNumber, WorkDays, WorkWindows) VALUES ($id,$name,$prefix,$helper,$icon,$color,$portal,$next,$days,$windows);",
+                ("$id", desk.Id.ToString()), ("$name", desk.Name), ("$prefix", desk.Prefix), ("$helper", desk.HelperLine), ("$icon", desk.Icon), ("$color", desk.Color), ("$portal", desk.ShowInPortal ? 1 : 0), ("$next", desk.NextNumber),
+                ("$days", string.Join(",", desk.WorkDays.Select(x => (int)x))), ("$windows", DescribeWindows(desk.WorkWindows)));
         // Sorted, so a save that changed nothing else writes the same rows in the same order.
         foreach (var (category, id) in data.CategoryDesks.Where(x => known.Contains(x.Value) && data.Categories.Contains(x.Key, StringComparer.OrdinalIgnoreCase)).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
             Execute(connection, transaction, "INSERT INTO CategoryDesks (Category, DeskId) VALUES ($category,$desk);", ("$category", category), ("$desk", id.ToString()));

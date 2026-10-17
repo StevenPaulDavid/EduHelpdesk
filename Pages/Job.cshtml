@@ -179,6 +179,7 @@ else
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="history-tab">History <span class="badge">@Model.Ticket.History.Count</span></button>
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="assets-tab">Assets <span class="badge">@Model.LinkedAssets.Count</span></button>
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="parts-tab">Parts <span class="badge">@Model.TicketParts.Count</span></button>
+                @if (Model.CanSeeCosts) { <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="costs-tab">Costs <span class="badge">@Model.Costs.Count</span></button> }
                 <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="attachments-tab">Attachments <span class="badge">@Model.Attachments.Count</span></button>
             </div>
             <div id="comments-tab" class="ticket-tab-panel active" role="tabpanel">
@@ -295,6 +296,53 @@ else
                 }
                 <button class="button button-secondary" type="button" data-open-blade="part-blade">@Icons.Plus Use a part</button>
             </div>
+            @if (Model.CanSeeCosts)
+            {
+                @* What the job cost, line by line. Only for roles with "See and add job costs" (HelpdeskStore.Costs). *@
+                <div id="costs-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+                    @if (Model.Costs.Count > 0)
+                    {
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Date</th><th>What</th><th>Supplier</th><th>Budget code</th><th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var cost in Model.Costs)
+                                {
+                                    <tr>
+                                        <td>@cost.Date.ToString("d MMM yyyy")</td>
+                                        <td>@cost.Description</td>
+                                        <td>@(cost.SupplierId is { } supplierId ? Model.Suppliers.FirstOrDefault(x => x.Id == supplierId)?.Name ?? "" : "")</td>
+                                        <td>@cost.BudgetCode</td>
+                                        <td class="num">@HelpdeskStore.FormatMoney(cost.Net)</td>
+                                        <td class="num">@HelpdeskStore.FormatMoney(cost.Vat)</td>
+                                        <td class="num">@HelpdeskStore.FormatMoney(cost.Gross)</td>
+                                        <td>@if (Model.CanEdit) { <form method="post" asp-page-handler="RemoveCost" data-confirm="Remove this cost line?"><input type="hidden" name="number" value="@Model.Ticket.Number" /><input type="hidden" name="id" value="@cost.Id" /><button class="icon-button delete-icon" type="submit" title="Remove" aria-label="Remove @cost.Description">@Icons.Bin</button></form> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot><tr><th colspan="4">Total</th><th class="num">@HelpdeskStore.FormatMoney(Model.Costs.Sum(x => x.Net))</th><th class="num">@HelpdeskStore.FormatMoney(Model.Costs.Sum(x => x.Vat))</th><th class="num">@HelpdeskStore.FormatMoney(Model.Costs.Sum(x => x.Gross))</th><th></th></tr></tfoot>
+                        </table></div>
+                    }
+                    else
+                    {
+                        <p class="muted">No costs recorded for this job.</p>
+                    }
+                    @if (Model.CanEdit)
+                    {
+                        <form method="post" asp-page-handler="AddCost" class="settings-form">
+                            <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                            <div class="form-grid compact">
+                                <label>What it was for<input name="description" maxlength="@HelpdeskStore.MaxCostDescriptionLength" required placeholder="e.g. Plumber call-out" /></label>
+                                <label>Date<input name="date" type="date" value="@DateTime.Now.ToString("yyyy-MM-dd")" /></label>
+                                <label>Net (before VAT), £<input name="net" inputmode="decimal" required placeholder="120.00" /></label>
+                                <label>VAT, £<input name="vat" inputmode="decimal" placeholder="24.00 - blank for none" /></label>
+                                <label>Supplier<select name="supplierId"><option value="">None</option>@foreach (var supplier in Model.Suppliers) { <option value="@supplier.Id">@supplier.Name</option> }</select></label>
+                                <label>Budget code<select name="budgetCode"><option value="">None</option>@foreach (var code in Model.BudgetCodes) { <option value="@code">@code</option> }</select></label>
+                            </div>
+                            <div><button class="button button-primary" type="submit">Add cost</button></div>
+                        </form>
+                    }
+                </div>
+            }
             <div id="attachments-tab" class="ticket-tab-panel" role="tabpanel" hidden>
                 @if (Model.Attachments.Count > 0)
                 {

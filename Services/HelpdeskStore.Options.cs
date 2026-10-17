@@ -220,6 +220,10 @@ public sealed partial class HelpdeskStore
                     if (_data.Projects[i].PurchasingRequirements.Contains(oldValue, StringComparer.OrdinalIgnoreCase))
                         _data.Projects[i] = _data.Projects[i] with { PurchasingRequirements = RenameInScope(_data.Projects[i].PurchasingRequirements, oldValue, newValue) };
             }
+            if (kind == "Budget code")
+                for (var i = 0; i < _data.TicketCosts.Count; i++)
+                    if (string.Equals(_data.TicketCosts[i].BudgetCode, oldValue, StringComparison.OrdinalIgnoreCase))
+                        _data.TicketCosts[i] = _data.TicketCosts[i] with { BudgetCode = newValue };
             if (kind == "Loan reason")
             {
                 for (var i = 0; i < _data.KitLoans.Count; i++)
@@ -261,6 +265,7 @@ public sealed partial class HelpdeskStore
                 "Part category" => _data.Parts.Any(x => string.Equals(x.Category, item, StringComparison.OrdinalIgnoreCase)),
                 "Part location" => _data.Parts.Any(x => string.Equals(x.Location, item, StringComparison.OrdinalIgnoreCase)),
                 "Loan reason" => _data.KitLoans.Any(x => string.Equals(x.Reason, item, StringComparison.OrdinalIgnoreCase)),
+                "Budget code" => _data.TicketCosts.Any(x => string.Equals(x.BudgetCode, item, StringComparison.OrdinalIgnoreCase)),
                 _ => false
             };
             if (IsProtectedContractStatus(kind, item)) return ProtectedContractStatusMessage;
@@ -725,6 +730,7 @@ public sealed partial class HelpdeskStore
         "PersonTypes" => "Person type",
         "AccessCategories" => "Access category",
         "RevokeReasons" => "Revoke reason",
+        "BudgetCodes" => "Budget code",
         _ => (kind ?? string.Empty).Trim()
     };
 
@@ -751,11 +757,12 @@ public sealed partial class HelpdeskStore
         "Person type" => _data.PersonTypes,
         "Access category" => _data.AccessCategories,
         "Revoke reason" => _data.RevokeReasons,
+        "Budget code" => _data.BudgetCodes,
         _ => []
     };
     private static bool IsManagedOptionKind(string kind) =>
         NormalizeManagedOptionKind(kind) is "Team" or "Department" or "Location" or "Asset type" or "Asset make" or "Asset model" or "Asset status" or "Part category" or "Part location" or "Loan reason" or "Purchasing requirement" or "Building" or "Asset condition"
-            or "Contract type" or "Spend category" or "Contract duration" or "Contract status" or "Person type" or "Access category" or "Revoke reason";
+            or "Contract type" or "Spend category" or "Contract duration" or "Contract status" or "Person type" or "Access category" or "Revoke reason" or "Budget code";
     // Expired is how the register knows a contract has ended (ContractRules.IsLive).
     private static bool IsProtectedContractStatus(string kind, string value) =>
         kind == "Contract status" && string.Equals(value.Trim(), ContractStatusDefaults.Expired, StringComparison.OrdinalIgnoreCase);

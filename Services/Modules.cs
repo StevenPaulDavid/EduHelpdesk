@@ -68,6 +68,8 @@ public static class Modules
         public const string WorkingAs = "Tickets.WorkingAs";
         public const string NotifyStaff = "Tickets.NotifyStaff";
         public const string AllDesks = "Tickets.AllDesks";
+        public const string Costs = "Tickets.Costs";
+        public const string ReportSpend = "Reports.Spend";
         public const string AssignProjects = "Projects.Assign";
         public const string ReportAssets = "Reports.Assets";
         public const string ReportTickets = "Reports.Tickets";
@@ -85,6 +87,8 @@ public static class Modules
         [
             new(WorkingAs, "Change \"Working as\"", "Pick whose ticket queue to look at, instead of always your own.", "Tickets"),
             // Without it, someone sees only the tickets of the desks they're on (HelpdeskStore.Desks) - for the site manager, SLT, IT leads.
+            // Money is its own question: the site manager and business manager, not everyone who works a ticket.
+            new(Costs, "See and add job costs", "The Costs tab on tickets: what a job cost (net, VAT, supplier, budget code). Adding or removing a line also needs Tickets: Edit.", "Tickets"),
             new(AllDesks, "See all desks", "See and work every desk's tickets (IT, Site, Cleaning...), not just those of the desks they're on. Only matters once there is more than one desk.", "Tickets"),
             // Puts a message on staff PCs through EduNotify (Settings → EduNotify), so it is kept apart from working tickets.
             new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
@@ -97,6 +101,7 @@ public static class Modules
             new(ReportFinance, "Finance and audit report", "Spend, orders and disposals. Shows purchase prices.", "Reports"),
             new(ReportProjects, "Project reports", "Purchasing projects: where they are, technician workload, turnaround, and spend by outcome. Shows quote values.", "Reports"),
             new(ReportOnboarding, "Onboarding report", "New staff onboardings: how many, how long they take to finish, and which tasks run late.", "Reports"),
+            new(ReportSpend, "Spend report", "What jobs cost, by budget code, desk, month and supplier. Shows amounts.", "Reports"),
             new(ReportExport, "Export and print reports", "Download report CSVs and open the print views.", "Reports"),
             // Every table exactly as stored, for looking into a problem. Read-only, and each look is in the audit log.
             // Password hashes, two-step secrets and session tokens show only to Administrators, masked for anyone else.

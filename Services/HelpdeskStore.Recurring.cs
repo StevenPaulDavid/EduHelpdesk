@@ -124,7 +124,7 @@ public sealed partial class HelpdeskStore
         var now = DateTime.UtcNow;
         var sla = SlaFor(priority, category);
         var number = AddTicketCore(new TicketRecord(0, item.Title.Length > 0 ? item.Title : item.Name, item.Description, item.RequesterId, assets,
-            technician?.Id, priority, StartingStatusCore(DeskForCategoryCore(category).Id), category, now, null, sla, CalculateDueDate(sla, now),
+            technician?.Id, priority, StartingStatusCore(DeskForCategoryCore(category).Id), category, now, null, sla, CalculateDueDate(sla, now, category),
             TeamName: team, Location: location) { Type = item.Type }, $"Logged {how} by the recurring ticket \"{item.Name}\".");
         return (number, $"Logged {RefCore(number)} {how}.");
     }

@@ -111,6 +111,7 @@ public sealed partial class HelpdeskStore
             }
             _data.TicketParts.RemoveAll(x => x.TicketNumber == number);
             _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == number);
+            _data.TicketCosts.RemoveAll(x => x.TicketNumber == number);
             RemoveTicketExtras(number);
             _data.Tickets.RemoveAt(index);
             Save();
@@ -173,6 +174,9 @@ public sealed partial class HelpdeskStore
         }
         _data.TicketAttributeValues.RemoveAll(x => x.TicketNumber == sourceNumber);
         MoveTicketExtras(sourceNumber, targetNumber);
+        // What the merged ticket cost is what the job cost.
+        for (var i = 0; i < _data.TicketCosts.Count; i++)
+            if (_data.TicketCosts[i].TicketNumber == sourceNumber) _data.TicketCosts[i] = _data.TicketCosts[i] with { TicketNumber = targetNumber };
 
         var sourceHistory = source.History.ToList();
         sourceHistory.Add(new("Ticket merged", $"Merged into ticket {RefCore(target)} - {target.Title}.", now) { By = CurrentActor() });
@@ -190,7 +194,7 @@ public sealed partial class HelpdeskStore
         {
             if (ticket.SlaOverridden) return ticket with { Priority = priority };
             var sla = SlaFor(priority, ticket.Category);
-            return ticket with { Priority = priority, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
+            return ticket with { Priority = priority, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses, ticket.Category) };
         }
     }
     public TicketRecord WithCategory(TicketRecord ticket, string category)
@@ -207,7 +211,7 @@ public sealed partial class HelpdeskStore
         else
         {
             var sla = SlaFor(ticket.Priority, category);
-            changed = ticket with { Category = category, SubCategory = subCategory, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses) };
+            changed = ticket with { Category = category, SubCategory = subCategory, SlaId = sla, DueDate = ticket.DueDateOverridden ? ticket.DueDate : CalculateDueDate(sla, ticket.CreatedAt, ticket.SlaPauses, category) };
         }
         var from = DeskForCategoryCore(ticket.Category);
         // On another desk it takes that desk's next number before anything else is fitted to it.
@@ -390,7 +394,7 @@ public sealed partial class HelpdeskStore
                 // The old due date belongs to the first time round - left alone it would show as overdue the moment the
                 // ticket reopens, which is both wrong and noisy. A manually typed due date is the user's, so it stays.
                 if (!ticket.DueDateOverridden && ticket.SlaId is not null)
-                    ticket = ticket with { DueDate = CalculateDueDate(ticket.SlaId, DateTime.UtcNow) };
+                    ticket = ticket with { DueDate = CalculateDueDate(ticket.SlaId, DateTime.UtcNow, ticket.Category) };
                 var reopenedTicket = WithSlaClock(ticket, DateTime.UtcNow);
                 if (SlaClockActivity(ticket, reopenedTicket) is { } clockLine) reopenedTicket.History.Add(clockLine with { By = actor });
                 ticket = reopenedTicket;
