@@ -85,7 +85,6 @@ public sealed partial class HelpdeskStore
         lock (_sync) return StatusesForCore(deskId);
     }
     private List<string> StatusesForCore(Guid deskId) => _data.Statuses.Where(x => DeskForStatusCore(x) is not { } desk || desk.Id == deskId).ToList();
-    public bool StatusOnDesk(string? status, Guid deskId) { lock (_sync) return DeskForStatusCore(status) is not { } desk || desk.Id == deskId; }
 
     // Where a new ticket in this category starts: the first status its desk uses (Open, unless the list was reordered).
     public string StartingStatusFor(string? category)

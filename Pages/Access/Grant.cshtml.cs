@@ -38,7 +38,6 @@ public class GrantModel(HelpdeskStore store) : PageModel
     [TempData] public string? Message { get; set; }
     public string? Error { get; private set; }
 
-    public bool IsNew => Grant is null;
     public bool CanAdd => store.UserCan(User, Modules.Access, ModulePermission.New);
     public bool CanEdit => store.UserCan(User, Modules.Access, ModulePermission.Edit);
     public bool CanDelete => store.UserCan(User, Modules.Access, ModulePermission.Delete);

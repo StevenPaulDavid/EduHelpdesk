@@ -541,9 +541,6 @@ html.blade-open { overflow: hidden; }
 .linked-asset-item:hover { background: var(--hover); border-color: var(--teal); }
 .linked-asset-item strong { font-size: 13px; color: var(--teal-strong); }
 .linked-asset-item span { font-size: 12px; color: var(--muted); }
-.asset-edit-form { display: grid; gap: 8px; }
-.asset-edit-form label { font-size: 12px; font-weight: 700; }
-.asset-edit-form select { margin-bottom: 3px; }
 
 .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .checkbox-grid .eyebrow { margin-bottom: 10px; }
@@ -739,20 +736,6 @@ main a:not([class]) { color: var(--ink); }
 .whoami label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
 .whoami select { min-width: 160px; }
 .queue-hint { margin: 6px 0 12px; }
-.filter-checks { display: flex; flex-wrap: wrap; gap: 8px 24px; grid-column: 1 / -1; }
-.filter-checks fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
-.filter-checks legend {
-    float: left;
-    padding: 0;
-    margin-right: 8px;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    opacity: .75;
-}
-.filter-checks .toggle-label { margin: 0; }
-.filter-chip { grid-column: 1 / -1; margin: 0; }
 tr.row-overdue td:first-child { box-shadow: inset 4px 0 0 var(--alert); }
 tr.row-soon td:first-child { box-shadow: inset 4px 0 0 var(--caution); }
 tr.row-urgent td:nth-child(2) strong::after {
@@ -1911,7 +1894,6 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
 
 .filter-chip-link:hover { border-color: var(--red); color: var(--red); }
 .filter-chip-link span[aria-hidden] { font-size: 14px; line-height: 1; }
-.ticket-filters .filter-chip { margin: 10px 0 0; }
 
 /* The due date and its Overdue / Due in badge stay on their own lines rather than wrapping mid-phrase. */
 .ticket-table td.due-cell, .ticket-table td.due-cell .badge { white-space: nowrap; }
@@ -2124,7 +2106,7 @@ a.settings-card:focus-visible { outline: 2px solid var(--teal-text); outline-off
          boxes and the buttons take the full width. */
     .audit-filters, .audit-filters.people-filters { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
     .audit-filters>* { min-width: 0; }
-    .audit-filters .audit-search, .audit-filters .filter-checks, .audit-filters .audit-filter-actions, .audit-filters .filter-chip { grid-column: 1/-1; }
+    .audit-filters .audit-search, .audit-filters .audit-filter-actions { grid-column: 1/-1; }
     .audit-filters .audit-filter-actions .button { flex: 1; text-align: center; }
     /* The search box takes its own row; Search and Filters share the one below. */
     .filter-search-box { flex-basis: 100%; max-width: none; }

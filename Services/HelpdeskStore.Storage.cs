@@ -192,12 +192,6 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // How many audit-log lines one area has had since a moment - the Settings overview's count of recent lockouts.
-    public int CountAuditEntries(string area, DateTime sinceUtc)
-    {
-        lock (_sync) return _audit.Count(x => x.At >= sinceUtc && string.Equals(x.Area, area, StringComparison.OrdinalIgnoreCase));
-    }
-
     // Lockouts only - the Sign-in area also records two-step sign-in being set up, reset and so on (SignInThrottle).
     public int CountLockouts(DateTime sinceUtc)
     {

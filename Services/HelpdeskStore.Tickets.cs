@@ -444,21 +444,6 @@ public sealed partial class HelpdeskStore
                     _data.TicketAttributeDefinitions.Add(new(Guid.NewGuid(), name, fieldType, choices) { Categories = scope }); Save(); return "Ticket attribute added.";
                 }
             }
-            public string UpdateTicketAttributeDefinition(Guid id, string name, IEnumerable<string>? categories, string fieldType, string? choices)
-            {
-                lock (_sync)
-                {
-                    var index = _data.TicketAttributeDefinitions.FindIndex(x => x.Id == id);
-                    if (index < 0) return "Ticket attribute was not found.";
-                    name = (name ?? "").Trim(); fieldType = NormalizeAttributeType(fieldType); choices = NormalizeChoices(choices);
-                    if (string.IsNullOrWhiteSpace(name) || !IsAttributeType(fieldType)) return "Enter a name and valid field type.";
-                    var scope = ResolveScope(categories, _data.Categories);
-                    if (scope is null) return "Select valid categories.";
-                    if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
-                    if (_data.TicketAttributeDefinitions.Any(x => x.Id != id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.Categories, scope))) return DuplicateAttributeMessage(scope, "categories");
-                    _data.TicketAttributeDefinitions[index] = new(id, name, fieldType, choices) { Categories = scope }; Save(); return "Ticket attribute updated.";
-                }
-            }
             public string SetTicketAttributeCategories(Guid id, IEnumerable<string>? categories)
             {
                 lock (_sync)

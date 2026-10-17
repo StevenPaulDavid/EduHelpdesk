@@ -70,7 +70,6 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // Overdue, due soon or paused, for the flag beside the due date.
     public DueState DueState => Ticket is null ? DueState.None : TicketInsights.DueStateOf(Ticket, DateTime.UtcNow, store.TicketDueSoonHours);
     public string DueText => Ticket is null ? "" : TicketInsights.DueText(Ticket, DateTime.UtcNow);
-    public bool StatusPausesSla(string status) => store.PausesSla(status);
     // Back to the ticket list as it was last seen (filters, sort, page), or the plain list. Only ever a /Jobs address.
     public string BackUrl => Request.Cookies[JobsModel.BackCookie] is { } back
         && (back == "/Jobs" || back.StartsWith("/Jobs?", StringComparison.Ordinal)) && Url.IsLocalUrl(back) ? back : Url.Page("/Jobs")!;

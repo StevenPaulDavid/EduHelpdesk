@@ -135,4 +135,22 @@ public class StoreTests
         Assert.Equal("Closed", tickets.Single(x => x.Number == source).Status);
         Assert.Contains(tickets.Single(x => x.Number == target).Comments, x => x.Text.Contains("Checked the cable."));
     }
+
+    // Settings → Departments: a requester's department follows a rename, and one still in use can't be deleted.
+    [Fact]
+    public void Renaming_a_department_moves_its_requesters_and_one_in_use_is_kept()
+    {
+        using var test = new TestStore();
+        var person = test.AddRequester("Priya Shah");
+        Assert.Equal("Science", person.Department);
+        if (!test.Store.Departments.Contains("Science")) test.Store.AddManagedOption("Departments", "Science");
+
+        Assert.Contains("in use", test.Store.DeleteManagedOption("Departments", "Science"));
+        test.Store.UpdateManagedOption("Departments", "Science", "STEM");
+
+        var store = test.Reopen();
+        Assert.Equal("STEM", store.Users.Single(x => x.Id == person.Id).Department);
+        Assert.Contains("STEM", store.Departments);
+        Assert.DoesNotContain("Science", store.Departments);
+    }
 }

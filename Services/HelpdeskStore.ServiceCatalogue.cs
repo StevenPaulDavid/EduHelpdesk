@@ -33,11 +33,6 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    public ServiceItem? GetServiceItem(Guid id)
-    {
-        lock (_sync) return _data.ServiceItems.FirstOrDefault(x => x.Id == id);
-    }
-
     // The item a requester picked, if it really is in that category - the portal posts text, so it is checked again here.
     public ServiceItem? FindServiceItem(string? category, string? name)
     {

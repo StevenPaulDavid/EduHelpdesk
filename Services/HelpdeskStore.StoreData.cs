@@ -146,8 +146,6 @@ public sealed partial class HelpdeskStore
         public List<string> Categories { get; set; } = [];
         public List<string> Statuses { get; set; } = [];
         public Dictionary<string, string> StatusDescriptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-        public List<string> ClosureCommentPriorities { get; set; } = [];
-        public List<string> ClosureCommentCategories { get; set; } = [];
         public List<string> Priorities { get; set; } = [];
         public List<string> RequireCloseMessagePriorities { get; set; } = [];
         public List<string> RequireCloseMessageCategories { get; set; } = [];

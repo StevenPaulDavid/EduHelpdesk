@@ -17,7 +17,6 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
     // Opening a settings page needs Settings: Edit, so a role with only Access sees what is there but no links.
     public bool CanEdit => store.UserCan(User, Modules.Settings, ModulePermission.Edit);
     public bool CanSeeAudit => store.UserCan(User, Modules.AuditLog, ModulePermission.Access);
-    public bool CanSeeRaw => store.UserHasFlag(User, Modules.Flags.RawDatabase);
     public HelpdeskStore.BackupSettings Backups => store.Backups;
     public string? DataSyncedBy => store.Location?.SyncedBy;
     public bool IsHttps => Request.IsHttps;

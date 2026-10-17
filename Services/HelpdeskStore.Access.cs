@@ -228,14 +228,6 @@ public sealed partial class HelpdeskStore
         ModulePermissions.Split(actions).Any(x => UserCan(user, module, x));
     public bool UserHasFlag(System.Security.Claims.ClaimsPrincipal user, string flag) =>
         RoleHasFlag(RoleOf(user), flag);
-    // Everything this account holds on one module, for a page that draws several controls and would otherwise ask five
-    // separate questions.
-    public ModulePermission UserGrants(System.Security.Claims.ClaimsPrincipal user, string module)
-    {
-        if (string.Equals(RoleOf(user), StaffRoles.Administrator, StringComparison.OrdinalIgnoreCase))
-            return Modules.Find(module)?.Supports ?? ModulePermission.None;
-        lock (_sync) return _data.Roles.FirstOrDefault(x => string.Equals(x.Name, RoleOf(user), StringComparison.OrdinalIgnoreCase))?.GrantsFor(module) ?? ModulePermission.None;
-    }
     private static string? RoleOf(System.Security.Claims.ClaimsPrincipal user) =>
         user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 
