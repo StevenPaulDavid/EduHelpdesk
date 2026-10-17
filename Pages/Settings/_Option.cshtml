@@ -13,6 +13,7 @@
     </div>
 }
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<partial name="_MergePrompt" />
 <section class="panel option-panel">
     @if (listTitle is not null) { <div class="panel-heading"><div><h2>@listTitle</h2><p class="muted">@ViewData["ListDescription"] @Model.Values.Count in the list.</p></div></div> }
     <form method="post" class="option-add">

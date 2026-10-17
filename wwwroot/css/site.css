@@ -2761,3 +2761,11 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 @media(max-width:640px) {
     .feature-row { flex-direction: column; align-items: flex-start; }
 }
+
+/* Settings lists: where to move what uses a value before it goes (_MergePrompt.cshtml). */
+.merge-prompt { border-color: var(--warn-line); background: var(--warn-bg); }
+.merge-prompt h2 { margin: 0 0 6px; font-size: 17px; }
+.merge-prompt p { margin: 0 0 12px; }
+.merge-prompt .muted { margin: 10px 0 0; font-size: 13px; }
+.merge-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.merge-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; min-width: 220px; }

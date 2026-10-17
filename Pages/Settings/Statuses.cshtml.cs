@@ -41,7 +41,14 @@ public class StatusesModel(HelpdeskStore store) : PageModel
 
     public IActionResult OnPostDelete(string value)
     {
-        Message = store.DeleteTicketOption("Status", value);
+        MergeOffer.Delete(this, store, "Status", value, () => store.DeleteTicketOption("Status", value));
+        return RedirectToPage();
+    }
+
+    // Moves the tickets on a status to another, then takes it off (_MergePrompt).
+    public IActionResult OnPostMerge(string value, string? into)
+    {
+        MergeOffer.Merge(this, store, "Status", value, into);
         return RedirectToPage();
     }
 
