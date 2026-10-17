@@ -43,32 +43,41 @@
     // Facilities: the site and cleaning pages in one menu, in sections, each link only for whoever can open it - a menu
     // with two or more, a plain link with one, nothing with none (like HR and Compliance). The desk links are one per
     // desk this person sees apart from the first (IT): that desk's tickets, and its plant in the asset register.
+    // Only once there is a second desk: an IT-only school keeps the bar it had, with just the Rounds link for whoever
+    // records rounds.
+    var severalDesks = Helpdesk.HasSeveralDesks;
     var facilitiesDesks = Helpdesk.FacilitiesDesksVisibleTo(User);
     var deskQuery = Context.Request.Query["desk"];
     var deskAsked = deskQuery.Count == 1 ? facilitiesDesks.FirstOrDefault(x => string.Equals(x.Name, deskQuery[0], StringComparison.OrdinalIgnoreCase)) : null;
     string Href(string page, string? desk = null) => desk is null ? Url.Page(page)! : Url.Page(page, new { desk })!;
     var facilities = new List<(string Section, string Href, string Label, bool NewTab)>();
-    if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) facilities.Add(("Daily work", Href("/Rounds"), "Cleaning rounds", false));
-    if (Can(Modules.Tickets, ModulePermission.New)) facilities.Add(("Daily work", Href("/QuickLog"), "Log a job already done", false));
-    if (Can(Modules.Tickets, ModulePermission.View)) facilities.Add(("Daily work", Href("/DailySheet"), "Daily sheet", true));
-    if (Can(Modules.Tickets)) foreach (var desk in facilitiesDesks) facilities.Add(("Daily work", Href("/Jobs", desk.Name), $"{desk.Name} tickets", false));
-    if (Can(Modules.Assets)) foreach (var desk in facilitiesDesks) facilities.Add(("Checks & plant", Href("/Assets", desk.Name), $"{desk.Name} plant", false));
-    if (Can(Modules.Reports))
+    if (Helpdesk.UserHasFlag(User, Modules.Flags.Rounds)) facilities.Add(("Daily work", Href("/Rounds"), severalDesks ? "Cleaning rounds" : "Rounds", false));
+    if (severalDesks)
     {
-        if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportChecks)) facilities.Add(("Reports", Href("/Reports/Checks"), "Premises checks", false));
-        if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportSpend)) facilities.Add(("Reports", Href("/Reports/Spend"), "Job spend", false));
-        if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportRounds)) facilities.Add(("Reports", Href("/Reports/Rounds"), "Cleaning rounds report", false));
-    }
-    if (Helpdesk.CanSetUpFacilities(User))
-    {
-        facilities.Add(("Setup", Href("/Settings/RecurringTickets"), "Recurring checks", false));
-        facilities.Add(("Setup", Href("/Settings/Rounds"), "Cleaning rounds setup", false));
-        facilities.Add(("Setup", Href("/Settings/Cleaners"), "Cleaners", false));
-        facilities.Add(("Setup", Href("/Settings/BudgetCodes"), "Budget codes", false));
+        if (Can(Modules.Tickets, ModulePermission.New)) facilities.Add(("Daily work", Href("/QuickLog"), "Log a job already done", false));
+        if (Can(Modules.Tickets, ModulePermission.View)) facilities.Add(("Daily work", Href("/DailySheet"), "Daily sheet", true));
+        if (Can(Modules.Tickets)) foreach (var desk in facilitiesDesks) facilities.Add(("Daily work", Href("/Jobs", desk.Name), $"{desk.Name} tickets", false));
+        if (Can(Modules.Assets)) foreach (var desk in facilitiesDesks) facilities.Add(("Checks & plant", Href("/Assets", desk.Name), $"{desk.Name} plant", false));
+        if (Can(Modules.Reports))
+        {
+            if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportChecks)) facilities.Add(("Reports", Href("/Reports/Checks"), "Premises checks", false));
+            if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportSpend)) facilities.Add(("Reports", Href("/Reports/Spend"), "Job spend", false));
+            if (Helpdesk.UserHasFlag(User, Modules.Flags.ReportRounds)) facilities.Add(("Reports", Href("/Reports/Rounds"), "Cleaning rounds report", false));
+        }
+        if (Helpdesk.CanSetUpFacilities(User))
+        {
+            facilities.Add(("Setup", Href("/Settings/RecurringTickets"), "Recurring checks", false));
+            facilities.Add(("Setup", Href("/Settings/Rounds"), "Cleaning rounds setup", false));
+            facilities.Add(("Setup", Href("/Settings/Cleaners"), "Cleaners", false));
+            facilities.Add(("Setup", Href("/Settings/BudgetCodes"), "Budget codes", false));
+        }
     }
     // Lit for its own pages, and for a ticket list or asset list showing just one facilities desk - what its desk links
-    // open. The reports and settings pages keep their own item lit, so their tabs and menus still make sense.
-    var onFacilities = NavOn("/Rounds", "/RoundSheet", "/QuickLog", "/DailySheet") || (deskAsked is not null && NavOn("/Jobs", "/Assets"));
+    // open. The reports and settings pages keep their own item lit, so their tabs and menus still make sense. With one
+    // desk only the Rounds link is left, lit for the rounds pages as before.
+    var onFacilities = severalDesks
+        ? NavOn("/Rounds", "/RoundSheet", "/QuickLog", "/DailySheet") || (deskAsked is not null && NavOn("/Jobs", "/Assets"))
+        : NavOn("/Rounds", "/RoundSheet");
 
     // Pings and pop-ups (wwwroot/js/notifications.js) ask for the notifications of whoever the page is signed in as: the
     // requester on the staff portal's pages, the helpdesk account everywhere else. Nobody signed in, nothing to ask for.
@@ -161,8 +170,10 @@
                     </div>
                 </details>
             }
-            else if (facilities.Count == 1) { <a href="@facilities[0].Href" class="@(onFacilities ? "active" : null)" target="@(facilities[0].NewTab ? "_blank" : null)" rel="@(facilities[0].NewTab ? "noopener" : null)">@facilities[0].Label</a> }
+            else if (facilities.Count == 1 && severalDesks) { <a href="@facilities[0].Href" class="@(onFacilities ? "active" : null)" target="@(facilities[0].NewTab ? "_blank" : null)" rel="@(facilities[0].NewTab ? "noopener" : null)">@facilities[0].Label</a> }
             @if (Can(Modules.Projects)) { <a asp-page="/Projects" class="@(NavOn("/Projects", "/Project") ? "active" : null)">Projects</a> }
+            @* With one desk the only facilities link is Rounds, in the place it has always had. *@
+            @if (facilities.Count == 1 && !severalDesks) { <a href="@facilities[0].Href" class="@(onFacilities ? "active" : null)">@facilities[0].Label</a> }
             @* HR groups People and Onboarding, but only for someone who can reach both. Someone with just one of them - the
                onboarding officer, say - gets a plain link rather than a menu with a single item in it. *@
             @if (canPeople && canOnboarding)
