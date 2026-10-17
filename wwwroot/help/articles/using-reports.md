@@ -11,6 +11,7 @@ order: 1
 
 | Report | What it answers |
 | --- | --- |
+| [Dashboard](dashboard) | The helpdesk as charts, for the desks you are working on, with every bar opening its list |
 | [Asset reports](asset-report) | What's due for review, what the fleet looks like, which devices cause most trouble |
 | [Ticket reports](ticket-report) | Whether deadlines are met, how work is shared, what keeps coming back |
 | [Parts and loans](parts-and-loans-reports) | What's low in stock, who borrows and why |

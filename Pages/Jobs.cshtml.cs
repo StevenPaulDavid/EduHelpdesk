@@ -26,6 +26,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "dept")] public string? Department { get; set; }
     [BindProperty(SupportsGet = true, Name = "loc")] public string? Location { get; set; }
     [BindProperty(SupportsGet = true, Name = "asset")] public string? Asset { get; set; }
+    // Logged on or between these days, from a dashboard chart (Reports/Dashboard). Not in the Filters panel; its chip
+    // takes it off.
+    [BindProperty(SupportsGet = true, Name = "from")] public DateOnly? LoggedFrom { get; set; }
+    [BindProperty(SupportsGet = true, Name = "to")] public DateOnly? LoggedTo { get; set; }
     [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
@@ -71,7 +75,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public string DeskPhrase => HelpdeskStore.DeskPhrase(ShownDesks);
     public string? AllDesksUrl() { var route = RouteFor(1, Sort!, Dir!, View); route["desk"] = "all"; return Url.Page("/Jobs", route); }
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
-        || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset);
+        || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset) || LoggedFrom is not null || LoggedTo is not null;
 
     // The list as last looked at - view, filters, sort and page - so "Back to tickets" on a ticket returns to it rather
     // than to a fresh, unfiltered list. Only a path on this page is ever stored or followed (see JobModel.BackUrl).
@@ -206,6 +210,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         Department = Department,
         Location = Location,
         Asset = Guid.TryParse(Asset, out var assetId) ? assetId : null,
+        LoggedFrom = LoggedFrom, LoggedTo = LoggedTo,
         Sort = Sort!, Descending = Descending
     };
 
@@ -270,6 +275,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Department)) yield return ("dept", Department);
         if (!string.IsNullOrWhiteSpace(Location)) yield return ("loc", Location);
         if (!string.IsNullOrWhiteSpace(Asset)) yield return ("asset", Asset);
+        if (LoggedFrom is { } from) yield return ("from", from.ToString("yyyy-MM-dd"));
+        if (LoggedTo is { } to) yield return ("to", to.ToString("yyyy-MM-dd"));
         yield return ("sort", Sort!);
         yield return ("dir", Dir!);
         yield return ("p", PageNumber.ToString());
@@ -293,6 +300,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["type"] = Type.Count == 0 ? null : Type.ToArray(),
             ["desk"] = DeskRoute(ShownDesks),
             ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["loc"] = Blank(Location), ["asset"] = Blank(Asset),
+            ["from"] = LoggedFrom?.ToString("yyyy-MM-dd"), ["to"] = LoggedTo?.ToString("yyyy-MM-dd"),
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,
             ["p"] = page > 1 ? page : null,
@@ -356,6 +364,15 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Location: {(Location == TicketListQuery.None ? "Not specified" : Location)}", Without("loc", null)));
         if (!string.IsNullOrWhiteSpace(Asset))
             chips.Add(new($"Asset: {(Guid.TryParse(Asset, out var assetId) && AssetsById.TryGetValue(assetId, out var asset) ? asset.AssetTag : "Unknown")}", Without("asset", null)));
+        if (LoggedFrom is not null || LoggedTo is not null)
+        {
+            var label = LoggedFrom == LoggedTo ? $"Logged {LoggedFrom:ddd d MMM}"
+                : LoggedTo is null ? $"Logged from {LoggedFrom:d MMM yyyy}"
+                : LoggedFrom is null ? $"Logged up to {LoggedTo:d MMM yyyy}"
+                : $"Logged {LoggedFrom:d MMM} to {LoggedTo:d MMM yyyy}";
+            var route = RouteFor(1, Sort!, Dir!, View); route["from"] = null; route["to"] = null;
+            chips.Add(new(label, Url.Page("/Jobs", route)));
+        }
         Many("status", "Status", Status);
         Many("type", "Type", Type);
         Many("priority", "Priority", Priority);

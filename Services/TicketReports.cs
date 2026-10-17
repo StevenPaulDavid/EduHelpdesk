@@ -138,31 +138,26 @@ public static class TicketReports
 
     // ---- Trend: the summary charts at the top of the ticket report ----
 
-    // One step of the period: a week (periods up to four months) or a calendar month. Logged counts tickets created in
-    // it; OpenAtEnd those created by its end and not yet closed then (or now, for the step still running).
-    public sealed record TrendPoint(string Label, DateTime Start, DateTime End, int Logged, int Closed, int OpenAtEnd);
+    // One step of the period (TimeSteps: a day, week or month). Logged counts tickets created in it; OpenAtEnd those
+    // created by its end and not yet closed then (or now, for the step still running).
+    public sealed record TrendPoint(TimeSteps.Step Step, int Logged, int Closed, int OpenAtEnd)
+    {
+        public string Label => Step.Label;
+        public DateTime Start => Step.Start;
+        public DateTime End => Step.End;
+    }
 
     public static IReadOnlyList<TrendPoint> Trend(IReadOnlyCollection<TicketRecord> tickets, DateTime since, DateTime now)
     {
         // "All time" starts with the first ticket, or a year ago with none.
         var start = since > DateTime.MinValue ? since : tickets.Count > 0 ? tickets.Min(t => t.CreatedAt) : now.AddYears(-1);
-        var weekly = (now - start).TotalDays <= 124;
-        var local = start.ToLocalTime().Date;
-        // Weeks start on a Monday, months on the 1st, so the steps read as the school counts them.
-        var first = weekly ? local.AddDays(-(((int)local.DayOfWeek + 6) % 7)) : new DateTime(local.Year, local.Month, 1);
-        var points = new List<TrendPoint>();
-        for (var from = first; from.ToUniversalTime() <= now; from = weekly ? from.AddDays(7) : from.AddMonths(1))
+        return TimeSteps.Between(start, now).Select(step =>
         {
-            var to = weekly ? from.AddDays(7) : from.AddMonths(1);
-            var (fromUtc, toUtc) = (from.ToUniversalTime(), to.ToUniversalTime());
-            var endUtc = toUtc < now ? toUtc : now;
-            points.Add(new TrendPoint(
-                weekly ? $"w/c {from:d MMM}" : from.ToString("MMM yyyy"), fromUtc, toUtc,
-                tickets.Count(t => t.CreatedAt >= fromUtc && t.CreatedAt < toUtc),
-                tickets.Count(t => t.ClosedAt is { } closed && closed >= fromUtc && closed < toUtc),
-                tickets.Count(t => t.CreatedAt < endUtc && (t.ClosedAt is not { } closed || closed >= endUtc))));
-        }
-        // A chart of years of months is unreadable; keep the latest five years.
-        return points.Count > 60 ? points.Skip(points.Count - 60).ToList() : points;
+            var endUtc = step.End < now ? step.End : now;
+            return new TrendPoint(step,
+                tickets.Count(t => t.CreatedAt >= step.Start && t.CreatedAt < step.End),
+                tickets.Count(t => t.ClosedAt is { } closed && closed >= step.Start && closed < step.End),
+                tickets.Count(t => t.CreatedAt < endUtc && (t.ClosedAt is not { } closed || closed >= endUtc)));
+        }).ToList();
     }
 }

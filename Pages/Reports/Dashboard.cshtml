@@ -1,0 +1,159 @@
+@page
+@model EduHelpdesk.Pages.Reports.DashboardModel
+@{
+    ViewData["Title"] = "Dashboard"; ViewData["Wide"] = true;
+    Charts.Key[] loggedKeys = [new("Logged", "c1"), new("Closed", "c2")];
+    Charts.Key[] ageKeys = [new("Within its expected life", "brand"), new("Past its expected life", "serious")];
+    Charts.Key[] loanKeys = [new("On loan", "brand"), new("Overdue", "critical")];
+    Charts.Key[] oneKey = [new("Count", "brand")];
+}
+<div class="page-heading">
+    <div><h1>Dashboard</h1><p class="hero-copy">The helpdesk at a glance@(Model.DeskText.Length > 0 ? $", on {Model.DeskText}" : ""). Click a bar or a point to open the list behind it.</p></div>
+</div>
+<partial name="_ReportTabs" model="@("/Reports/Dashboard")" />
+
+@* Everything inside #dashboard is redrawn in place every five minutes while the page is on screen (dashboard.js). *@
+<div id="dashboard" class="dashboard" data-refresh-seconds="300">
+    <div class="dashboard-bar">
+        <nav class="queue-tabs period-tabs" aria-label="Period">
+            @foreach (var period in DashboardModel.Periods)
+            {
+                <a class="queue-tab @(period.Key == Model.PeriodKey ? "active" : null)" asp-page="/Reports/Dashboard" asp-route-period="@(period.Key == "30d" ? null : period.Key)" aria-current="@(period.Key == Model.PeriodKey ? "page" : null)">@period.Label</a>
+            }
+        </nav>
+        <p class="muted dashboard-updated">Updated @DateTime.Now.ToString("HH:mm") · refreshes every 5 minutes</p>
+    </div>
+
+    @if (Model.Shows("tickets"))
+    {
+        <h2 class="dash-group">Tickets</h2>
+        <div class="dash-grid">
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>Open tickets</h3><p class="chart-figure"><strong>@Model.OpenNow</strong> open now</p></div>
+                <p class="muted">Still open at the end of each @Model.StepUnit, @Model.WhenText.</p>
+                @Charts.Lines(Model.TicketSteps, [Model.OpenOverTime], $"Open tickets at the end of each {Model.StepUnit}, {Model.OpenNow} now")
+                @Charts.Table(Model.StepName, Model.TicketSteps, [Model.OpenOverTime])
+            </section>
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>Logged and closed</h3><p class="chart-figure"><strong>@Model.LoggedInPeriod</strong> logged · <strong>@Model.ClosedInPeriod</strong> closed</p></div>
+                @Charts.Legend(loggedKeys)
+                @Charts.Lines(Model.LoggedSteps, Model.LoggedAndClosed, $"Tickets logged and closed each {Model.StepUnit}, {Model.WhenText}")
+                @Charts.Table(Model.StepName, Model.LoggedSteps, Model.LoggedAndClosed)
+            </section>
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>Workload by technician</h3><p class="chart-figure"><strong>@Model.Unassigned</strong> unassigned</p></div>
+                @if (Model.Workload.Count == 0) { <p class="empty">No open tickets.</p> }
+                else
+                {
+                    @Charts.Legend(Model.PriorityKeys)
+                    @Charts.BarList(Model.Workload, Model.PriorityKeys, "Open tickets by technician and priority")
+                    @Charts.Table("Technician", Model.Workload, Model.PriorityKeys, noteColumn: "Overdue")
+                }
+            </section>
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>When open tickets are due</h3><p class="chart-figure"><strong class="@(Model.Overdue > 0 ? "figure-warn" : null)">@Model.Overdue</strong> overdue</p></div>
+                @Charts.BarList(Model.Due, oneKey, "Open tickets by when they are due")
+                @Charts.Table("Due", Model.Due, [new("Tickets", "brand")])
+            </section>
+            <section class="panel chart-panel chart-wide">
+                <div class="chart-head"><h3>Busiest days and times</h3><p class="chart-figure"><strong>@Model.LoggedInPeriod</strong> logged @Model.WhenText</p></div>
+                <p class="muted">When tickets came in, by day and hour. Plan cover around the dark squares.</p>
+                @Charts.Heatmap(Model.HeatDays, Model.HeatHours, Model.Heat, "Tickets logged by day of the week and hour", Model.HeatTip)
+            </section>
+        </div>
+    }
+
+    @if (Model.Shows("assets"))
+    {
+        <h2 class="dash-group">Assets</h2>
+        <div class="dash-grid">
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>Fleet by age</h3><p class="chart-figure"><strong class="@(Model.PastLife > 0 ? "figure-warn" : null)">@Model.PastLife</strong> past their expected life</p></div>
+                @if (Model.AgeSteps.Count == 0) { <p class="empty">No purchase dates recorded yet.</p> }
+                else
+                {
+                    @Charts.Legend(ageKeys)
+                    @Charts.Columns(Model.AgeSteps, Model.Age, "Assets by the year they were bought, split by whether they are past their expected life")
+                    @Charts.Table("Year bought", Model.AgeSteps, Model.Age)
+                }
+                @if (Model.NoPurchaseDate > 0) { <p class="muted chart-foot">@Model.NoPurchaseDate with no purchase date @(Model.NoPurchaseDate == 1 ? "is" : "are") left out.</p> }
+            </section>
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>Warranties ending</h3><p class="chart-figure"><strong>@Model.WarrantyEnding</strong> in the next 12 months</p></div>
+                @Charts.Columns(Model.WarrantySteps, [Model.Warranty], "Warranties ending in each of the next 12 months")
+                @Charts.Table("Month", Model.WarrantySteps, [Model.Warranty])
+            </section>
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>By status</h3><p class="chart-figure"><strong>@Model.AssetCount</strong> assets</p></div>
+                @if (Model.Statuses is { } statuses)
+                {
+                    @Charts.Legend(Model.StatusKeys)
+                    @Charts.BarList([statuses], Model.StatusKeys, "Assets by status")
+                    @Charts.Table("Assets", [statuses], Model.StatusKeys)
+                }
+                else { <p class="empty">No assets yet.</p> }
+            </section>
+            <section class="panel chart-panel">
+                <div class="chart-head"><h3>Repeat-fault devices</h3><p class="chart-figure">Most tickets, @Model.WhenText</p></div>
+                @if (Model.RepeatFaults.Count == 0) { <p class="empty">No device has had two or more tickets @Model.WhenText.</p> }
+                else
+                {
+                    @Charts.BarList(Model.RepeatFaults, [new("Tickets", "brand")], "Devices with the most tickets")
+                    @Charts.Table("Device", Model.RepeatFaults, [new("Tickets", "brand")], noteColumn: "Open")
+                }
+            </section>
+        </div>
+    }
+
+    @if (Model.Shows("spend") || Model.Shows("loans") || Model.Shows("parts") || Model.Shows("projects"))
+    {
+        <h2 class="dash-group">Spend, loans, parts and projects</h2>
+        <div class="dash-grid">
+            @if (Model.Shows("spend"))
+            {
+                <section class="panel chart-panel">
+                    <div class="chart-head"><h3>Job spend by month</h3><p class="chart-figure"><strong>@Charts.Money((double)Model.SpendTotal)</strong> ex VAT</p></div>
+                    @if (Model.Spend.Count == 0) { <p class="empty">No job costs recorded @Model.WhenText.</p> }
+                    else
+                    {
+                        @if (Model.Spend.Count > 1) { @Charts.Legend(Model.Spend.Select(x => new Charts.Key(x.Name, x.Tone))) }
+                        @Charts.Columns(Model.SpendSteps, Model.Spend, "Job spend each month by budget code, ex VAT", Charts.Money, Charts.MoneyShort)
+                        @Charts.Table("Month", Model.SpendSteps, Model.Spend, Charts.Money)
+                    }
+                </section>
+            }
+            @if (Model.Shows("loans"))
+            {
+                <section class="panel chart-panel">
+                    <div class="chart-head"><h3>Loans</h3><p class="chart-figure"><a href="@Model.LoansUrl"><strong>@Model.LoansOut</strong> out</a> · <a href="@Model.OverdueLoansUrl"><strong class="@(Model.LoansOverdue > 0 ? "figure-warn" : null)">@Model.LoansOverdue</strong> overdue</a></p></div>
+                    @Charts.Legend(loanKeys)
+                    @Charts.Lines(Model.LoanSteps, Model.Loans, $"Kits and devices on loan, and overdue, at the end of each {Model.StepUnit}")
+                    @Charts.Table(Model.StepName, Model.LoanSteps, Model.Loans)
+                </section>
+            }
+            @if (Model.Shows("parts"))
+            {
+                <section class="panel chart-panel">
+                    <div class="chart-head"><h3>Parts low on stock</h3><p class="chart-figure"><strong class="@(Model.LowPartCount > 0 ? "figure-warn" : null)">@Model.LowPartCount</strong> at or below their reorder level</p></div>
+                    @if (Model.LowParts.Count == 0) { <p class="empty">Nothing is low on stock.</p> }
+                    else
+                    {
+                        <p class="muted">How many are left; the line is where to reorder.</p>
+                        @Charts.BarList(Model.LowParts, [new("In stock", "serious")], "Parts at or below their reorder level")
+                        @Charts.Table("Part", Model.LowParts, [new("In stock", "serious")], noteColumn: "Reorder")
+                    }
+                </section>
+            }
+            @if (Model.Shows("projects"))
+            {
+                <section class="panel chart-panel">
+                    <div class="chart-head"><h3>Projects by stage</h3><p class="chart-figure"><strong>@Model.ActiveProjects</strong> active</p></div>
+                    @Charts.BarList(Model.ProjectStages, [new("Projects", "brand")], "Active projects by stage")
+                    @Charts.Table("Stage", Model.ProjectStages, [new("Projects", "brand")], noteColumn: "Past due")
+                </section>
+            }
+        </div>
+    }
+</div>
+<script src="~/js/charts.js" asp-append-version="true"></script>
+<script src="~/js/pages/dashboard.js" asp-append-version="true"></script>

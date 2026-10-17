@@ -281,6 +281,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Events.OnCheckSlidingExpiration = context =>
         {
             if (context.HttpContext.Request.Path.Equals(NotificationEndpoints.PollPath, StringComparison.OrdinalIgnoreCase)) context.ShouldRenew = false;
+            // Nor the dashboard redrawing itself (wwwroot/js/pages/dashboard.js), for the same reason.
+            if (context.HttpContext.Request.Headers["X-Requested-With"] == EduHelpdesk.Pages.Reports.DashboardModel.RefreshHeader) context.ShouldRenew = false;
             return Task.CompletedTask;
         };
     });
