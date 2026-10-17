@@ -12,7 +12,7 @@ order: 4
 
 - **Name** - such as *Arbor*, *Microsoft 365*, *Server room*.
 - **Kind** - a **system**, or a **physical area or key**.
-- **Category** - from **Settings → System and area categories**.
+- **Category** - from **Settings → Lists → System and area categories**.
 - **Owner / approver** - who decides who gets access.
 - **Cloud or remote access - MFA required for everyone** - tick for anything reached from the cloud or from home. Anyone recorded with access without MFA is then flagged.
 - **Holds personal data** - for the data protection side.

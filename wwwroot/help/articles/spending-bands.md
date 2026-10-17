@@ -27,4 +27,4 @@ A project is placed in a band by the **highest quote for each of its items**, ad
 
 Whether a project's page shows quote figures **excluding VAT** (what most schools budget on) or **including VAT** with the ex-VAT figures alongside. The proposal PDF always shows both, and the projects report is unaffected.
 
-Purchasing requirements (the tick boxes a requester picks, such as *Lease / finance option*) are a simple list in **Settings → Purchasing requirements**.
+Purchasing requirements (the tick boxes a requester picks, such as *Lease / finance option*) are a simple list in **Settings → Lists → Purchasing requirements**.

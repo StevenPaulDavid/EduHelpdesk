@@ -14,7 +14,7 @@ A **cleaning round** is a set of rooms cleaned on the same days, usually by the 
 
 Rounds are set up in **Settings → Cleaning rounds** (the gear in the top bar) by someone who can change settings or whose role has **Set up facilities**. First make sure:
 
-- every room is in **Settings → Locations**, and
+- every room is in **Settings → Lists → Locations**, and
 - every cleaner's name is in **Settings → Cleaners**.
 
 Then add a round:

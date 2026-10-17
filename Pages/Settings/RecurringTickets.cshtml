@@ -44,7 +44,7 @@
         </div>
     }
 }
-<div class="page-heading"><div><h1>Recurring tickets</h1><p class="hero-copy">Tickets logged automatically on a schedule - a weekly backup check, a termly clean of the projectors, a yearly licence renewal. While the last one a schedule logged is still open, the next date is skipped rather than adding another.</p></div>@if (Model.CanOpenSettings) { }</div>
+<div class="page-heading"><div><h1>Recurring tickets</h1><p class="hero-copy">Tickets logged automatically on a schedule - a weekly backup check, a termly clean of the projectors, a yearly licence renewal. While the last one a schedule logged is still open, the next date is skipped rather than adding another.</p></div></div>
 @if (Model.Message is { } message) { <div class="notice">@message</div> }
 
 <datalist id="asset-tags">@foreach (var asset in Model.Assets.Where(x => !HelpdeskStore.IsDisposed(x)).OrderBy(x => x.AssetTag)) { <option value="@asset.AssetTag">@asset.Make @asset.Model</option> }</datalist>
