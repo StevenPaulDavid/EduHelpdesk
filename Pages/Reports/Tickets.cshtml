@@ -54,9 +54,33 @@
     <div class="metric"><span>Open now</span><strong>@Model.OpenNow</strong><small>@Model.OverdueNow overdue</small></div>
 </div>
 
+
+@* The trend first, as two small charts, with the same numbers as a table under each. The detail below folds away. *@
+@if (Model.Trend.Count > 1)
+{
+    var logged = Model.Trend.Select(x => new MiniChart.Point(x.Label, x.Logged, $"{x.Label}: {x.Logged} logged, {x.Closed} closed")).ToList();
+    var openAt = Model.Trend.Select(x => new MiniChart.Point(x.Label, x.OpenAtEnd, $"{x.Label}: {x.OpenAtEnd} open at the end")).ToList();
+    <div class="dash-grid report-trend">
+        <section class="panel">
+            <h2>Tickets logged</h2>
+            <p class="muted">Each @Model.TrendStep, @Model.WhenText.</p>
+            @MiniChart.Bars(logged, $"Tickets logged each {Model.TrendStep}, latest {logged[^1].Value}")
+            <details class="chart-table"><summary>Show as table</summary><div class="table-wrap"><table><thead><tr><th>@(Model.TrendStep == "week" ? "Week" : "Month")</th><th>Logged</th><th>Closed</th></tr></thead><tbody>@foreach (var point in Model.Trend) { <tr><td>@point.Label</td><td>@point.Logged</td><td>@point.Closed</td></tr> }</tbody></table></div></details>
+        </section>
+        <section class="panel">
+            <h2>Open tickets</h2>
+            <p class="muted">Still open at the end of each @Model.TrendStep.</p>
+            @MiniChart.Line(openAt, $"Open tickets at the end of each {Model.TrendStep}, now {openAt[^1].Value}")
+            <details class="chart-table"><summary>Show as table</summary><div class="table-wrap"><table><thead><tr><th>@(Model.TrendStep == "week" ? "Week" : "Month")</th><th>Open at the end</th></tr></thead><tbody>@foreach (var point in Model.Trend) { <tr><td>@point.Label</td><td>@point.OpenAtEnd</td></tr> }</tbody></table></div></details>
+        </section>
+    </div>
+}
+
 <section class="panel" id="sla">
     <div class="panel-heading"><div><h2>SLA performance</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="sla" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ CSV</a> }@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="overdue" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ Overdue CSV</a> }<span class="badge @(Model.Overall.Breached > 0 ? "badge-warning" : "")">@Model.Overall.Breached missed</span></div></div>
     <p class="muted">A ticket is <strong>on time</strong> when it was closed by its due date, <strong>late</strong> when it was closed after it, and <strong>open and overdue</strong> when it is still open past its due date. The on-time rate leaves out tickets that are open but not yet due, and tickets with no due date. The worst-performing rows come first. Resolution time runs from creation to closing.</p>
+    <details class="report-detail">
+    <summary>Show the detail</summary>
     @if (Model.ByDesk.Count > 0) { await SlaTable("By desk", "Desk", Model.ByDesk); }
     @{ await SlaTable("By ticket type", "Type", Model.ByType); }
     @{ await SlaTable("By priority", "Priority", Model.ByPriority); }
@@ -77,11 +101,14 @@
     @if (Model.OverdueOpen.Count == 0) { <tr><td colspan="5" class="empty">Nothing is overdue.</td></tr> }
     </tbody></table></div>
     @if (Model.OverdueNow > Model.OverdueOpen.Count) { <p class="muted">Showing the @Model.OverdueOpen.Count longest overdue of @Model.OverdueNow. <a asp-page="/Jobs" asp-route-view="overdue">See them all in the ticket list</a>.</p> }
+    </details>
 </section>
 
 <section class="panel" id="workload">
     <div class="panel-heading"><div><h2>Technician workload</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="workload" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ CSV</a> }@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="teams" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ Teams CSV</a> }<span class="badge">@Model.OpenNow open now</span></div></div>
     <p class="muted">Open tickets are counted now; closed tickets are those closed @Model.WhenText. Tickets no one has picked up are under Unassigned.</p>
+    <details class="report-detail">
+    <summary>Show the detail</summary>
     <div class="table-wrap"><table><thead><tr><th>Technician</th><th>Open</th><th>Incidents</th><th>Requests</th><th>Overdue</th><th>Oldest open</th><th>Closed in period</th><th>Average resolution</th></tr></thead><tbody>
     @foreach (var row in Model.Workload)
     {
@@ -102,10 +129,13 @@
     }
     @if (Model.Teams.Count == 0) { <tr><td colspan="5" class="empty">No teams have been set up.</td></tr> }
     </tbody></table></div>
+    </details>
 </section>
 
 <section class="panel" id="repeat">
     <div class="panel-heading"><div><h2>What keeps coming back</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="assets" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ Assets CSV</a> }@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="repeat-faults" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ Faults CSV</a> }@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Tickets" asp-page-handler="Export" asp-route-table="requesters" asp-route-period="@Model.PeriodKey" asp-route-type="@Model.Type" asp-route-desk="@Model.DeskName">⬇ Requesters CSV</a> }<span class="badge">@Model.PeriodLabel</span></div></div>
+    <details class="report-detail">
+    <summary>Show the detail</summary>
     <h3>Devices with repeat faults</h3>
     <p class="muted">The same device with tickets in the same category more than once. A first fix that did not hold, or a device that is on its way out.</p>
     <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Category</th><th>Tickets</th><th>First</th><th>Most recent</th></tr></thead><tbody>
@@ -144,4 +174,5 @@
     }
     @if (Model.Categories.Count == 0) { <tr><td colspan="@(Model.HasPreviousPeriod ? 5 : 3)" class="empty">No tickets in this period.</td></tr> }
     </tbody></table></div>
+    </details>
 </section>

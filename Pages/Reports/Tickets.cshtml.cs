@@ -54,6 +54,9 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<TicketReports.SlaRow> ByTechnician { get; private set; } = [];
     public IReadOnlyList<TicketRecord> OverdueOpen { get; private set; } = [];
     public IReadOnlyList<TicketReports.WorkloadRow> Workload { get; private set; } = [];
+    // The summary charts: tickets logged, and open, each week (or month) of the period.
+    public IReadOnlyList<TicketReports.TrendPoint> Trend { get; private set; } = [];
+    public string TrendStep => Trend.Count > 0 && Trend[0].Label.StartsWith("w/c") ? "week" : "month";
     public IReadOnlyList<TicketReports.TeamRow> Teams { get; private set; } = [];
     public IReadOnlyList<TicketReports.AssetRow> Assets { get; private set; } = [];
     public IReadOnlyList<TicketReports.RepeatFaultRow> RepeatFaults { get; private set; } = [];
@@ -152,6 +155,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         ByTechnician = TicketReports.SlaBy(cohort, t => t.TechnicianId is { } id && technicianNames.TryGetValue(id, out var name) ? name : "Unassigned", Now);
 
         Workload = TicketReports.Workload(all, technicians, Now, Since);
+        Trend = TicketReports.Trend(all, Since, Now);
         Teams = TicketReports.WorkloadByTeam(all, technicians, Now, Since);
 
         Assets = TicketReports.AssetsWithMostTickets(cohort, store.Assets, RowLimit);
