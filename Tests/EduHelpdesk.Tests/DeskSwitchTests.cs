@@ -165,4 +165,40 @@ public class DeskSwitchTests
         var admin = Principal(test.Store.Technicians.First(x => x.Role == StaffRoles.Administrator));
         Assert.All(DeskAreas.All, area => Assert.True(test.Store.AreaOn(admin, area.Key)));
     }
+
+    [Fact]
+    public void Log_a_ticket_offers_the_desks_being_worked_on_that_have_categories()
+    {
+        using var s = new Setup();
+        var admin = Principal(s.Admin);
+        var caretaker = Principal(s.Caretaker);
+        Assert.True(s.Store.AddDesk("Cleaning", "CLEAN", "").Ok);
+
+        // Site has no category yet, so there's nothing to log there.
+        Assert.True(s.Store.ChooseWorkingDesk(admin, HelpdeskStore.AllDesksChoice));
+        Assert.Equal(["IT"], s.Store.LoggingDesks(admin).Select(x => x.Name));
+        Assert.Equal("IT", s.Store.StartingDeskFor(admin, "Site")?.Name);
+
+        s.Store.AddTicketOption("Category", "Heating", s.Site.Id);
+        Assert.Equal(["IT", "Site"], s.Store.LoggingDesks(admin).Select(x => x.Name));
+        Assert.Equal("Site", s.Store.StartingDeskFor(admin, "Site")?.Name);
+
+        // One desk: that desk, which is also where New ticket starts when nothing is asked for.
+        Assert.True(s.Store.ChooseWorkingDesk(admin, "Site"));
+        Assert.Equal(["Site"], s.Store.LoggingDesks(admin).Select(x => x.Name));
+        Assert.Equal("Site", s.Store.StartingDeskFor(admin)?.Name);
+
+        // The caretaker can't start a ticket on a desk they can't see.
+        Assert.Equal(["Site"], s.Store.LoggingDesks(caretaker).Select(x => x.Name));
+        Assert.Equal("Site", s.Store.StartingDeskFor(caretaker, "IT")?.Name);
+    }
+
+    [Fact]
+    public void With_one_desk_log_a_ticket_is_as_it_was()
+    {
+        using var test = new TestStore();
+        var admin = Principal(test.Store.Technicians.First(x => x.Role == StaffRoles.Administrator));
+        Assert.Empty(test.Store.LoggingDesks(admin));
+        Assert.Equal("IT", test.Store.StartingDeskFor(admin)?.Name);
+    }
 }

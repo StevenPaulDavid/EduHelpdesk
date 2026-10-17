@@ -27,8 +27,9 @@ public class QuickLogModel(HelpdeskStore store) : PageModel
 
     public void OnGet()
     {
-        // Starts on the first category of their own first desk, with themselves as who dealt with it, now.
-        Category = store.DesksOf(User).FirstOrDefault() is { } mine ? store.CategoriesFor(mine.Id).FirstOrDefault() : CategoriesByDesk.FirstOrDefault().Categories?.FirstOrDefault();
+        // Starts on the first category of the desk being worked on (or their own first desk), with themselves as who
+        // dealt with it, now.
+        Category = store.StartingDeskFor(User) is { } starting ? store.CategoriesFor(starting.Id).FirstOrDefault() : CategoriesByDesk.FirstOrDefault().Categories?.FirstOrDefault();
         TechnicianId = Me;
         At = DateTime.Now;
     }

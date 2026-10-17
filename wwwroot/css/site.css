@@ -2561,3 +2561,15 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 }
 /* The Settings gear beside the help "?", the same round button. */
 .header-settings .ico { width: 17px; height: 17px; }
+
+/* Log a ticket as a menu of desks (several being worked on): the details takes the button's place in the bar, and
+   the summary keeps the button's look. */
+.header-job-menu { order: 2; margin-left: auto; }
+.header-job-menu > .header-job-button { margin-left: 0; color: #fff; }
+.header-job-menu > .header-job-button:hover { color: #fff; }
+.header-job-menu .nav-panel a { display: flex; align-items: center; gap: 9px; }
+.dash-desks { margin: 6px 0 0; font-size: 13px; }
+
+@media(max-width:980px) {
+    .header-job-menu { order: 1; margin-left: 0; }
+}

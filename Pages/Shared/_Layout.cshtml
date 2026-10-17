@@ -209,7 +209,28 @@
             </div>
         </details>
         </div>
-        @if (Can(Modules.Tickets, ModulePermission.New)) { <a class="button button-primary header-job-button" asp-page="/NewTicket" aria-label="Log a ticket">@Icons.Plus<span class="header-job-text"> Log a ticket</span></a> }
+        @* To the desk being worked on: "Log a Site ticket" opens New ticket on Site. On My desks or All desks, a menu of
+           those desks to pick from first. With one desk installed, as it always was. *@
+        @if (Can(Modules.Tickets, ModulePermission.New))
+        {
+            var loggingDesks = Helpdesk.LoggingDesks(User);
+            if (loggingDesks.Count > 1)
+            {
+                <details class="nav-menu header-job-menu">
+                    <summary class="button button-primary header-job-button" aria-label="Log a ticket">@Icons.Plus<span class="header-job-text"> Log a ticket</span><span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel nav-panel-right">
+                        @foreach (var desk in loggingDesks) { <a href="@Url.Page("/NewTicket", new { desk = desk.Name })"><span class="desk-dot" style="--desk-color:@DeskColor(desk)" aria-hidden="true"></span>@desk.Name</a> }
+                    </div>
+                </details>
+            }
+            else if (loggingDesks.Count == 1)
+            {
+                // "an IT ticket", "a Site ticket".
+                var logLabel = $"Log {("AEIOU".Contains(char.ToUpperInvariant(loggingDesks[0].Name[0])) ? "an" : "a")} {loggingDesks[0].Name} ticket";
+                <a class="button button-primary header-job-button" href="@Url.Page("/NewTicket", new { desk = loggingDesks[0].Name })" aria-label="@logLabel">@Icons.Plus<span class="header-job-text"> @logLabel</span></a>
+            }
+            else { <a class="button button-primary header-job-button" asp-page="/NewTicket" aria-label="Log a ticket">@Icons.Plus<span class="header-job-text"> Log a ticket</span></a> }
+        }
         @* Outside the site menu, so it stays in the bar on a phone. The list is drawn here so it opens at once (and works
            without JavaScript); wwwroot/js/notifications.js keeps the badge live and refreshes the list when it opens. *@
         @if (bell is not null)

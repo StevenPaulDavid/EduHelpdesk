@@ -44,6 +44,25 @@ public partial class HelpdeskStore
         return (working.Count == 0 ? Desks : working).Any(x => DeskUses(x, area));
     }
 
+    // The desks Log a ticket offers: those being worked on (every desk they can see on All desks) that have a category to
+    // log in. One is a plain "Log a Site ticket"; several, a menu. Empty with one desk installed.
+    public IReadOnlyList<Desk> LoggingDesks(ClaimsPrincipal user)
+    {
+        if (!HasSeveralDesks) return [];
+        var working = WorkingDesks(user);
+        return (working.Count == 0 ? DesksVisibleTo(user) : working).Where(x => CategoriesFor(x.Id).Count > 0).ToList();
+    }
+
+    // Where a ticket this person logs starts: the desk asked for (Log a ticket's ?desk=), the one desk being worked on,
+    // or their own first desk - whichever comes first with a category in it. Null to start on the first category.
+    public Desk? StartingDeskFor(ClaimsPrincipal user, string? asked = null)
+    {
+        bool HasCategories(Desk desk) => CategoriesFor(desk.Id).Count > 0;
+        if (FindDesk(asked) is { } desk && DesksVisibleTo(user).Any(x => x.Id == desk.Id) && HasCategories(desk)) return desk;
+        if (WorkingDesks(user) is [var one] && HasCategories(one)) return one;
+        return DesksOf(user).FirstOrDefault(HasCategories);
+    }
+
     // The blank choice in a page's own desk filter (the asset list and report), which follows the switcher.
     public string WorkingDeskOption(ClaimsPrincipal user) =>
         SwitcherFor(user) is { } switcher ? $"As the top bar: {switcher.Label}"
