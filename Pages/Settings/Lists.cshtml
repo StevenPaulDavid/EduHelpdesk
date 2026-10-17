@@ -1,13 +1,16 @@
 @page "{group?}"
 @model EduHelpdesk.Pages.Settings.OptionModel
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @{
     // Settings → Lists: the plain lists the dropdowns offer (SettingsMenu.Lists). Each group of them sits in its own
     // section of the settings menu - /Settings/Lists/assets is the asset, part and loan lists - with a tab per list
     // when there is more than one. The tab is ?kind=; the add, rename and delete forms are the shared option list's
     // (_Option, OptionModel), which post back to /Settings/Lists?kind=.
-    var current = SettingsMenu.FindList(Model.Kind) ?? SettingsMenu.Lists[0];
-    var group = SettingsMenu.FindListGroup(current.Group)!;
-    var tabs = SettingsMenu.Lists.Where(x => x.Group == group.Key).ToList();
+    var asked = SettingsMenu.FindList(Model.Kind) ?? SettingsMenu.Lists[0];
+    var group = SettingsMenu.FindListGroup(asked.Group)!;
+    // Less the lists of switched-off features (Services/Features.cs).
+    var tabs = SettingsMenu.ListsShown(Helpdesk, group.Key);
+    var current = tabs.Contains(asked) ? asked : tabs.FirstOrDefault() ?? asked;
     ViewData["Title"] = tabs.Count == 1 ? group.Title : $"{current.Title} - {group.Title}";
     ViewData["ListTitle"] = current.Title;
     ViewData["ListDescription"] = current.Description;
@@ -21,4 +24,12 @@
         @foreach (var item in tabs) { <a class="queue-tab @(item == current ? "active" : null)" href="@Url.Content("~" + SettingsMenu.ListUrl(item.Kind))" aria-current="@(item == current ? "page" : null)">@item.Title</a> }
     </nav>
 }
-<partial name="_Option" model="Model" />
+@if (!tabs.Contains(current))
+{
+    <section class="panel"><p class="muted">These lists belong to parts of the helpdesk that are switched off in <a asp-page="/Settings/Features">Features</a>.</p></section>
+}
+else
+{
+    Model.Kind = current.Kind;
+    <partial name="_Option" model="Model" />
+}

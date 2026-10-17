@@ -200,7 +200,12 @@ public class JobsModel(HelpdeskStore store) : PageModel
 
     // Onboarding tickets' checklists, for the Onboarding queue, "My tickets", and each row's IT progress.
     private IReadOnlyDictionary<int, OnboardingRecord>? _onboardings;
-    public IReadOnlyDictionary<int, OnboardingRecord> Onboardings => _onboardings ??= store.Onboardings.ToDictionary(x => x.TicketNumber);
+    // The parts of the list that belong to a feature the school can switch off (Services/Features.cs).
+    public bool ShowAssets => store.IsFeatureOn(Features.Assets);
+    public bool ShowOnboarding => store.IsFeatureOn(Features.Onboarding);
+    // None while onboarding is switched off (Services/Features.cs): they are listed and opened as ordinary tickets.
+    public IReadOnlyDictionary<int, OnboardingRecord> Onboardings => _onboardings ??=
+        store.IsFeatureOn(Features.Onboarding) ? store.Onboardings.ToDictionary(x => x.TicketNumber) : new Dictionary<int, OnboardingRecord>();
 
     private TicketListQuery BuildQuery() => new()
     {
@@ -218,6 +223,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     private void Prepare()
     {
         View = TicketListQuery.Views.Contains(View?.Trim().ToLowerInvariant()) ? View!.Trim().ToLowerInvariant() : "open";
+        if (View == "onboarding" && !ShowOnboarding) View = "open";
         var (defaultSort, defaultDescending) = TicketListQuery.DefaultSort(View);
         if (!TicketListQuery.SortColumns.Contains(Sort)) { Sort = defaultSort; Dir = defaultDescending ? "desc" : "asc"; }
         else Dir = string.Equals(Dir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";

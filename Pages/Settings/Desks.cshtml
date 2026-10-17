@@ -91,7 +91,7 @@
                     <form method="post" asp-page-handler="Areas" class="settings-form">
                         <input type="hidden" name="id" value="@desk.Id" />
                         <fieldset class="desk-choices"><legend>In the top bar <help-tip key="desk.areas" /></legend>
-                            @foreach (var area in DeskAreas.All)
+                            @foreach (var area in DeskAreas.All.Where(x => x.Feature is null || Model.FeatureOn(x.Feature)))
                             {
                                 <label class="toggle-label" title="@area.Description"><input type="checkbox" name="areas" value="@area.Key" checked="@HelpdeskStore.DeskUses(desk, area.Key)" /> @area.Label</label>
                             }

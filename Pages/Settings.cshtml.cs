@@ -113,6 +113,8 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/Imports"] = new("Technician accounts and option lists from CSV files."),
             ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
             ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
+            ["/Settings/Features"] = new(store.FeaturesOff.Count == 0 ? "Switch off the parts of the helpdesk your school doesn't use, such as assets or projects. Everything is on." : $"Switch off the parts of the helpdesk your school doesn't use. Off: {string.Join(", ", Features.All.Where(x => store.FeaturesOff.Contains(x.Key)).Select(x => x.Label.ToLowerInvariant()))}.",
+                store.FeaturesOff.Count == 0 ? null : $"{store.FeaturesOff.Count} off"),
             ["/Settings/Branding"] = new($"Name, colours, logo, overview wording, and the default appearance ({Themes.Label(store.Branding.DefaultAppearance).ToLowerInvariant()})."),
             ["/Settings/Backups"] = new(lastBackup + (DataSyncedBy is { } synced ? $" The data folder is inside {synced}." : ""), backupBadge,
                 backups.NeedsAttention(DateTime.UtcNow) || DataSyncedBy is not null || (backups.Enabled && sameDrive)),
@@ -132,9 +134,9 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
 
         foreach (var group in SettingsMenu.ListGroups)
         {
-            var count = SettingsMenu.Lists.Count(x => x.Group == group.Key);
+            var count = SettingsMenu.ListsShown(store, group.Key).Count;
             // A group of one list counts its values, like the other list cards; a group of several counts its lists.
-            var single = count == 1 ? SettingsMenu.Lists.First(x => x.Group == group.Key).Kind switch
+            var single = count == 1 ? SettingsMenu.ListsShown(store, group.Key)[0].Kind switch
             {
                 "Priorities" => store.Priorities.Count,
                 "PurchasingRequirements" => store.PurchasingRequirements.Count,
@@ -143,11 +145,12 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             details[SettingsMenu.ListPage(group.Key)] = new(group.Description, count > 1 ? $"{count} lists" : single?.ToString());
         }
 
-        Groups = SettingsMenu.Sections.Select(section => new Group(section.Title, section.Items.Select(item =>
+        // Less anything belonging to a switched-off feature, and a section left with nothing.
+        Groups = SettingsMenu.Sections.Select(section => new Group(section.Title, section.Items.Where(item => SettingsMenu.Shown(store, item)).Select(item =>
         {
             var detail = details.GetValueOrDefault(item.Page) ?? new Detail("");
             return new Card(item.Title, item.Page, detail.Description, item.Keywords, detail.Badge, detail.Warn,
                 Open: SettingsMenu.CanOpen(store, User, item), Info: item.Need == SettingsMenu.Need.Info, Good: detail.Good);
-        }).ToList())).ToList();
+        }).ToList())).Where(x => x.Cards.Count > 0).ToList();
     }
 }

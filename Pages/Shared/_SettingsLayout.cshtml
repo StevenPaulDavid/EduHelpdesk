@@ -7,7 +7,7 @@
     var path = Context.Request.Path.Value ?? "";
     var current = SettingsMenu.For(path, Context.Request.Query["kind"]);
     var sections = SettingsMenu.Sections
-        .Select(s => (s.Title, Items: s.Items.Where(i => i.Need != SettingsMenu.Need.Info && SettingsMenu.CanOpen(Helpdesk, User, i)).ToList()))
+        .Select(s => (s.Title, Items: s.Items.Where(i => i.Need != SettingsMenu.Need.Info && SettingsMenu.Shown(Helpdesk, i) && SettingsMenu.CanOpen(Helpdesk, User, i)).ToList()))
         .Where(s => s.Items.Count > 0)
         .ToList();
     var canSeeIndex = Helpdesk.UserCan(User, Modules.Settings, ModulePermission.Access);

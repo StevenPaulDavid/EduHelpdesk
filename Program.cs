@@ -343,6 +343,18 @@ if (requireHttps) app.UseHttpsRedirection();
 app.UseSecurityHeaders();
 
 app.UseRouting();
+// A switched-off feature's pages (Services/Features.cs) say so, rather than that the role can't open them - for the
+// staff portal's too, so this runs before the sign-in checks.
+app.Use(async (context, next) =>
+{
+    var off = context.RequestServices.GetRequiredService<HelpdeskStore>().FeaturesOff;
+    if (off.Count > 0 && Features.ForPath(context.Request.Path.Value ?? "", off) is { } feature)
+    {
+        context.Response.Redirect($"{context.Request.PathBase}/FeatureOff?feature={feature.Key}");
+        return;
+    }
+    await next();
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

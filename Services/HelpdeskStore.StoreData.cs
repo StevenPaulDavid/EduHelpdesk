@@ -143,6 +143,8 @@ public sealed partial class HelpdeskStore
         public string LastRetentionSummary { get; set; } = "";
         // Default minimum stock level for a part with no ReorderThreshold of its own.
         public int PartsDefaultReorderThreshold { get; set; } = 5;
+        // The features switched off in Settings → Features (Services/Features.cs). Empty: everything on.
+        public HashSet<string> FeaturesOff { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> Categories { get; set; } = [];
         public List<string> Statuses { get; set; } = [];
         public Dictionary<string, string> StatusDescriptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);

@@ -349,6 +349,8 @@ public sealed partial class HelpdeskStore
         data.RequesterNotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequesterNotificationsEnabled';") as string != "0";
         data.NotificationPrompt = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'NotificationPrompt';") as string != "0";
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PartsDefaultReorderThreshold';") as string, out var reorderThreshold)) data.PartsDefaultReorderThreshold = reorderThreshold;
+        if (ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'FeaturesOff';") is string featuresOff)
+            data.FeaturesOff = featuresOff.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(x => Features.Find(x) is not null).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatCount';") as string, out var loanCount)) data.LoanRepeatCount = loanCount;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LoanRepeatDays';") as string, out var loanDays) ) data.LoanRepeatDays = loanDays;
         // Stored as day numbers (0 = Sunday). Missing means a database from before the setting existed: Monday to Friday.
@@ -853,6 +855,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "RequesterNotificationsEnabled", data.RequesterNotificationsEnabled ? "1" : "0");
         SetMetadata(connection, transaction, "NotificationPrompt", data.NotificationPrompt ? "1" : "0");
         SetMetadata(connection, transaction, "PartsDefaultReorderThreshold", data.PartsDefaultReorderThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "FeaturesOff", string.Join(",", data.FeaturesOff.Order(StringComparer.OrdinalIgnoreCase)));
         foreach (var pair in data.AssetModelMakes.Where(x => data.AssetModels.Contains(x.Key, StringComparer.OrdinalIgnoreCase) && data.AssetMakes.Contains(x.Value, StringComparer.OrdinalIgnoreCase)))
             Execute(connection, transaction, "INSERT INTO AssetModelMakes (Model, Make) VALUES ($model,$make);", ("$model", pair.Key), ("$make", pair.Value));
         InsertStrings(connection, transaction, "Categories", data.Categories);

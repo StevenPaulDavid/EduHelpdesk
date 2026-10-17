@@ -60,7 +60,7 @@
     // The gear: the Settings index, or for someone who can't open it - a DPO given only the audit log, a site manager
     // given "Set up facilities" - the first settings page they can open, whose own menu lists the rest (_SettingsLayout).
     var settingsHref = Can(Modules.Settings) ? Url.Page("/Settings")
-        : SettingsMenu.Sections.SelectMany(x => x.Items).Where(x => x.Need != SettingsMenu.Need.Info && SettingsMenu.CanOpen(Helpdesk, User, x)).Select(x => Url.Content("~" + x.Page)).FirstOrDefault();
+        : SettingsMenu.Sections.SelectMany(x => x.Items).Where(x => x.Need != SettingsMenu.Need.Info && SettingsMenu.Shown(Helpdesk, x) && SettingsMenu.CanOpen(Helpdesk, User, x)).Select(x => Url.Content("~" + x.Page)).FirstOrDefault();
 
     // The desk switcher (HelpdeskStore.DeskSwitch): for whoever can see more than one desk. It goes back to the page it
     // was pressed on without that page's own ?desk=, so the page opens on the desk just chosen. Only a GET's query

@@ -18,6 +18,7 @@ public class DesksModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<Desk> OwnDesks => store.Desks.Where(x => !x.IsBuiltIn).ToList();
     public static string KindLabel(Desk desk) => desk.Kind == DeskKinds.It ? "Built in: IT" : desk.Kind == DeskKinds.Facilities ? "Built in: Facilities" : "";
     public CategoryStyle StyleFor(Desk desk) => store.StyleForDesk(desk);
+    public bool FeatureOn(string feature) => store.IsFeatureOn(feature);
     public IReadOnlyList<string> CategoriesOn(Desk desk) => store.CategoriesFor(desk.Id);
     public IReadOnlyList<string> TeamsOn(Desk desk) => store.TeamsFor(desk.Id);
     public int PeopleOn(Desk desk) => store.TechniciansOnDesk(desk.Id).Count(x => x.IsActive);

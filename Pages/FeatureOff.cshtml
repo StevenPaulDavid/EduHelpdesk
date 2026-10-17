@@ -1,0 +1,20 @@
+@page
+@model FeatureOffModel
+@{ ViewData["Title"] = "Not used here"; }
+<div class="signin-shell">
+    <div class="page-heading"><div><h1>Not used here</h1><p class="hero-copy">Your school has switched off @if (Model.Feature is { } off) { <strong>@off.Label.ToLowerInvariant()</strong> } else { <text>this part of the helpdesk</text> }, so this page isn't available.</p></div></div>
+    <section class="panel">
+        @if (Model.CanSwitchOn && Model.Feature is { } feature)
+        {
+            <p>It can be switched back on in <a asp-page="/Settings/Features" asp-fragment="@feature.Key">Settings → Features</a>, with everything it had.</p>
+        }
+        else if (Model.IsStaff)
+        {
+            <p>Ask an administrator if you think it should be on. <a asp-page="/Index">Go to the overview</a>.</p>
+        }
+        else
+        {
+            <p><a asp-page="/Portal/Index">Back to the staff portal</a>.</p>
+        }
+    </section>
+</div>

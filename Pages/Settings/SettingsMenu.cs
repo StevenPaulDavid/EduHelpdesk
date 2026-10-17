@@ -66,6 +66,7 @@ public static class SettingsMenu
         ]),
         new("System",
         [
+            new("Features", "/Settings/Features", "features switch off turn off disable enable modules assets loans kits parts projects onboarding compliance contracts access register cleaning rounds premises checks job costs spend simplify"),
             new("Branding & logo", "/Settings/Branding", "branding brand name colour color logo crest dark mode light appearance theme overview wording"),
             new("Imports", "/Settings/Imports", "import csv upload users technicians lists bulk spiceworks", Also: ["/Settings/SpiceworksImport"]),
             new("Backups & data", "/Settings/Backups", "backup restore data folder onedrive"),
@@ -86,7 +87,8 @@ public static class SettingsMenu
     // (Pages/Settings/Lists.cshtml), but each sits in the section it belongs to: the page at /Settings/Lists/<group>
     // shows that group's lists, a tab each. Lists with more to them (categories and teams on desks, statuses that pause
     // the clock, cleaners and budget codes for "Set up facilities") keep pages of their own.
-    public sealed record ListItem(string Kind, string Title, string Group, string Description);
+    // Feature: the switchable part of the helpdesk the list is for (Services/Features.cs), if any.
+    public sealed record ListItem(string Kind, string Title, string Group, string Description, string? Feature = null);
     public sealed record ListGroup(string Key, string Title, string Description);
 
     public static readonly IReadOnlyList<ListGroup> ListGroups =
@@ -101,23 +103,23 @@ public static class SettingsMenu
     public static readonly IReadOnlyList<ListItem> Lists =
     [
         new("Priorities", "Priorities", "tickets", "How urgent a ticket is."),
-        new("AssetMakes", "Asset makes", "assets", "Manufacturers."),
-        new("AssetStatuses", "Asset statuses", "assets", "Where an asset is in its life."),
-        new("AssetConditions", "Asset conditions", "assets", "The condition column of the DfE asset register."),
-        new("PartCategories", "Part categories", "assets", "How parts are grouped."),
-        new("PartLocations", "Part locations", "assets", "Where parts are kept."),
-        new("LoanReasons", "Loan reasons", "assets", "Why a device was borrowed."),
+        new("AssetMakes", "Asset makes", "assets", "Manufacturers.", Features.Assets),
+        new("AssetStatuses", "Asset statuses", "assets", "Where an asset is in its life.", Features.Assets),
+        new("AssetConditions", "Asset conditions", "assets", "The condition column of the DfE asset register.", Features.Assets),
+        new("PartCategories", "Part categories", "assets", "How parts are grouped.", Features.Parts),
+        new("PartLocations", "Part locations", "assets", "Where parts are kept.", Features.Parts),
+        new("LoanReasons", "Loan reasons", "assets", "Why a device was borrowed.", Features.Loans),
         new("Departments", "Departments", "places", "Requesters' departments."),
         new("Buildings", "Buildings", "places", "Buildings or sites, recorded with the room on each asset."),
         new("Locations", "Locations (rooms)", "places", "Rooms and areas, for tickets, assets, people and cleaning rounds."),
-        new("PurchasingRequirements", "Purchasing requirements", "projects", "Tick boxes offered when a project is requested."),
-        new("ContractTypes", "Contract types", "compliance", "What kind of contract each is: licence, subscription, lease."),
-        new("SpendCategories", "Spend categories", "compliance", "The DfE spend categories contracts are grouped under."),
-        new("ContractDurations", "Contract durations", "compliance", "How long contracts run for."),
-        new("ContractStatuses", "Contract statuses", "compliance", "Where a contract is. Expired takes it out of the warnings."),
-        new("PersonTypes", "Person types", "compliance", "Staff, pupils, governors, contractors and service accounts, for the access register."),
-        new("AccessCategories", "System and area categories", "compliance", "How systems and areas are grouped on the access register."),
-        new("RevokeReasons", "Reasons for removing access", "compliance", "Why access was taken away: leaver, changed role, removed at review."),
+        new("PurchasingRequirements", "Purchasing requirements", "projects", "Tick boxes offered when a project is requested.", Features.Projects),
+        new("ContractTypes", "Contract types", "compliance", "What kind of contract each is: licence, subscription, lease.", Features.Compliance),
+        new("SpendCategories", "Spend categories", "compliance", "The DfE spend categories contracts are grouped under.", Features.Compliance),
+        new("ContractDurations", "Contract durations", "compliance", "How long contracts run for.", Features.Compliance),
+        new("ContractStatuses", "Contract statuses", "compliance", "Where a contract is. Expired takes it out of the warnings.", Features.Compliance),
+        new("PersonTypes", "Person types", "compliance", "Staff, pupils, governors, contractors and service accounts, for the access register.", Features.Compliance),
+        new("AccessCategories", "System and area categories", "compliance", "How systems and areas are grouped on the access register.", Features.Compliance),
+        new("RevokeReasons", "Reasons for removing access", "compliance", "Why access was taken away: leaver, changed role, removed at review.", Features.Compliance),
     ];
 
     public static string ListPage(string group) => "/Settings/Lists/" + group;
@@ -125,6 +127,24 @@ public static class SettingsMenu
     public static ListGroup? FindListGroup(string? key) => ListGroups.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
     // Where a list is edited: /Settings/Lists/assets?kind=LoanReasons.
     public static string ListUrl(string kind) => FindList(kind) is { } list ? $"{ListPage(list.Group)}?kind={list.Kind}" : "/Settings/Lists";
+
+    // Whether the entry is there at all: not while the feature it belongs to is switched off (Services/Features.cs). The
+    // asset, part and loan rules stay while any of the three is on, and a group of lists while any of its lists' is.
+    public static bool Shown(HelpdeskStore store, Item item)
+    {
+        var off = store.FeaturesOff;
+        if (off.Count == 0) return true;
+        if (item.Page == "/Settings/InventoryRules") return new[] { Features.Assets, Features.Parts, Features.Loans }.Any(x => !off.Contains(x));
+        if (ListGroups.FirstOrDefault(g => item.Page == ListPage(g.Key)) is { } group) return ListsShown(store, group.Key).Count > 0;
+        return Features.ForPath(item.Page, off) is null;
+    }
+
+    // A group's lists, less those of switched-off features.
+    public static IReadOnlyList<ListItem> ListsShown(HelpdeskStore store, string group)
+    {
+        var off = store.FeaturesOff;
+        return Lists.Where(x => x.Group == group && (x.Feature is null || !off.Contains(x.Feature))).ToList();
+    }
 
     public static bool CanOpen(HelpdeskStore store, ClaimsPrincipal user, Item item) => item.Need switch
     {
