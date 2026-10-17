@@ -22,33 +22,36 @@ public sealed partial class HelpdeskStore
     }
     public string UpdateTechnicianTeam(string currentTeam, string team)
     {
-        lock (_sync)
-        {
-            var oldValue = currentTeam.Trim();
-            var newValue = team.Trim();
-            if (string.IsNullOrWhiteSpace(newValue)) return "Team name is required.";
-            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase))
-                return "Technician team updated.";
-            if (_data.TechnicianTeams.Contains(newValue, StringComparer.OrdinalIgnoreCase))
-                return "That team already exists.";
-            var index = _data.TechnicianTeams.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) return "Technician team was not found.";
-            _data.TechnicianTeams[index] = newValue;
-            RenameKey(_data.TeamDesks, oldValue, newValue);
-            for (var i = 0; i < _data.Technicians.Count; i++)
-            {
-                if (string.Equals(_data.Technicians[i].Team, oldValue, StringComparison.OrdinalIgnoreCase))
-                    _data.Technicians[i] = _data.Technicians[i] with { Team = newValue };
-            }
-            for (var i = 0; i < _data.Tickets.Count; i++)
-            {
-                if (string.Equals(_data.Tickets[i].TeamName, oldValue, StringComparison.OrdinalIgnoreCase))
-                    _data.Tickets[i] = _data.Tickets[i] with { TeamName = newValue };
-            }
-            RenameInRecurringTickets("Team", oldValue, newValue);
-            Save();
+        lock (_sync) return RenameTeamCore(currentTeam, team, merge: false);
+    }
+    // Renames a team everywhere it is used - or, merging, moves everything on it to a team that already exists and
+    // takes it off the list (MergeOption). Called with the lock held.
+    private string RenameTeamCore(string currentTeam, string team, bool merge)
+    {
+        var oldValue = currentTeam.Trim();
+        var newValue = team.Trim();
+        if (string.IsNullOrWhiteSpace(newValue)) return "Team name is required.";
+        if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase))
             return "Technician team updated.";
+        if (!merge && _data.TechnicianTeams.Contains(newValue, StringComparer.OrdinalIgnoreCase))
+            return "That team already exists.";
+        var index = _data.TechnicianTeams.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return "Technician team was not found.";
+        if (merge) _data.TechnicianTeams.RemoveAt(index); else _data.TechnicianTeams[index] = newValue;
+        MoveKey(_data.TeamDesks, oldValue, newValue, merge);
+        for (var i = 0; i < _data.Technicians.Count; i++)
+        {
+            if (string.Equals(_data.Technicians[i].Team, oldValue, StringComparison.OrdinalIgnoreCase))
+                _data.Technicians[i] = _data.Technicians[i] with { Team = newValue };
         }
+        for (var i = 0; i < _data.Tickets.Count; i++)
+        {
+            if (string.Equals(_data.Tickets[i].TeamName, oldValue, StringComparison.OrdinalIgnoreCase))
+                _data.Tickets[i] = _data.Tickets[i] with { TeamName = newValue };
+        }
+        RenameInRecurringTickets("Team", oldValue, newValue);
+        Save();
+        return "Technician team updated.";
     }
     public string DeleteTechnicianTeam(string team)
     {
@@ -88,121 +91,129 @@ public sealed partial class HelpdeskStore
     }
     public string UpdateManagedOption(string kind, string currentValue, string value)
     {
-        lock (_sync)
-        {
-            kind = NormalizeManagedOptionKind(kind);
-            if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
-            // Renaming a team here used to change only the list, leaving its technicians and tickets on the old name.
-            if (kind == "Team") return UpdateTechnicianTeam(currentValue, value);
-            var options = GetManagedOptions(kind);
-            var oldValue = currentValue.Trim();
-            var newValue = value.Trim();
-            if (string.IsNullOrWhiteSpace(newValue)) return $"{kind} name is required.";
-            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return $"{kind} updated.";
-            if (options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
-            var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) return $"{kind} was not found.";
-            if (IsProtectedContractStatus(kind, oldValue)) return ProtectedContractStatusMessage;
-            options[index] = newValue;
-            if (kind == "Person type")
-                for (var i = 0; i < _data.Users.Count; i++)
-                    if (string.Equals(_data.Users[i].PersonType, oldValue, StringComparison.OrdinalIgnoreCase)) _data.Users[i] = _data.Users[i] with { PersonType = newValue };
-            if (kind == "Access category")
-                for (var i = 0; i < _data.AccessResources.Count; i++)
-                    if (string.Equals(_data.AccessResources[i].Category, oldValue, StringComparison.OrdinalIgnoreCase)) _data.AccessResources[i] = _data.AccessResources[i] with { Category = newValue };
-            if (kind == "Revoke reason")
-                for (var i = 0; i < _data.AccessGrants.Count; i++)
-                    if (string.Equals(_data.AccessGrants[i].RevokeReason, oldValue, StringComparison.OrdinalIgnoreCase)) _data.AccessGrants[i] = _data.AccessGrants[i] with { RevokeReason = newValue };
-            for (var i = 0; i < _data.Contracts.Count; i++)
-            {
-                var contract = _data.Contracts[i];
-                _data.Contracts[i] = kind switch
-                {
-                    "Contract type" when string.Equals(contract.ContractType, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { ContractType = newValue },
-                    "Spend category" when string.Equals(contract.SpendCategory, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { SpendCategory = newValue },
-                    "Contract duration" when string.Equals(contract.Duration, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { Duration = newValue },
-                    "Contract status" when string.Equals(contract.Status, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { Status = newValue },
-                    _ => contract
-                };
-            }
+        lock (_sync) return RenameManagedOptionCore(kind, currentValue, value, merge: false);
+    }
+    // Renames a value everywhere it is used - or, merging, moves everything on it to a value already on the list and
+    // takes it off (MergeOption). Called with the lock held.
+    private string RenameManagedOptionCore(string kind, string currentValue, string value, bool merge)
+    {
+        kind = NormalizeManagedOptionKind(kind);
+        if (!IsManagedOptionKind(kind)) return "Invalid managed option.";
+        // Renaming a team here used to change only the list, leaving its technicians and tickets on the old name.
+        if (kind == "Team") return RenameTeamCore(currentValue, value, merge);
+        var options = GetManagedOptions(kind);
+        var oldValue = currentValue.Trim();
+        var newValue = value.Trim();
+        if (string.IsNullOrWhiteSpace(newValue)) return $"{kind} name is required.";
+        if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return $"{kind} updated.";
+        if (!merge && options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
+        var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return $"{kind} was not found.";
+        if (IsProtectedContractStatus(kind, oldValue)) return ProtectedContractStatusMessage;
+        if (merge) options.RemoveAt(index); else options[index] = newValue;
+        if (kind == "Person type")
             for (var i = 0; i < _data.Users.Count; i++)
+                if (string.Equals(_data.Users[i].PersonType, oldValue, StringComparison.OrdinalIgnoreCase)) _data.Users[i] = _data.Users[i] with { PersonType = newValue };
+        if (kind == "Access category")
+            for (var i = 0; i < _data.AccessResources.Count; i++)
+                if (string.Equals(_data.AccessResources[i].Category, oldValue, StringComparison.OrdinalIgnoreCase)) _data.AccessResources[i] = _data.AccessResources[i] with { Category = newValue };
+        if (kind == "Revoke reason")
+            for (var i = 0; i < _data.AccessGrants.Count; i++)
+                if (string.Equals(_data.AccessGrants[i].RevokeReason, oldValue, StringComparison.OrdinalIgnoreCase)) _data.AccessGrants[i] = _data.AccessGrants[i] with { RevokeReason = newValue };
+        for (var i = 0; i < _data.Contracts.Count; i++)
+        {
+            var contract = _data.Contracts[i];
+            _data.Contracts[i] = kind switch
             {
-                if (kind == "Location" && string.Equals(_data.Users[i].Location, oldValue, StringComparison.OrdinalIgnoreCase))
-                    _data.Users[i] = _data.Users[i] with { Location = newValue };
-                if (kind == "Department" && string.Equals(_data.Users[i].Department, oldValue, StringComparison.OrdinalIgnoreCase))
-                    _data.Users[i] = _data.Users[i] with { Department = newValue };
-            }
-            if (kind == "Location") RenameInRecurringTickets("Location", oldValue, newValue);
-            if (kind == "Location") RenameInRounds(oldValue, newValue);
-            if (kind == "Cleaner") RenameCleaner(oldValue, newValue);
-            for (var i = 0; i < _data.Assets.Count; i++)
-            {
-                var asset = _data.Assets[i];
-                _data.Assets[i] = kind switch
-                {
-                    "Location" when string.Equals(asset.Location, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Location = newValue },
-                    "Asset make" when string.Equals(asset.Make, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Make = newValue },
-                    "Asset type" when string.Equals(asset.Type, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Type = newValue },
-                    "Asset model" when string.Equals(asset.Model, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Model = newValue },
-                    "Asset status" when string.Equals(asset.Status, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Status = newValue },
-                    "Building" when string.Equals(asset.Building, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Building = newValue },
-                    "Asset condition" when string.Equals(asset.Condition, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Condition = newValue },
-                    _ => asset
-                };
-            }
-            if (kind == "Asset type")
-            {
-                for (var i = 0; i < _data.AssetAttributeDefinitions.Count; i++)
-                    _data.AssetAttributeDefinitions[i] = _data.AssetAttributeDefinitions[i] with { AssetTypes = RenameInScope(_data.AssetAttributeDefinitions[i].AssetTypes, oldValue, newValue) };
-                for (var i = 0; i < _data.Parts.Count; i++)
-                    _data.Parts[i] = _data.Parts[i] with { AssetTypes = RenameInScope(_data.Parts[i].AssetTypes, oldValue, newValue) };
-            }
-            if (kind == "Asset model" && _data.AssetModelMakes.Remove(oldValue, out var linkedMake))
-                _data.AssetModelMakes[newValue] = linkedMake;
-            if (kind == "Asset type" && _data.AssetTypeLifespans.Remove(oldValue, out var lifespan))
-                _data.AssetTypeLifespans[newValue] = lifespan;
-            if (kind == "Asset type")
-            {
-                // Its desk, and the checklists that list every asset of it (HelpdeskStore.Checks), follow the new name.
-                RenameKey(_data.AssetTypeDesks, oldValue, newValue);
-                for (var i = 0; i < _data.RecurringTickets.Count; i++)
-                    if (_data.RecurringTickets[i].Checklist.Any(x => string.Equals(x.AssetType, oldValue, StringComparison.OrdinalIgnoreCase)))
-                        _data.RecurringTickets[i] = _data.RecurringTickets[i] with { Checklist = _data.RecurringTickets[i].Checklist.Select(x => string.Equals(x.AssetType, oldValue, StringComparison.OrdinalIgnoreCase) ? x with { AssetType = newValue } : x).ToList() };
-            }
-            if (kind == "Asset make")
-            {
-                foreach (var model in _data.AssetModelMakes.Where(x => string.Equals(x.Value, oldValue, StringComparison.OrdinalIgnoreCase)).Select(x => x.Key).ToList())
-                    _data.AssetModelMakes[model] = newValue;
-            }
-            for (var i = 0; i < _data.Parts.Count; i++)
-            {
-                var part = _data.Parts[i];
-                _data.Parts[i] = kind switch
-                {
-                    "Part category" when string.Equals(part.Category, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Category = newValue },
-                    "Part location" when string.Equals(part.Location, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Location = newValue },
-                    _ => part
-                };
-            }
-            if (kind == "Purchasing requirement")
-            {
-                for (var i = 0; i < _data.Projects.Count; i++)
-                    if (_data.Projects[i].PurchasingRequirements.Contains(oldValue, StringComparer.OrdinalIgnoreCase))
-                        _data.Projects[i] = _data.Projects[i] with { PurchasingRequirements = RenameInScope(_data.Projects[i].PurchasingRequirements, oldValue, newValue) };
-            }
-            if (kind == "Budget code")
-                for (var i = 0; i < _data.TicketCosts.Count; i++)
-                    if (string.Equals(_data.TicketCosts[i].BudgetCode, oldValue, StringComparison.OrdinalIgnoreCase))
-                        _data.TicketCosts[i] = _data.TicketCosts[i] with { BudgetCode = newValue };
-            if (kind == "Loan reason")
-            {
-                for (var i = 0; i < _data.KitLoans.Count; i++)
-                    if (string.Equals(_data.KitLoans[i].Reason, oldValue, StringComparison.OrdinalIgnoreCase))
-                        _data.KitLoans[i] = _data.KitLoans[i] with { Reason = newValue };
-            }
-            Save();
-            return $"{kind} updated.";
+                "Contract type" when string.Equals(contract.ContractType, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { ContractType = newValue },
+                "Spend category" when string.Equals(contract.SpendCategory, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { SpendCategory = newValue },
+                "Contract duration" when string.Equals(contract.Duration, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { Duration = newValue },
+                "Contract status" when string.Equals(contract.Status, oldValue, StringComparison.OrdinalIgnoreCase) => contract with { Status = newValue },
+                _ => contract
+            };
         }
+        for (var i = 0; i < _data.Users.Count; i++)
+        {
+            if (kind == "Location" && string.Equals(_data.Users[i].Location, oldValue, StringComparison.OrdinalIgnoreCase))
+                _data.Users[i] = _data.Users[i] with { Location = newValue };
+            if (kind == "Department" && string.Equals(_data.Users[i].Department, oldValue, StringComparison.OrdinalIgnoreCase))
+                _data.Users[i] = _data.Users[i] with { Department = newValue };
+        }
+        // Tickets keep their room as text, and filter and report on it, so they follow too.
+        if (kind == "Location")
+            for (var i = 0; i < _data.Tickets.Count; i++)
+                if (string.Equals(_data.Tickets[i].Location, oldValue, StringComparison.OrdinalIgnoreCase)) _data.Tickets[i] = _data.Tickets[i] with { Location = newValue };
+        if (kind == "Location") RenameInRecurringTickets("Location", oldValue, newValue);
+        if (kind == "Location") RenameInRounds(oldValue, newValue);
+        if (kind == "Cleaner") RenameCleaner(oldValue, newValue);
+        for (var i = 0; i < _data.Assets.Count; i++)
+        {
+            var asset = _data.Assets[i];
+            _data.Assets[i] = kind switch
+            {
+                "Location" when string.Equals(asset.Location, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Location = newValue },
+                "Asset make" when string.Equals(asset.Make, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Make = newValue },
+                "Asset type" when string.Equals(asset.Type, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Type = newValue },
+                "Asset model" when string.Equals(asset.Model, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Model = newValue },
+                "Asset status" when string.Equals(asset.Status, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Status = newValue },
+                "Building" when string.Equals(asset.Building, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Building = newValue },
+                "Asset condition" when string.Equals(asset.Condition, oldValue, StringComparison.OrdinalIgnoreCase) => asset with { Condition = newValue },
+                _ => asset
+            };
+        }
+        if (kind == "Asset type")
+        {
+            for (var i = 0; i < _data.AssetAttributeDefinitions.Count; i++)
+                _data.AssetAttributeDefinitions[i] = _data.AssetAttributeDefinitions[i] with { AssetTypes = RenameInScope(_data.AssetAttributeDefinitions[i].AssetTypes, oldValue, newValue) };
+            for (var i = 0; i < _data.Parts.Count; i++)
+                _data.Parts[i] = _data.Parts[i] with { AssetTypes = RenameInScope(_data.Parts[i].AssetTypes, oldValue, newValue) };
+        }
+        // Merging, the value moved to keeps its own make and lifespan.
+        if (kind == "Asset model" && _data.AssetModelMakes.Remove(oldValue, out var linkedMake) && !merge)
+            _data.AssetModelMakes[newValue] = linkedMake;
+        if (kind == "Asset type" && _data.AssetTypeLifespans.Remove(oldValue, out var lifespan) && !merge)
+            _data.AssetTypeLifespans[newValue] = lifespan;
+        if (kind == "Asset type")
+        {
+            // Its desk, and the checklists that list every asset of it (HelpdeskStore.Checks), follow the new name.
+            MoveKey(_data.AssetTypeDesks, oldValue, newValue, merge);
+            for (var i = 0; i < _data.RecurringTickets.Count; i++)
+                if (_data.RecurringTickets[i].Checklist.Any(x => string.Equals(x.AssetType, oldValue, StringComparison.OrdinalIgnoreCase)))
+                    _data.RecurringTickets[i] = _data.RecurringTickets[i] with { Checklist = _data.RecurringTickets[i].Checklist.Select(x => string.Equals(x.AssetType, oldValue, StringComparison.OrdinalIgnoreCase) ? x with { AssetType = newValue } : x).ToList() };
+        }
+        if (kind == "Asset make")
+        {
+            foreach (var model in _data.AssetModelMakes.Where(x => string.Equals(x.Value, oldValue, StringComparison.OrdinalIgnoreCase)).Select(x => x.Key).ToList())
+                _data.AssetModelMakes[model] = newValue;
+        }
+        for (var i = 0; i < _data.Parts.Count; i++)
+        {
+            var part = _data.Parts[i];
+            _data.Parts[i] = kind switch
+            {
+                "Part category" when string.Equals(part.Category, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Category = newValue },
+                "Part location" when string.Equals(part.Location, oldValue, StringComparison.OrdinalIgnoreCase) => part with { Location = newValue },
+                _ => part
+            };
+        }
+        if (kind == "Purchasing requirement")
+        {
+            for (var i = 0; i < _data.Projects.Count; i++)
+                if (_data.Projects[i].PurchasingRequirements.Contains(oldValue, StringComparer.OrdinalIgnoreCase))
+                    _data.Projects[i] = _data.Projects[i] with { PurchasingRequirements = RenameInScope(_data.Projects[i].PurchasingRequirements, oldValue, newValue) };
+        }
+        if (kind == "Budget code")
+            for (var i = 0; i < _data.TicketCosts.Count; i++)
+                if (string.Equals(_data.TicketCosts[i].BudgetCode, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.TicketCosts[i] = _data.TicketCosts[i] with { BudgetCode = newValue };
+        if (kind == "Loan reason")
+        {
+            for (var i = 0; i < _data.KitLoans.Count; i++)
+                if (string.Equals(_data.KitLoans[i].Reason, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.KitLoans[i] = _data.KitLoans[i] with { Reason = newValue };
+        }
+        Save();
+        return $"{kind} updated.";
     }
     public string DeleteManagedOption(string kind, string value)
     {
@@ -455,65 +466,65 @@ public sealed partial class HelpdeskStore
     }
     public string UpdateTicketOption(string kind, string currentValue, string value)
     {
-        lock (_sync)
+        lock (_sync) return RenameTicketOptionCore(kind, currentValue, value, merge: false);
+    }
+    // Renames a category, status or priority everywhere it is used - or, merging, moves everything on it to one already
+    // on the list and takes it off (MergeOption), the one moved to keeping its own settings. Called with the lock held.
+    private string RenameTicketOptionCore(string kind, string currentValue, string value, bool merge)
+    {
+        if (!IsTicketOptionKind(kind)) return "Invalid ticket option.";
+        var options = GetOptions(kind);
+        var oldValue = currentValue.Trim();
+        var newValue = value.Trim();
+        if (string.IsNullOrWhiteSpace(newValue)) return $"{kind} name is required.";
+        if (kind == "Status" && IsBuiltInStatus(oldValue)) return BuiltInStatusMessage;
+        if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return $"{kind} updated.";
+        if (!merge && options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
+        var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return $"{kind} was not found.";
+        if (merge) options.RemoveAt(index); else options[index] = newValue;
+        if (kind == "Category") MoveKey(_data.CategoryDesks, oldValue, newValue, merge);
+        if (kind == "Status") MoveKey(_data.StatusDesks, oldValue, newValue, merge);
+        if (kind == "Status" && _data.StatusDescriptions.Remove(oldValue, out var existingDescription) && !merge)
+            _data.StatusDescriptions[newValue] = existingDescription;
+        if (kind == "Status" && _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase)) > 0 && !merge)
+            _data.SlaPauseStatuses.Add(newValue);
+        if (kind == "Priority")
         {
-            if (!IsTicketOptionKind(kind)) return "Invalid ticket option.";
-            var options = GetOptions(kind);
-            var oldValue = currentValue.Trim();
-            var newValue = value.Trim();
-            if (string.IsNullOrWhiteSpace(newValue)) return $"{kind} name is required.";
-            if (kind == "Status" && IsBuiltInStatus(oldValue)) return BuiltInStatusMessage;
-            if (string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase)) return $"{kind} updated.";
-            if (options.Contains(newValue, StringComparer.OrdinalIgnoreCase)) return $"That {kind.ToLowerInvariant()} already exists.";
-            var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) return $"{kind} was not found.";
-            options[index] = newValue;
-            if (kind == "Category") RenameKey(_data.CategoryDesks, oldValue, newValue);
-            if (kind == "Status") RenameKey(_data.StatusDesks, oldValue, newValue);
-            if (kind == "Status" && _data.StatusDescriptions.Remove(oldValue, out var existingDescription))
-                _data.StatusDescriptions[newValue] = existingDescription;
-            if (kind == "Status" && _data.SlaPauseStatuses.RemoveAll(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase)) > 0)
-                _data.SlaPauseStatuses.Add(newValue);
-            if (kind == "Priority")
-            {
-                var priorityIndex = _data.RequireCloseMessagePriorities.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-                if (priorityIndex >= 0) _data.RequireCloseMessagePriorities[priorityIndex] = newValue;
-                var pingIndex = _data.TechnicianPingPriorities.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-                if (pingIndex >= 0) _data.TechnicianPingPriorities[pingIndex] = newValue;
-                for (var i = 0; i < _data.ServiceItems.Count; i++)
-                    if (string.Equals(_data.ServiceItems[i].DefaultPriority, oldValue, StringComparison.OrdinalIgnoreCase))
-                        _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = newValue };
-            }
-            if (kind == "Category")
-            {
-                var categoryIndex = _data.RequireCloseMessageCategories.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
-                if (categoryIndex >= 0) _data.RequireCloseMessageCategories[categoryIndex] = newValue;
-                for (var i = 0; i < _data.ServiceItems.Count; i++)
-                    if (string.Equals(_data.ServiceItems[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
-                        _data.ServiceItems[i] = _data.ServiceItems[i] with { Category = newValue };
-                if (_data.CategoryStyles.Remove(oldValue, out var tileStyle)) _data.CategoryStyles[newValue] = tileStyle;
-                // Templates too: one ticked for the portal would otherwise lose its category and drop off the buttons.
-                for (var i = 0; i < _data.TicketTemplates.Count; i++)
-                    if (string.Equals(_data.TicketTemplates[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
-                        _data.TicketTemplates[i] = _data.TicketTemplates[i] with { Category = newValue };
-                for (var i = 0; i < _data.TicketAttributeDefinitions.Count; i++)
-                    _data.TicketAttributeDefinitions[i] = _data.TicketAttributeDefinitions[i] with { Categories = RenameInScope(_data.TicketAttributeDefinitions[i].Categories, oldValue, newValue) };
-            }
-            for (var i = 0; i < _data.Tickets.Count; i++)
-            {
-                var ticket = _data.Tickets[i];
-                _data.Tickets[i] = kind switch
-                {
-                    "Category" when string.Equals(ticket.Category, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Category = newValue },
-                    "Status" when string.Equals(ticket.Status, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Status = newValue },
-                    "Priority" when string.Equals(ticket.Priority, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Priority = newValue },
-                    _ => ticket
-                };
-            }
-            RenameInRecurringTickets(kind, oldValue, newValue);
-            Save();
-            return $"{kind} updated.";
+            RenameInList(_data.RequireCloseMessagePriorities, oldValue, newValue, merge);
+            RenameInList(_data.TechnicianPingPriorities, oldValue, newValue, merge);
+            for (var i = 0; i < _data.ServiceItems.Count; i++)
+                if (string.Equals(_data.ServiceItems[i].DefaultPriority, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.ServiceItems[i] = _data.ServiceItems[i] with { DefaultPriority = newValue };
         }
+        if (kind == "Category")
+        {
+            RenameInList(_data.RequireCloseMessageCategories, oldValue, newValue, merge);
+            for (var i = 0; i < _data.ServiceItems.Count; i++)
+                if (string.Equals(_data.ServiceItems[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.ServiceItems[i] = _data.ServiceItems[i] with { Category = newValue };
+            if (_data.CategoryStyles.Remove(oldValue, out var tileStyle) && !merge) _data.CategoryStyles[newValue] = tileStyle;
+            // Templates too: one ticked for the portal would otherwise lose its category and drop off the buttons.
+            for (var i = 0; i < _data.TicketTemplates.Count; i++)
+                if (string.Equals(_data.TicketTemplates[i].Category, oldValue, StringComparison.OrdinalIgnoreCase))
+                    _data.TicketTemplates[i] = _data.TicketTemplates[i] with { Category = newValue };
+            for (var i = 0; i < _data.TicketAttributeDefinitions.Count; i++)
+                _data.TicketAttributeDefinitions[i] = _data.TicketAttributeDefinitions[i] with { Categories = RenameInScope(_data.TicketAttributeDefinitions[i].Categories, oldValue, newValue) };
+        }
+        for (var i = 0; i < _data.Tickets.Count; i++)
+        {
+            var ticket = _data.Tickets[i];
+            _data.Tickets[i] = kind switch
+            {
+                "Category" when string.Equals(ticket.Category, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Category = newValue },
+                "Status" when string.Equals(ticket.Status, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Status = newValue },
+                "Priority" when string.Equals(ticket.Priority, oldValue, StringComparison.OrdinalIgnoreCase) => ticket with { Priority = newValue },
+                _ => ticket
+            };
+        }
+        RenameInRecurringTickets(kind, oldValue, newValue);
+        Save();
+        return $"{kind} updated.";
     }
     public string DeleteTicketOption(string kind, string value)
     {
@@ -793,8 +804,24 @@ public sealed partial class HelpdeskStore
     private static bool ScopesOverlap(List<string> first, List<string> second) =>
         first.Count == 0 || second.Count == 0 || first.Intersect(second, StringComparer.OrdinalIgnoreCase).Any();
 
+    // Distinct, since after a merge the value moved to may already have been in the scope.
     private static List<string> RenameInScope(List<string> scope, string oldValue, string newValue) =>
-        scope.Select(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase) ? newValue : x).ToList();
+        scope.Select(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase) ? newValue : x).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    // A setting kept as a list of values (the priorities that ping, say): renaming carries it to the new name; merging
+    // drops the old one's, so the value moved to keeps its own.
+    private static void RenameInList(List<string> list, string oldValue, string newValue, bool merge)
+    {
+        var index = list.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return;
+        if (merge || list.Contains(newValue, StringComparer.OrdinalIgnoreCase)) list.RemoveAt(index); else list[index] = newValue;
+    }
+
+    // A value's desk: renaming carries it to the new name; merging drops it, the value moved to keeping its own.
+    private static void MoveKey(Dictionary<string, Guid> map, string oldValue, string newValue, bool merge)
+    {
+        if (merge) map.Remove(oldValue); else RenameKey(map, oldValue, newValue);
+    }
 
     private static string DuplicateAttributeMessage(List<string> scope, string noun) =>
         scope.Count == 0 ? "That attribute name is already in use." : $"That attribute already exists for one of the selected {noun}.";

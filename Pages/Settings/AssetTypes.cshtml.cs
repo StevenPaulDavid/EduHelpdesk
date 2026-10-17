@@ -19,7 +19,9 @@ public class AssetTypesModel(HelpdeskStore store) : PageModel
     });
     public IActionResult OnPostDesk(string value, Guid deskId) { TempData["Message"] = store.SetAssetTypeDesk(value, deskId).Message; return RedirectToPage(); }
     public IActionResult OnPostSave(string currentValue, string value, string? lifespan) => Respond(() => store.UpdateAssetType(currentValue, value, ParseYears(lifespan, out var years) ? years : throw new FormatException()));
-    public IActionResult OnPostDelete(string value) { TempData["Message"] = store.DeleteManagedOption("Asset type", value); return RedirectToPage(); }
+    public IActionResult OnPostDelete(string value) { MergeOffer.Delete(this, store, "Asset type", value, () => store.DeleteManagedOption("Asset type", value)); return RedirectToPage(); }
+    // Moves what uses it to another, then takes it off (_MergePrompt).
+    public IActionResult OnPostMerge(string value, string? into) { MergeOffer.Merge(this, store, "Asset type", value, into); return RedirectToPage(); }
 
     private IActionResult Respond(Func<string> action)
     {

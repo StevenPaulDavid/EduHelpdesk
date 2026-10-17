@@ -14,7 +14,7 @@ Many settings are a simple list of values that appear in drop-downs elsewhere: r
 
 - **Add** - type the new value in the box at the top and press **Add**.
 - **Rename** - press the pencil beside a value, change it and **Save**. Everything already using it follows the new name: tickets, assets, people, rounds and history.
-- **Remove** - press the bin. A value that's **in use** can't be removed (a room on a cleaning round, a category with tickets, a budget code on a cost line); the message says why. Rename it instead, or move whatever uses it first.
+- **Remove** - press the bin. If something still **uses** the value (tickets in a category, people in a department, cost lines on a budget code), the helpdesk says what, and offers to **move them all** to another value from the same list and then remove it. A category, team or status can only move to one on the same desk, so no ticket changes desk. If it's only the name that's wrong, rename it instead.
 
 ## Lists that sit on a desk
 
