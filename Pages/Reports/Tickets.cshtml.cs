@@ -24,7 +24,8 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
     // Incident, Request, or blank for both.
     [BindProperty(SupportsGet = true, Name = "type")] public string? Type { get; set; }
-    // A desk's name (HelpdeskStore.Desks), or blank for every desk. Only offered with more than one desk.
+    // A desk's name (HelpdeskStore.Desks), or blank for every desk. Only offered with more than one desk. Not asked for at
+    // all, it opens on the desk switcher's desk when that is one desk (HelpdeskStore.DeskSwitch).
     [BindProperty(SupportsGet = true, Name = "desk")] public string? DeskName { get; set; }
     public bool HasSeveralDesks => Desks.Count > 1;
     // Only the desks this person can see (HelpdeskStore.Desks).
@@ -124,6 +125,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         Since = period.Days is { } days ? Now.AddDays(-days) : period.Months is { } months ? Now.AddMonths(-months) : DateTime.MinValue;
         HasPreviousPeriod = period.Key != "all";
 
+        if (!Request.Query.ContainsKey("desk") && store.WorkingDesks(User) is [var working]) DeskName = working.Name;
         ReportDesk = HasSeveralDesks ? Desks.FirstOrDefault(x => string.Equals(x.Name, DeskName?.Trim(), StringComparison.OrdinalIgnoreCase)) : null;
         DeskName = ReportDesk?.Name;
         var deskOf = store.DeskLookup();

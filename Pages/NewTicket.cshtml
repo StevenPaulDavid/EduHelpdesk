@@ -7,7 +7,7 @@
 }
 
 <div class="page-heading">
-    <div><p class="eyebrow">EDUHELPDESK / NEW TICKET</p><h1>Log a technician ticket</h1><p class="hero-copy">Capture the request, assign ownership, and link the affected asset.</p></div>
+    <div><p class="eyebrow">EDUHELPDESK / NEW TICKET</p><h1>Log a ticket</h1><p class="hero-copy">Capture the request, assign ownership, and link the affected asset.</p></div>
     <a class="button button-secondary" asp-page="/Index">← Back to overview</a>
 </div>
 
@@ -55,7 +55,8 @@
     </div>
     @if (Model.TicketAttributes.Count > 0)
     {
-        <div class="form-section">
+        @* Hidden while none of the fields applies to the chosen category (wwwroot/js/pages/new-ticket.js). *@
+        <div class="form-section" id="ticket-attributes" hidden="@Model.TicketAttributes.All(x => !x.AppliesTo(Model.Ticket.Category))">
             <h2>Additional details</h2>
             <div class="form-grid compact">
                 @foreach (var field in Model.TicketAttributes)

@@ -117,7 +117,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/Departments"] = List(store.Departments, "Requesters' departments."),
             ["/Settings/Buildings"] = List(store.Buildings, "Buildings or sites, recorded with the room on each asset."),
             ["/Settings/Locations"] = List(store.Locations, "Rooms and areas, for tickets, assets and people."),
-            ["/Settings/Imports"] = new("Requesters, staff accounts and option lists from CSV files."),
+            ["/Settings/Imports"] = new("Staff accounts and option lists from CSV files."),
             ["/Settings/Onboarding"] = new("The tasks for each kind of new starter, and when they're due."),
             ["/Settings/SpendingBands"] = new("Your finance policy's thresholds, shown on every project, and whether project pages show amounts with or without VAT."),
             ["/Settings/ContractTypes"] = List(store.ContractTypes, "What kind of contract each is: licence, subscription, lease."),

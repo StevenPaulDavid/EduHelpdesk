@@ -68,6 +68,8 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     [TempData] public string? Message { get; set; }
 
     // Overdue, due soon or paused, for the flag beside the due date.
+    // The requester's name links to their page for whoever can open it.
+    public bool CanOpenRequester => store.UserCan(User, Modules.Requesters, ModulePermission.View);
     public DueState DueState => Ticket is null ? DueState.None : TicketInsights.DueStateOf(Ticket, DateTime.UtcNow, store.TicketDueSoonHours);
     public string DueText => Ticket is null ? "" : TicketInsights.DueText(Ticket, DateTime.UtcNow);
     // Back to the ticket list as it was last seen (filters, sort, page), or the plain list. Only ever a /Jobs address.

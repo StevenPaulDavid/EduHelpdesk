@@ -121,7 +121,7 @@
                 <td class="asset-row-actions">@if (Model.CanView) { <a class="icon-button" asp-page="/Asset" asp-route-id="@asset.Id" title="Edit asset" aria-label="Edit @asset.AssetTag">@Icons.Edit</a> }@if (Model.CanDelete) { <a class="icon-button delete-icon" asp-page="/Assets/Delete" asp-route-id="@asset.Id" title="Delete asset" aria-label="Delete @asset.AssetTag">@Icons.Bin</a> }</td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@(Model.IsFiltered ? "No assets match these filters." : "No assets have been added yet.")</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="@(cols.ShownCount + 3)" class="empty">@if (Model.IsFiltered) { <text>No assets match these filters.</text> } else if (Model.ShownDesks.Count > 0) { <text>Nothing here on @Model.DeskPhrase. <a href="@Model.AllDesksUrl()">Show every desk</a></text> } else { <text>No assets have been added yet.</text> }</td></tr> }
         </tbody></table></div>
 
         @if (Model.Rows.Count > 0 && Model.CanView)

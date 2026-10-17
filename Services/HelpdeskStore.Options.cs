@@ -799,11 +799,14 @@ public sealed partial class HelpdeskStore
     private static string DuplicateAttributeMessage(List<string> scope, string noun) =>
         scope.Count == 0 ? "That attribute name is already in use." : $"That attribute already exists for one of the selected {noun}.";
 
+    // A person or asset with nothing recorded (no room, say) adds nothing: a blank entry showed in every dropdown as an
+    // empty choice, and one saved by an earlier version is taken out here.
     private static void EnsureOptions(List<string> options, IEnumerable<string> defaults)
     {
+        options.RemoveAll(string.IsNullOrWhiteSpace);
         foreach (var value in defaults)
         {
-            if (!options.Contains(value, StringComparer.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(value) && !options.Contains(value, StringComparer.OrdinalIgnoreCase))
                 options.Add(value);
         }
     }

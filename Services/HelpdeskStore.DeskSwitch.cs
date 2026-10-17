@@ -63,6 +63,14 @@ public partial class HelpdeskStore
         return DesksOf(user).FirstOrDefault(HasCategories);
     }
 
+    // "the Site desk", "the IT and Site desks": what a list limited to these desks is showing.
+    public static string DeskPhrase(IReadOnlyList<Desk> desks) => desks.Count switch
+    {
+        0 => "every desk",
+        1 => $"the {desks[0].Name} desk",
+        _ => $"the {string.Join(", ", desks.Take(desks.Count - 1).Select(x => x.Name))} and {desks[^1].Name} desks"
+    };
+
     // The blank choice in a page's own desk filter (the asset list and report), which follows the switcher.
     public string WorkingDeskOption(ClaimsPrincipal user) =>
         SwitcherFor(user) is { } switcher ? $"As the top bar: {switcher.Label}"

@@ -153,4 +153,16 @@ public class StoreTests
         Assert.Contains("STEM", store.Departments);
         Assert.DoesNotContain("Science", store.Departments);
     }
+
+    // Someone with no room recorded used to put a blank room in the list, which every dropdown then offered.
+    [Fact]
+    public void A_person_with_no_room_adds_no_blank_room_to_the_list()
+    {
+        using var test = new TestStore();
+        test.Store.AddUser(new UserRecord(Guid.NewGuid(), "No Room", "no.room@test.example", "", ""));
+        var store = test.Reopen();
+        Assert.DoesNotContain(store.Locations, string.IsNullOrWhiteSpace);
+        Assert.DoesNotContain(store.Departments, string.IsNullOrWhiteSpace);
+        Assert.DoesNotContain(store.AssetTypes, string.IsNullOrWhiteSpace);
+    }
 }

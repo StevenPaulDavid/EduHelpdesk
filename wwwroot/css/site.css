@@ -2552,3 +2552,6 @@ a.notify-banner-text:hover strong { text-decoration: underline; }
 @media(max-width:980px) {
     .header-job-menu { order: 1; margin-left: 0; }
 }
+/* A note under a field's value, on its own line (the ticket page's Desk). */
+.field-note { display: block; margin-top: 2px; }
+.form-section[hidden] { display: none; }

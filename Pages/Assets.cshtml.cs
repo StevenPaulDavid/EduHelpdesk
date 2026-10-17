@@ -55,6 +55,8 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public int TotalPages { get; private set; } = 1;
     public DateOnly Today { get; } = AssetInsights.Today;
     public bool Descending => Dir == "desc";
+    public string DeskPhrase => HelpdeskStore.DeskPhrase(ShownDesks);
+    public string? AllDesksUrl() { var route = RouteFor(1, Sort, Dir); route["desk"] = "all"; return Url.Page("/Assets", route); }
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Type) || !string.IsNullOrWhiteSpace(Make)
         || !string.IsNullOrWhiteSpace(Building) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Holder) || !string.IsNullOrWhiteSpace(Flag);
 

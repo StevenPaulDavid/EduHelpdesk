@@ -67,6 +67,9 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public Guid? CurrentTechnicianId { get; private set; }
     public TechnicianRecord? CurrentTechnician => CurrentTechnicianId is { } id ? Technicians.FirstOrDefault(x => x.Id == id) : null;
     public bool Descending => Dir == "desc";
+    // An empty list limited to some desks says so, with the way to every desk, rather than "none logged yet".
+    public string DeskPhrase => HelpdeskStore.DeskPhrase(ShownDesks);
+    public string? AllDesksUrl() { var route = RouteFor(1, Sort!, Dir!, View); route["desk"] = "all"; return Url.Page("/Jobs", route); }
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
         || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset);
 

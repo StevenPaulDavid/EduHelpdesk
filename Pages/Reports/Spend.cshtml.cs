@@ -39,6 +39,8 @@ public class SpendReportModel(HelpdeskStore store) : PageModel
         StartMonth = store.AcademicYearStartMonth;
         var today = DateOnly.FromDateTime(DateTime.Today);
         var deskOf = store.DeskLookup();
+        // Not asked for, it opens on the desk switcher's desk when that is one desk (HelpdeskStore.DeskSwitch).
+        if (!Request.Query.ContainsKey("desk") && store.WorkingDesks(User) is [var working]) DeskName = working.Name;
         ReportDesk = HasSeveralDesks ? Desks.FirstOrDefault(x => string.Equals(x.Name, DeskName?.Trim(), StringComparison.OrdinalIgnoreCase)) : null;
         DeskName = ReportDesk?.Name;
         var tickets = store.TicketsFor(User).Where(t => ReportDesk is null || deskOf(t.Category).Id == ReportDesk.Id).ToDictionary(x => x.Number);
