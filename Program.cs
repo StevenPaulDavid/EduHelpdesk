@@ -155,6 +155,9 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Help/Edit", Policy(Modules.Settings, ModulePermission.Edit));
     // Cleaning rounds: the supervisor's page and the sheets it prints, and the report.
     options.Conventions.AuthorizePage("/Rounds", Modules.Flags.Rounds);
+    // Facilities → Premises checks: the checks to do are tickets, and the page is the checks report's working half.
+    options.Conventions.AuthorizePage("/Checks", Policy(Modules.Tickets, ModulePermission.Access));
+    options.Conventions.AuthorizePage("/Checks", Modules.Flags.ReportChecks);
     options.Conventions.AuthorizePage("/RoundSheet", Modules.Flags.Rounds);
     options.Conventions.AuthorizePage("/Reports/Rounds", Modules.Flags.ReportRounds);
     options.Conventions.AuthorizePage("/Reports/RoundsPrint", Modules.Flags.ReportRounds);

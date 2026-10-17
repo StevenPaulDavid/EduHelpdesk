@@ -607,8 +607,8 @@ main a:not([class]) { color: var(--ink); }
 }
 
 @media(min-width:801px) and (max-width:1100px) {
-    .topbar { --bar-gap: 16px; }
-    .topbar nav { gap: 14px; }
+    .topbar { --bar-gap: 14px; }
+    .topbar nav { gap: 12px; }
     .topbar nav a { font-size: 12px; }
 }
 
@@ -2743,3 +2743,7 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .chart-foot { margin: 0; font-size: 12.5px; }
 .chart-wide { grid-column: 1 / -1; }
 .chart-panel .chart-table { margin-top: 2px; }
+
+/* Facilities → Premises checks (Pages/Checks.cshtml): small headings over each list. */
+.checks-heading { display: flex; align-items: center; gap: 8px; margin: 18px 0 4px; font-size: 14px; }
+.panel-heading + .checks-heading { margin-top: 4px; }

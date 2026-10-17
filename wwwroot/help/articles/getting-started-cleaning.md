@@ -28,7 +28,7 @@ To stop a round for a while (over the summer, say) without losing what was recor
 
 ## Printing the day's sheets
 
-Open **Rounds** in the top bar. It shows the rounds due today. Press **Print sheet** on each and hand it to the cleaner: it lists the rooms with a box to tick and space for a note.
+Open **Facilities → Cleaning rounds** in the top bar. It shows the rounds due today. Press **Print sheet** on each and hand it to the cleaner: it lists the rooms with a box to tick and space for a note.
 
 ## Ticking off a round
 

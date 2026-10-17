@@ -113,6 +113,17 @@ public class BuiltInDeskTests
         Assert.Equal([DeskAreas.Kits, DeskAreas.Facilities], store.Desks[0].HiddenAreas);
     }
 
+    [Fact]
+    public void A_supplier_can_be_a_contractor_with_a_trade()
+    {
+        using var test = new TestStore(facilities: true);
+        var supplier = new SupplierRecord(Guid.NewGuid(), "Bright Sparks Ltd", "", "", "", "", "", "", "", "", "", "", "", DateTime.UtcNow) { IsContractor = true, Trade = "Electrician" };
+        test.Store.AddSupplier(supplier);
+        var saved = test.Reopen().Suppliers.Single(x => x.Id == supplier.Id);
+        Assert.True(saved.IsContractor);
+        Assert.Equal("Electrician", saved.Trade);
+    }
+
     // The database as an install from before the built-in desks had it: one desk, IT, unmarked, and no Facilities.
     private static void AsBeforeFacilities(TestStore test, string extra = "")
     {

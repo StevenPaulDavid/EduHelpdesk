@@ -506,9 +506,9 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt FROM Suppliers;";
+            command.CommandText = "SELECT Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt, IsContractor, Trade FROM Suppliers;";
             using var reader = command.ExecuteReader();
-            while (reader.Read()) data.Suppliers.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetString(9), reader.GetString(10), reader.GetString(11), reader.GetString(12), Date(reader, 13)));
+            while (reader.Read()) data.Suppliers.Add(new(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetString(9), reader.GetString(10), reader.GetString(11), reader.GetString(12), Date(reader, 13)) { IsContractor = reader.GetInt32(14) != 0, Trade = reader.GetString(15) });
         }
         using (var command = connection.CreateCommand())
         {
@@ -894,7 +894,7 @@ public sealed partial class HelpdeskStore
                     ("$role", item.Name), ("$permission", flag));
         }
         foreach (var item in data.Suppliers)
-            Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created);", ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
+            Execute(connection, transaction, "INSERT INTO Suppliers (Id, Name, ContactName, Email, Phone, AddressLine1, AddressLine2, City, StateRegion, PostalCode, Country, Website, Notes, CreatedAt, IsContractor, Trade) VALUES ($id,$name,$contact,$email,$phone,$a1,$a2,$city,$state,$postal,$country,$website,$notes,$created,$contractor,$trade);", ("$contractor", item.IsContractor ? 1 : 0), ("$trade", item.Trade), ("$id", item.Id.ToString()), ("$name", item.Name), ("$contact", item.ContactName), ("$email", item.Email), ("$phone", item.Phone), ("$a1", item.AddressLine1), ("$a2", item.AddressLine2), ("$city", item.City), ("$state", item.StateRegion), ("$postal", item.PostalCode), ("$country", item.Country), ("$website", item.Website), ("$notes", item.Notes), ("$created", Iso(item.CreatedAt)));
         // After Users, Technicians and Suppliers, which Projects and their item suppliers have foreign keys to.
         WriteProjects(connection, transaction, data);
         WriteContracts(connection, transaction, data);

@@ -5,14 +5,14 @@ area: Assets and inventory
 kind: page
 pages: /Suppliers, /Supplier, /Suppliers/Edit, /Suppliers/Delete
 needs: Suppliers
-keywords: supplier suppliers vendor contact directory company quote purchase
+keywords: supplier suppliers vendor contact directory company quote purchase contractor contractors trade electrician plumber
 order: 9
 ---
 **Assets → Suppliers** is who the school buys from. One directory is shared by assets, parts, contracts, job costs and purchasing projects, so a supplier is entered once.
 
 ## The directory
 
-Each supplier has a **contact name**, **email**, **phone**, **website** and address. **Show** narrows the list to suppliers you've **bought assets from**, that **supply parts**, that were **asked to quote on a project**, or that **aren't used anywhere yet** (often safe to tidy away).
+Each supplier has a **contact name**, **email**, **phone**, **website** and address. A supplier the site team calls out can be ticked as a **contractor**, with its **trade** (Electrician, Plumber…); **Facilities → Contractors** lists those by trade - see [Facilities](facilities). **Show** narrows the list to **contractors**, suppliers you've **bought assets from**, that **supply parts**, that were **asked to quote on a project**, or that **aren't used anywhere yet** (often safe to tidy away).
 
 ## A supplier's page
 

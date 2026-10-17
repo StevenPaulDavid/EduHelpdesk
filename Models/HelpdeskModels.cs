@@ -122,7 +122,13 @@ public readonly record struct Actor(Guid? Id, string Name)
     // system genuinely does not know who did it, and saying so is better than implying it was nobody or the system.
     public static string Label(Actor? actor) => actor?.Name ?? "—";
 }
-public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt);
+public record SupplierRecord(Guid Id, string Name, string? ContactName, string? Email, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? StateRegion, string? PostalCode, string? Country, string? Website, string? Notes, DateTime CreatedAt)
+{
+    // A contractor the site team calls out - an electrician, a plumber - listed under Facilities → Contractors, with
+    // their trade. Any supplier can be one as well as selling kit.
+    public bool IsContractor { get; init; }
+    public string Trade { get; init; } = "";
+}
 public record PartRecord(Guid Id, string Name, string? Sku, string? Category, int QuantityOnHand, DateTime CreatedAt)
 {
     // Where it's physically kept (shelf, cupboard, room) - free text, not the shared building-level Locations list.
