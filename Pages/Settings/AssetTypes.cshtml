@@ -3,6 +3,7 @@
 @{ ViewData["Title"] = "Asset types"; }
 <div class="page-heading"><h1>Asset types</h1></div>
 @if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+<partial name="_MergePrompt" />
 <section class="panel">
     <form method="post" class="settings-form">
         <label>Add type<input name="value" required /></label>

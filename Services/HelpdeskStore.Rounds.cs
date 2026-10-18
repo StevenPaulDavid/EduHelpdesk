@@ -163,7 +163,7 @@ public sealed partial class HelpdeskStore
         bool Was(string value) => string.Equals(value, oldValue, StringComparison.OrdinalIgnoreCase);
         for (var i = 0; i < _data.CleaningRounds.Count; i++)
             if (_data.CleaningRounds[i].Rooms.Any(Was))
-                _data.CleaningRounds[i] = _data.CleaningRounds[i] with { Rooms = _data.CleaningRounds[i].Rooms.Select(x => Was(x) ? newValue : x).ToList() };
+                _data.CleaningRounds[i] = _data.CleaningRounds[i] with { Rooms = _data.CleaningRounds[i].Rooms.Select(x => Was(x) ? newValue : x).Distinct(StringComparer.OrdinalIgnoreCase).ToList() };
         for (var i = 0; i < _data.RoundVisits.Count; i++)
             if (Was(_data.RoundVisits[i].Room)) _data.RoundVisits[i] = _data.RoundVisits[i] with { Room = newValue };
     }

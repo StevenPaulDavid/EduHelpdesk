@@ -1,0 +1,32 @@
+@using EduHelpdesk.Services
+@inject HelpdeskStore Helpdesk
+@{
+    // Shown after the bin is pressed on a value something still uses (MergeOffer): what uses it, and where to move it
+    // all so it can go. The form posts to the page's own Merge handler.
+    var kind = TempData[EduHelpdesk.Pages.Settings.MergeOffer.KindKey] as string;
+    var value = TempData[EduHelpdesk.Pages.Settings.MergeOffer.ValueKey] as string;
+}
+@if (kind is not null && value is not null)
+{
+    var noun = HelpdeskStore.OptionNoun(kind);
+    var usage = Helpdesk.OptionUsage(kind, value);
+    var targets = Helpdesk.MergeTargets(kind, value);
+    <section class="panel merge-prompt" role="alertdialog" aria-labelledby="merge-title">
+        <h2 id="merge-title">“@value” is still in use</h2>
+        <p>@HelpdeskStore.Joined(usage) @(usage.Count == 1 && usage[0].StartsWith("1 ") ? "uses" : "use") it, so it can't simply be taken off the list.</p>
+        @if (targets.Count > 0)
+        {
+            <form method="post" asp-page-handler="Merge" class="merge-form">
+                <input type="hidden" name="kind" value="@kind" /><input type="hidden" name="value" value="@value" />
+                <label>Move @(usage.Count == 1 && usage[0].StartsWith("1 ") ? "it" : "them") to<select name="into" required><option value="">Choose one…</option>@foreach (var target in targets) { <option value="@target">@target</option> }</select></label>
+                <button class="button button-danger" type="submit">Move and delete “@value”</button>
+                <a class="button button-secondary" href="@(Context.Request.Path + Context.Request.QueryString)">Keep it</a>
+            </form>
+            <p class="muted">Everything moves to the @noun you choose, and “@value” goes. If it's only the name that's wrong, rename it with the pencil instead.@(noun is "category" or "team" or "status" ? $" Only a {noun} on the same desk is offered, so no ticket changes desk." : "")</p>
+        }
+        else
+        {
+            <p class="muted">There's no other @noun @(noun is "category" or "team" ? "on its desk " : "")to move @(usage.Count == 1 && usage[0].StartsWith("1 ") ? "it" : "them") to. Add one first, then press the bin again - or rename “@value” if it's only the name that's wrong.</p>
+        }
+    </section>
+}
