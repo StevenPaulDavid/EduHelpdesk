@@ -342,6 +342,7 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
         data.RequireTwoFactor = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequireTwoFactor';") as string == "1";
         data.SiteAddress = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SiteAddress';") as string ?? "";
+        data.DashboardAddress = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'DashboardAddress';") as string ?? "";
         data.AllowRecoveryKeys = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AllowRecoveryKeys';") as string != "0";
         data.ProjectPageIncludesVat = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ProjectPageIncludesVat';") as string == "1";
         data.NotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'NotificationsEnabled';") as string != "0";
@@ -848,6 +849,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "RequireTwoFactor", data.RequireTwoFactor ? "1" : "0");
         SetMetadata(connection, transaction, "SiteAddress", data.SiteAddress);
+        SetMetadata(connection, transaction, "DashboardAddress", data.DashboardAddress);
         SetMetadata(connection, transaction, "AllowRecoveryKeys", data.AllowRecoveryKeys ? "1" : "0");
         SetMetadata(connection, transaction, "ProjectPageIncludesVat", data.ProjectPageIncludesVat ? "1" : "0");
         SetMetadata(connection, transaction, "NotificationsEnabled", data.NotificationsEnabled ? "1" : "0");

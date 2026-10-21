@@ -132,6 +132,9 @@ public sealed partial class HelpdeskStore
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in
         // security or by the installer; the guide then works one out from the address in use (HelpdeskStore.Accounts).
         public string SiteAddress { get; set; } = "";
+        // The school's EduDashboard (scheme, server and port), the one site allowed to show the helpdesk inside it
+        // (SecurityHeaders). Empty, as it starts, means no site may. Set in Settings → Sign-in security.
+        public string DashboardAddress { get; set; } = "";
         // Statuses that stop the SLA clock, and how long after closing a requester's reply still reopens a ticket.
         public List<string> SlaPauseStatuses { get; set; } = [];
         public int ReopenWindowDays { get; set; } = DefaultReopenWindowDays;

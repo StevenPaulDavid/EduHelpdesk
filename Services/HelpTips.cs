@@ -70,6 +70,7 @@ public static class HelpTips
         ["backup.keep"] = new("Older backups are deleted automatically; the newest few are always kept. Longer gives more to go back to but uses more space.", "backups", "automatic-backups"),
         ["signin.two-step"] = new("A code from a phone app after the password. Required, anyone without it sets it up next time they use the helpdesk.", "sign-in-security", "two-step-sign-in"),
         ["signin.recovery"] = new("Lets a technician who forgets their password reset it once from the sign-in page, without an administrator.", "sign-in-security", "recovery-keys"),
+        ["signin.dashboard"] = new("The school's EduDashboard, as in its address bar, e.g. https://dashboard.school.org.uk. Only that site may show the helpdesk inside it. Leave empty and no site may.", "sign-in-security", "shown-inside-edudashboard"),
         ["signin.address"] = new("The web address staff type to reach the helpdesk, printed on new accounts' quick start guides, e.g. https://helpdesk.school.org.uk/", "sign-in-security", "helpdesk-address"),
         ["notifications.reminder"] = new("A bar under the header for anyone who hasn't switched pings and pop-ups on. They can dismiss it for a week.", "notifications-setup", "who-gets-notifications"),
         ["teams.webhook"] = new("The address from a Teams workflow that posts to the channel. It's a secret - anyone with it can post - so it's never shown again once saved.", "teams-channel", "channels"),

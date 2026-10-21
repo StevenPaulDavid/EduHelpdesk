@@ -48,6 +48,17 @@
     </form>
 </section>
 
+<section class="panel" id="dashboard">
+    <h2>Shown inside EduDashboard</h2>
+    <p>Off unless you give an address. The helpdesk then refuses to be shown inside any other site, which stops a page elsewhere passing itself off as the helpdesk to trick someone into clicking. To let the school's EduDashboard show the helpdesk as a tile inside it, give the dashboard's address: only that site may, and nothing else changes.</p>
+    @foreach (var warning in Model.DashboardWarnings) { <div class="notice notice-warning">@warning</div> }
+    <form method="post" asp-page-handler="Dashboard" class="settings-form field-narrow">
+        <label><span>Dashboard address <help-tip key="signin.dashboard" /></span><input name="address" type="url" value="@Model.DashboardAddress" placeholder="https://dashboard.school.org.uk" maxlength="200" spellcheck="false" /></label>
+        <button class="button button-primary">Save dashboard address</button>
+    </form>
+    <p class="muted">Keep the helpdesk and the dashboard on the same domain - such as helpdesk.school.org.uk and dashboard.school.org.uk, or one server on two ports - or browsers may not keep technicians signed in inside the dashboard. On the dashboard's tile, choose <strong>Show inside the dashboard</strong> and press <strong>Test</strong>.</p>
+</section>
+
 <section class="panel">
     <h2>Passwords and lockouts</h2>
     <dl class="detail-list">

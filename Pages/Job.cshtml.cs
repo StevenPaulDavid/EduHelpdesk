@@ -118,8 +118,9 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         try
         {
             var pdf = TicketReportPdf.Build(input);
-            // The page policy's object-src 'none' stops Chrome showing a PDF in the tab; this response is no page.
-            Response.Headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+            // The page policy's object-src 'none' stops Chrome showing a PDF in the tab; this response is no page. Who may
+            // frame it follows the pages, so the report also opens inside EduDashboard when the helpdesk is shown there.
+            Response.Headers.ContentSecurityPolicy = SecurityHeaders.FrameAncestors(store.DashboardAddress);
             Response.Headers.ContentDisposition = $"inline; filename=\"{TicketReportPdf.FileName(input.Ticket)}\"";
             return File(pdf, "application/pdf");
         }

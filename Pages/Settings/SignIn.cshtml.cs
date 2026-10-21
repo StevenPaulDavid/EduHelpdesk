@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace EduHelpdesk.Pages.Settings;
 
 // Settings → Sign-in security: whether passwords travel encrypted, the lockout rules, and two-step sign-in - required of
-// everyone or left to each person, and who has it. Needs Settings: Edit, like the other pages under /Settings.
+// everyone or left to each person, and who has it - plus the helpdesk's address and the EduDashboard allowed to show it
+// inside itself. Needs Settings: Edit, like the other pages under /Settings.
 public class SignInModel(HelpdeskStore store) : PageModel
 {
     public bool IsHttps => Request.IsHttps;
@@ -44,5 +45,28 @@ public class SignInModel(HelpdeskStore store) : PageModel
     {
         Message = store.SetSiteAddress(address).Message;
         return RedirectToPage(null, null, "address");
+    }
+
+    public string DashboardAddress => store.DashboardAddress;
+
+    // What will stop the dashboard showing the helpdesk even with the address set, worked out from how this page was
+    // reached.
+    public IEnumerable<string> DashboardWarnings
+    {
+        get
+        {
+            if (!Uri.TryCreate(DashboardAddress, UriKind.Absolute, out var dashboard)) yield break;
+            if (dashboard.Scheme == Uri.UriSchemeHttps && !Request.IsHttps)
+                yield return "The dashboard is on https:// and this page came over plain http://, so browsers will block the helpdesk inside the dashboard until the helpdesk has HTTPS too.";
+            static string Site(string host) => host.Split('.') is { Length: >= 2 } parts && !System.Net.IPAddress.TryParse(host, out _) ? string.Join('.', parts[^2..]) : host;
+            if (!string.Equals(Site(dashboard.Host), Site(Request.Host.Host), StringComparison.OrdinalIgnoreCase))
+                yield return $"The dashboard ({dashboard.Host}) is on a different domain from this page ({Request.Host.Host}), so browsers may not keep technicians signed in inside it.";
+        }
+    }
+
+    public IActionResult OnPostDashboard(string? address)
+    {
+        Message = store.SetDashboardAddress(address).Message;
+        return RedirectToPage(null, null, "dashboard");
     }
 }

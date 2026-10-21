@@ -1,11 +1,11 @@
 ---
 title: Sign-in security
-summary: Two-step sign-in, recovery keys, the helpdesk address, passwords, lockouts and https.
+summary: Two-step sign-in, recovery keys, the helpdesk address, showing it inside EduDashboard, passwords, lockouts and https.
 area: Settings
 kind: page
 pages: /Settings/SignIn
 needs: Settings:Edit
-keywords: sign in security two-step 2fa mfa authenticator recovery key password lockout https certificate address
+keywords: sign in security two-step 2fa mfa authenticator recovery key password lockout https certificate address dashboard edudashboard embed frame tile
 order: 13
 ---
 How helpdesk technician accounts are protected. The staff portal has its own passwords and isn't covered by two-step sign-in.
@@ -26,6 +26,18 @@ With a **recovery key**, a technician who forgets their password can set a new o
 ## Helpdesk address
 
 The address staff type to reach the helpdesk, printed on the quick start guide given to each new account. Leave it empty to use the address the guide is printed from.
+
+## Shown inside EduDashboard
+
+Off until you give an address: the helpdesk refuses to be shown inside any other site, so a page elsewhere can't pass itself off as the helpdesk to trick someone into clicking.
+
+To make the helpdesk a tile shown inside the school's **EduDashboard**, type the dashboard's address as it appears in the address bar, such as `https://dashboard.school.org.uk`, and press **Save dashboard address**. Only that site may then show it. Clear the box to turn it off again.
+
+For it to work:
+
+- **Same domain** - keep the two on one domain (helpdesk.school.org.uk and dashboard.school.org.uk, or one server on two ports). Otherwise browsers may not keep technicians signed in inside the dashboard.
+- **HTTPS on both, or neither** - a dashboard on https:// can't show a helpdesk on plain http://.
+- On the dashboard's tile, choose **Show inside the dashboard** and press **Test** to check.
 
 ## Passwords and lockouts
 
