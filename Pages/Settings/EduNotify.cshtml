@@ -66,7 +66,8 @@
 </section>
 
 <section class="panel">
-    <div class="panel-heading"><h2>Technician ping</h2>@if (Model.Ping.Active) { <span class="badge">On</span> } else { <span class="badge">Off</span> }</div>
+    <div class="panel-heading"><h2>Technician ping and desk PCs</h2>@if (Model.Ping.Active) { <span class="badge">On</span> } else { <span class="badge">Off</span> }</div>
+    <p class="muted">The groups of PCs ticked for each desk here are that desk's PCs for every technician alert below too, not only the ping.</p>
     <p class="muted">When a ticket comes in at a ticked priority with nobody assigned - or an open, unassigned ticket is moved up to one - a notice goes to the technicians' PCs. It comes down once someone is assigned, the ticket is closed, or its priority drops. It says only the priority and ticket number.</p>
     @if (Model.Catalogue is null && !Model.Ping.Complete)
     {
@@ -115,6 +116,108 @@
     }
 </section>
 
+@{
+    var link = Model.Link;
+    var templateChoices = Model.EventTemplateChoices;
+}
+<section class="panel" id="people">
+    <div class="panel-heading"><h2>Person matching</h2>@if (link.EmailDomain.Length > 0) { <span class="badge">@link.EmailDomain</span> } else { <span class="badge">Not set</span> }</div>
+    <p class="muted">Pop-ups go to one person on whichever PC they're logged on to. EduNotify knows them by their Windows login, so a person's email at the school's domain is taken as their login: <code>jsmith@@@(link.EmailDomain.Length > 0 ? link.EmailDomain : "school.org.uk")</code> is <code>jsmith</code>.
+        @if (link.EmailDomain.Length > 0 && Model.UnmatchedPeople > 0) { <span>@Model.UnmatchedPeople active @(Model.UnmatchedPeople == 1 ? "person has" : "people have") an email somewhere else, so they're never sent anything of their own.</span> }</p>
+    <form method="post" asp-page-handler="SavePeople" class="settings-form">
+        <label>Staff email domain<input name="emailDomain" type="text" value="@link.EmailDomain" placeholder="school.org.uk" spellcheck="false" autocomplete="off" maxlength="200" /></label>
+        <label>Take pop-ups down after (hours)<input name="takeDownHours" type="number" min="1" max="@HelpdeskStore.MaxTakeDownHours" value="@link.TakeDownHours" /></label>
+        <small class="muted">Anyone can close a pop-up themselves; this takes down whatever is still showing.</small>
+        <div><button class="button button-primary">Save</button></div>
+    </form>
+</section>
+
+<section class="panel" id="events">
+    <div class="panel-heading"><h2>Requester pop-ups and technician alerts</h2></div>
+    <p class="muted">Each pop-up shows only the ticket number and what happened, e.g. <em>IT-123: resolved</em>, never the ticket's words, because classroom screens get projected. It has an <strong>Open ticket</strong> button (the portal for requesters, the ticket for technicians) once the helpdesk's own address is set under Sign-in security, and EduNotify's key allows it. A newer pop-up about the same ticket replaces the older one; someone who isn't logged on doesn't get it.</p>
+    @if (Model.Catalogue is null && templateChoices.Count == 0)
+    {
+        <p class="muted">Use <strong>Test the connection</strong> above first, so EduNotify's templates can be chosen. An editable template (title and message can be changed) works best.</p>
+    }
+    <form method="post" asp-page-handler="SaveEvents">
+        @foreach (var (heading, keys) in new[] { ("Requester pop-ups (to the person who logged the ticket)", HelpdeskStore.EduNotifyEvents.Requester), ("Technician alerts", HelpdeskStore.EduNotifyEvents.Technician) })
+        {
+            <h3>@heading</h3>
+            <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Event</th><th>On</th><th>Template</th>@if (Model.HasSeveralDesks) { <th>Desks</th> }</tr></thead><tbody>
+            @foreach (var key in keys)
+            {
+                var rule = link.RuleFor(key);
+                <tr>
+                    <td><strong>@HelpdeskStore.EduNotifyEvents.Label(key)</strong><br /><span class="muted">@HelpdeskStore.EduNotifyEvents.When(key)</span>
+                        @if (HelpdeskStore.EduNotifyEvents.HasMinutes(key)) { <label class="muted">Minutes before <input name="minutes-@key" type="number" min="5" max="1440" value="@rule.Minutes" style="width:6rem" /></label> }</td>
+                    <td><label class="toggle-label"><input type="checkbox" name="on-@key" value="true" checked="@rule.Enabled" /> On</label></td>
+                    <td><select name="template-@key"><option value="">Choose…</option>@foreach (var (id, name) in templateChoices) { <option value="@id" selected="@(id == rule.TemplateId)">@name</option> }</select></td>
+                    @if (Model.HasSeveralDesks)
+                    {
+                        <td>@if (HelpdeskStore.EduNotifyEvents.HasDesks(key))
+                            {
+                                foreach (var desk in Model.Desks) { <label class="toggle-label"><input type="checkbox" name="desks-@key" value="@desk.Id" checked="@rule.DeskIds.Contains(desk.Id)" /> @desk.Name</label> }
+                                <small class="muted">None ticked: every desk.</small>
+                            }</td>
+                    }
+                </tr>
+            }
+            </tbody></table></div>
+        }
+        <div><button class="button button-primary">Save the pop-ups</button></div>
+    </form>
+</section>
+
+<section class="panel" id="calls">
+    <div class="panel-heading"><h2>Technician calls from EduNotify</h2>@if (link.AcceptCalls && link.HasIncomingKey) { <span class="badge">Accepting</span> } else { <span class="badge">Off</span> }</div>
+    <p class="muted">A teacher's <strong>Call technician</strong> (an EduNotify on-call template with <em>Also raise a helpdesk ticket</em>) alerts the technicians' PCs and raises a ticket here. The reason they picked decides the category and priority; the first technician to press <strong>On my way</strong> is assigned; resolving the ticket takes the call down. These tickets never send the technician ping or the <em>Ticket logged</em> pop-up.</p>
+    @if (!string.IsNullOrEmpty(Model.NewIncomingKey))
+    {
+        <div class="notice">Copy this key now - it isn't shown again. Paste it into EduNotify under <strong>Settings → Integrations → EduHelpdesk</strong>:<br /><code>@Model.NewIncomingKey</code></div>
+    }
+    <p class="muted">Incoming key: @if (link.HasIncomingKey) { <span><code>@link.IncomingKeyPrefix…</code>, last used @(link.IncomingKeyLastUsed is { } used ? used.ToLocalTime().ToString("ddd d MMM, HH:mm") : "never").</span> } else { <span>none yet.</span> }</p>
+    <div class="settings-form" style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <form method="post" asp-page-handler="NewIncomingKey" data-confirm="@(link.HasIncomingKey ? "Make a new key? The old one stops working, so EduNotify can't raise tickets until it has the new one." : "Make the key EduNotify raises tickets with?")"><button class="button button-secondary">@(link.HasIncomingKey ? "Make a new key" : "Make the incoming key")</button></form>
+        @if (link.HasIncomingKey) { <form method="post" asp-page-handler="RemoveIncomingKey" data-confirm="Remove the incoming key? EduNotify can't raise tickets until a new one is made."><button class="button button-secondary">Remove the key</button></form> }
+    </div>
+    <form method="post" asp-page-handler="SaveCalls" class="settings-form">
+        <label class="toggle-label"><input type="checkbox" name="acceptCalls" value="true" checked="@link.AcceptCalls" /> Accept calls from EduNotify (off: calls still alert the technicians, but no ticket is made)</label>
+        <label class="toggle-label"><input type="checkbox" name="assignOnMyWay" value="true" checked="@link.AssignOnMyWay" /> Assign the ticket to whoever presses On my way first</label>
+        <label class="toggle-label"><input type="checkbox" name="closeOnResolve" value="true" checked="@link.CloseOnResolve" /> Take the call's alert down when the ticket is resolved</label>
+        <h3>Reasons</h3>
+        @if (link.KnownReasonsAt is null) { <p class="muted">EduNotify hasn't listed its reasons yet. Its API key needs <strong>Can manage technician calls</strong> ticked; then use <strong>Test the connection</strong> above.</p> }
+        else { <p class="muted">From EduNotify, @link.KnownReasonsAt.Value.ToLocalTime().ToString("ddd d MMM, HH:mm"). Blank uses the unknown reasons' settings below.</p> }
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Reason</th><th>Category</th><th>Priority</th><th>Urgent priority</th></tr></thead><tbody>
+        @foreach (var (row, listed) in Model.ReasonRows)
+        {
+            <tr class="@(listed ? "" : "muted")">
+                <td><input type="hidden" name="reason-template" value="@row.Template" /><input type="hidden" name="reason-reason" value="@row.Reason" />
+                    <strong>@(row.Reason.Length > 0 ? row.Reason : "(no reason)")</strong><br /><span class="muted">@row.Template@(listed ? "" : " · no longer in EduNotify")</span></td>
+                <td><select name="reason-category"><option value="">Unknown reasons'</option>@foreach (var c in Model.Categories) { <option selected="@(c == row.Category)">@c</option> }</select></td>
+                <td><select name="reason-priority"><option value="">Unknown reasons'</option>@foreach (var p in Model.Priorities) { <option selected="@(p == row.Priority)">@p</option> }</select></td>
+                <td><select name="reason-urgent"><option value="">Unknown reasons'</option>@foreach (var p in Model.Priorities) { <option selected="@(p == row.UrgentPriority)">@p</option> }</select></td>
+            </tr>
+        }
+        @if (Model.ReasonRows.Count == 0) { <tr><td colspan="4" class="muted">No reasons yet.</td></tr> }
+        </tbody></table></div>
+        <h3>Unknown reasons</h3>
+        <p class="muted">For a reason not in the table, e.g. one added in EduNotify since the list was fetched.</p>
+        <label>Category<select name="fallbackCategory"><option value="">Choose…</option>@foreach (var c in Model.Categories) { <option selected="@(c == link.FallbackCategory)">@c</option> }</select></label>
+        <label>Priority<select name="fallbackPriority"><option value="">Choose…</option>@foreach (var p in Model.Priorities) { <option selected="@(p == link.FallbackPriority)">@p</option> }</select></label>
+        <label>Urgent priority<select name="fallbackUrgentPriority"><option value="">Same as priority</option>@foreach (var p in Model.Priorities) { <option selected="@(p == link.FallbackUrgentPriority)">@p</option> }</select></label>
+        <div><button class="button button-primary">Save technician calls</button></div>
+    </form>
+    @if (link.Calls.Count > 0)
+    {
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Ticket</th><th>Raised</th><th>By</th></tr></thead><tbody>
+        @foreach (var call in link.Calls)
+        {
+            <tr><td><a asp-page="/Job" asp-route-number="@call.TicketNumber">@Helpdesk.Ref(call.TicketNumber)</a></td><td>@call.RaisedAt.ToLocalTime().ToString("ddd d MMM, HH:mm")</td><td>@call.RaisedBy</td></tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+
 <section class="panel">
     <div class="panel-heading"><h2>Notices showing now</h2><span class="badge">@Model.Notices.Count</span></div>
     @if (Model.Notices.Count == 0)
@@ -143,6 +246,8 @@
     <ol class="muted">
         <li>In the EduNotify console, go to <strong>Settings → Integrations → API keys</strong> and make a key named, say, <em>EduHelpdesk</em>. Its name is shown as the sender of every notice.</li>
         <li>Tick the templates technicians may send - an <em>IT outage</em> template that lets the title and message be changed is the useful one, plus a <em>Technician ping</em> template for the technician ping. Leave <strong>May send emergency templates</strong> off: the helpdesk never offers them.</li>
+        <li>For pop-ups and technician alerts, tick an editable template too, and put this helpdesk's address under <strong>Links may open</strong>, so pop-ups can carry an <em>Open ticket</em> button.</li>
+        <li>For technician calls, tick <strong>Can manage technician calls</strong>, so the helpdesk can read the reasons and close calls.</li>
         <li>Optionally limit the key to this server's IP address.</li>
         <li>EduNotify shows the key once, starting <code>enk_</code>. Paste it above with EduNotify's address (the one you open its console on), then <strong>Test the connection</strong>.</li>
     </ol>

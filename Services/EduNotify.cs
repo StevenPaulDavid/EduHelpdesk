@@ -27,8 +27,10 @@ public static class EduNotify
     }
 
     // One notice to send. Groups are EduNotify group names; Everyone overrides them. Title and Body left blank keep the
-    // template's own.
-    public sealed record Send(string TemplateId, bool Everyone, IReadOnlyList<string> Groups, string? Title, string? Body, string Reference);
+    // template's own. Users are Windows logins, for a pop-up to one person on whichever PC they're on. A link (both
+    // label and address) is a button that opens the page; EduNotify only allows addresses the key was given.
+    public sealed record Send(string TemplateId, bool Everyone, IReadOnlyList<string> Groups, string? Title, string? Body, string Reference,
+        IReadOnlyList<string>? Users = null, string? LinkLabel = null, string? LinkUrl = null);
 
     // What EduNotify said about a send: its message id, and how many PCs showed it now out of how many it was meant for
     // (the rest are switched off and get it when they start).
@@ -83,9 +85,15 @@ public static class EduNotify
             ["template"] = int.TryParse(send.TemplateId, out var id) ? JsonValue.Create(id) : JsonValue.Create(send.TemplateId),
             ["recipients"] = send.Everyone
                 ? new JsonObject { ["everyone"] = true }
-                : new JsonObject { ["groups"] = new JsonArray(send.Groups.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()) },
+                : new JsonObject
+                {
+                    ["groups"] = new JsonArray(send.Groups.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
+                    ["users"] = new JsonArray((send.Users ?? []).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray())
+                },
             ["reference"] = send.Reference
         };
+        if (!string.IsNullOrWhiteSpace(send.LinkLabel) && !string.IsNullOrWhiteSpace(send.LinkUrl))
+            json["link"] = new JsonObject { ["label"] = send.LinkLabel, ["url"] = send.LinkUrl };
         if (!string.IsNullOrWhiteSpace(send.Title)) json["title"] = send.Title.Trim();
         if (!string.IsNullOrWhiteSpace(send.Body)) json["body"] = send.Body.Trim();
         return json.ToJsonString();
@@ -126,6 +134,30 @@ public static class EduNotify
                 .Select(x => new Group(Text(x, "id"), Text(x, "name")))
                 .Where(x => x.Name.Length > 0)
                 .ToList();
+        }
+        catch (JsonException) { return null; }
+    }
+
+    // GET /api/v1/oncall/reasons: [{ "id": 4, "name": "Technician", "reasons": ["Projector", ...] }].
+    public static IReadOnlyList<HelpdeskStore.EduNotifyKnownReason>? ParseOnCallReasons(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != JsonValueKind.Array) return null;
+            var reasons = new List<HelpdeskStore.EduNotifyKnownReason>();
+            foreach (var template in document.RootElement.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object))
+            {
+                var name = Text(template, "name");
+                if (name.Length == 0) continue;
+                var list = Property(template, "reasons") is { ValueKind: JsonValueKind.Array } array
+                    ? array.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).Where(x => x.Length > 0).ToList()
+                    : [];
+                // A template with no reasons sends a blank one; its calls use the row with no reason.
+                if (list.Count == 0) reasons.Add(new(name, ""));
+                reasons.AddRange(list.Select(x => new HelpdeskStore.EduNotifyKnownReason(name, x)));
+            }
+            return reasons;
         }
         catch (JsonException) { return null; }
     }

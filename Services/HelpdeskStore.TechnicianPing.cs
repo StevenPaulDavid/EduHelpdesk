@@ -144,7 +144,7 @@ public sealed partial class HelpdeskStore
     private bool PingQualifies(TicketRecord ticket) =>
         _data.TechnicianPingEnabled && _data.TechnicianPingTemplateId.Length > 0
         && _data.DeskPingGroups.TryGetValue(DeskForCategoryCore(ticket.Category).Id, out var groups) && groups.Count > 0
-        && !TicketInsights.IsClosed(ticket) && ticket.TechnicianId is null
+        && !TicketInsights.IsClosed(ticket) && ticket.TechnicianId is null && !IsCallTicket(ticket.Number)
         && _data.TechnicianPingPriorities.Contains(ticket.Priority, StringComparer.OrdinalIgnoreCase);
 
     // What EduNotifyClient should do this pass. sending is whether EduNotify can be called now: while it can't, tickets

@@ -237,10 +237,15 @@ public sealed partial class HelpdeskStore
     // Who is behind the request being handled right now. Everything the store records - history lines, comments and
     // audit entries - is stamped with this, so no mutator needs an extra parameter and nothing can be recorded
     // anonymously by accident. Outside a request (startup, seeding, migrations) there is no actor and it reads "System".
+    // HttpContext.Items key for the actor of an API call that has no signed-in account behind it.
+    public const string ActorItem = "EduHelpdesk.Actor";
+
     public Actor CurrentActor()
     {
         var context = _httpContext?.HttpContext;
         if (context is null) return Actor.System;
+        // A call from another system, such as EduNotify raising a technician-call ticket (EduNotifyCallEndpoints).
+        if (context.Items[ActorItem] is Actor caller) return caller;
         var user = context.User;
         if (user?.Identity?.IsAuthenticated == true)
         {

@@ -20,6 +20,37 @@ public class EduNotifyModel(HelpdeskStore store, EduNotifyClient client) : PageM
     // has been fetched, or after EduNotify stopped offering it).
     public IReadOnlyList<(string Id, string Name)> PingTemplateChoices { get; private set; } = [];
     public IReadOnlyList<string> PingGroupChoices { get; private set; } = [];
+    // Person matching, the pop-up and alert rows, and technician calls (HelpdeskStore.EduNotifyLink).
+    public HelpdeskStore.EduNotifyLinkView Link => store.EduNotifyLinkSettings;
+    public int UnmatchedPeople => store.EduNotifyUnmatchedPeople;
+    public IReadOnlyList<string> Categories => store.Categories;
+    // Each event row's template: what EduNotify last offered, plus whatever a row has saved.
+    public IReadOnlyList<(string Id, string Name)> EventTemplateChoices
+    {
+        get
+        {
+            var choices = (Catalogue?.Sendable ?? []).Select(x => (x.Id, x.Name)).ToList();
+            foreach (var rule in Link.Events.Values.Where(x => x.TemplateId.Length > 0))
+                if (choices.All(x => x.Id != rule.TemplateId)) choices.Add((rule.TemplateId, $"{rule.TemplateName} (not in EduNotify's latest list)"));
+            return choices;
+        }
+    }
+    // The reason rows: every reason EduNotify listed, then any mapped reason it no longer lists (greyed out on the page).
+    public IReadOnlyList<(HelpdeskStore.EduNotifyReasonMap Row, bool Listed)> ReasonRows
+    {
+        get
+        {
+            var link = Link;
+            var rows = link.KnownReasons.Select(x => (link.Reasons.FirstOrDefault(r => Same(r, x.Template, x.Reason))
+                ?? new HelpdeskStore.EduNotifyReasonMap(x.Template, x.Reason, "", "", ""), true)).ToList();
+            rows.AddRange(link.Reasons.Where(r => !link.KnownReasons.Any(x => Same(r, x.Template, x.Reason))).Select(r => (r, false)));
+            return rows;
+            static bool Same(HelpdeskStore.EduNotifyReasonMap row, string template, string reason) =>
+                row.Template.Equals(template, StringComparison.OrdinalIgnoreCase) && row.Reason.Equals(reason, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+    // A key that has just been made, shown once.
+    [TempData] public string? NewIncomingKey { get; set; }
     [TempData] public string? Message { get; set; }
     // Whether Message is a problem rather than good news, for the colour of the notice.
     [TempData] public bool Problem { get; set; }
@@ -82,6 +113,56 @@ public class EduNotifyModel(HelpdeskStore store, EduNotifyClient client) : PageM
         Message = outcome.Message;
         Problem = !outcome.Ok;
         return RedirectToPage();
+    }
+
+    public IActionResult OnPostSavePeople(string? emailDomain, int takeDownHours)
+    {
+        var (ok, message) = store.SetEduNotifyPersonMatching(emailDomain, takeDownHours);
+        Message = message;
+        Problem = !ok;
+        return RedirectToPage(null, null, "people");
+    }
+
+    // Each row posts on-<key>, template-<key>, desks-<key> (ticked desks) and, for the SLA warning, minutes-<key>.
+    public IActionResult OnPostSaveEvents()
+    {
+        var rules = HelpdeskStore.EduNotifyEvents.All.ToDictionary(key => key, key => new HelpdeskStore.EduNotifyEventRule(
+            Request.Form[$"on-{key}"] == "true",
+            Request.Form[$"template-{key}"].ToString(),
+            "",
+            Request.Form[$"desks-{key}"].Select(x => Guid.TryParse(x, out var id) ? id : Guid.Empty).Where(x => x != Guid.Empty).ToList(),
+            int.TryParse(Request.Form[$"minutes-{key}"], out var minutes) ? minutes : 60));
+        var (ok, message) = store.SetEduNotifyEventRules(rules);
+        Message = ok && rules.Values.Any(x => x.Enabled) && !Settings.Ready ? $"{message} Nothing is sent until EduNotify's master switch above is on." : message;
+        Problem = !ok;
+        return RedirectToPage(null, null, "events");
+    }
+
+    // The reason rows post reason-template, reason-reason, reason-category, reason-priority and reason-urgent, in step.
+    public IActionResult OnPostSaveCalls(bool acceptCalls, bool assignOnMyWay, bool closeOnResolve, string? fallbackCategory, string? fallbackPriority, string? fallbackUrgentPriority)
+    {
+        string At(string field, int i) => Request.Form[field].ElementAtOrDefault(i) ?? "";
+        var count = Request.Form["reason-reason"].Count;
+        var reasons = Enumerable.Range(0, count).Select(i => new HelpdeskStore.EduNotifyReasonMap(At("reason-template", i), At("reason-reason", i),
+            At("reason-category", i), At("reason-priority", i), At("reason-urgent", i))).ToList();
+        var (ok, message) = store.SetEduNotifyCallSettings(new(acceptCalls, assignOnMyWay, closeOnResolve, reasons, fallbackCategory, fallbackPriority, fallbackUrgentPriority));
+        Message = message;
+        Problem = !ok;
+        return RedirectToPage(null, null, "calls");
+    }
+
+    public IActionResult OnPostNewIncomingKey()
+    {
+        NewIncomingKey = store.NewEduNotifyIncomingKey();
+        Message = "Made the incoming key. Copy it now and paste it into EduNotify under Settings → Integrations → EduHelpdesk: it isn't shown again.";
+        return RedirectToPage(null, null, "calls");
+    }
+
+    public IActionResult OnPostRemoveIncomingKey()
+    {
+        store.RemoveEduNotifyIncomingKey();
+        Message = "Removed the incoming key. EduNotify can't raise tickets until a new one is made and pasted there.";
+        return RedirectToPage(null, null, "calls");
     }
 
     // Takes a ticket's notice down from here, for when the ticket is fine but the notice shouldn't be showing.

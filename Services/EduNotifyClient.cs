@@ -39,6 +39,7 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
                 }
                 else nextCatalogue = DateTime.MinValue;
                 await TechnicianPingsAsync(stoppingToken);
+                await EventsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception ex)
@@ -92,6 +93,7 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
         }
         var catalogue = new EduNotify.Catalogue(DateTime.UtcNow, templateList, groupList);
         store.SetEduNotifyCatalogue(catalogue);
+        await RefreshReasonsAsync(cancel);
         var sendable = catalogue.Sendable.Count;
         var message = sendable == 0
             ? "Connected, but the key isn't allowed any templates the helpdesk can use. In EduNotify, give the key an outage template under Settings → Integrations."
@@ -141,6 +143,43 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
             var (outcome, sent) = await SendAsync(send, cancel);
             if (sent is not null) store.RecordTechnicianPingSent(number, send, sent);
             else logger.LogWarning("The EduNotify technician ping for ticket #{Number} couldn't be sent yet: {Message}", number, outcome.Message);
+        }
+    }
+
+    // The reasons of EduNotify's on-call templates that raise tickets, for the reason → category table. A key that isn't
+    // allowed to manage technician calls gets 403, which leaves the list as it was.
+    private async Task RefreshReasonsAsync(CancellationToken cancel)
+    {
+        var (status, body, problem) = await CallAsync(HttpMethod.Get, "oncall/reasons", null, cancel);
+        if (problem is not null || status != HttpStatusCode.OK) return;
+        if (EduNotify.ParseOnCallReasons(body) is { } reasons) store.SetEduNotifyKnownReasons(reasons);
+    }
+
+    // Requester pop-ups and technician alerts (HelpdeskStore.EduNotifyLink), taking down the ones past their time, and
+    // telling EduNotify when a technician call's ticket is resolved. A pop-up that fails isn't tried again (a late "replied"
+    // is worse than none); a take-down or a close that fails is, next pass.
+    public async Task EventsAsync(CancellationToken cancel)
+    {
+        var sending = store.EduNotifySettings.Ready;
+        var plan = store.PlanEduNotifyEvents(sending);
+        if (!sending) return;
+        foreach (var reference in plan.Recall)
+        {
+            var outcome = await RecallReferenceAsync(reference, $"the pop-up {reference}", cancel);
+            if (outcome.Ok) store.RecordEduNotifyPopupGone(reference);
+        }
+        foreach (var popup in plan.Send)
+        {
+            var (outcome, sent) = await SendAsync(popup.Send, cancel);
+            if (sent is not null) store.RecordEduNotifyPopupSent(popup, sent);
+            else logger.LogWarning("The EduNotify pop-up {Reference} wasn't sent: {Message}", popup.Reference, outcome.Message);
+        }
+        foreach (var (number, reference) in plan.CloseCalls)
+        {
+            var (status, body, problem) = await CallAsync(HttpMethod.Post, $"oncalls/close?ticket={Uri.EscapeDataString(reference)}", null, cancel);
+            // Not found means the call had already closed in EduNotify (attended and timed out, or closed on the console).
+            if (problem is null && status is HttpStatusCode.OK or HttpStatusCode.NotFound) store.RecordEduNotifyCallClosed(number);
+            else logger.LogWarning("EduNotify wasn't told technician call ticket {Ref} is resolved yet: {Message}", reference, problem ?? Refusal(status, body));
         }
     }
 

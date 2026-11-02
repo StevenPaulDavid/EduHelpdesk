@@ -375,6 +375,8 @@ app.MapGet("/branding/logo", (HelpdeskStore store, HttpContext context) =>
 });
 // What a browser asks to hear about new tickets and replies (wwwroot/js/notifications.js).
 app.MapNotificationEndpoints();
+// EduNotify raising and assigning technician-call tickets, with the incoming key (Settings → EduNotify).
+app.MapEduNotifyCallEndpoints();
 app.MapRazorPages()
    .WithStaticAssets();
 

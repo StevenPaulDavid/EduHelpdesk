@@ -127,6 +127,9 @@ public sealed partial class HelpdeskStore
         public Dictionary<Guid, List<string>> DeskPingGroups { get; set; } = [];
         public List<TechnicianPing> TechnicianPings { get; set; } = [];
         public HashSet<int> TechnicianPingSeen { get; set; } = [];
+        // What else EduNotify does for the helpdesk: person matching, requester pop-ups, technician alerts and technician
+        // calls (HelpdeskStore.EduNotifyLink). Kept as one JSON value in Metadata.
+        public EduNotifyLinkData EduNotifyLink { get; set; } = new();
         // Settings → Spending bands: project pages show amounts including VAT. Off by default, so they show ex VAT.
         public bool ProjectPageIncludesVat { get; set; }
         // The address staff type to reach the helpdesk, printed on quick start guides. Empty until set in Settings → Sign-in

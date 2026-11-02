@@ -60,6 +60,8 @@ public sealed partial class HelpdeskStore
     // on doesn't announce a backlog.
     public long AddNotification(string audience, Guid? recipientId, string kind, int? ticketNumber = null, Guid? actorId = null)
     {
+        // EduNotify's pop-ups have their own switches (HelpdeskStore.EduNotifyLink), so they hear of replies either way.
+        NoteReplyForEduNotify(kind, ticketNumber, recipientId);
         if (!NotificationsOpenFor(audience)) return 0;
         // Worked out before the notification lock is taken, so the two locks are only ever taken in this order.
         Guid? deskId = null;
