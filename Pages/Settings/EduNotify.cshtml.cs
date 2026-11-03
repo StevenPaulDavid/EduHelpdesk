@@ -154,7 +154,7 @@ public class EduNotifyModel(HelpdeskStore store, EduNotifyClient client) : PageM
     public IActionResult OnPostNewIncomingKey()
     {
         NewIncomingKey = store.NewEduNotifyIncomingKey();
-        Message = "Made the incoming key. Copy it now and paste it into EduNotify under Settings → Integrations → EduHelpdesk: it isn't shown again.";
+        Message = "Made the incoming key. Copy it now and paste it into EduNotify under Settings → EduHelpdesk (step 3): it isn't shown again.";
         return RedirectToPage(null, null, "calls");
     }
 

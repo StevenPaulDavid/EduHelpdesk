@@ -45,8 +45,8 @@ A pop-up says only the ticket number and what happened, never the ticket's words
 
 EduNotify's **Call technician** (an on-call template with *Also raise a helpdesk ticket*) alerts the technicians' PCs and raises a ticket here.
 
-1. Press **Make the incoming key** and paste it into EduNotify under **Settings → Integrations → EduHelpdesk**.
-2. In EduNotify, tick **Can manage technician calls** on the helpdesk's API key, then **Test the connection** here, so the reasons are listed.
+1. Press **Make the incoming key** and paste it into EduNotify under **Settings → EduHelpdesk** (its step 3). That page walks through EduNotify's side of the setup, and its step 1 makes the API key this page's **Connection** uses, with everything technician calls need already ticked.
+2. Once EduNotify has a technician call that raises tickets (its step 4), press **Test the connection** here, so the reasons are listed.
 3. Choose each reason's **category** (which sets the desk), **priority** and **urgent priority**, and the ones for **unknown reasons**.
 4. Tick **Accept calls from EduNotify**.
 

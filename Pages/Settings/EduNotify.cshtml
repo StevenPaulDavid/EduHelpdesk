@@ -173,7 +173,7 @@
     <p class="muted">A teacher's <strong>Call technician</strong> (an EduNotify on-call template with <em>Also raise a helpdesk ticket</em>) alerts the technicians' PCs and raises a ticket here. The reason they picked decides the category and priority; the first technician to press <strong>On my way</strong> is assigned; resolving the ticket takes the call down. These tickets never send the technician ping or the <em>Ticket logged</em> pop-up.</p>
     @if (!string.IsNullOrEmpty(Model.NewIncomingKey))
     {
-        <div class="notice">Copy this key now - it isn't shown again. Paste it into EduNotify under <strong>Settings → Integrations → EduHelpdesk</strong>:<br /><code>@Model.NewIncomingKey</code></div>
+        <div class="notice">Copy this key now - it isn't shown again. Paste it into EduNotify under <strong>Settings → EduHelpdesk</strong> (step 3):<br /><code>@Model.NewIncomingKey</code></div>
     }
     <p class="muted">Incoming key: @if (link.HasIncomingKey) { <span><code>@link.IncomingKeyPrefix…</code>, last used @(link.IncomingKeyLastUsed is { } used ? used.ToLocalTime().ToString("ddd d MMM, HH:mm") : "never").</span> } else { <span>none yet.</span> }</p>
     <div class="settings-form" style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -247,7 +247,7 @@
         <li>In the EduNotify console, go to <strong>Settings → Integrations → API keys</strong> and make a key named, say, <em>EduHelpdesk</em>. Its name is shown as the sender of every notice.</li>
         <li>Tick the templates technicians may send - an <em>IT outage</em> template that lets the title and message be changed is the useful one, plus a <em>Technician ping</em> template for the technician ping. Leave <strong>May send emergency templates</strong> off: the helpdesk never offers them.</li>
         <li>For pop-ups and technician alerts, tick an editable template too, and put this helpdesk's address under <strong>Links may open</strong>, so pop-ups can carry an <em>Open ticket</em> button.</li>
-        <li>For technician calls, tick <strong>Can manage technician calls</strong>, so the helpdesk can read the reasons and close calls.</li>
+        <li>For technician calls, tick <strong>Can manage technician calls</strong>, so the helpdesk can read the reasons and close calls. EduNotify's <strong>Settings → EduHelpdesk</strong> page makes a key with all of this ticked for you.</li>
         <li>Optionally limit the key to this server's IP address.</li>
         <li>EduNotify shows the key once, starting <code>enk_</code>. Paste it above with EduNotify's address (the one you open its console on), then <strong>Test the connection</strong>.</li>
     </ol>
