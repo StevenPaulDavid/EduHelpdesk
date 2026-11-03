@@ -51,7 +51,11 @@ public sealed partial class HelpdeskStore
     public EduNotify.Catalogue? EduNotifyCatalogue => Volatile.Read(ref _eduNotifyCatalogue);
     public void SetEduNotifyCatalogue(EduNotify.Catalogue? catalogue) => Volatile.Write(ref _eduNotifyCatalogue, catalogue);
     public EduNotifyAttempt? EduNotifyLastAttempt => Volatile.Read(ref _eduNotifyLast);
-    public void RecordEduNotifyAttempt(bool ok, string message) => Volatile.Write(ref _eduNotifyLast, new EduNotifyAttempt(DateTime.UtcNow, ok, message));
+    public void RecordEduNotifyAttempt(bool ok, string message)
+    {
+        Volatile.Write(ref _eduNotifyLast, new EduNotifyAttempt(DateTime.UtcNow, ok, message));
+        RecordEduNotifyHealth(ok, message);
+    }
 
     // newKey blank keeps the key already saved; removeKey takes it away (and so switches sending off). A blank address
     // clears it too. A new address or key forgets what the old one could send.

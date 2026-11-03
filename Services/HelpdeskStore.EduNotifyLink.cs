@@ -125,6 +125,19 @@ public sealed partial class HelpdeskStore
         public Dictionary<int, EduNotifyTicketState> Seen { get; set; } = [];
         public DateTime? LastScan { get; set; }
         public DateOnly? LoansRemindedOn { get; set; }
+
+        // Pairing (the EduNotify project's docs/EASY-LINK.md): when and by whom, the templates EduNotify made for us, and
+        // the last call each way for the health panel. LinkVersion 2 means a link made by hand has been cleared once.
+        public DateTime? PairedAt { get; set; }
+        public string PairedBy { get; set; } = "";
+        public string NoticeTemplateId { get; set; } = "";
+        public string PopupTemplateId { get; set; } = "";
+        public string PopupTemplateName { get; set; } = "";
+        public int LinkVersion { get; set; }
+        public bool RepairNeeded { get; set; }
+        public DateTime? LastOutAt { get; set; }
+        public bool LastOutOk { get; set; }
+        public string LastOutMessage { get; set; } = "";
     }
 
     // The requester tickets from technician calls are logged against when EduNotify's login matches nobody here.
@@ -148,7 +161,10 @@ public sealed partial class HelpdeskStore
         IReadOnlyList<EduNotifyReasonMap> Reasons, string FallbackCategory, string FallbackPriority, string FallbackUrgentPriority,
         IReadOnlyList<EduNotifyKnownReason> KnownReasons, DateTime? KnownReasonsAt, IReadOnlyList<EduNotifyCallTicket> Calls)
     {
-        public EduNotifyEventRule RuleFor(string key) => Events.GetValueOrDefault(key) ?? new(false, "", "", []);
+        public EduNotifyEventRule RuleFor(string key) => Events.GetValueOrDefault(key) ?? new(false, PopupTemplateId, PopupTemplateName, []);
+        // The pop-up template EduNotify made when pairing: every row's unless changed under Advanced.
+        public string PopupTemplateId { get; init; } = "";
+        public string PopupTemplateName { get; init; } = "";
     }
 
     public EduNotifyLinkView EduNotifyLinkSettings
@@ -161,7 +177,8 @@ public sealed partial class HelpdeskStore
                 return new(link.EmailDomain, link.TakeDownHours, new Dictionary<string, EduNotifyEventRule>(link.Events), link.AcceptCalls,
                     link.AssignOnMyWay, link.CloseOnResolve, link.IncomingKeyHash.Length > 0, link.IncomingKeyPrefix, link.IncomingKeyLastUsed,
                     link.Reasons.ToList(), link.FallbackCategory, link.FallbackPriority, link.FallbackUrgentPriority, link.KnownReasons.ToList(),
-                    link.KnownReasonsAt, link.Calls.OrderByDescending(x => x.RaisedAt).Take(20).ToList());
+                    link.KnownReasonsAt, link.Calls.OrderByDescending(x => x.RaisedAt).Take(20).ToList())
+                { PopupTemplateId = link.PopupTemplateId, PopupTemplateName = link.PopupTemplateName };
             }
         }
     }
@@ -331,14 +348,164 @@ public sealed partial class HelpdeskStore
     public bool CheckEduNotifyIncomingKey(string? presented)
     {
         if (string.IsNullOrWhiteSpace(presented)) return false;
+        var hash = Encoding.ASCII.GetBytes(KeyHash(presented.Trim()));
         lock (_sync)
         {
+            // While pairing, EduNotify checks back with the key it's about to be given, before it's saved here.
+            if (_pendingIncoming is { } pending && pending.Until > DateTime.UtcNow &&
+                CryptographicOperations.FixedTimeEquals(hash, Encoding.ASCII.GetBytes(pending.Hash)))
+                return true;
             var stored = Link.IncomingKeyHash;
             if (stored.Length == 0) return false;
-            var ok = CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(KeyHash(presented.Trim())), Encoding.ASCII.GetBytes(stored));
+            var ok = CryptographicOperations.FixedTimeEquals(hash, Encoding.ASCII.GetBytes(stored));
             if (ok) Link.IncomingKeyLastUsed = DateTime.UtcNow;
             return ok;
         }
+    }
+
+    // ---- Pairing ----
+
+    private (string Hash, DateTime Until)? _pendingIncoming;
+
+    // A fresh incoming key for pairing: accepted for two minutes while EduNotify checks back, kept only if pairing works.
+    public string PrepareEduNotifyIncomingKey()
+    {
+        var key = IncomingKeyStart + Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        lock (_sync) _pendingIncoming = (KeyHash(key), DateTime.UtcNow.AddMinutes(2));
+        return key;
+    }
+
+    // The most common domain among active staff emails, as the pairing box's suggestion. "" with none.
+    public string GuessEmailDomain()
+    {
+        lock (_sync)
+            return _data.Users.Where(x => x.IsActive && x.AnonymisedAt is null && x.Email.Contains('@'))
+                .Select(x => x.Email[(x.Email.LastIndexOf('@') + 1)..].Trim().ToLowerInvariant())
+                .Where(x => CleanEmailDomain(x) is { Length: > 0 })
+                .GroupBy(x => x).OrderByDescending(x => x.Count()).ThenBy(x => x.Key).Select(x => x.Key).FirstOrDefault() ?? "";
+    }
+
+    public sealed record PairingAnswer(string EduNotifyAddress, string ApiKey, string IncomingKey, string EmailDomain,
+        (string Id, string Name) Notice, (string Id, string Name) Ping, (string Id, string Name) Popup, IReadOnlyList<string> Groups);
+
+    // EduNotify accepted the code: keep both keys and the templates it made, and put in the defaults (docs/EASY-LINK.md):
+    // calls accepted to the IT desk's general category, desk PCs guessed where a desk has none, every pop-up off.
+    public void ApplyEduNotifyPairing(PairingAnswer answer)
+    {
+        lock (_sync)
+        {
+            var link = Link;
+            _data.EduNotifyAddress = answer.EduNotifyAddress;
+            _data.EduNotifyApiKey = answer.ApiKey;
+            _data.EduNotifyEnabled = true;
+            link.IncomingKeyHash = KeyHash(answer.IncomingKey);
+            link.IncomingKeyPrefix = answer.IncomingKey[..(IncomingKeyStart.Length + 6)];
+            link.IncomingKeyLastUsed = DateTime.UtcNow;
+            _pendingIncoming = null;
+            link.EmailDomain = CleanEmailDomain(answer.EmailDomain) ?? "";
+            link.PairedAt = DateTime.UtcNow;
+            link.PairedBy = CurrentActor().Name;
+            link.RepairNeeded = false;
+            link.LinkVersion = 2;
+            link.NoticeTemplateId = answer.Notice.Id;
+            link.PopupTemplateId = answer.Popup.Id;
+            link.PopupTemplateName = answer.Popup.Name;
+            link.Events = EduNotifyEvents.All.ToDictionary(key => key, key => link.Events.GetValueOrDefault(key) is { } rule
+                ? rule with { TemplateId = answer.Popup.Id, TemplateName = answer.Popup.Name }
+                : new EduNotifyEventRule(false, answer.Popup.Id, answer.Popup.Name, []));
+            _data.TechnicianPingTemplateId = answer.Ping.Id;
+            _data.TechnicianPingTemplateName = answer.Ping.Name;
+
+            link.AcceptCalls = true;
+            link.AssignOnMyWay = true;
+            link.CloseOnResolve = true;
+            var it = _data.Desks.FirstOrDefault(x => x.Kind == DeskKinds.It) ?? _data.Desks[0];
+            var itCategories = _data.Categories.Where(x => DeskForCategoryCore(x).Id == it.Id).ToList();
+            if (!_data.Categories.Contains(link.FallbackCategory, StringComparer.OrdinalIgnoreCase))
+                link.FallbackCategory = itCategories.FirstOrDefault(x => x.Contains("general", StringComparison.OrdinalIgnoreCase))
+                    ?? itCategories.FirstOrDefault(x => x.Equals("Other", StringComparison.OrdinalIgnoreCase)) ?? itCategories.FirstOrDefault() ?? _data.Categories.FirstOrDefault() ?? "";
+            string PriorityLike(params string[] names) => names.Select(n => _data.Priorities.FirstOrDefault(p => p.Equals(n, StringComparison.OrdinalIgnoreCase))).FirstOrDefault(p => p is not null) ?? "";
+            if (!_data.Priorities.Contains(link.FallbackPriority, StringComparer.OrdinalIgnoreCase))
+                link.FallbackPriority = PriorityLike("Normal", "Medium") is { Length: > 0 } normal ? normal : _data.Priorities.FirstOrDefault() ?? "";
+            if (!_data.Priorities.Contains(link.FallbackUrgentPriority, StringComparer.OrdinalIgnoreCase))
+                link.FallbackUrgentPriority = PriorityLike("High", "Urgent", "Critical");
+
+            foreach (var desk in _data.Desks.Where(x => !_data.DeskPingGroups.TryGetValue(x.Id, out var g) || g.Count == 0))
+                if (GuessDeskGroups(desk, answer.Groups) is { Count: > 0 } guessed) _data.DeskPingGroups[desk.Id] = guessed;
+
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Settings", null, null, "EduNotify", "Paired with EduNotify",
+                $"With {answer.EduNotifyAddress}; email domain {(link.EmailDomain.Length == 0 ? "none" : link.EmailDomain)}; calls accepted to {link.FallbackCategory}; pop-ups off. The keys themselves are never recorded."));
+            Save();
+        }
+    }
+
+    // Groups whose names look like that desk's staff: technicians and IT for the IT desk, site and premises for Facilities.
+    private static List<string> GuessDeskGroups(Desk desk, IReadOnlyList<string> groups)
+    {
+        var pattern = desk.Kind == DeskKinds.Facilities
+            ? @"\b(site|premises|caretak\w*|facilit\w*)\b"
+            : desk.Kind == DeskKinds.It ? @"\b(technician\w*|it|ict|tech)\b" : $@"\b{System.Text.RegularExpressions.Regex.Escape(desk.Name)}\b";
+        return groups.Where(x => System.Text.RegularExpressions.Regex.IsMatch(x, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase)).ToList();
+    }
+
+    // Ends the link here: EduNotify's key and the incoming key go, sending stops. Pop-up rows, reasons and desk PCs stay.
+    public void UnlinkEduNotify(string why)
+    {
+        lock (_sync)
+        {
+            _data.EduNotifyApiKey = "";
+            _data.EduNotifyEnabled = false;
+            Link.IncomingKeyHash = "";
+            Link.IncomingKeyPrefix = "";
+            Link.PairedAt = null;
+            SetEduNotifyCatalogue(null);
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Settings", null, null, "EduNotify", "Unlinked from EduNotify", why));
+            Save();
+        }
+    }
+
+    public bool EduNotifyLinked { get { lock (_sync) return _data.EduNotifyApiKey.Length > 0 && Link.IncomingKeyHash.Length > 0; } }
+    public bool EduNotifyRepairNeeded { get { lock (_sync) return Link.RepairNeeded; } }
+
+    // The health panel's outgoing half, kept so it survives a restart. Saved only when it changes from working to failing
+    // or back, or every ten minutes, since every pass calls EduNotify.
+    public void RecordEduNotifyHealth(bool ok, string message)
+    {
+        lock (_sync)
+        {
+            var link = Link;
+            var due = link.LastOutAt is not { } at || DateTime.UtcNow - at > TimeSpan.FromMinutes(10) || link.LastOutOk != ok;
+            link.LastOutAt = DateTime.UtcNow;
+            link.LastOutOk = ok;
+            link.LastOutMessage = message;
+            if (due) Save();
+        }
+    }
+
+    public sealed record EduNotifyHealth(DateTime? PairedAt, string PairedBy, DateTime? OutAt, bool OutOk, string OutMessage, DateTime? InAt);
+
+    public EduNotifyHealth EduNotifyLinkHealth
+    {
+        get { lock (_sync) return new(Link.PairedAt, Link.PairedBy, Link.LastOutAt, Link.LastOutOk, Link.LastOutMessage, Link.IncomingKeyLastUsed); }
+    }
+
+    // The desk PCs table on its own (the ping keeps its other settings). Groups must be ones EduNotify listed.
+    public (bool Ok, string Message) SetEduNotifyDeskPcs(IReadOnlyDictionary<Guid, IEnumerable<string>> deskGroups)
+    {
+        var ping = TechnicianPingSettings;
+        return SetTechnicianPingSettings(ping.Enabled, ping.Priorities, ping.TemplateId, deskGroups.GetValueOrDefault(Desks[0].Id) ?? [], deskGroups);
+    }
+
+    // The link test's ticket, once EduNotify has made it: gone without a trace but the audit line.
+    public void RemoveEduNotifyTestTicket(int number)
+    {
+        lock (_sync)
+        {
+            Link.Calls.RemoveAll(x => x.TicketNumber == number);
+            Link.Seen.Remove(number);
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Settings", null, null, "EduNotify", "Link test", $"Test ticket #{number} made through EduNotify, then removed."));
+        }
+        DeleteTicket(number);
     }
 
     private static string KeyHash(string key) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
@@ -359,8 +526,9 @@ public sealed partial class HelpdeskStore
 
     // ---- Technician calls: raising and assigning (EduNotifyCallEndpoints) ----
 
+    // Test: EduNotify's link test (its subject starts TEST:); the helpdesk removes the ticket straight afterwards.
     public sealed record CallTicketRequest(string? ExternalId, string? Subject, string? Description, string? RequesterEmail, string? RequesterName,
-        string? Template, string? Reason, bool Urgent, string? Location);
+        string? Template, string? Reason, bool Urgent, string? Location, bool Test = false);
 
     // Status is the HTTP status to answer with: 201 made, 200 made before (same call), 400 bad request, 503 not accepting.
     public sealed record CallTicketResult(int Status, string? Ref = null, int? Number = null, string? Error = null);
@@ -706,6 +874,21 @@ public sealed partial class HelpdeskStore
             // As with the notices: unreadable settings start afresh rather than stopping the helpdesk starting.
             try { data.EduNotifyLink = JsonSerializer.Deserialize<EduNotifyLinkData>(json) ?? new(); }
             catch (JsonException) { }
+        }
+        // Once: a link made by hand before pairing is cleared, so the school pairs again (docs/EASY-LINK.md). Saved with
+        // the next save.
+        var link = data.EduNotifyLink;
+        if (link.LinkVersion < 2)
+        {
+            if (data.EduNotifyApiKey.Length > 0 || link.IncomingKeyHash.Length > 0)
+            {
+                data.EduNotifyApiKey = "";
+                data.EduNotifyEnabled = false;
+                link.IncomingKeyHash = "";
+                link.IncomingKeyPrefix = "";
+                link.RepairNeeded = true;
+            }
+            link.LinkVersion = 2;
         }
     }
 

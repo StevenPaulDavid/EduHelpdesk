@@ -183,6 +183,110 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
         }
     }
 
+    // ---- Pairing and the link's tests (the EduNotify project's docs/EASY-LINK.md) ----
+
+    // Sends EduNotify the code it showed, with where it reaches us and a fresh incoming key. EduNotify checks back with
+    // that key before it answers, so a success means both directions work.
+    public async Task<Outcome> PairAsync(string? address, string? code, string? emailDomain, string? reachUsAt, CancellationToken cancel)
+    {
+        var target = EduNotify.CheckAddress(address);
+        if (!target.Ok) return new(false, target.Problem);
+        if (string.IsNullOrWhiteSpace(code)) return new(false, "Enter the pairing code EduNotify is showing.");
+        if (HelpdeskStore.CleanEmailDomain(emailDomain) is not { } domain) return new(false, "That isn't an email domain. Enter the part after the @ in staff emails, e.g. school.org.uk.");
+        var us = EduNotify.CheckAddress(reachUsAt);
+        if (!us.Ok) return new(false, "Enter the address EduNotify reaches EduHelpdesk at, e.g. https://helpdesk.school.local.");
+
+        var incoming = store.PrepareEduNotifyIncomingKey();
+        var json = System.Text.Json.JsonSerializer.Serialize(new { code = code.Trim(), helpdeskAddress = us.Address, incomingKey = incoming, emailDomain = domain });
+        var (status, body, problem) = await SendRawAsync(target.Address, null, HttpMethod.Post, "pair", json, cancel);
+        if (problem is not null) return new(false, problem);
+        if (status != HttpStatusCode.OK)
+        {
+            var said = EduNotify.ParseError(body);
+            return new(false, said.Length > 0 ? said : status == HttpStatusCode.NotFound
+                ? "That address doesn't look like EduNotify, or its version is too old to pair (it needs 1.2 or later)."
+                : $"EduNotify answered {(int)status}.");
+        }
+        if (EduNotify.ParsePaired(body) is not { } paired) return new(false, "EduNotify answered, but not in the way expected.");
+        store.ApplyEduNotifyPairing(new(target.Address, paired.ApiKey, incoming, domain, paired.Notice, paired.Ping, paired.Popup, paired.Groups));
+        await RefreshAsync(cancel);
+        return new(true, $"Paired with EduNotify at {target.Address}. Technician calls are accepted; switch on the pop-ups you want below.");
+    }
+
+    // Ends the link on both sides: EduNotify deletes our key (if it can be reached), then we forget it.
+    public async Task<Outcome> UnlinkAsync(CancellationToken cancel)
+    {
+        var (status, _, problem) = await CallAsync(HttpMethod.Delete, "pair", null, cancel);
+        var told = problem is null && status == HttpStatusCode.OK;
+        store.UnlinkEduNotify(told ? "Unlinked here and in EduNotify." : $"Unlinked here; EduNotify couldn't be told ({problem ?? $"it answered {(int)status}"}), so unlink there too.");
+        return new(true, told ? "Unlinked from EduNotify, on both sides." : "Unlinked here. EduNotify couldn't be told, so press Unlink on its Settings → EduHelpdesk page too.");
+    }
+
+    // A pop-up to the signed-in technician's login, proving login matching, the pop-up template and the Open button.
+    public async Task<Outcome> TestPopupAsync(string? login, string? settingsLink, CancellationToken cancel)
+    {
+        if (login is null) return new(false, "Your email isn't at the staff email domain, so EduNotify can't tell which login is yours.");
+        var templateId = store.EduNotifyLinkSettings.PopupTemplateId;
+        var (outcome, sent) = await SendAsync(new EduNotify.Send(templateId, false, [], "Test pop-up from EduHelpdesk", "If you can see this, pop-ups reach you.",
+            $"EH-test-to-{login}", [login], settingsLink is null ? null : "Open the settings", settingsLink), cancel);
+        if (sent is null) return outcome;
+        return sent.Online > 0
+            ? new(true, $"Shown on {sent.Online} PC{(sent.Online == 1 ? "" : "s")} logged on as {login}.")
+            : new(false, $"Sent, but no PC is logged on as {login} with EduNotify running. Check you're logged on to a PC with EduNotify, and that {login} is your Windows login.");
+    }
+
+    // The end-to-end test: EduNotify makes a TEST ticket exactly as a technician call would and assigns it to whoever
+    // asked; then it is closed, EduNotify told, and the ticket removed. Each step comes back for the page.
+    public async Task<(bool Ok, IReadOnlyList<(string Step, bool Ok, string Detail)> Steps)> TestCallAsync(string? technicianEmail, CancellationToken cancel)
+    {
+        var steps = new List<(string, bool, string)>();
+        var (status, body, problem) = await CallAsync(HttpMethod.Post, "oncall/test",
+            System.Text.Json.JsonSerializer.Serialize(new { technicianEmail }), cancel);
+        if (problem is not null || status != HttpStatusCode.OK || EduNotify.ParseTestCall(body) is not { } test)
+        {
+            steps.Add(("EduNotify ran the test", false, problem ?? Refusal(status, body)));
+            return (false, steps);
+        }
+        steps.AddRange(test.Steps);
+        var ok = test.Ok;
+        if (test.Ticket.Length > 0 && store.FindTicketByRef(test.Ticket).Number is { } number)
+        {
+            var (closeStatus, closeBody, closeProblem) = await CallAsync(HttpMethod.Post, $"oncalls/close?ticket={Uri.EscapeDataString(test.Ticket)}", null, cancel);
+            var closed = closeProblem is null && closeStatus == HttpStatusCode.OK;
+            steps.Add(("EduNotify told it's resolved", closed, closed ? "" : closeProblem ?? Refusal(closeStatus, closeBody)));
+            store.RemoveEduNotifyTestTicket(number);
+            steps.Add(("Test ticket removed", true, ""));
+            ok &= closed;
+        }
+        return (ok, steps);
+    }
+
+    // A silent test (EduNotify shows nothing) to each desk's PCs, then how many said they got it.
+    public async Task<IReadOnlyList<(string Desk, Outcome Outcome)>> TestDeskPcsAsync(CancellationToken cancel)
+    {
+        var ping = store.TechnicianPingSettings;
+        var results = new List<(string, Outcome)>();
+        var sent = new List<(string Desk, long Id, int Targeted)>();
+        foreach (var desk in store.Desks)
+        {
+            var groups = ping.DeskGroups.GetValueOrDefault(desk.Id) ?? [];
+            if (groups.Count == 0) { results.Add((desk.Name, new(false, "No PCs chosen for this desk."))); continue; }
+            var (outcome, message) = await SendAsync(new EduNotify.Send(ping.TemplateId, false, groups.ToList(), "Desk PCs test", null,
+                $"EH-test-desk-{desk.Id:N}", Test: true), cancel);
+            if (message is null) results.Add((desk.Name, outcome));
+            else sent.Add((desk.Name, message.Id, message.Targeted));
+        }
+        if (sent.Count > 0) await Task.Delay(TimeSpan.FromSeconds(5), cancel); // PCs answer within a second or two
+        foreach (var (desk, id, targeted) in sent)
+        {
+            var (status, body, problem) = await CallAsync(HttpMethod.Get, $"messages/{id}", null, cancel);
+            var delivery = problem is null && status == HttpStatusCode.OK ? EduNotify.ParseDelivery(body) : null;
+            results.Add((desk, delivery is null ? new(false, problem ?? Refusal(status, body))
+                : new(delivery.Received == targeted && targeted > 0, $"{delivery.Received} of {targeted} PCs received it{(delivery.Received < targeted ? " (the rest are switched off, or need EduNotify's latest client)" : "")}.")));
+        }
+        return results;
+    }
+
     private async Task<Outcome> RecallReferenceAsync(string reference, string what, CancellationToken cancel)
     {
         var (status, body, problem) = await CallAsync(HttpMethod.Post, $"messages/recall?reference={Uri.EscapeDataString(reference)}", null, cancel);
@@ -208,17 +312,25 @@ public sealed class EduNotifyClient(HelpdeskStore store, IHttpClientFactory clie
         var settings = store.EduNotifySettings;
         var key = store.EduNotifyApiKey;
         if (!settings.HasAddress) return (0, "", "No EduNotify address is set.");
-        if (key.Length == 0) return (0, "", "No EduNotify API key is set.");
+        if (key.Length == 0) return (0, "", "Not linked to EduNotify: pair the two under Settings → EduNotify.");
+        return await SendRawAsync(settings.Address, key, method, path, json, cancel);
+    }
+
+    // One request to {address}/api/v1/{path}, with the key when there is one (pairing has none yet).
+    private async Task<(HttpStatusCode Status, string Body, string? Problem)> SendRawAsync(string address, string? key, HttpMethod method, string path, string? json, CancellationToken cancel)
+    {
+        var settings = new { Address = address };
         var client = clients.CreateClient(ClientName);
         try
         {
             using var request = new HttpRequestMessage(method, $"{settings.Address}/api/v1/{path}");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+            if (key is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             if (json is not null) request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             using var response = await client.SendAsync(request, cancel);
             // EduNotify never echoes the key, but nothing it says can carry the key onwards to a page or a log.
-            var body = (await response.Content.ReadAsStringAsync(cancel)).Replace(key, "[API key]", StringComparison.Ordinal);
+            var body = await response.Content.ReadAsStringAsync(cancel);
+            if (!string.IsNullOrEmpty(key)) body = body.Replace(key, "[API key]", StringComparison.Ordinal);
             return (response.StatusCode, body, null);
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested) { throw; }

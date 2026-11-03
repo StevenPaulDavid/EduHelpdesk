@@ -29,8 +29,9 @@ public static class EduNotify
     // One notice to send. Groups are EduNotify group names; Everyone overrides them. Title and Body left blank keep the
     // template's own. Users are Windows logins, for a pop-up to one person on whichever PC they're on. A link (both
     // label and address) is a button that opens the page; EduNotify only allows addresses the key was given.
+    // Test: a silent test (nothing shows on PCs; they only say they got it), for the desk PCs test.
     public sealed record Send(string TemplateId, bool Everyone, IReadOnlyList<string> Groups, string? Title, string? Body, string Reference,
-        IReadOnlyList<string>? Users = null, string? LinkLabel = null, string? LinkUrl = null);
+        IReadOnlyList<string>? Users = null, string? LinkLabel = null, string? LinkUrl = null, bool Test = false);
 
     // What EduNotify said about a send: its message id, and how many PCs showed it now out of how many it was meant for
     // (the rest are switched off and get it when they start).
@@ -92,6 +93,7 @@ public static class EduNotify
                 },
             ["reference"] = send.Reference
         };
+        if (send.Test) json["test"] = true;
         if (!string.IsNullOrWhiteSpace(send.LinkLabel) && !string.IsNullOrWhiteSpace(send.LinkUrl))
             json["link"] = new JsonObject { ["label"] = send.LinkLabel, ["url"] = send.LinkUrl };
         if (!string.IsNullOrWhiteSpace(send.Title)) json["title"] = send.Title.Trim();
@@ -158,6 +160,56 @@ public static class EduNotify
                 reasons.AddRange(list.Select(x => new HelpdeskStore.EduNotifyKnownReason(name, x)));
             }
             return reasons;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    // POST /api/v1/pair's answer: our key, the three templates EduNotify made, and its PC groups.
+    public sealed record Paired(string ApiKey, (string Id, string Name) Notice, (string Id, string Name) Ping, (string Id, string Name) Popup, IReadOnlyList<string> Groups);
+
+    public static Paired? ParsePaired(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || Text(root, "apiKey") is not { Length: > 0 } key) return null;
+            if (Property(root, "templates") is not { ValueKind: JsonValueKind.Object } templates) return null;
+            (string, string) Template(string role) => Property(templates, role) is { ValueKind: JsonValueKind.Object } t ? (Text(t, "id"), Text(t, "name")) : ("", "");
+            var groups = Property(root, "groups") is { ValueKind: JsonValueKind.Array } array
+                ? array.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList() : [];
+            return new(key, Template("notice"), Template("ping"), Template("popup"), groups);
+        }
+        catch (JsonException) { return null; }
+    }
+
+    // GET /api/v1/messages/{id}: how many PCs a (test) message reached.
+    public sealed record Delivery(int Received, int Online, int Targeted);
+
+    public static Delivery? ParseDelivery(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            return root.ValueKind == JsonValueKind.Object ? new(Number(root, "received"), Number(root, "online"), Number(root, "targeted")) : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    // POST /api/v1/oncall/test's answer: whether it all worked, the ticket it made, and each step.
+    public sealed record TestCall(bool Ok, string Ticket, IReadOnlyList<(string Step, bool Ok, string Detail)> Steps);
+
+    public static TestCall? ParseTestCall(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            var steps = Property(root, "steps") is { ValueKind: JsonValueKind.Array } array
+                ? array.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object).Select(x => (Text(x, "step"), Flag(x, "ok"), Text(x, "detail"))).ToList() : [];
+            return new(Flag(root, "ok"), Text(root, "ticket"), steps);
         }
         catch (JsonException) { return null; }
     }
