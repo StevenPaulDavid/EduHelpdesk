@@ -1,5 +1,7 @@
 ## Next version (not released yet)
 
+- **Phone app** - technicians can see their tickets, take them with Assign to me or On my way, and log new ones (or jobs already done, with photos) from the EduHelpdesk app for Android. It's off until an administrator turns it on in **Settings → Sign-in security**, works only over HTTPS, and only for roles with **Use the phone app** ticked - an upgraded helpdesk doesn't tick it for anyone. Each person pairs a phone from **Phones** in their account menu, and can revoke it there. See [Phone app](phone-app).
+- **Assigned to you** - the bell now says when someone else gives you a ticket.
 - **Help centre** - this help: Getting started guides, a guide to every page, step-by-step articles, a **?** beside fields that need explaining, a **Help** link by each page's title, and the school's own articles and notes. Staff using the portal get their own short help from the **? Help** in its top bar.
 - **Cleaning rounds** - rooms grouped into rounds on chosen days, a printed sheet for the cleaners, ticking off rooms with spot-check scores, and a report of missed rooms. See [Getting started: cleaning rounds](getting-started-cleaning).
 - **Premises checks** - recurring checks can have a checklist with readings (water temperatures, say). A ticket can't be closed until it's filled in, and failures raise a follow-up job. A new **Premises checks** report is the compliance log.
