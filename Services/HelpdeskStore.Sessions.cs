@@ -49,16 +49,19 @@ public sealed partial class HelpdeskStore
         }
     }
 
-    // Everywhere this account is signed in - used by a factory reset, and available for "sign out everywhere".
+    // Everywhere this account is signed in, its paired phones included (HelpdeskStore.Phones) - used by a factory reset,
+    // and available for "sign out everywhere".
     public int EndSessionsFor(Guid accountId)
     {
+        int ended;
         lock (_sessionSync)
         {
             var ids = _sessions.Where(x => x.Value.AccountId == accountId).Select(x => x.Key).ToList();
             foreach (var id in ids) _sessions.Remove(id);
             if (ids.Count > 0) ExecuteDirect("DELETE FROM Sessions WHERE AccountId = $account;", ("$account", accountId.ToString()));
-            return ids.Count;
+            ended = ids.Count;
         }
+        return ended + EndPhonesFor(accountId);
     }
 
     public void EndAllSessions()
@@ -68,6 +71,7 @@ public sealed partial class HelpdeskStore
             _sessions.Clear();
             ExecuteDirect("DELETE FROM Sessions;");
         }
+        EndAllPhones();
     }
 
     // At startup: what is still live, with anything that has run out cleared away.

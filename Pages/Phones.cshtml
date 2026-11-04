@@ -1,0 +1,90 @@
+@page
+@model PhonesModel
+@using EduHelpdesk.Services
+@{ ViewData["Title"] = "Phones"; }
+<div class="page-heading"><div><h1>Phones</h1><p class="hero-copy">Use EduHelpdesk on your Android phone: see your tickets, take them with Assign to me or On my way, and log new ones. Pair a phone here, and revoke it if it's lost or replaced.</p></div></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (Model.Refusal is { } refusal)
+{
+    <div class="notice notice-warning">@refusal @if (Model.CanSetUp && !Model.AppOn) { <a asp-page="/Settings/SignIn" asp-fragment="phones">Sign-in security</a> }</div>
+}
+else if (!Model.IsHttps)
+{
+    <div class="notice notice-warning">This page came over plain HTTP. The phone app only connects over HTTPS, so phones can't be paired until HTTPS is on: run Enable-Https.cmd from the folder EduHelpdesk was installed from. See the Install Guide.</div>
+}
+
+@if (Model.QrCode is { } qr)
+{
+    <section class="panel">
+        <h2>Scan this with the EduHelpdesk app</h2>
+        <ol class="setup-steps">
+            <li>Open the app and press <strong>Scan pairing code</strong>.</li>
+            <li>Point the camera at this code.<div class="qr-block"><img src="@qr" alt="Pairing code to scan with the EduHelpdesk app" width="246" height="246" /><p class="muted">It works once, until @Model.CodeExpiresAt!.Value.ToLocalTime().ToString("HH:mm"). Then press Add a phone again.</p></div></li>
+            <li>That's it: the phone is signed in as you, with two-step sign-in already done.</li>
+        </ol>
+        <p><a asp-page="/Phones">Done</a></p>
+    </section>
+}
+else if (Model.Refusal is null && Model.IsHttps)
+{
+    <section class="panel">
+        <h2>Add a phone</h2>
+        <p class="muted">Type your password to show a pairing code. The phone stays signed in until you revoke it, your password changes, or it goes @((int)HelpdeskStore.PhoneIdleLimit.TotalDays) days without being used.</p>
+        <form method="post" asp-page-handler="Add" class="settings-form field-narrow">
+            <div asp-validation-summary="All" class="validation-summary-errors"></div>
+            <label>Your current password<input name="CurrentPassword" type="password" autocomplete="current-password" maxlength="256" required /></label>
+            <button class="button button-primary">Add a phone</button>
+        </form>
+        <details>
+            <summary>Can't scan a code?</summary>
+            <p>In the app, choose <strong>Enter the address instead</strong>, type <code>@Model.Address</code> and sign in with your email and password.@if (Model.Fingerprint is { } fingerprint) { <text> If the app asks you to check the certificate, its fingerprint should be <code>@ServerCertificate.Readable(fingerprint)</code>.</text> }</p>
+        </details>
+    </section>
+}
+
+<section class="panel">
+    <h2>Your phones</h2>
+    @if (Model.MyPhones.Count == 0)
+    {
+        <p class="muted">No phones paired.</p>
+    }
+    else
+    {
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Phone</th><th>Paired</th><th>Last used</th><th></th></tr></thead><tbody>
+        @foreach (var phone in Model.MyPhones)
+        {
+            <tr>
+                <td>@phone.Name<br /><span class="muted">@PhonesModel.PairedBy(phone)</span></td>
+                <td>@phone.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</td>
+                <td>@phone.LastUsedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td>
+                <td><form method="post" asp-page-handler="Revoke" asp-route-id="@phone.Id" data-confirm="Sign out @phone.Name? It will need pairing again to be used."><button class="button button-danger">Revoke</button></form></td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+
+@if (Model.CanManageEveryone)
+{
+    <section class="panel">
+        <h2>Everyone's phones</h2>
+        @if (Model.EveryonesPhones.Count == 0)
+        {
+            <p class="muted">No one has paired a phone.</p>
+        }
+        else
+        {
+            <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">Technician</th><th>Phone</th><th>Last used</th><th></th></tr></thead><tbody>
+            @foreach (var phone in Model.EveryonesPhones)
+            {
+                <tr>
+                    <td>@(Model.TechnicianName(phone.TechnicianId) ?? "A removed account")</td>
+                    <td>@phone.Name<br /><span class="muted">@PhonesModel.PairedBy(phone), @phone.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</span></td>
+                    <td>@phone.LastUsedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")@if (phone.LastAddress is { } where) { <br /><span class="muted">from @where</span> }</td>
+                    <td><form method="post" asp-page-handler="Revoke" asp-route-id="@phone.Id" data-confirm="Sign out this phone? It will need pairing again to be used."><button class="button button-danger">Revoke</button></form></td>
+                </tr>
+            }
+            </tbody></table></div>
+        }
+    </section>
+}

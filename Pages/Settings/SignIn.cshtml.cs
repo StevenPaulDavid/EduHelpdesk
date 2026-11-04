@@ -38,6 +38,18 @@ public class SignInModel(HelpdeskStore store) : PageModel
         return RedirectToPage(null, null, "recovery");
     }
 
+    // The phone app (HelpdeskStore.Phones): on or off for the school, and which roles may use it.
+    public bool PhoneAppAllowed => store.AllowPhoneApp;
+    public IReadOnlyList<string> PhoneRoles => store.Roles.Where(x => store.RoleHasFlag(x.Name, Modules.Flags.PhoneApp)).Select(x => x.Name).ToList();
+    public int PairedPhones => store.AllPhones.Count;
+    public bool CanEditRoles => store.UserCan(User, Modules.Roles, ModulePermission.Edit);
+
+    public IActionResult OnPostPhoneApp(bool allowed)
+    {
+        Message = store.SetAllowPhoneApp(allowed);
+        return RedirectToPage(null, null, "phones");
+    }
+
     public string SiteAddress => store.SiteAddress;
     public string GuessedAddress => People.QuickStartModel.GuessAddress(Request);
 

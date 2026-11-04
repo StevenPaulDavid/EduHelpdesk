@@ -288,7 +288,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
             if (context.HttpContext.Request.Headers["X-Requested-With"] == EduHelpdesk.Pages.Reports.DashboardModel.RefreshHeader) context.ShouldRenew = false;
             return Task.CompletedTask;
         };
-    });
+    })
+    // Paired phones (Settings → Sign-in security, Phones in the account menu). Only /api/mobile/v1 asks for it - see
+    // PhoneAuthenticationHandler and PhoneEndpoints.
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, PhoneAuthenticationHandler>(PhoneAuthenticationHandler.Scheme, null);
 // Each policy is a permission requirement, checked live against the signed-in account's role (see
 // PermissionAuthorizationHandler and HelpdeskStore.RoleGrants) rather than a fixed set of role names - roles and
 // their permissions are user-defined (see the Roles panel on the People page), except Administrator, which is
@@ -377,6 +380,8 @@ app.MapGet("/branding/logo", (HelpdeskStore store, HttpContext context) =>
 app.MapNotificationEndpoints();
 // EduNotify raising and assigning technician-call tickets, with the incoming key (Settings → EduNotify).
 app.MapEduNotifyCallEndpoints();
+// The EduHelpdesk phone app (docs/Phone-API.md).
+app.MapPhoneEndpoints();
 app.MapRazorPages()
    .WithStaticAssets();
 

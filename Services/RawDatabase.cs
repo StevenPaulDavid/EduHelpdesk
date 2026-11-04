@@ -100,6 +100,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Roles"] = "Roles. The Allow... columns are from the old permission model and are no longer used - RolePermissions holds what each role grants.",
         ["SchoolPeriods"] = "The lessons in the school day, for SLAs counted in periods.",
         ["Sessions"] = "Who is signed in, and until when. Signing out or a password change removes the row.",
+        ["Phones"] = "Phones paired with the EduHelpdesk app (Phones in the account menu): whose, when, and when last used. Only a hash of each phone's token is kept. Revoking or signing out removes the row.",
         ["SpiceworksImports"] = "Each import from Spiceworks: when, by whom, from which file, and what it brought across.",
         ["SpiceworksLinks"] = "What each Spiceworks ticket, comment, history line and requester became here, so a later import updates rather than duplicates. Created is 1 where the import made the record.",
         ["SpiceworksTicketStates"] = "What Spiceworks said about each imported ticket at the last import (title, description, status, priority, category, technician, requester, due date), to tell what has changed since in each system.",
@@ -154,7 +155,8 @@ public sealed class RawDatabase(HelpdeskStore store)
     {
         ["Users"] = new(StringComparer.OrdinalIgnoreCase) { "PasswordHash" },
         ["Technicians"] = new(StringComparer.OrdinalIgnoreCase) { "PasswordHash", "TotpSecret", "RecoveryCodes", "RecoveryKeyHash" },
-        ["Sessions"] = new(StringComparer.OrdinalIgnoreCase) { "Id" }
+        ["Sessions"] = new(StringComparer.OrdinalIgnoreCase) { "Id" },
+        ["Phones"] = new(StringComparer.OrdinalIgnoreCase) { "TokenHash", "Stamp" }
     };
 
     public static bool IsSecret(string table, string column) => SecretColumns.TryGetValue(table, out var columns) && columns.Contains(column);

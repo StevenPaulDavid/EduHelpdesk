@@ -130,6 +130,7 @@ public static class NotificationEndpoints
             HelpdeskStore.NotificationKinds.Test => ("Test notification", "Notifications are working on this computer.", settings),
             HelpdeskStore.NotificationKinds.NewTicket => (forCentre ? $"New ticket {Ref(notification, context)}" : "New ticket received", "Click to open it.", ticket ?? settings),
             HelpdeskStore.NotificationKinds.Reply => ($"Reply on ticket {Ref(notification, context)}", "Click to open it.", ticket ?? settings),
+            HelpdeskStore.NotificationKinds.Assigned => ($"Assigned to you: {Ref(notification, context)}", $"By {TechnicianName(notification.ActorId, context) ?? "someone else"}. Click to open it.", ticket ?? settings),
             HelpdeskStore.NotificationKinds.StaffComment => ($"Update on your ticket {Ref(notification, context)}", "Click to read it.", ticket ?? settings),
             // The one that names someone: the requester needs to know who to expect at the door. A technician's name
             // is no secret on a projected screen, unlike the ticket's words.

@@ -63,7 +63,7 @@ public sealed partial class HelpdeskStore
                 },
                 Modules.Flags.AssignProjects, Modules.Flags.ReportAssets, Modules.Flags.ReportTickets,
                 Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.ReportFinance, Modules.Flags.ReportProjects,
-                Modules.Flags.ReportOnboarding, Modules.Flags.ReportExport));
+                Modules.Flags.ReportOnboarding, Modules.Flags.ReportExport, Modules.Flags.PhoneApp));
 
             // Runs the inventory outright, reads the supplier directory, and cannot reach technician accounts, roles,
             // settings or the audit log.
@@ -77,7 +77,7 @@ public sealed partial class HelpdeskStore
                     [Modules.Requesters] = Write, [Modules.Reports] = ModulePermission.Access
                 },
                 Modules.Flags.ReportAssets, Modules.Flags.ReportTickets, Modules.Flags.ReportParts,
-                Modules.Flags.ReportLoans));
+                Modules.Flags.ReportLoans, Modules.Flags.PhoneApp));
 
             // The shape of a new starter on the desk: works tickets fully, adds and changes inventory but deletes
             // none of it, and only reads the requester directory.
@@ -90,7 +90,7 @@ public sealed partial class HelpdeskStore
                     [Modules.Parts] = Write, [Modules.Requesters] = Read,
                     [Modules.Reports] = ModulePermission.Access
                 },
-                Modules.Flags.ReportAssets, Modules.Flags.ReportParts, Modules.Flags.ReportLoans));
+                Modules.Flags.ReportAssets, Modules.Flags.ReportParts, Modules.Flags.ReportLoans, Modules.Flags.PhoneApp));
 
             SaveBaseline();
         }
