@@ -39,6 +39,19 @@
     </form>
 </section>
 
+<section class="panel" id="phones">
+    <h2>Phone app <help-tip key="signin.phones" /></h2>
+    <p>The EduHelpdesk app lets technicians see their tickets, take them with Assign to me or On my way, and log new ones from an Android phone. Each phone is paired from <a asp-page="/Phones">Phones</a> in the account menu, can do only what the person's role allows, and can be revoked there.</p>
+    @if (!Model.IsHttps) { <div class="notice notice-warning">The app only connects over HTTPS, and this page came over plain HTTP. Turn HTTPS on before turning the app on: run Enable-Https.cmd from the folder the helpdesk was installed from.</div> }
+    <form method="post" asp-page-handler="PhoneApp" data-confirm="@(Model.PhoneAppAllowed ? "Turn the phone app off? Paired phones stop working until it is turned back on." : "Let technicians use the phone app?")">
+        <input type="hidden" name="allowed" value="@(Model.PhoneAppAllowed ? "false" : "true")" />
+        <p>@(Model.PhoneAppAllowed ? $"It is on. {Model.PairedPhones} phone{(Model.PairedPhones == 1 ? " is" : "s are")} paired." : "It is off.")
+            @(Model.PhoneRoles.Count == 0 ? "No role has Use the phone app ticked yet, so nobody can pair a phone." : $"Roles with Use the phone app: {string.Join(", ", Model.PhoneRoles)}.")
+            @if (Model.CanEditRoles) { <a asp-page="/People" asp-route-tab="roles">Edit roles</a> }</p>
+        <button class="button @(Model.PhoneAppAllowed ? "button-secondary" : "button-primary")">@(Model.PhoneAppAllowed ? "Turn the phone app off" : "Turn the phone app on")</button>
+    </form>
+</section>
+
 <section class="panel" id="address">
     <h2>Helpdesk address</h2>
     <p>The address staff type to reach the helpdesk, printed on the quick start guide given to each new account. Leave it empty to use the address the guide is printed from - at the moment that would be <strong>@Model.GuessedAddress</strong>.</p>

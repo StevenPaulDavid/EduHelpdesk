@@ -94,6 +94,9 @@ public sealed partial class HelpdeskStore
         // Settings → Sign-in security: technicians may reset a forgotten password with their recovery key
         // (HelpdeskStore.RecoveryKeys). On unless a school turns it off.
         public bool AllowRecoveryKeys { get; set; } = true;
+        // Settings → Sign-in security: technicians may use the EduHelpdesk phone app (HelpdeskStore.Phones). Off until an
+        // administrator turns it on, so an upgrade never opens a new way in by itself.
+        public bool AllowPhoneApp { get; set; }
         // Settings → Notifications: pings and pop-ups on at all, for staff, for requesters in the portal, and whether people
         // who haven't switched them on are reminded to (HelpdeskStore.NotificationSettings). All on unless a school turns them off.
         public bool NotificationsEnabled { get; set; } = true;

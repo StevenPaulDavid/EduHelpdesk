@@ -226,6 +226,7 @@
                 <a asp-page="/TwoFactor">Two-step sign-in</a>
                 <a asp-page="/Notifications">Notifications</a>
                 @if (Helpdesk.AllowRecoveryKeys) { <a asp-page="/RecoveryKey">Recovery key</a> }
+                @if (Helpdesk.AllowPhoneApp || Helpdesk.UserCan(User, Modules.Settings, ModulePermission.Edit)) { <a asp-page="/Phones">Phones</a> }
                 @* Signs the technician straight into the portal as themselves (Portal/Index OnPostTechnician). *@
                 <a asp-page="/Portal/Index" asp-page-handler="Technician" target="_blank" rel="noopener">Open staff portal ↗</a>
                 <form method="post" asp-page="/Logout"><button type="submit">Sign out</button></form>

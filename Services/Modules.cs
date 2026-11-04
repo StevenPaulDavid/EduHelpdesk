@@ -70,6 +70,7 @@ public static class Modules
     public static class Flags
     {
         public const string NotifyStaff = "Tickets.NotifyStaff";
+        public const string PhoneApp = "Tickets.PhoneApp";
         public const string AllDesks = "Tickets.AllDesks";
         public const string Costs = "Tickets.Costs";
         public const string ReportSpend = "Reports.Spend";
@@ -98,6 +99,8 @@ public static class Modules
             new(AllDesks, "See all desks", "See and work every desk's tickets (IT, Site, Cleaning...), not just those of the desks they're on. Only matters once there is more than one desk.", "Tickets"),
             // Puts a message on staff PCs through EduNotify (Settings → EduNotify), so it is kept apart from working tickets.
             new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
+            // A second way in, so it is its own tick, and the school must also turn the phone app on (Settings → Sign-in security).
+            new(PhoneApp, "Use the phone app", "Pair a phone with the EduHelpdesk app to see tickets, take them and log new ones. The phone can do only what the role's other ticks allow. Also needs the phone app turned on in Settings → Sign-in security.", "Tickets"),
             // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.
             // Cleaning supervisors; cleaners themselves don't sign in and work from the printed sheet (HelpdeskStore.Rounds).
             new(Rounds, "Record cleaning rounds", "Open the day's cleaning rounds, print the sheets, and tick off which rooms were cleaned, by whom, with spot-check scores.", "Facilities"),

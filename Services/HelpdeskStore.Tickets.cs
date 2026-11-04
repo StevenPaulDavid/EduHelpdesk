@@ -76,12 +76,14 @@ public sealed partial class HelpdeskStore
     }
     public int AddTicket(TicketRecord item)
     {
+        int number;
         lock (_sync)
         {
-            var number = AddTicketCore(item, "The ticket was created.");
+            number = AddTicketCore(item, "The ticket was created.");
             Save();
-            return number;
         }
+        NotifyAssigned(NewlyAssignedTo(null, item), number);
+        return number;
     }
     // Adds without saving; the details are the "Ticket created" history line.
     private int AddTicketCore(TicketRecord item, string details)
@@ -492,12 +494,14 @@ public sealed partial class HelpdeskStore
             }
     public bool UpdateTicket(TicketRecord item)
     {
+        Guid? assigned;
         lock (_sync)
         {
             var index = _data.Tickets.FindIndex(x => x.Number == item.Number);
             if (index < 0) return false;
 
             var previous = _data.Tickets[index];
+            assigned = NewlyAssignedTo(previous.TechnicianId, item);
             item = WithSlaClock(item, DateTime.UtcNow);
             var history = previous.History.ToList();
             var from = history.Count;
@@ -531,8 +535,20 @@ public sealed partial class HelpdeskStore
             }
 
             Save();
-            return true;
         }
+        // Sent once the store's lock is let go: notifications take their own lock after it, never inside it.
+        NotifyAssigned(assigned, item.Number);
+        return true;
+    }
+
+    // Someone else gave an open ticket to this technician: "Assigned to you", on the bell and on their phone. Taking it
+    // yourself (Assign to me, On my way, choosing yourself) isn't news to you.
+    private Guid? NewlyAssignedTo(Guid? before, TicketRecord after) =>
+        after.TechnicianId is { } technician && technician != before && technician != CurrentActor().Id && !TicketInsights.IsClosed(after) ? technician : null;
+
+    private void NotifyAssigned(Guid? technician, int number)
+    {
+        if (technician is { } recipient) AddNotification(StaffAudience, recipient, NotificationKinds.Assigned, number, CurrentActor().Id);
     }
 
     // The upload is opened as a Word document before it replaces anything: a damaged file used to be stored as it was,
