@@ -774,8 +774,14 @@ public sealed partial class HelpdeskStore
         _ => "single-line"
     };
 
+    // Asset attributes also take "date" and "number" (IsAssetAttributeType); ticket ones keep these four.
     public static bool IsAttributeType(string? value) =>
         value is "dropdown" or "checkbox" or "single-line" or "multi-line";
+    public static bool IsAssetAttributeType(string? value) => IsAttributeType(value) || value is "date" or "number";
+    // The kinds an asset attribute can be, as Settings and the asset import offer them.
+    public static readonly IReadOnlyList<(string Key, string Label)> AssetAttributeKinds =
+        [("single-line", "Single-line text"), ("multi-line", "Multi-line text"), ("dropdown", "Dropdown"), ("checkbox", "Checkbox (yes or no)"), ("date", "Date"), ("number", "Number")];
+    public static string AssetAttributeKindLabel(string? key) => AssetAttributeKinds.FirstOrDefault(x => x.Key == key).Label ?? key ?? "";
 
     public static string NormalizeChoices(string? value) =>
         string.Join(",", (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.Ordinal));

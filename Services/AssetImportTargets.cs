@@ -5,7 +5,15 @@ namespace EduHelpdesk.Services;
 
 // NumberBlankTags: a row with no asset tag is matched by its serial number, or gets the next built-in number
 // (HelpdeskStore.AssetNumbers) - instead of being skipped.
-public sealed record AssetImportOptions(string DateFormat, bool CreateMissing, bool BlankClears, string? DefaultType, string? DefaultStatus, bool NumberBlankTags = false);
+public sealed record AssetImportOptions(string DateFormat, bool CreateMissing, bool BlankClears, string? DefaultType, string? DefaultStatus, bool NumberBlankTags = false)
+{
+    // Columns mapped to "New custom attribute": the attributes the import adds before its rows, one per column.
+    public IReadOnlyList<NewAttributeSpec> NewAttributes { get; init; } = [];
+}
+
+// A custom attribute to create from a column (the mapping step offers one for each column that matches nothing).
+// AssetTypes empty means every asset type; Choices is comma-separated, for a dropdown.
+public sealed record NewAttributeSpec(int Column, string Name, string FieldType, IReadOnlyList<string> AssetTypes, string Choices);
 
 public enum ImportAction { Create, Update, Unchanged, Error }
 
@@ -90,8 +98,29 @@ public static class AssetImportTargets
         return result;
     }
 
+    // Guesses what kind of attribute a column's values make: yes/no → checkbox, all dates → date, all numbers → number,
+    // long text → multi-line, a few values repeated down the column → dropdown (with them as its choices), else text.
+    public static (string Kind, string Choices) SuggestKind(IEnumerable<string> cells, string dateFormat)
+    {
+        var values = cells.Select(x => (x ?? string.Empty).Trim()).Where(x => x.Length > 0).ToList();
+        if (values.Count == 0) return ("single-line", "");
+        var distinct = values.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        bool All(Func<string, bool> test) => distinct.All(test);
+        if (All(x => ImportParsing.TryParseBool(x, out _)) && distinct.Any(x => !x.All(char.IsDigit))) return ("checkbox", "");
+        if (All(x => x.IndexOfAny(['/', '-', '.', ' ']) > 0 && ImportParsing.TryParseDate(x, dateFormat, out _))) return ("date", "");
+        if (All(x => ImportParsing.TryParseNumber(x, out _))) return ("number", "");
+        if (values.Any(x => x.Length > 100 || x.Contains('\n'))) return ("multi-line", "");
+        // A dropdown keeps its choices comma-separated, so a value with a comma in it can't be one.
+        if (distinct.Count <= 12 && values.Count >= distinct.Count * 2 && distinct.All(x => !x.Contains(',') && x.Length <= 60))
+            return ("dropdown", string.Join(", ", distinct.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)));
+        return ("single-line", "");
+    }
+
+    // The mapping step's choice that makes a column a new custom attribute.
+    public const string NewAttributeTarget = "new";
+
     public static bool IsKnown(string? target, IReadOnlyList<AssetAttributeDefinition> attributes) =>
-        target is not null && (Fields.Any(x => x.Key == target) || (target.StartsWith(AttributePrefix) && Guid.TryParse(target[AttributePrefix.Length..], out var id) && attributes.Any(a => a.Id == id)));
+        target is not null && (target == NewAttributeTarget || Fields.Any(x => x.Key == target) || (target.StartsWith(AttributePrefix) && Guid.TryParse(target[AttributePrefix.Length..], out var id) && attributes.Any(a => a.Id == id)));
 }
 
 // Reads dates and prices written the way different systems write them.
@@ -139,6 +168,27 @@ public static class ImportParsing
         if (!decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out price)) return false;
         price = Math.Round(price, 2);
         return price is >= 0 and <= 100_000_000m;
+    }
+
+    // A number attribute: 12, -3.5, 1,024 or 1.024,5. Like a price, but it may be negative and isn't rounded.
+    public static bool TryParseNumber(string? text, out decimal number)
+    {
+        number = 0;
+        var raw = (text ?? string.Empty).Trim();
+        var negative = raw.StartsWith('-');
+        var t = new string(raw.TrimStart('-').Where(c => char.IsDigit(c) || c is '.' or ',').ToArray());
+        if (t.Length == 0 || t.Length != raw.TrimStart('-').Trim().Length) return false;
+        var lastDot = t.LastIndexOf('.');
+        var lastComma = t.LastIndexOf(',');
+        if (lastDot >= 0 && lastComma >= 0) t = lastComma > lastDot ? t.Replace(".", "").Replace(',', '.') : t.Replace(",", "");
+        else if (lastComma >= 0)
+        {
+            var parts = t.Split(',');
+            t = parts.Length == 2 && parts[1].Length != 3 ? parts[0] + "." + parts[1] : t.Replace(",", "");
+        }
+        if (!decimal.TryParse(t, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out number)) return false;
+        if (negative) number = -number;
+        return true;
     }
 
     public static bool TryParseBool(string text, out bool value)

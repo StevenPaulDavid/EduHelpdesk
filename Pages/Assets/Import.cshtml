@@ -41,7 +41,7 @@ else if (Model.Stage == "map")
     var session = Model.Session!;
     <section class="panel">
         <div class="panel-heading"><div><p class="eyebrow">STEP 2</p><h2>Match the columns</h2></div><span class="badge">@session.Rows.Count.ToString("N0") rows · @session.FileName</span></div>
-        <p class="muted">We guessed what each column is from its heading. Check them, and change any that are wrong. Columns set to "Don't import" are ignored.</p>
+        <p class="muted">We guessed what each column is from its heading. Check them, and change any that are wrong. Columns set to "Don't import" are ignored. A column that matches nothing is offered as a <strong>new custom attribute</strong>: check its kind and asset types below it, or set it to "Don't import".</p>
         <form method="post" asp-page-handler="Preview">
             <input type="hidden" name="t" value="@Model.Token" />
             <div class="table-wrap"><table><thead><tr><th>Column in your file</th><th>Example values</th><th>Import it as</th></tr></thead><tbody>
@@ -55,13 +55,34 @@ else if (Model.Stage == "map")
                         <select name="targets" aria-label="Import column @session.Headers[i] as">
                             <option value="">Don't import</option>
                             <optgroup label="Asset fields">@foreach (var field in AssetImportTargets.Fields) { <option value="@field.Key" selected="@(current == field.Key)">@field.Label</option> }</optgroup>
-                            @if (Model.Attributes.Count > 0)
-                            {
-                                <optgroup label="Custom attributes">@foreach (var definition in Model.Attributes) { <option value="@(AssetImportTargets.AttributePrefix + definition.Id)" selected="@(current == AssetImportTargets.AttributePrefix + definition.Id)">@definition.Name</option> }</optgroup>
-                            }
+                            <optgroup label="Custom attributes">
+                                <option value="@AssetImportTargets.NewAttributeTarget" selected="@(current == AssetImportTargets.NewAttributeTarget)">New custom attribute…</option>
+                                @foreach (var definition in Model.Attributes) { <option value="@(AssetImportTargets.AttributePrefix + definition.Id)" selected="@(current == AssetImportTargets.AttributePrefix + definition.Id)">@definition.Name</option> }
+                            </optgroup>
                         </select>
                     </td>
                 </tr>
+                @* Offered for a column that matches nothing: what the new attribute would be. Used only while the column
+                   is set to "New custom attribute", so it is open then and folded away otherwise. *@
+                @if (current is null || current == AssetImportTargets.NewAttributeTarget)
+                {
+                    var offer = Model.NewAttributeFor(i);
+                    <tr class="import-new-attribute">
+                        <td colspan="3">
+                            <details open="@(current == AssetImportTargets.NewAttributeTarget)">
+                                <summary>As a new custom attribute: <strong>@offer.Name</strong> · @EduHelpdesk.Services.HelpdeskStore.AssetAttributeKindLabel(offer.FieldType)</summary>
+                                <div class="form-grid">
+                                    <label>Name<input name="newName_@i" value="@offer.Name" maxlength="100" /></label>
+                                    <label>Kind<select name="newKind_@i">@foreach (var kind in EduHelpdesk.Services.HelpdeskStore.AssetAttributeKinds) { <option value="@kind.Key" selected="@(kind.Key == offer.FieldType)">@kind.Label</option> }</select><small class="muted">Guessed from the values in the column.</small></label>
+                                    <label>Dropdown choices<input name="newChoices_@i" value="@offer.Choices" placeholder="One, Two, Three" /><small class="muted">For a dropdown only, separated by commas.</small></label>
+                                </div>
+                                <p class="eyebrow">For asset types</p>
+                                <div class="checkbox-grid"><div>@foreach (var type in Model.TypeChoices()) { <label class="toggle-label"><input type="checkbox" name="newTypes_@i" value="@type" checked="@offer.AssetTypes.Contains(type, StringComparer.OrdinalIgnoreCase)" /> @type</label> }</div></div>
+                                <small class="muted">Ticked: the types of the rows with something in this column. Untick them all for every asset type.</small>
+                            </details>
+                        </td>
+                    </tr>
+                }
             }
             </tbody></table></div>
 

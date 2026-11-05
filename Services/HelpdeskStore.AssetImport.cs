@@ -6,7 +6,31 @@ namespace EduHelpdesk.Services;
 public sealed partial class HelpdeskStore
 {
     private const string ListType = "Asset type", ListMake = "Asset make", ListModel = "Asset model", ListLocation = "Location", ListStatus = "Asset status", ListSupplier = "Supplier",
-        ListBuilding = "Building", ListCondition = "Asset condition", ListContract = "Contract";
+        ListBuilding = "Building", ListCondition = "Asset condition", ListContract = "Contract", ListAttribute = "Custom attribute";
+
+    // Why the new custom attributes asked for on the mapping step can't be made, or null when they can - the same rules
+    // as adding one in Settings (AddAssetAttributeDefinition).
+    public string? CheckNewAttributes(IReadOnlyList<NewAttributeSpec> specs)
+    {
+        lock (_sync)
+        {
+            var seen = new List<(string Name, List<string> Types)>();
+            foreach (var spec in specs)
+            {
+                var name = spec.Name.Trim();
+                if (name.Length == 0) return "Give each new custom attribute a name.";
+                if (name.Length > 100) return $"Keep the name of '{name[..30]}…' under 100 characters.";
+                if (!IsAssetAttributeType(spec.FieldType)) return $"Choose what kind of attribute '{name}' is.";
+                if (spec.FieldType == "dropdown" && NormalizeChoices(spec.Choices).Length == 0) return $"Give the dropdown '{name}' its choices, separated by commas.";
+                var types = spec.AssetTypes.ToList();
+                if (_data.AssetAttributeDefinitions.Any(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.AssetTypes, types))
+                    || seen.Any(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.Types, types)))
+                    return $"There is already a custom attribute called '{name}' for those asset types. Map the column to it, or choose another name.";
+                seen.Add((name, types));
+            }
+            return null;
+        }
+    }
 
     // What the import would do, without changing anything.
     public AssetImportPlan PlanAssetImport(IReadOnlyList<string[]> rows, IReadOnlyList<string?> targets, AssetImportOptions options)
@@ -104,6 +128,21 @@ public sealed partial class HelpdeskStore
         var suppliersByName = new Dictionary<string, SupplierRecord>(StringComparer.OrdinalIgnoreCase);
         foreach (var supplier in _data.Suppliers) suppliersByName.TryAdd(supplier.Name.Trim(), supplier);
         var definitions = _data.AssetAttributeDefinitions.ToDictionary(x => x.Id);
+        // Columns made into new custom attributes: each gets its definition now, so the rows read it like any other, and
+        // it joins the register's attributes at the end - only if the import changes something.
+        var newDefinitions = new List<AssetAttributeDefinition>();
+        foreach (var spec in options.NewAttributes)
+        {
+            if (spec.Column < 0 || spec.Column >= targets.Count || targets[spec.Column] != AssetImportTargets.NewAttributeTarget) continue;
+            var definition = new AssetAttributeDefinition(Guid.NewGuid(), spec.Name.Trim(), spec.FieldType, spec.FieldType == "dropdown" ? NormalizeChoices(spec.Choices) : "")
+            {
+                AssetTypes = spec.AssetTypes.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            };
+            newDefinitions.Add(definition);
+            definitions[definition.Id] = definition;
+            column[AssetImportTargets.AttributePrefix + definition.Id] = spec.Column;
+            pending.Created.Add((ListAttribute, $"{definition.Name} ({AssetAttributeKindLabel(definition.FieldType)}, for {(definition.AssetTypes.Count == 0 ? "every asset type" : string.Join(", ", definition.AssetTypes))})"));
+        }
         var attributeValues = new Dictionary<(Guid, Guid), string>();
         foreach (var value in _data.AssetAttributeValues) attributeValues.TryAdd((value.AssetId, value.AttributeDefinitionId), value.Value);
         var serialOwners = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -136,6 +175,12 @@ public sealed partial class HelpdeskStore
         var outcome = new AssetImportPlan(results, pending.Created);
         if (apply && (outcome.Created > 0 || outcome.Updated > 0))
         {
+            // A type it names that no good row created isn't kept; one naming nothing left would mean "every type".
+            foreach (var definition in newDefinitions)
+            {
+                var kept = definition.AssetTypes.Select(t => _data.AssetTypes.FirstOrDefault(x => string.Equals(x, t, StringComparison.OrdinalIgnoreCase))).OfType<string>().ToList();
+                _data.AssetAttributeDefinitions.Add(kept.Count > 0 || definition.AssetTypes.Count == 0 ? definition with { AssetTypes = kept } : definition);
+            }
             if (lookups.Generated > 0) _data.LastAssetNumber = Math.Max(_data.LastAssetNumber, lookups.Numbers.Highest);
             _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Assets", null, null, "Asset import", "Imported",
                 $"{applySource}: {outcome.Created} created, {outcome.Updated} updated, {outcome.Unchanged} unchanged, {outcome.Errors} skipped."));
@@ -461,6 +506,16 @@ public sealed partial class HelpdeskStore
                 var choice = GetChoices(definition).FirstOrDefault(x => string.Equals(x, raw, StringComparison.OrdinalIgnoreCase));
                 if (choice is null) return Fail($"'{raw}' is not one of the choices for '{definition.Name}'.");
                 value = choice;
+            }
+            else if (definition.FieldType == "date")
+            {
+                if (!ImportParsing.TryParseDate(raw, options.DateFormat, out var day)) return Fail($"'{raw}' is not a valid date for '{definition.Name}'.");
+                value = day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            else if (definition.FieldType == "number")
+            {
+                if (!ImportParsing.TryParseNumber(raw, out var number)) return Fail($"'{raw}' is not a number for '{definition.Name}'.");
+                value = number.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
             else value = raw;
             var current = existing is not null && attributeValues.TryGetValue((existing.Id, definitionId), out var stored) ? stored : null;

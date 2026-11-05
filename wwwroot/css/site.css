@@ -662,6 +662,10 @@ main a:not([class]) { color: var(--ink); }
 .import-steps li.current span, .import-steps li.done span { background: var(--teal); color: #fff; }
 .import-notes { margin: 6px 0 20px; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
 .import-sample { max-width: 340px; overflow-wrap: anywhere; font-size: 12px; }
+/* Asset import, step 2: what a column made into a new custom attribute would be, under its row. */
+.import-new-attribute > td { border-top: none; padding-top: 0; }
+.import-new-attribute summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.import-new-attribute details[open] { padding: 8px 0 4px; }
 .import-hint { margin: 2px 0 14px 27px; font-size: 12px; }
 
 .import-summary { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin: 18px 0; }

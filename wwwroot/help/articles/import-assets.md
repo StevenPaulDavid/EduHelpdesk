@@ -24,6 +24,16 @@ EduHelpdesk guesses what each column is from its heading. Check the guesses and 
 - **Add makes, models, types, locations, statuses, suppliers and contracts that aren't in the lists yet** - off, a row with an unknown value is skipped instead.
 - **A blank cell clears the value on an existing asset** - leave this off (recommended), so blank cells leave existing values alone.
 
+## Columns that match nothing
+
+A column whose heading isn't an asset field or an existing custom field is offered as a **new custom attribute**. Under the column you can see and change:
+
+- **Name** - from the heading.
+- **Kind** - guessed from the values in the column. Yes/No values make a tick box, all dates make a date, all numbers make a number, long text makes several lines, and a few values repeated down the column make a drop-down with them as its choices. Anything else is a single line of text.
+- **For asset types** - ticked for the types of the rows that have something in that column. Untick them all for every asset type.
+
+Set the column to *Don't import* to leave it out. The new attribute is only added if the import goes ahead, and step 3 lists it under **These would be added**. Afterwards it's on **Settings → Custom asset attributes** like any other.
+
 ## Devices with students
 
 A row whose **Status** is **With Student** takes the name in its **Assigned to** column as the student's, typed rather than looked up in People. That way pupils don't have to be added to the directory. Leave **Loan due back** blank, because a device with a student isn't a loan. On every other row, Assigned to must still match someone in People by name or email. An asset export carries the student's name in the same column, so it imports straight back.

@@ -129,6 +129,16 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
             // Offered ticked when no column looks like an asset tag: the file has none to match on.
             Options = new AssetImportOptions("dmy", true, false, null, null, NumberBlankTags: !targets.Contains("tag"))
         };
+        // A column that matches no field or attribute, and has something in it, is offered as a new custom attribute:
+        // named from its heading, its kind guessed from its values, for the asset types that have a value in it.
+        var offers = new List<NewAttributeSpec>();
+        for (var i = 0; i < headers.Length; i++)
+        {
+            if (targets[i] is not null || string.IsNullOrWhiteSpace(headers[i]) || !rows.Any(r => i < r.Length && r[i].Trim().Length > 0)) continue;
+            targets[i] = AssetImportTargets.NewAttributeTarget;
+            offers.Add(SuggestNewAttribute(session, i));
+        }
+        session.Options = session.Options with { NewAttributes = offers };
         var token = Guid.NewGuid().ToString("N");
         cache.Set(CacheKey(token), session, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(45) });
         return RedirectToPage(new { t = token });
@@ -153,7 +163,19 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
             string.IsNullOrWhiteSpace(defaultStatus) ? null : defaultStatus,
             numberBlankTags);
 
-        var used = chosen.Where(x => x is not null).ToList();
+        // Each column made into a new attribute, with the name, kind, choices and asset types set for it on the page.
+        var specs = new List<NewAttributeSpec>();
+        for (var i = 0; i < chosen.Length; i++)
+        {
+            if (chosen[i] != AssetImportTargets.NewAttributeTarget) continue;
+            var form = Request.Form;
+            specs.Add(new NewAttributeSpec(i, form[$"newName_{i}"].ToString().Trim(), form[$"newKind_{i}"].ToString().Trim(),
+                form[$"newTypes_{i}"].Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim()).ToList(), form[$"newChoices_{i}"].ToString()));
+        }
+        session.Options = session.Options with { NewAttributes = specs };
+        if (store.CheckNewAttributes(specs) is { } attributeProblem) return Invalid(t, attributeProblem);
+
+        var used = chosen.Where(x => x is not null && x != AssetImportTargets.NewAttributeTarget).ToList();
         if (!used.Contains("tag") && !numberBlankTags)
             return Invalid(t, "Choose which column holds the asset tag, or tick \"Give assets with no asset tag a built-in number\". Rows are matched to assets by their tag.");
         var repeated = used.GroupBy(x => x).FirstOrDefault(g => g.Count() > 1);
@@ -200,6 +222,50 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray(), "text/csv; charset=utf-8", "assets-import-template.csv");
     }
 
+    // What the page offers for a column made into a new attribute: what was set for it last time, or a fresh guess.
+    public NewAttributeSpec NewAttributeFor(int column) =>
+        Session!.Options.NewAttributes.FirstOrDefault(x => x.Column == column) ?? SuggestNewAttribute(Session, column);
+
+    // Every asset type a new attribute could be for: the register's, and any new ones the file's type column brings.
+    public IReadOnlyList<string> TypeChoices()
+    {
+        var types = store.AssetTypes.ToList();
+        var typeColumn = Array.IndexOf(Session!.Targets, "type");
+        if (typeColumn >= 0)
+            foreach (var cell in Session.Rows.Select(r => typeColumn < r.Length ? r[typeColumn].Trim() : ""))
+                if (cell.Length > 0 && !types.Contains(cell, StringComparer.OrdinalIgnoreCase)) types.Add(cell);
+        return types;
+    }
+
+    private NewAttributeSpec SuggestNewAttribute(AssetImportSession session, int column)
+    {
+        var cells = session.Rows.Select(r => column < r.Length ? r[column] : "").ToList();
+        var (kind, choices) = AssetImportTargets.SuggestKind(cells, session.Options.DateFormat);
+        return new NewAttributeSpec(column, session.Headers[column].Trim(), kind, SuggestTypes(session, column), choices);
+    }
+
+    // The asset types of the rows with something in this column: the row's Type cell, else the existing asset's type
+    // (matched by tag), else the default type for new assets.
+    private List<string> SuggestTypes(AssetImportSession session, int column)
+    {
+        var typeColumn = Array.IndexOf(session.Targets, "type");
+        var tagColumn = Array.IndexOf(session.Targets, "tag");
+        var known = store.AssetTypes;
+        var byTag = store.Assets.GroupBy(x => x.AssetTag.Trim(), StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Type, StringComparer.OrdinalIgnoreCase);
+        var types = new List<string>();
+        foreach (var row in session.Rows)
+        {
+            if (column >= row.Length || row[column].Trim().Length == 0) continue;
+            var type = typeColumn >= 0 && typeColumn < row.Length && row[typeColumn].Trim().Length > 0 ? row[typeColumn].Trim()
+                : tagColumn >= 0 && tagColumn < row.Length && byTag.TryGetValue(row[tagColumn].Trim(), out var existing) ? existing
+                : session.Options.DefaultType;
+            if (string.IsNullOrWhiteSpace(type)) continue;
+            type = known.FirstOrDefault(x => string.Equals(x, type, StringComparison.OrdinalIgnoreCase)) ?? type;
+            if (!types.Contains(type, StringComparer.OrdinalIgnoreCase)) types.Add(type);
+        }
+        return types;
+    }
+
     public string? SampleFor(int column) => string.Join(" · ", Session!.Rows.Select(r => column < r.Length ? r[column] : "").Where(x => x.Length > 0).Distinct().Take(3));
 
     public string? PageUrl(int page, string? show = null) => Url.Page("/Assets/Import", new { t = Token, show = (show ?? Show) is null or "all" ? null : (show ?? Show), p = page > 1 ? page : (int?)null });
@@ -209,9 +275,11 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
     private static string ListAdditions(IReadOnlyList<(string List, string Value)> added)
     {
         var contracts = added.Count(x => x.List == "Contract");
-        var values = added.Count - contracts;
+        var attributes = added.Count(x => x.List == "Custom attribute");
+        var values = added.Count - contracts - attributes;
         var parts = new List<string>();
         if (values > 0) parts.Add($"{values} new list value{(values == 1 ? "" : "s")}");
+        if (attributes > 0) parts.Add($"{attributes} new custom attribute{(attributes == 1 ? "" : "s")}");
         if (contracts > 0) parts.Add($"{contracts} new contract{(contracts == 1 ? "" : "s")} ({(contracts == 1 ? "it needs its" : "they need their")} details)");
         return parts.Count == 0 ? "." : $", {string.Join(" and ", parts)} created.";
     }

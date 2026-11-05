@@ -94,6 +94,14 @@
                 {
                     <label>@customAttribute.Name<textarea name="customAttributes[@customAttribute.Id]" rows="3">@customValue</textarea></label>
                 }
+                else if (customAttribute.FieldType == "date")
+                {
+                    <label>@customAttribute.Name<input type="date" name="customAttributes[@customAttribute.Id]" value="@customValue" /></label>
+                }
+                else if (customAttribute.FieldType == "number")
+                {
+                    <label>@customAttribute.Name<input type="number" step="any" name="customAttributes[@customAttribute.Id]" value="@customValue" /></label>
+                }
                 else
                 {
                     <label>@customAttribute.Name<input name="customAttributes[@customAttribute.Id]" value="@customValue" /></label>

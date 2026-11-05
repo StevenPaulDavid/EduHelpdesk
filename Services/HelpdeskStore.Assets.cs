@@ -361,7 +361,7 @@ public sealed partial class HelpdeskStore
             if (string.IsNullOrWhiteSpace(name)) return "Attribute name is required.";
             var types = ResolveScope(assetTypes, _data.AssetTypes);
             if (types is null) return "Select valid asset types.";
-            if (!IsAttributeType(fieldType)) return "Select a valid field type.";
+            if (!IsAssetAttributeType(fieldType)) return "Select a valid field type.";
             if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
             if (_data.AssetAttributeDefinitions.Any(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.AssetTypes, types))) return DuplicateAttributeMessage(types, "asset types");
             _data.AssetAttributeDefinitions.Add(new(Guid.NewGuid(), name, fieldType, choices) { AssetTypes = types });
@@ -383,7 +383,7 @@ public sealed partial class HelpdeskStore
             if (string.IsNullOrWhiteSpace(name)) return "Attribute name is required.";
             var types = ResolveScope(assetTypes, _data.AssetTypes);
             if (types is null) return "Select valid asset types.";
-            if (!IsAttributeType(fieldType)) return "Select a valid field type.";
+            if (!IsAssetAttributeType(fieldType)) return "Select a valid field type.";
             if (fieldType == "dropdown" && string.IsNullOrWhiteSpace(choices)) return "Dropdown choices are required.";
             if (_data.AssetAttributeDefinitions.Any(x => x.Id != id && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && ScopesOverlap(x.AssetTypes, types))) return DuplicateAttributeMessage(types, "asset types");
             _data.AssetAttributeDefinitions[index] = new(id, name, fieldType, choices) { AssetTypes = types };
@@ -436,6 +436,17 @@ public sealed partial class HelpdeskStore
                     value = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ? "true" : "false";
                 else if (definition.FieldType == "dropdown" && !string.IsNullOrEmpty(value) && !GetChoices(definition).Contains(value, StringComparer.Ordinal))
                     continue;
+                // Dates are kept as yyyy-MM-dd and numbers in invariant form, as the date and number inputs send them.
+                else if (definition.FieldType == "date" && value.Length > 0)
+                {
+                    if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)) continue;
+                    value = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                }
+                else if (definition.FieldType == "number" && value.Length > 0)
+                {
+                    if (!ImportParsing.TryParseNumber(value, out var number)) continue;
+                    value = number.ToString(CultureInfo.InvariantCulture);
+                }
                 if (!string.IsNullOrWhiteSpace(value))
                     _data.AssetAttributeValues.Add(new(assetId, definition.Id, value));
             }
