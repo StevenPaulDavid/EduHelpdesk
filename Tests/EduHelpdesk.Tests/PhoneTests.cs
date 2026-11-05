@@ -125,6 +125,36 @@ public class PhoneTests
     }
 
     [Fact]
+    public void App_lock_is_each_technicians_choice_until_the_school_requires_it()
+    {
+        using var test = new TestStore();
+        Assert.False(test.Store.RequirePhoneAppLock);
+        Assert.StartsWith("App lock is now required.", test.Store.SetRequirePhoneAppLock(true));
+        Assert.Equal("Nothing changed.", test.Store.SetRequirePhoneAppLock(true));
+        Assert.True(test.Reopen().RequirePhoneAppLock);
+    }
+
+    [Fact]
+    public void The_server_hands_out_the_newest_phone_app_it_has()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "eduhelpdesk-tests", Guid.NewGuid().ToString("N"));
+        Assert.Null(PhoneEndpoints.LatestApp(folder));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            foreach (var name in new[] { "EduHelpdesk-Android-1.2.0.apk", "EduHelpdesk-Android-1.10.0.apk", "EduHelpdesk-Android-9.9.apk", "notes.txt" })
+                File.WriteAllText(Path.Combine(folder, name), "");
+            var latest = PhoneEndpoints.LatestApp(folder);
+            Assert.Equal(new Version(1, 10, 0), latest?.Version);
+            Assert.EndsWith("EduHelpdesk-Android-1.10.0.apk", latest?.Path);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Assign_to_me_and_on_my_way_give_the_ticket_pages_answers()
     {
         using var test = new TestStore();

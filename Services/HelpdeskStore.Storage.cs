@@ -348,6 +348,7 @@ public sealed partial class HelpdeskStore
         data.DashboardAddress = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'DashboardAddress';") as string ?? "";
         data.AllowRecoveryKeys = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AllowRecoveryKeys';") as string != "0";
         data.AllowPhoneApp = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AllowPhoneApp';") as string == "1";
+        data.RequirePhoneAppLock = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'RequirePhoneAppLock';") as string == "1";
         data.ProjectPageIncludesVat = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ProjectPageIncludesVat';") as string == "1";
         data.NotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'NotificationsEnabled';") as string != "0";
         data.StaffNotificationsEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'StaffNotificationsEnabled';") as string != "0";
@@ -860,6 +861,7 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "DashboardAddress", data.DashboardAddress);
         SetMetadata(connection, transaction, "AllowRecoveryKeys", data.AllowRecoveryKeys ? "1" : "0");
         SetMetadata(connection, transaction, "AllowPhoneApp", data.AllowPhoneApp ? "1" : "0");
+        SetMetadata(connection, transaction, "RequirePhoneAppLock", data.RequirePhoneAppLock ? "1" : "0");
         SetMetadata(connection, transaction, "ProjectPageIncludesVat", data.ProjectPageIncludesVat ? "1" : "0");
         SetMetadata(connection, transaction, "NotificationsEnabled", data.NotificationsEnabled ? "1" : "0");
         SetMetadata(connection, transaction, "StaffNotificationsEnabled", data.StaffNotificationsEnabled ? "1" : "0");

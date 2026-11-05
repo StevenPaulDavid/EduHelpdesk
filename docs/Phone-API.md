@@ -18,7 +18,8 @@ What the EduHelpdesk app for Android calls. Code: `Services/PhoneEndpoints.cs`, 
 
 | Call | Body | Answer |
 |---|---|---|
-| `GET /info` | | `{ schoolName, serverVersion, apiVersion, minAppVersion, phoneAppEnabled, features }` |
+| `GET /info` | | `{ schoolName, serverVersion, apiVersion, minAppVersion, latestAppVersion, phoneAppEnabled, features }` |
+| `GET /app/android` | | the APK this server hands out (`application/vnd.android.package-archive`), or `404` |
 | `POST /pair` | `{ code, deviceName }` | `{ token }` |
 | `POST /sign-in` | `{ email, password, deviceName }` | `{ token }`, or `{ pendingId }` when two-step sign-in is on |
 | `POST /sign-in/code` | `{ pendingId, code, deviceName }` | `{ token }` |
@@ -35,7 +36,7 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 | Call | Needs | Answer |
 |---|---|---|
 | `POST /sign-out` | | `204`; this phone is revoked |
-| `GET /me` | | `{ id, name, role, team, schoolName, serverAddress, serverVersion, defaultDeskId, priorities, desks: [{ id, name, prefix, color, hours }] }` |
+| `GET /me` | | `{ id, name, role, team, schoolName, serverAddress, serverVersion, defaultDeskId, priorities, appLockRequired, desks: [{ id, name, prefix, color, hours, alertDays, alertWindows }] }` |
 | `GET /options?desk=` | Tickets: New | `{ categories: [{ name, deskId, icon }], priorities, locations, technicians: [person] }` |
 | `GET /people?q=` | Tickets: New | `[person]`, up to 30 |
 | `GET /tickets?view=&desk=&q=` | Tickets: Access | `{ tickets: [ticket], counts: { open, mine, unassigned, overdue, onboarding, all } }`, up to 200 |
@@ -78,3 +79,7 @@ Reply, status, priority and close are the ticket page's own rules (`Services/Hel
   - `title` is the bell's own wording: the kind and the number, never the ticket's words.
 
 Desk `color` and category `icon` are the staff portal's tile keys (`Services/PortalLook.cs`).
+
+**Desk alert hours:** `alertDays` are ISO days (1 Monday to 7 Sunday) and `alertWindows` are `[{ start, end }]` as `HH:mm`: the desk's own working hours, or the school days from the first period's start to the last one's end. No windows means any time. The app uses them for *Only during my desk's hours*.
+
+**The app's own download:** `deploy/New-Release.ps1` copies the newest `EduHelpdesk-Android-<version>.apk` from `EduHelpdeskApp\releases` into the program's `phone-app` folder. `latestAppVersion` is that file's version, or null when there is none. `appLockRequired` is *Require app lock on phones* in Settings → Sign-in security.

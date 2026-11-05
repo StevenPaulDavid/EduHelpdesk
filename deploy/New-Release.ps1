@@ -9,7 +9,8 @@
       1. asks for the version number (the last one plus a minor step, 1.0 -> 1.1, unless you type another),
       2. warns if there are uncommitted changes, which would go into the release,
       3. runs the tests and stops if any fail,
-      4. publishes the app for 64-bit Windows with the .NET runtime included, so schools install nothing else,
+      4. publishes the app for 64-bit Windows with the .NET runtime included, so schools install nothing else, with
+         the newest signed phone app (EduHelpdeskApp\releases\EduHelpdesk-Android-<version>.apk) beside it,
       5. adds the installer, the licence, the notices and the guides (the install guide also as a PDF),
       6. checks nothing from your own install is in it - no database, keys or settings - and zips it, with a SHA-256
          checksum beside it,
@@ -24,10 +25,13 @@
     Don't stop to ask about uncommitted changes.
 .PARAMETER Tag
     Whether to commit the version number and tag the release: ask (the default), yes or no.
+.PARAMETER AndroidApk
+    The phone app to include, when it isn't the newest one in EduHelpdeskApp\releases beside this repository.
 #>
 [CmdletBinding()]
 param(
     [string]$Version,
+    [string]$AndroidApk,
     [switch]$SkipTests,
     [switch]$AllowUncommitted,
     [ValidateSet("ask", "yes", "no")][string]$Tag = "ask"
@@ -87,6 +91,22 @@ $stage = Join-Path $work $name
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed." }
 # Development settings have no place on a school's server.
 Remove-Item -LiteralPath (Join-Path $stage "app\appsettings.Development.json") -ErrorAction SilentlyContinue
+
+# The phone app goes in with the server, so a school's app and helpdesk move together: the server hands it out at
+# /api/mobile/v1/app/android and tells paired phones when it's newer than theirs (Services/PhoneEndpoints.cs).
+$apk = if ($AndroidApk) { Get-Item -LiteralPath $AndroidApk } else {
+    Get-ChildItem (Join-Path (Split-Path $root -Parent) "EduHelpdeskApp\releases") -Filter "EduHelpdesk-Android-*.apk" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^EduHelpdesk-Android-(\d+\.\d+\.\d+)\.apk$' } |
+        Sort-Object { [version]([regex]::Match($_.Name, '(\d+\.\d+\.\d+)').Value) } -Descending | Select-Object -First 1
+}
+if ($apk) {
+    if ($apk.Name -notmatch '^EduHelpdesk-Android-\d+\.\d+\.\d+\.apk$') { throw "The phone app must be named EduHelpdesk-Android-<version>.apk, such as EduHelpdesk-Android-1.2.0.apk." }
+    New-Item -ItemType Directory -Force -Path (Join-Path $stage "app\phone-app") | Out-Null
+    Copy-Item -LiteralPath $apk.FullName (Join-Path $stage "app\phone-app")
+    Write-Host "  With the phone app: $($apk.Name)"
+} else {
+    Write-Host "  No phone app found in EduHelpdeskApp\releases, so this release won't hand one out." -ForegroundColor Yellow
+}
 
 # ---- 5. Installer, licence and guides -------------------------------------------------------------------------------
 Step "Adding the installer and guides..."

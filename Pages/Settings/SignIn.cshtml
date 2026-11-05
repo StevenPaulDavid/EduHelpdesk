@@ -50,6 +50,12 @@
             @if (Model.CanEditRoles) { <a asp-page="/People" asp-route-tab="roles">Edit roles</a> }</p>
         <button class="button @(Model.PhoneAppAllowed ? "button-secondary" : "button-primary")">@(Model.PhoneAppAllowed ? "Turn the phone app off" : "Turn the phone app on")</button>
     </form>
+    <h3>App lock</h3>
+    <p>With app lock, the app asks for the phone's fingerprint, face or PIN when it has been away for 5 minutes. @(Model.PhoneAppLockRequired ? "It is required on every phone." : "Each technician chooses for their own phone.")</p>
+    <form method="post" asp-page-handler="PhoneAppLock">
+        <input type="hidden" name="required" value="@(Model.PhoneAppLockRequired ? "false" : "true")" />
+        <button class="button button-secondary">@(Model.PhoneAppLockRequired ? "Let technicians choose" : "Require app lock on phones")</button>
+    </form>
 </section>
 
 <section class="panel" id="address">

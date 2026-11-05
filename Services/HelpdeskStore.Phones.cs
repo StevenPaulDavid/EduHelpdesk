@@ -55,6 +55,23 @@ public sealed partial class HelpdeskStore
         }
     }
 
+    public bool RequirePhoneAppLock { get { lock (_sync) return _data.RequirePhoneAppLock; } }
+
+    // Whether every phone must lock itself after time away (the app's own App lock). The phone reads it from /me.
+    public string SetRequirePhoneAppLock(bool required)
+    {
+        lock (_sync)
+        {
+            if (_data.RequirePhoneAppLock == required) return "Nothing changed.";
+            _data.RequirePhoneAppLock = required;
+            _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Sign-in", null, null, "Phone app lock", required ? "Required" : "Not required",
+                required ? "Every phone asks for a fingerprint, face or PIN after 5 minutes away." : "Each technician chooses whether their phone locks."));
+            Save();
+            return required ? "App lock is now required. Each phone turns it on the next time it opens."
+                            : "App lock is no longer required. Each technician can choose in the app's Account screen.";
+        }
+    }
+
     public enum PhoneAccess { Ok, Unknown, AppOff, NotAllowed }
 
     // The verdict on a token. Unknown covers revoked, run out, a changed password and a deactivated account alike: the

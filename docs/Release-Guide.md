@@ -30,14 +30,15 @@ The version is kept in `EduHelpdesk.csproj` (`<Version>`), shown in **Settings â
 ## Making one
 
 1. **Commit your work.** The script warns about uncommitted changes, because they would go into the release.
-2. **Update the guides** if anything a school would notice has changed - especially `docs\Install-Guide.md`.
-3. From PowerShell in the project folder (no administrator rights needed):
+2. **Build the phone app** if it has changed: in the EduHelpdeskApp repository, make the signed APK and save it as `releases\EduHelpdesk-Android-<version>.apk` (that repository's README, *Release APK*). The script puts the newest one in the zip, and the server hands it to phones. `-AndroidApk <path>` picks another.
+3. **Update the guides** if anything a school would notice has changed - especially `docs\Install-Guide.md`.
+4. From PowerShell in the project folder (no administrator rights needed):
    ```powershell
    .\deploy\New-Release.ps1
    ```
    It asks for the version, suggesting the next one, then:
    - runs the tests, and stops if any fail
-   - publishes the app for 64-bit Windows with the .NET runtime included
+   - publishes the app for 64-bit Windows with the .NET runtime included, and adds the phone app
    - adds the installer, the licence and the guides, and makes `INSTALL.pdf`
    - checks nothing private is in it, then zips it and writes the checksum
    - offers to commit the version number and tag the release (`v1.1`) in git
