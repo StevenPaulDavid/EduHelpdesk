@@ -102,6 +102,9 @@ public sealed partial class HelpdeskStore
         // Settings → Sign-in security: technicians may use the EduHelpdesk phone app (HelpdeskStore.Phones). Off until an
         // administrator turns it on, so an upgrade never opens a new way in by itself.
         public bool AllowPhoneApp { get; set; }
+        // Settings → Sign-in security: every paired phone must use app lock (fingerprint, face or PIN). Off unless a school
+        // turns it on; a technician can still turn it on for their own phone.
+        public bool RequirePhoneAppLock { get; set; }
         // Settings → Notifications: pings and pop-ups on at all, for staff, for requesters in the portal, and whether people
         // who haven't switched them on are reminded to (HelpdeskStore.NotificationSettings). All on unless a school turns them off.
         public bool NotificationsEnabled { get; set; } = true;

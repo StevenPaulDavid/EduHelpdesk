@@ -40,15 +40,22 @@ public static class PhoneEndpoints
 
         // ---- Before a phone has a token ----
         var open = api.MapGroup("").AllowAnonymous();
-        open.MapGet("/info", (HelpdeskStore store) => Results.Json(new
+        open.MapGet("/info", (HelpdeskStore store, IWebHostEnvironment environment) => Results.Json(new
         {
             schoolName = store.Branding.BrandName,
             serverVersion = ServerVersion,
             apiVersion = ApiVersion,
             minAppVersion = MinimumAppVersion,
+            // The app this server hands out (GET /app/android), for the phone's update check. Null when it has none.
+            latestAppVersion = LatestApp(environment)?.Version.ToString(3),
             phoneAppEnabled = store.AllowPhoneApp,
             features = ApiFeatures
         }));
+        // The APK the release zip brought (deploy/New-Release.ps1), downloaded by the app itself through its pinned
+        // connection, or by a phone that doesn't have the app yet. Anonymous, as the app's own download page would be.
+        open.MapGet("/app/android", (IWebHostEnvironment environment) => LatestApp(environment) is { } apk
+            ? Results.File(apk.Path, "application/vnd.android.package-archive", Path.GetFileName(apk.Path))
+            : Refuse(StatusCodes.Status404NotFound, "This helpdesk doesn't have the phone app to hand out. Ask whoever looks after EduHelpdesk."));
         open.MapPost("/pair", (PairRequest? request, HttpContext http, HelpdeskStore store) =>
         {
             var (token, error) = store.PairPhone(request?.Code, request?.DeviceName, http.Connection.RemoteIpAddress);
@@ -152,6 +159,8 @@ public static class PhoneEndpoints
             serverVersion = ServerVersion,
             defaultDeskId = (store.StartingDeskFor(user) ?? desks.FirstOrDefault())?.Id,
             priorities = store.Priorities,
+            // Settings → Sign-in security: the app must lock itself after time away.
+            appLockRequired = store.RequirePhoneAppLock,
             desks = desks.Select(d => DeskJson(d, store))
         });
     }
@@ -403,7 +412,15 @@ public static class PhoneEndpoints
         name = d.Name,
         prefix = d.Prefix,
         color = store.StyleForDesk(d).Color,
-        hours = d.HasOwnHours ? string.Join(", ", d.WorkWindows.Select(w => w.Start.ToString("HH:mm") + "–" + w.End.ToString("HH:mm"))) : ""
+        hours = d.HasOwnHours ? string.Join(", ", d.WorkWindows.Select(w => w.Start.ToString("HH:mm") + "–" + w.End.ToString("HH:mm"))) : "",
+        // When the phone's "Only during my desk's hours" lets alerts through: the desk's own days and windows, as its SLA
+        // clock uses (HelpdeskStore.ClockFor), or the school days from the first period's start to the last one's end -
+        // breaks included, when technicians still pick up jobs. Days are ISO, 1 Monday to 7 Sunday. No windows: any time.
+        alertDays = (d.HasOwnHours && d.WorkDays.Count > 0 ? d.WorkDays : store.SchoolDays).Select(x => x == DayOfWeek.Sunday ? 7 : (int)x).Order(),
+        alertWindows = d.HasOwnHours
+            ? d.WorkWindows.Select(w => new { start = w.Start.ToString("HH:mm"), end = w.End.ToString("HH:mm") }).ToList()
+            : store.SchoolPeriods.Count == 0 ? []
+            : [new { start = store.SchoolPeriods.Min(x => x.Start).ToString("HH:mm"), end = store.SchoolPeriods.Max(x => x.End).ToString("HH:mm") }]
     };
 
     // Kinds in the app's words; titles in the bell's (generic on purpose: the number, never the ticket's words).
@@ -425,6 +442,23 @@ public static class PhoneEndpoints
     };
 
     // ---- Helpers ----
+
+    public const string AppFolder = "phone-app";
+
+    // The newest EduHelpdesk-Android-<version>.apk in the program's phone-app folder, where the release zip puts it.
+    public static (string Path, Version Version)? LatestApp(IWebHostEnvironment environment) => LatestApp(Path.Combine(environment.ContentRootPath, AppFolder));
+
+    public static (string Path, Version Version)? LatestApp(string folder)
+    {
+        if (!Directory.Exists(folder)) return null;
+        (string Path, Version Version)? best = null;
+        foreach (var file in Directory.EnumerateFiles(folder, "EduHelpdesk-Android-*.apk"))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(file), @"^EduHelpdesk-Android-(\d+\.\d+\.\d+)\.apk$");
+            if (match.Success && Version.Parse(match.Groups[1].Value) is var version && (best is null || version > best.Value.Version)) best = (file, version);
+        }
+        return best;
+    }
 
     private static IResult Refuse(int status, string message) => Results.Json(new { message }, statusCode: status);
 

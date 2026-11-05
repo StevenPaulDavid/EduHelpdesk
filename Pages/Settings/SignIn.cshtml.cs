@@ -50,6 +50,14 @@ public class SignInModel(HelpdeskStore store) : PageModel
         return RedirectToPage(null, null, "phones");
     }
 
+    public bool PhoneAppLockRequired => store.RequirePhoneAppLock;
+
+    public IActionResult OnPostPhoneAppLock(bool required)
+    {
+        Message = store.SetRequirePhoneAppLock(required);
+        return RedirectToPage(null, null, "phones");
+    }
+
     public string SiteAddress => store.SiteAddress;
     public string GuessedAddress => People.QuickStartModel.GuessAddress(Request);
 
