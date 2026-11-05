@@ -161,6 +161,7 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN DisposedBy TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Assets ADD COLUMN DisposalCertificate TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Assets ADD COLUMN ContractId TEXT NULL;",
+            "ALTER TABLE Assets ADD COLUMN StudentName TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Suppliers ADD COLUMN IsContractor INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Suppliers ADD COLUMN Trade TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",

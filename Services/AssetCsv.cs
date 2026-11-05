@@ -50,7 +50,8 @@ public static class AssetCsv
             var cells = new List<string>
             {
                 asset.AssetTag, asset.Make, asset.Model, asset.Type, asset.SerialNumber, asset.Status, asset.Location,
-                asset.AssignedUserId is { } holder ? userNames.GetValueOrDefault(holder, "") : "",
+                // A student's name goes here too, with the status With Student, so the file imports straight back.
+                asset.AssignedUserId is { } holder ? userNames.GetValueOrDefault(holder, "") : asset.StudentName,
                 Day(asset.LoanDueDate),
                 asset.SupplierId is { } supplier ? supplierNames.GetValueOrDefault(supplier, "") : "",
                 Day(asset.PurchaseDate),

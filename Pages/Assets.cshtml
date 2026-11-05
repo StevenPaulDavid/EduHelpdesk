@@ -18,7 +18,7 @@
         {
             Id = "asset-filters",
             Search = Model.Search,
-            SearchPlaceholder = "Tag, serial number, make, model, building, room, holder, purchase order",
+            SearchPlaceholder = "Tag, serial number, make, model, building, room, holder or student, purchase order",
             Title = "Filter assets",
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
@@ -35,7 +35,7 @@
                 <label>Make<select name="make"><option value="">Any make</option>@foreach (var item in Model.AssetMakes) { <option value="@item" selected="@string.Equals(item, Model.Make, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Building<select name="building"><option value="">Any building</option><option value="@AssetListQuery.None" selected="@(Model.Building == AssetListQuery.None)">(No building)</option>@foreach (var item in Model.Buildings) { <option value="@item" selected="@string.Equals(item, Model.Building, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Room<select name="location"><option value="">Any room</option><option value="@AssetListQuery.None" selected="@(Model.Location == AssetListQuery.None)">(No room)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
-                <label>Held by<select name="holder" data-picker><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
+                <label>Held by<select name="holder" data-picker><option value="">Anyone</option><option value="none" selected="@(Model.Holder == "none")">Unassigned</option><option value="students" selected="@(Model.Holder == "students")">With a student</option>@foreach (var item in Model.Users) { <option value="@item.Id" selected="@(item.Id.ToString() == Model.Holder)">@item.Name</option> }</select></label>
                 <label>Per page<select name="size">@foreach (var size in AssetsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
             </text>
         };
@@ -86,7 +86,7 @@
         </tr></thead><tbody>
         @foreach (var asset in Model.Rows)
         {
-            var holder = asset.AssignedUserId is { } holderId ? Model.UserNames.GetValueOrDefault(holderId) : null;
+            var holder = asset.AssignedUserId is { } holderId ? Model.UserNames.GetValueOrDefault(holderId) : asset.StudentName.Length > 0 ? $"{asset.StudentName} (student)" : null;
             var overdue = asset.AssignedUserId is not null && asset.LoanDueDate is { } due && due < Model.Today;
             var expired = asset.WarrantyEnd is { } ends && ends < Model.Today;
             <tr>

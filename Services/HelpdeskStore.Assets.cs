@@ -19,8 +19,10 @@ public sealed partial class HelpdeskStore
     {
         if (string.IsNullOrWhiteSpace(item.Status)) item = item with { Status = "In use" };
         if (!item.AssignedUserId.HasValue) item = item with { LoanDueDate = null };
+        item = WithStudentRule(item);
         var assignments = item.AssignedUserId is { } holder
             ? new List<AssetAssignment> { new(holder, UserName(holder), DateTime.UtcNow, null, item.LoanDueDate) }
+            : item.StudentName.Length > 0 ? [StudentPeriod(item.StudentName, DateTime.UtcNow)]
             : [];
         _data.Assets.Add(item with { Assignments = assignments });
     }
@@ -57,7 +59,8 @@ public sealed partial class HelpdeskStore
     // Why an asset that already has a holder cannot be lent or put in a kit, or null if it is free. Someone's own
     // laptop is theirs until it is returned: lending it on, or bundling it into a kit, would move it off their desk
     // without anyone deciding to take it back. The same goes for something already out on loan.
-    private string? HeldBlock(AssetRecord asset, string action) => asset.AssignedUserId is not { } holder ? null
+    private string? HeldBlock(AssetRecord asset, string action) => asset.AssignedUserId is not { } holder
+        ? asset.StudentName.Length > 0 ? $"{asset.AssetTag} is with {asset.StudentName} (a student). Use Back from student on the asset's page before it is {action}." : null
         : asset.LoanDueDate is { } due
             ? $"{asset.AssetTag} is already on loan to {UserName(holder)}, due back {AssetInsights.Format(due)}. Book it back in before it is {action}."
             : $"{asset.AssetTag} is assigned to {UserName(holder)}. Return it from the asset's page before it is {action}.";
@@ -208,18 +211,22 @@ public sealed partial class HelpdeskStore
         var previous = _data.Assets[index];
         if (string.IsNullOrWhiteSpace(item.Status)) item = item with { Status = previous.Status };
         if (!item.AssignedUserId.HasValue) item = item with { LoanDueDate = null };
+        item = WithStudentRule(item);
         var history = previous.History.ToList();
         var from = history.Count;
         AddAssetActivities(history, previous, item, _data.Users);
         StampActor(history, from);
         var assignments = previous.Assignments.ToList();
         var now = DateTime.UtcNow;
-        if (previous.AssignedUserId != item.AssignedUserId)
+        // A student is a holder too, so the ownership history shows their period like anyone else's.
+        if (previous.AssignedUserId != item.AssignedUserId || !string.Equals(previous.StudentName, item.StudentName, StringComparison.Ordinal))
         {
             for (var i = 0; i < assignments.Count; i++)
                 if (assignments[i].EndedAt is null) assignments[i] = assignments[i] with { EndedAt = now };
             if (item.AssignedUserId is { } holder)
                 assignments.Add(new AssetAssignment(holder, UserName(holder), now, null, item.LoanDueDate) { Reason = loanReason, KitLoanId = kitLoanId });
+            else if (item.StudentName.Length > 0)
+                assignments.Add(StudentPeriod(item.StudentName, now));
         }
         else if (previous.LoanDueDate != item.LoanDueDate)
         {
@@ -477,6 +484,10 @@ public sealed partial class HelpdeskStore
         if (previous.Type != updated.Type) history.Add(new("Type changed", $"{previous.Type} -> {updated.Type}", now));
         if (previous.SerialNumber != updated.SerialNumber) history.Add(new("Serial number changed", $"{previous.SerialNumber} -> {updated.SerialNumber}", now));
         if (previous.Location != updated.Location) history.Add(new("Location changed", string.IsNullOrWhiteSpace(updated.Location) ? "The location was removed." : $"Moved to {updated.Location}.", now));
+        if (!string.Equals(previous.StudentName, updated.StudentName, StringComparison.Ordinal))
+            history.Add(updated.StudentName.Length > 0
+                ? new(previous.StudentName.Length > 0 ? "Student changed" : "Given to student", previous.StudentName.Length > 0 ? $"{previous.StudentName} -> {updated.StudentName}" : $"With {updated.StudentName}.", now)
+                : new("Back from student", $"No longer with {previous.StudentName}.", now));
         if (previous.AssignedUserId != updated.AssignedUserId) history.Add(new("Assigned user changed", updated.AssignedUserId.HasValue ? $"Assigned to {Person(updated.AssignedUserId)}." : $"No longer assigned to {Person(previous.AssignedUserId)}.", now));
         if (previous.SupplierId != updated.SupplierId) history.Add(new("Supplier changed", updated.SupplierId.HasValue ? "A supplier was linked." : "The supplier was removed.", now));
         // DfE register fields.

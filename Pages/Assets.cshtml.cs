@@ -211,7 +211,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Building)) chips.Add(new($"Building: {(Building == AssetListQuery.None ? "None" : Building)}", Without("building")));
         if (!string.IsNullOrWhiteSpace(Location)) chips.Add(new($"Room: {(Location == AssetListQuery.None ? "None" : Location)}", Without("location")));
         if (!string.IsNullOrWhiteSpace(Holder))
-            chips.Add(new($"Held by: {(Holder == "none" ? "Unassigned" : Guid.TryParse(Holder, out var id) ? store.Users.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Holder)}", Without("holder")));
+            chips.Add(new($"Held by: {(Holder == "none" ? "Unassigned" : Holder == AssetListQuery.StudentsHolder ? "A student" : Guid.TryParse(Holder, out var id) ? store.Users.FirstOrDefault(x => x.Id == id)?.Name ?? "Unknown" : Holder)}", Without("holder")));
         if (!string.IsNullOrWhiteSpace(Flag)) chips.Add(new(FlagLabel(Flag), Without("flag")));
         return chips;
     }

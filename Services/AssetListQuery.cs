@@ -55,7 +55,8 @@ public sealed class AssetListQuery
     public string? Location { get; set; }
     // The DfE check windows behind the check and support flags and the review list; defaults if not set.
     public AssetCheckSettings? Checks { get; set; }
-    // "none" for unassigned assets, or a user id.
+    // "none" for unassigned assets, "students" for those with a student, or a user id.
+    public const string StudentsHolder = "students";
     public string? Holder { get; set; }
     // review (needs review), loan (on loan) or overdue (loan overdue)
     public string? Flag { get; set; }
@@ -82,7 +83,9 @@ public sealed class AssetListQuery
         var checks = Checks ?? new(AssetChecks.DefaultDueSoonDays, AssetChecks.DefaultSupportWarningDays, AssetChecks.DefaultIntervalMonths);
         if (!string.IsNullOrWhiteSpace(Holder))
         {
-            if (string.Equals(Holder, "none", StringComparison.OrdinalIgnoreCase)) query = query.Where(x => x.AssignedUserId is null);
+            if (string.Equals(Holder, "none", StringComparison.OrdinalIgnoreCase)) query = query.Where(x => x.AssignedUserId is null && x.StudentName.Length == 0);
+            // Devices given to pupils, who are not in People (HelpdeskStore.Students).
+            else if (string.Equals(Holder, StudentsHolder, StringComparison.OrdinalIgnoreCase)) query = query.Where(x => x.StudentName.Length > 0);
             else if (Guid.TryParse(Holder, out var holderId)) query = query.Where(x => x.AssignedUserId == holderId);
         }
         switch (Flag?.Trim().ToLowerInvariant())
@@ -115,7 +118,7 @@ public sealed class AssetListQuery
             query = query.Where(x =>
             {
                 var holder = x.AssignedUserId is { } id && names.TryGetValue(id, out var name) ? name : string.Empty;
-                var text = string.Join('\n', x.AssetTag, x.Make, x.Model, x.Type, x.SerialNumber, x.Building, x.Location, x.Status, x.PurchaseOrder, x.QuoteReference, x.OperatingSystem, x.DisposalCertificate, holder);
+                var text = string.Join('\n', x.AssetTag, x.Make, x.Model, x.Type, x.SerialNumber, x.Building, x.Location, x.Status, x.PurchaseOrder, x.QuoteReference, x.OperatingSystem, x.DisposalCertificate, holder, x.StudentName);
                 return terms.All(t => text.Contains(t, StringComparison.OrdinalIgnoreCase));
             });
         }
@@ -134,8 +137,8 @@ public sealed class AssetListQuery
             ? list.OrderBy(x => key(x) is null).ThenByDescending(key)
             : list.OrderBy(x => key(x) is null).ThenBy(key);
         IOrderedEnumerable<AssetRecord> ByHolder() => Descending
-            ? list.OrderBy(x => x.AssignedUserId is null).ThenByDescending(x => HolderName(x, names), natural)
-            : list.OrderBy(x => x.AssignedUserId is null).ThenBy(x => HolderName(x, names), natural);
+            ? list.OrderBy(x => x.AssignedUserId is null && x.StudentName.Length == 0).ThenByDescending(x => HolderName(x, names), natural)
+            : list.OrderBy(x => x.AssignedUserId is null && x.StudentName.Length == 0).ThenBy(x => HolderName(x, names), natural);
 
         var ordered = Sort switch
         {
@@ -156,5 +159,5 @@ public sealed class AssetListQuery
     }
 
     private static string HolderName(AssetRecord asset, IReadOnlyDictionary<Guid, string> names) =>
-        asset.AssignedUserId is { } id && names.TryGetValue(id, out var name) ? name : string.Empty;
+        asset.AssignedUserId is { } id && names.TryGetValue(id, out var name) ? name : asset.StudentName;
 }

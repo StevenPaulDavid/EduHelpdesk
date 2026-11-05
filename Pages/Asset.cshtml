@@ -12,7 +12,9 @@
         : Model.ReplacementDue is { } calculated
             ? $"Blank, so it is due {AssetInsights.Format(calculated)} from this asset type's lifespan."
             : "Optional. Set a lifespan on the asset type in Settings, or type a date here.";
-    var holderText = Model.HolderName is not null ? $"Held by {Model.HolderName}" : Model.HeldByKit is { } kitHeld ? $"Out with {kitHeld.Loan.BorrowerName}" : "Not assigned";
+    var holderText = Model.HolderName is not null ? $"Held by {Model.HolderName}"
+        : asset.StudentName.Length > 0 ? $"With {asset.StudentName} (student)"
+        : Model.HeldByKit is { } kitHeld ? $"Out with {kitHeld.Loan.BorrowerName}" : "Not assigned";
     var warrantyExpired = asset.WarrantyEnd is { } warrantyEnds && warrantyEnds < Model.Today;
     // A saved building or condition that has since left its Settings list is still offered, so saving keeps it.
     var buildingOptions = Model.Buildings.Concat(string.IsNullOrWhiteSpace(asset.Building) || Model.Buildings.Contains(asset.Building, StringComparer.OrdinalIgnoreCase) ? [] : new[] { asset.Building }).ToList();
@@ -177,6 +179,18 @@
                 <a asp-page="/Loans">Issue the kit from the Loans page</a>, or take it out of the kit first if it needs to be lent on its own.
             </div>
         }
+        else if (asset.StudentName.Length > 0)
+        {
+            @* A long-term allocation to a pupil, not a loan (HelpdeskStore.Students): no due date, nothing in Loans. *@
+            <p class="muted">With @asset.StudentName, a student, so it can't be loaned out or put in a kit. Pupils aren't in People, so only their name is kept.</p>
+            @if (Model.CanEdit)
+            {
+                <form method="post" asp-page-handler="BackFromStudent" asp-fragment="asset-loans" class="import-row" data-confirm="Mark @asset.AssetTag as back from @asset.StudentName? It goes back to stock.">
+                    <input type="hidden" name="id" value="@asset.Id" />
+                    <button class="button button-secondary" type="submit">Back from student</button>
+                </form>
+            }
+        }
         else if (asset.AssignedUserId is not null)
         {
             @* Someone already holds it, so it can be neither lent nor put in a kit until it comes back (HelpdeskStore.HeldBlock). *@
@@ -195,6 +209,18 @@
                 <label>Due back<input name="dueBack" type="date" required /></label>
                 <button class="button button-primary" type="submit">Loan out</button>
             </form>
+            @if (!Model.IsDisposed && Model.CanEdit)
+            {
+                <details class="dispose-block">
+                    <summary>Give to a student</summary>
+                    <p class="muted">For a device a pupil keeps, such as a 1:1 laptop. Its status becomes <strong>@EduHelpdesk.Services.HelpdeskStore.WithStudentStatus</strong> and only the student's name is kept - they aren't added to People. It isn't a loan, so it has no due-back date and never shows in Loans.</p>
+                    <form method="post" asp-page-handler="GiveToStudent" asp-fragment="asset-loans" class="import-row">
+                        <input type="hidden" name="id" value="@asset.Id" />
+                        <label>Student's name<input name="studentName" maxlength="@EduHelpdesk.Services.HelpdeskStore.MaxStudentNameLength" required autocomplete="off" /></label>
+                        <button class="button button-primary" type="submit">Give to student</button>
+                    </form>
+                </details>
+            }
         }
         @* Still offered for a kit member that is not out: it can carry a holder from before it joined the kit, and this is the only way to clear that. *@
         @if (asset.AssignedUserId is not null)
@@ -242,7 +268,7 @@
     @foreach (var period in Model.Ownership)
     {
         <tr>
-            <td>@period.UserName @if (period.EndedAt is null) { <span class="badge">Current</span> }</td>
+            <td>@period.UserName @if (period.Reason == EduHelpdesk.Services.HelpdeskStore.StudentPeriodReason && period.UserId is null) { <span class="muted">(student)</span> } @if (period.EndedAt is null) { <span class="badge">Current</span> }</td>
             <td>@(period.StartedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Before records began")</td>
             <td>@(period.EndedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "-")</td>
             <td>@(period.DueBack.HasValue ? AssetInsights.Format(period.DueBack.Value) : "-")</td>

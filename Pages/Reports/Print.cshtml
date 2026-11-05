@@ -112,6 +112,23 @@
     </table>
 </section>
 
+@if (Model.StudentCount > 0)
+{
+    <section>
+        <h2>With students (@Model.StudentCount)</h2>
+        <p>Devices pupils keep, such as 1:1 laptops. These aren't loans, so they aren't in the loan report.</p>
+        <table>
+            <thead><tr><th>Asset</th><th>Type</th><th>Model</th><th>Student</th><th>Since</th></tr></thead>
+            <tbody>
+            @foreach (var row in Model.Students)
+            {
+                <tr><td class="count">@row.Asset.AssetTag</td><td>@row.Asset.Type</td><td>@row.Asset.Make @row.Asset.Model</td><td>@row.Asset.StudentName</td><td>@(row.Since is { } since ? AssetInsights.Format(DateOnly.FromDateTime(since.ToLocalTime())) : "—")</td></tr>
+            }
+            </tbody>
+        </table>
+    </section>
+}
+
 <section>
     <h2>Assets with the most tickets — @ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label.ToLowerInvariant()</h2>
     <p>Devices that keep coming back are candidates for replacement.</p>

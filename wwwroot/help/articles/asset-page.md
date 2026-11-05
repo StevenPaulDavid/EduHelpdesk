@@ -5,7 +5,7 @@ area: Assets and inventory
 kind: page
 pages: /Asset, /Assets/Add, /Assets/Delete
 needs: Assets
-keywords: asset details tag serial make model type warranty purchase price order supplier replacement lease owner assigned history comments
+keywords: asset details tag serial make model type warranty purchase price order supplier replacement lease owner assigned history comments student pupil 1:1 one to one
 order: 2
 ---
 Open an asset from the register to see everything about it, on tabs.
@@ -33,6 +33,14 @@ The DfE check (last checked, by whom, next due) and **end of support** - when it
 ## Ownership & loans
 
 Who holds it now, **Loan out** to lend it to someone with a reason and due-back date, **Return device** to book it back in, and the loan history. **Record a disposal** is here too. See [Disposing of an asset](dispose-an-asset).
+
+### Devices with students
+
+**Give to a student** is for a device a pupil keeps, such as a 1:1 laptop. Type the student's name: pupils aren't in People, so only the name is kept. The status becomes **With Student**, and the student appears under **Who has held it** like anyone else. It isn't a loan, so there's no due-back date and it never shows in Loans or the loan report.
+
+**Back from student** puts it back to stock. Changing the status to something else, or assigning it to someone in People, ends it too. The **With Student** status can't be renamed, because the helpdesk sets it itself.
+
+Find these devices with **Held by → With a student** on the asset list, by searching for the student's name, or in the **With students** table on the asset report. An import can give them out too: see [Importing assets](import-assets).
 
 ## Tickets, comments and history
 

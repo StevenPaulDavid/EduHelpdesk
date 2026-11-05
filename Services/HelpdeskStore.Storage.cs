@@ -629,7 +629,7 @@ public sealed partial class HelpdeskStore
             // This reader is ordinal-indexed, so new columns are appended to the END of the SELECT. Inserting one in the
             // middle shifts every ordinal after it and silently scrambles the whole register - which is exactly how the
             // Type/Model swap bug happened.
-            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId FROM Assets;";
+            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId, StudentName FROM Assets;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Assets.Add(new AssetRecord(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8))
             {
@@ -654,7 +654,8 @@ public sealed partial class HelpdeskStore
                 EndOfSupport = NullableDateOnly(reader, 27),
                 DisposedBy = NullableString(reader, 28) ?? "",
                 DisposalCertificate = NullableString(reader, 29) ?? "",
-                ContractId = NullableGuid(reader, 30)
+                ContractId = NullableGuid(reader, 30),
+                StudentName = NullableString(reader, 31) ?? ""
             });
         }
         ReadAssetChildren(connection, data.Assets);
@@ -938,13 +939,13 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Assets)
         {
-            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds,$building,$os,$condition,$ownership,$lastcheck,$lastcheckby,$nextcheck,$eos,$disposedby,$certificate,$contract);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId, StudentName) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds,$building,$os,$condition,$ownership,$lastcheck,$lastcheckby,$nextcheck,$eos,$disposedby,$certificate,$contract,$student);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
                 ("$status", string.IsNullOrWhiteSpace(s.Item.Status) ? "In use" : s.Item.Status), ("$purchased", IsoDay(s.Item.PurchaseDate)), ("$price", s.Item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", s.Item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(s.Item.WarrantyEnd)), ("$replacement", IsoDay(s.Item.ReplacementDate)), ("$loan", IsoDay(s.Item.LoanDueDate)),
                 ("$quote", s.Item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(s.Item.DisposalDate)), ("$method", s.Item.DisposalMethod ?? string.Empty), ("$proceeds", s.Item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("$building", s.Item.Building ?? string.Empty), ("$os", s.Item.OperatingSystem ?? string.Empty), ("$condition", s.Item.Condition ?? string.Empty), ("$ownership", s.Item.Ownership ?? string.Empty),
                 ("$lastcheck", IsoDay(s.Item.LastCheckDate)), ("$lastcheckby", s.Item.LastCheckBy ?? string.Empty), ("$nextcheck", IsoDay(s.Item.NextCheckDate)), ("$eos", IsoDay(s.Item.EndOfSupport)),
                 ("$disposedby", s.Item.DisposedBy ?? string.Empty), ("$certificate", s.Item.DisposalCertificate ?? string.Empty),
-                ("$contract", s.Item.ContractId?.ToString())]);
+                ("$contract", s.Item.ContractId?.ToString()), ("$student", s.Item.StudentName ?? string.Empty)]);
             foreach (var assignment in item.Assignments)
                 ExecuteFor(assignment, item.Id, item, connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", static s => [("$id", s.Item.Id.ToString()), ("$user", s.Record.UserId?.ToString()), ("$name", s.Record.UserName), ("$started", s.Record.StartedAt.HasValue ? Iso(s.Record.StartedAt.Value) : null), ("$ended", s.Record.EndedAt.HasValue ? Iso(s.Record.EndedAt.Value) : null), ("$due", IsoDay(s.Record.DueBack)), ("$reason", s.Record.Reason), ("$kitloan", s.Record.KitLoanId?.ToString())]);
             foreach (var comment in item.Comments)

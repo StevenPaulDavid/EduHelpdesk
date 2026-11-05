@@ -177,7 +177,10 @@ public class AssetModel(HelpdeskStore store) : PageModel
             LastCheckBy = lastCheckDate is null ? string.Empty : (lastCheckBy ?? string.Empty).Trim(),
             NextCheckDate = nextCheckDate,
             EndOfSupport = endOfSupport,
-            ContractId = contractId
+            ContractId = contractId,
+            // Set by Give to student and Back from student. Moving the status off With Student, or assigning the asset to
+            // someone in People, ends it (HelpdeskStore.WithStudentRule).
+            StudentName = current?.StudentName ?? string.Empty
         };
         if (!store.UpdateAssetAttributeValues(id, type.Trim(), customAttributes))
         {
@@ -230,6 +233,22 @@ public class AssetModel(HelpdeskStore store) : PageModel
     {
         if (!store.UserCan(User, Modules.Assets, ModulePermission.Edit)) return Forbid();
         Message = store.ReturnAsset(id, status);
+        return RedirectToPage(new { id });
+    }
+
+    public bool CanEdit => store.UserCan(User, Modules.Assets, ModulePermission.Edit);
+
+    public IActionResult OnPostGiveToStudent(Guid id, string? studentName)
+    {
+        if (!CanEdit) return Forbid();
+        Message = store.GiveToStudent(id, studentName).Message;
+        return RedirectToPage(new { id });
+    }
+
+    public IActionResult OnPostBackFromStudent(Guid id)
+    {
+        if (!CanEdit) return Forbid();
+        Message = store.BackFromStudent(id).Message;
         return RedirectToPage(new { id });
     }
 

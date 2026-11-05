@@ -24,6 +24,10 @@ EduHelpdesk guesses what each column is from its heading. Check the guesses and 
 - **Add makes, models, types, locations, statuses, suppliers and contracts that aren't in the lists yet** - off, a row with an unknown value is skipped instead.
 - **A blank cell clears the value on an existing asset** - leave this off (recommended), so blank cells leave existing values alone.
 
+## Devices with students
+
+A row whose **Status** is **With Student** takes the name in its **Assigned to** column as the student's, typed rather than looked up in People. That way pupils don't have to be added to the directory. Leave **Loan due back** blank, because a device with a student isn't a loan. On every other row, Assigned to must still match someone in People by name or email. An asset export carries the student's name in the same column, so it imports straight back.
+
 ## Linking assets to a contract
 
 Map a column to **Contract** to link each asset to a contract on the [contracts register](contracts-register) by its name (capitals and spaces at the ends don't matter). A name that isn't on the register yet is added as a new contract with just that name, and the row's supplier if it has one. It shows **Needs details** on the register, the compliance summary and the overview until someone opens it and saves it from **Edit contract**.

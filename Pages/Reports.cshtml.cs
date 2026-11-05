@@ -30,6 +30,8 @@ public class ReportsModel(HelpdeskStore store) : PageModel
     public sealed record AgeRow(string Type, int Count, int WithPurchaseDate, double? AverageYears, double? OldestYears, int DueOrOverdue);
     public sealed record ReplacementRow(AssetRecord Asset, DateOnly Due, double? AgeYears);
     public sealed record WarrantyRow(AssetRecord Asset, DateOnly Ends);
+    // A device given to a pupil (HelpdeskStore.Students), and since when: the start of its open ownership period.
+    public sealed record StudentRow(AssetRecord Asset, DateTime? Since);
     public sealed record ProblemRow(AssetRecord Asset, int Tickets, int Open, DateTime? LastTicket);
 
     public DateOnly Today { get; } = AssetInsights.Today;
@@ -50,6 +52,8 @@ public class ReportsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<WarrantyRow> Expired { get; private set; } = [];
     public string PeriodKey { get; private set; } = "all";
     public IReadOnlyList<ProblemRow> Problems { get; private set; } = [];
+    public int StudentCount { get; private set; }
+    public IReadOnlyList<StudentRow> Students { get; private set; } = [];
 
     public void OnGet()
     {
@@ -116,6 +120,13 @@ public class ReportsModel(HelpdeskStore store) : PageModel
         ExpiredCount = expired.Count;
         Expired = expired.Take(RowLimit).Select(x => new WarrantyRow(x, x.WarrantyEnd!.Value)).ToList();
 
+        // Devices with students, longest-held first.
+        var withStudents = assets.Where(HelpdeskStore.IsWithStudent)
+            .Select(x => new StudentRow(x, x.Assignments.LastOrDefault(a => a.EndedAt is null)?.StartedAt))
+            .OrderBy(x => x.Since ?? DateTime.MinValue).ThenBy(x => x.Asset.AssetTag, StringComparer.OrdinalIgnoreCase).ToList();
+        StudentCount = withStudents.Count;
+        Students = withStudents.Take(RowLimit).ToList();
+
         // Problem devices: assets with the most tickets in the chosen period
         var period = Periods.FirstOrDefault(x => x.Key == Period);
         if (period.Key is null) period = Periods[0];
@@ -165,6 +176,10 @@ public class ReportsModel(HelpdeskStore store) : PageModel
                 ["State", "Asset tag", "Type", "Make", "Model", "Held by", "Warranty end"],
                 Expiring.Select(x => ("Expiring", x)).Concat(Expired.Select(x => ("Expired", x))),
                 x => [x.Item1, x.x.Asset.AssetTag, x.x.Asset.Type, x.x.Asset.Make, x.x.Asset.Model, HolderName(x.x.Asset) ?? "", x.x.Ends.ToString("yyyy-MM-dd")])),
+            "students" => ("asset-students", Csv.Table(
+                ["Asset tag", "Make", "Model", "Type", "Serial number", "Student", "Since"],
+                Students,
+                x => [x.Asset.AssetTag, x.Asset.Make, x.Asset.Model, x.Asset.Type, x.Asset.SerialNumber, x.Asset.StudentName, x.Since?.ToLocalTime().ToString("yyyy-MM-dd") ?? ""])),
             "problems" => ("asset-problems", Csv.Table(
                 ["Asset tag", "Make", "Model", "Type", "Tickets", "Open now", "Most recent ticket"],
                 Problems,
@@ -177,7 +192,8 @@ public class ReportsModel(HelpdeskStore store) : PageModel
 
     private static string Number(double? value) => value?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "";
 
-    public string? HolderName(AssetRecord asset) => asset.AssignedUserId is { } id ? store.Users.FirstOrDefault(x => x.Id == id)?.Name : null;
+    public string? HolderName(AssetRecord asset) => asset.AssignedUserId is { } id ? store.Users.FirstOrDefault(x => x.Id == id)?.Name
+        : HelpdeskStore.IsWithStudent(asset) ? $"{asset.StudentName} (student)" : null;
 
     public static string Years(double? value) => value.HasValue ? $"{value.Value:0.0} yrs" : "-";
     public static string DaysFrom(DateOnly date, DateOnly today)

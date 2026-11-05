@@ -219,6 +219,9 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
     public string DisposalCertificate { get; init; } = "";
     // DfE: "If the asset is leased ... make sure the details are recorded in your contracts register." This is that link.
     public Guid? ContractId { get; init; }
+    // A device given to a pupil for the long term (status "With Student", HelpdeskStore.Students): just their name, since
+    // pupils aren't in People. Blank otherwise. Never a loan - there is no due-back date - so never in Loans.
+    public string StudentName { get; init; } = "";
 }
 public static class AssetOwnership
 {

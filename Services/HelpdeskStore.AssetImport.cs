@@ -330,28 +330,45 @@ public sealed partial class HelpdeskStore
             if (linked is not null && !string.Equals(linked, next.Make, StringComparison.OrdinalIgnoreCase)) return Fail($"Model '{next.Model}' belongs to {linked}, not {next.Make}.");
         }
 
-        // Holder
+        // Holder. A row whose status is With Student holds a pupil's name instead, typed rather than looked up in People,
+        // since pupils aren't in it (HelpdeskStore.Students) - and it's not a loan, so it has no due-back date.
         var holder = Field("holder", true);
-        Guid? holderId = next.AssignedUserId;
-        if (holder.Has)
+        if (string.Equals(next.Status, WithStudentStatus, StringComparison.OrdinalIgnoreCase))
         {
-            var found = usersByEmail.GetValueOrDefault(holder.Value) ?? usersByName.GetValueOrDefault(holder.Value);
-            if (found is null || found.Count == 0) return Fail($"No user matches '{holder.Value}'.");
-            if (found.Count > 1) return Fail($"More than one user is called '{holder.Value}'; use their email address instead.");
-            holderId = found[0].Id;
+            if (holder.Has)
+            {
+                if (holder.Value.Length > MaxStudentNameLength) return Fail($"Keep the student's name under {MaxStudentNameLength} characters.");
+                next = next with { StudentName = holder.Value, AssignedUserId = null };
+            }
+            else if (holder.Clear) next = next with { StudentName = string.Empty };
+            if (!string.IsNullOrEmpty(Cell("loanDue"))) return Fail("A device with a student isn't a loan, so it has no due-back date. Leave Loan due back blank.");
+            next = next with { LoanDueDate = null };
         }
-        else if (holder.Clear) holderId = null;
-        var holderChanged = holderId != next.AssignedUserId;
-        next = next with { AssignedUserId = holderId };
+        else
+        {
+            Guid? holderId = next.AssignedUserId;
+            if (holder.Has)
+            {
+                var found = usersByEmail.GetValueOrDefault(holder.Value) ?? usersByName.GetValueOrDefault(holder.Value);
+                if (found is null || found.Count == 0) return Fail($"No user matches '{holder.Value}'.");
+                if (found.Count > 1) return Fail($"More than one user is called '{holder.Value}'; use their email address instead.");
+                holderId = found[0].Id;
+            }
+            else if (holder.Clear) holderId = null;
+            var holderChanged = holderId != next.AssignedUserId;
+            next = next with { AssignedUserId = holderId };
 
-        var loan = Cell("loanDue");
-        if (!string.IsNullOrEmpty(loan))
-        {
-            if (!ImportParsing.TryParseDate(loan, options.DateFormat, out var loanDue)) return Fail($"'{loan}' is not a valid loan due date.");
-            next = next with { LoanDueDate = loanDue };
+            var loan = Cell("loanDue");
+            if (!string.IsNullOrEmpty(loan))
+            {
+                if (!ImportParsing.TryParseDate(loan, options.DateFormat, out var loanDue)) return Fail($"'{loan}' is not a valid loan due date.");
+                next = next with { LoanDueDate = loanDue };
+            }
+            else if (holderChanged || (loan is not null && options.BlankClears)) next = next with { LoanDueDate = null };
+            if (next.LoanDueDate.HasValue && holderId is null) return Fail("A loan due date needs someone assigned to the asset.");
         }
-        else if (holderChanged || (loan is not null && options.BlankClears)) next = next with { LoanDueDate = null };
-        if (next.LoanDueDate.HasValue && holderId is null) return Fail("A loan due date needs someone assigned to the asset.");
+        // What saving will make of it: moving off With Student, or to someone in People, ends a student's allocation.
+        next = WithStudentRule(next);
 
         // Supplier
         var supplier = Field("supplier", true);
@@ -481,7 +498,7 @@ public sealed partial class HelpdeskStore
             foreach (var (label, value) in new[]
             {
                 ("Make", next.Make), ("Model", next.Model), ("Type", next.Type), ("Serial number", next.SerialNumber), ("Status", next.Status), ("Location", next.Location),
-                ("Assigned to", next.AssignedUserId is { } holderName ? UserName(holderName) : null), ("Loan due back", Date(next.LoanDueDate)), ("Supplier", supplierName),
+                ("Assigned to", next.AssignedUserId is { } holderName ? UserName(holderName) : null), ("Student", next.StudentName), ("Loan due back", Date(next.LoanDueDate)), ("Supplier", supplierName),
                 ("Purchase date", Date(next.PurchaseDate)), ("Purchase price", next.PurchasePrice?.ToString("0.00")), ("Purchase order", next.PurchaseOrder), ("Quote reference", next.QuoteReference),
                 ("Warranty end", Date(next.WarrantyEnd)), ("Replacement date", Date(next.ReplacementDate)),
                 ("Building", next.Building), ("Operating system", next.OperatingSystem), ("Condition", next.Condition),
@@ -510,6 +527,7 @@ public sealed partial class HelpdeskStore
         Change("Status", existing.Status, next.Status);
         Change("Location", existing.Location, next.Location);
         Change("Assigned to", existing.AssignedUserId is { } was ? UserName(was) : string.Empty, next.AssignedUserId is { } now ? UserName(now) : string.Empty);
+        Change("Student", existing.StudentName, next.StudentName);
         Change("Loan due back", Day(existing.LoanDueDate), Day(next.LoanDueDate));
         Change("Supplier", SupplierName(existing.SupplierId), SupplierName(next.SupplierId));
         Change("Purchase date", Day(existing.PurchaseDate), Day(next.PurchaseDate));

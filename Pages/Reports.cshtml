@@ -101,6 +101,19 @@
     @if (Model.ExpiredCount > Model.RowLimit) { <p class="muted">Showing the most recent @Model.RowLimit of @Model.ExpiredCount.</p> }
 </section>
 
+<section class="panel" id="students">
+    <div class="panel-heading"><div><h2>With students</h2></div><div class="heading-actions">@if (Model.CanExport && Model.StudentCount > 0) { <a class="csv-link" asp-page="/Reports" asp-route-desk="@Model.Desk" asp-page-handler="Export" asp-route-table="students" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge">@Model.StudentCount</span></div></div>
+    <p class="muted">Devices pupils keep, such as 1:1 laptops, given from the asset's page or imported with the status <strong>@EduHelpdesk.Services.HelpdeskStore.WithStudentStatus</strong>. They aren't loans, so they aren't in the loan report. <a asp-page="/Assets" asp-route-holder="students">See them in the asset list</a>.</p>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Model</th><th>Student</th><th>Since</th></tr></thead><tbody>
+    @foreach (var row in Model.Students)
+    {
+        <tr><td><a asp-page="/Asset" asp-route-id="@row.Asset.Id">@row.Asset.AssetTag</a></td><td>@row.Asset.Type</td><td>@row.Asset.Make @row.Asset.Model</td><td>@row.Asset.StudentName</td><td>@(row.Since is { } since ? AssetInsights.Format(DateOnly.FromDateTime(since.ToLocalTime())) : "—")</td></tr>
+    }
+    @if (Model.Students.Count == 0) { <tr><td colspan="5" class="empty">No devices are with students.</td></tr> }
+    </tbody></table></div>
+    @if (Model.StudentCount > Model.RowLimit) { <p class="muted">Showing the first @Model.RowLimit of @Model.StudentCount.</p> }
+</section>
+
 <section class="panel" id="problems">
     <div class="panel-heading"><div><h2>Assets with the most tickets</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports" asp-route-desk="@Model.Desk" asp-page-handler="Export" asp-route-table="problems" asp-route-warranty="@Model.EffectiveWarrantyDays" asp-route-period="@Model.PeriodKey">⬇ CSV</a> }<span class="badge">@ReportsModel.Periods.First(x => x.Key == Model.PeriodKey).Label</span></div></div>
     <p class="muted">Tickets linked to each asset, newest first when tied. Devices that keep coming back are candidates for replacement.</p>

@@ -110,6 +110,9 @@ public sealed partial class HelpdeskStore
         var index = options.FindIndex(x => string.Equals(x, oldValue, StringComparison.OrdinalIgnoreCase));
         if (index < 0) return $"{kind} was not found.";
         if (IsProtectedContractStatus(kind, oldValue)) return ProtectedContractStatusMessage;
+        // Give to student sets it by name, and a student's name only stands while an asset has it (WithStudentRule).
+        if (kind == "Asset status" && string.Equals(oldValue, WithStudentStatus, StringComparison.OrdinalIgnoreCase))
+            return $"\"{WithStudentStatus}\" can't be renamed or merged: devices given to students are kept on it.";
         if (merge) options.RemoveAt(index); else options[index] = newValue;
         if (kind == "Person type")
             for (var i = 0; i < _data.Users.Count; i++)
@@ -619,8 +622,8 @@ public sealed partial class HelpdeskStore
     // against existing databases.
     private void EnsureSystemOptions()
     {
-        // Set by IssueKit and DisposeAsset.
-        EnsureOptions(_data.AssetStatuses, ["On loan", "Disposed"]);
+        // Set by IssueKit, DisposeAsset and GiveToStudent.
+        EnsureOptions(_data.AssetStatuses, ["On loan", "Disposed", WithStudentStatus]);
         // What "ended" means on the contracts register (ContractRules.IsLive). Only once the register's lists exist, so
         // an upgrade still gets the full starting list from EnsureComplianceDefaults rather than this one value.
         if (_data.ComplianceVersion >= 1) EnsureOptions(_data.ContractStatuses, [ContractStatusDefaults.Expired]);
@@ -649,7 +652,7 @@ public sealed partial class HelpdeskStore
         // they have to exist in every database rather than only in newly seeded ones.
         // "Disposed" goes LAST on purpose: the add-asset form and the CSV importer both fall back to
         // AssetStatuses.FirstOrDefault() for a default, and defaulting new kit to disposed would be absurd.
-        EnsureOptions(_data.AssetStatuses, ["In use", "On loan", "In stock or spare", "In repair", "Lost or stolen", "Disposed"]);
+        EnsureOptions(_data.AssetStatuses, ["In use", "On loan", "In stock or spare", "With Student", "In repair", "Lost or stolen", "Disposed"]);
         EnsureOptions(_data.Categories, ["Hardware", "Software", "Account", "Network", "Classroom AV", "Other"]);
         EnsureOptions(_data.Statuses, ["Open", "In Progress", "On Hold", "Closed"]);
         if (_data.SlaPauseStatuses.Count == 0) _data.SlaPauseStatuses.Add("On Hold");
