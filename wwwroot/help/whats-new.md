@@ -1,5 +1,6 @@
 ## Next version (not released yet)
 
+- **Work a ticket from the phone app** - reply or add an internal note (with photos), change the status or priority, and close a ticket with a closing message, without opening the browser. The phone follows the ticket page's rules: the desk's statuses, the checklist before closing, and a closing message where Settings asks for one.
 - **Phone app** - technicians can see their tickets, take them with Assign to me or On my way, and log new ones (or jobs already done, with photos) from the EduHelpdesk app for Android. It's off until an administrator turns it on in **Settings → Sign-in security**, works only over HTTPS, and only for roles with **Use the phone app** ticked - an upgraded helpdesk doesn't tick it for anyone. Each person pairs a phone from **Phones** in their account menu, and can revoke it there. See [Phone app](phone-app).
 - **Assigned to you** - the bell now says when someone else gives you a ticket.
 - **Help centre** - this help: Getting started guides, a guide to every page, step-by-step articles, a **?** beside fields that need explaining, a **Help** link by each page's title, and the school's own articles and notes. Staff using the portal get their own short help from the **? Help** in its top bar.

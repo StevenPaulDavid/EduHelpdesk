@@ -23,6 +23,13 @@ public static class PhoneEndpoints
     public sealed record SignInRequest(string? Email, string? Password, string? DeviceName);
     public sealed record CodeRequest(string? PendingId, string? Code, string? DeviceName);
     public sealed record ReadRequest(string? Id, bool All);
+    public sealed record StatusRequest(string? Status);
+    public sealed record PriorityRequest(string? Priority);
+    public sealed record CloseRequest(string? Message);
+
+    // What this server's API can do beyond version 1's first release, so a newer app can hide what an older server lacks.
+    // work-tickets: reply, set status and priority, and close (3.2).
+    public static readonly string[] ApiFeatures = ["work-tickets"];
 
     public static IEndpointRouteBuilder MapPhoneEndpoints(this IEndpointRouteBuilder app)
     {
@@ -39,7 +46,8 @@ public static class PhoneEndpoints
             serverVersion = ServerVersion,
             apiVersion = ApiVersion,
             minAppVersion = MinimumAppVersion,
-            phoneAppEnabled = store.AllowPhoneApp
+            phoneAppEnabled = store.AllowPhoneApp,
+            features = ApiFeatures
         }));
         open.MapPost("/pair", (PairRequest? request, HttpContext http, HelpdeskStore store) =>
         {
@@ -66,6 +74,13 @@ public static class PhoneEndpoints
             Take(number, user, store, (me) => store.AssignToMe(number, me)));
         phone.MapPost("/tickets/{number:int}/on-my-way", (int number, ClaimsPrincipal user, HelpdeskStore store) =>
             Take(number, user, store, (me) => store.SayOnMyWay(number, me)));
+        phone.MapPost("/tickets/{number:int}/comments", Reply);
+        phone.MapPost("/tickets/{number:int}/status", (int number, StatusRequest? request, ClaimsPrincipal user, HelpdeskStore store) =>
+            Work(number, user, store, () => store.SetTicketStatus(number, request?.Status)));
+        phone.MapPost("/tickets/{number:int}/priority", (int number, PriorityRequest? request, ClaimsPrincipal user, HelpdeskStore store) =>
+            Work(number, user, store, () => store.SetTicketPriority(number, request?.Priority)));
+        phone.MapPost("/tickets/{number:int}/close", (int number, CloseRequest? request, ClaimsPrincipal user, HelpdeskStore store) =>
+            Work(number, user, store, () => store.CloseTicket(number, request?.Message)));
         phone.MapPost("/tickets", LogTicket);
         phone.MapGet("/alerts", Alerts);
         phone.MapGet("/alerts/poll", PollAlerts);
@@ -136,6 +151,7 @@ public static class PhoneEndpoints
             serverAddress = store.SiteAddress.Length > 0 ? store.SiteAddress : $"{http.Request.Scheme}://{http.Request.Host}",
             serverVersion = ServerVersion,
             defaultDeskId = (store.StartingDeskFor(user) ?? desks.FirstOrDefault())?.Id,
+            priorities = store.Priorities,
             desks = desks.Select(d => DeskJson(d, store))
         });
     }
@@ -215,6 +231,43 @@ public static class PhoneEndpoints
         var result = take(me);
         if (!result.Ok) return Refuse(StatusCodes.Status409Conflict, result.Message);
         return Results.Json(new { ticket = TicketJson(store.Tickets.First(x => x.Number == number), user, me, store, full: true), message = result.Message });
+    }
+
+    // Status, priority and close (HelpdeskStore.WorkTicket): the ticket page's rules and words.
+    private static IResult Work(int number, ClaimsPrincipal user, HelpdeskStore store, Func<HelpdeskStore.WorkResult> work)
+    {
+        if (!store.UserCan(user, Modules.Tickets, ModulePermission.Edit)) return Refuse(StatusCodes.Status403Forbidden, "Your role can't change tickets.");
+        if (Visible(number, user, store) is null) return Refuse(StatusCodes.Status404NotFound, "That ticket isn't one you can see.");
+        var result = work();
+        if (!result.Ok) return Refuse(StatusCodes.Status409Conflict, result.Message);
+        return Results.Json(new { ticket = TicketJson(store.Tickets.First(x => x.Number == number), user, Me(user), store, full: true), message = result.Message });
+    }
+
+    // A reply or internal note (HelpdeskStore.AddTicketReply), optionally moving the status, with up to the usual number of
+    // photos. Photos follow the comment: shared with the requester on a reply, internal on a note. Sent as a form, because
+    // of the photos; the photos are only kept once the reply is.
+    private static async Task<IResult> Reply(int number, HttpRequest request, ClaimsPrincipal user, HelpdeskStore store)
+    {
+        if (!request.HasFormContentType) return Refuse(StatusCodes.Status400BadRequest, "Send the reply as a form.");
+        var form = await request.ReadFormAsync();
+        string? Field(string name) => form[name].FirstOrDefault() is { } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
+        var internalNote = string.Equals(Field("internal"), "true", StringComparison.OrdinalIgnoreCase);
+        var notify = string.Equals(Field("notifyRequester"), "true", StringComparison.OrdinalIgnoreCase);
+        return Work(number, user, store, () =>
+        {
+            var result = store.AddTicketReply(number, Field("text"), internalNote, notify, Field("status"));
+            if (!result.Ok || form.Files.Count == 0) return result;
+            var added = 0;
+            var problems = new List<string>();
+            foreach (var photo in form.Files.Take(HelpdeskStore.MaxAttachmentsPerUpload))
+            {
+                using var stream = photo.OpenReadStream();
+                if (store.AddTicketAttachment(number, photo.FileName, stream, photo.Length, visibleToRequester: !internalNote) is { } error) problems.Add(error);
+                else added++;
+            }
+            var photos = added > 0 ? $" {added} photo{(added == 1 ? "" : "s")} attached." : "";
+            return result with { Message = string.Join(" ", new[] { result.Message + photos }.Concat(problems)) };
+        });
     }
 
     // Log a ticket (Pages/NewTicket's rules) or a job already done (Pages/QuickLog's, HelpdeskStore.LogDoneJob), with up to
@@ -330,7 +383,14 @@ public static class PhoneEndpoints
             history = full ? t.History.Select(h => new { action = h.Action, details = h.By is { } by ? $"{h.Details} ({by.Name})" : h.Details, at = Utc(h.CreatedAt) }) : null,
             attachments = full ? attachments.Select(a => new { id = a.Id, fileName = a.FileName, contentType = a.ContentType }) : null,
             canAssignToMe = canEdit && !TicketInsights.IsClosed(t) && t.TechnicianId != me && store.TakeRefusal(t, self!, onMyWay: false) is null,
-            canSayOnMyWay = canEdit && store.TakeRefusal(t, self!, onMyWay: true) is null
+            canSayOnMyWay = canEdit && store.TakeRefusal(t, self!, onMyWay: true) is null,
+            // Reply, status, priority and close: the role's Tickets: Edit, as on the ticket page.
+            canEdit,
+            // Whether a reply can tell the requester (a portal pop-up), and whether Close needs a closing message.
+            requesterSeesIt = full && store.PortalTicket(t.RequesterId, t.Number) is not null,
+            closeNeedsMessage = full && store.RequiresCloseMessage(t),
+            // The ticket's desk's statuses, for the status picker, with their tones.
+            statuses = full ? store.StatusesFor(desk.Id).Select(s => new { name = s, tone = store.StatusTone(s) }) : null
         };
     }
 

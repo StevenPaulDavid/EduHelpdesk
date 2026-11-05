@@ -182,4 +182,56 @@ public class PhoneTests
         Assert.Equal(number, alert.TicketNumber);
         Assert.Empty(test.Store.InboxFor(colleague.Id, broadcast: false, take: 10).Entries);
     }
+
+    [Fact]
+    public void A_reply_can_tell_the_requester_and_move_the_status_but_a_note_tells_nobody()
+    {
+        using var test = new TestStore();
+        var requester = test.AddRequester("Rita Requester");
+        var number = test.AddTicket(requester.Id);
+
+        Assert.Equal("Enter a reply before saving.", test.Store.AddTicketReply(number, " ", internalNote: false, notifyRequester: true, status: null).Message);
+        Assert.Equal("Select a valid status.", test.Store.AddTicketReply(number, "Fixed", internalNote: false, notifyRequester: true, status: "Nowhere").Message);
+        Assert.Empty(test.Store.Tickets.First(x => x.Number == number).Comments);
+
+        var closed = test.Store.AddTicketReply(number, "Swapped the cable.", internalNote: false, notifyRequester: true, status: "Closed");
+        Assert.True(closed.Ok);
+        Assert.True(closed.Notified);
+        Assert.Equal("Reply added and ticket closed. The requester has been notified.", closed.Message);
+        Assert.Equal("Closed", test.Store.Tickets.First(x => x.Number == number).Status);
+
+        var note = test.Store.AddTicketReply(number, "Cable was chewed.", internalNote: true, notifyRequester: true, status: "Open");
+        Assert.False(note.Notified);
+        Assert.Equal("Internal note added and ticket reopened.", note.Message);
+        var ticket = test.Store.Tickets.First(x => x.Number == number);
+        Assert.Equal("Open", ticket.Status);
+        Assert.Null(ticket.ClosedAt);
+        Assert.True(ticket.Comments.Last().IsInternal);
+    }
+
+    [Fact]
+    public void Closing_asks_for_a_message_where_settings_want_one_and_status_and_priority_take_only_listed_values()
+    {
+        using var test = new TestStore();
+        var number = test.AddTicket(test.AddRequester("Rita Requester").Id);
+        var priority = test.Store.Tickets.First(x => x.Number == number).Priority;
+        test.Store.SetCloseMessageRequirements([priority], []);
+
+        var refused = test.Store.CloseTicket(number, " ");
+        Assert.False(refused.Ok);
+        Assert.StartsWith($"A closing message is required for {priority} priority", refused.Message);
+        Assert.True(test.Store.CloseTicket(number, "Replaced the lamp.").Ok);
+        var ticket = test.Store.Tickets.First(x => x.Number == number);
+        Assert.Equal("Closed", ticket.Status);
+        Assert.Equal("Replaced the lamp.", ticket.Comments.Last().Text);
+        Assert.Equal("Ticket is already closed.", test.Store.CloseTicket(number, "Again").Message);
+
+        Assert.Equal("Select a valid value.", test.Store.SetTicketStatus(number, "Nowhere").Message);
+        Assert.Equal("Select a value.", test.Store.SetTicketPriority(number, "").Message);
+        var other = test.Store.Priorities.First(x => x != priority);
+        Assert.Equal("Ticket updated.", test.Store.SetTicketPriority(number, other.ToUpperInvariant()).Message);
+        Assert.Equal(other, test.Store.Tickets.First(x => x.Number == number).Priority);
+        Assert.True(test.Store.SetTicketStatus(number, "open").Ok);
+        Assert.Equal("Open", test.Store.Tickets.First(x => x.Number == number).Status);
+    }
 }

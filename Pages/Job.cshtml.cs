@@ -148,38 +148,14 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             Message = moved;
             return RedirectToPage(new { number });
         }
-        var desk = store.DeskOf(ticket);
+        // Status and priority are the store's rules (HelpdeskStore.WorkTicket), shared with the phone app.
         if (field is "status" or "priority")
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                Message = "Select a value.";
-                return RedirectToPage(new { number });
-            }
-
-            var allowed = field switch
-            {
-                "status" => store.StatusesFor(desk.Id),
-                _ => store.Priorities
-            };
-            if (!allowed.Contains(value, StringComparer.OrdinalIgnoreCase))
-            {
-                Message = "Select a valid value.";
-                return RedirectToPage(new { number });
-            }
-
-            if (field == "status" && HelpdeskStore.IsBuiltInStatus(value) && store.CloseBlockedByChecklist(number) is { } blocked)
-            {
-                Message = blocked;
-                return RedirectToPage(new { number });
-            }
-            ticket = field switch
-            {
-                "status" => ticket with { Status = value, ClosedAt = value == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null },
-                _ => store.WithPriority(ticket, value)
-            };
+            Message = (field == "status" ? store.SetTicketStatus(number, value) : store.SetTicketPriority(number, value)).Message;
+            return RedirectToPage(new { number });
         }
-        else if (field == "type")
+        var desk = store.DeskOf(ticket);
+        if (field == "type")
         {
             var type = TicketTypes.All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
             if (type is null)
@@ -358,63 +334,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         return RedirectToPage(new { number });
     }
 
+    // "Reply" as the page's own switch calls it: a comment the requester can read. The box to tell them is left off the
+    // form for a note, but the store decides regardless (HelpdeskStore.WorkTicket, shared with the phone app).
     public IActionResult OnPostAddComment(int number, string? comment, string? status, bool internalNote, bool notifyRequester)
     {
-        // "Reply" as the page's own switch calls it: a comment the requester can read.
-        var label = internalNote ? "Internal note" : "Reply";
-        if (string.IsNullOrWhiteSpace(comment))
-        {
-            Message = internalNote ? "Enter a note before saving." : "Enter a reply before saving.";
-            return RedirectToPage(new { number });
-        }
-
-        string? newStatus = null;
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            newStatus = store.Tickets.FirstOrDefault(x => x.Number == number) is { } current
-                ? store.StatusesFor(store.DeskOf(current).Id).FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase))
-                : null;
-            if (newStatus is null)
-            {
-                Message = "Select a valid status.";
-                return RedirectToPage(new { number });
-            }
-        }
-
-        // Closing with a reply still needs the checklist done; the reply isn't saved, so nothing is half done.
-        if (newStatus is not null && HelpdeskStore.IsBuiltInStatus(newStatus) && store.CloseBlockedByChecklist(number) is { } blocked)
-        {
-            Message = blocked;
-            return RedirectToPage(new { number });
-        }
-        if (!store.AddTicketComment(number, comment, internalNote))
-        {
-            Message = "Ticket was not found.";
-            return RedirectToPage(new { number });
-        }
-
-        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
-        if (ticket is null) return NotFound();
-
-        // Only a comment the requester can read can tell them anything, and only on a ticket they can see in the portal
-        // (an onboarding's is internal). The box is left off the form for a note, but the server decides regardless.
-        var notified = notifyRequester && !internalNote && store.PortalTicket(ticket.RequesterId, number) is not null;
-        if (notified) store.AddNotification(HelpdeskStore.PortalAudience, ticket.RequesterId, HelpdeskStore.NotificationKinds.StaffComment, number);
-
-        if (newStatus is null || string.Equals(newStatus, ticket.Status, StringComparison.OrdinalIgnoreCase))
-        {
-            Message = $"{label} added.";
-        }
-        else
-        {
-            var wasClosed = ticket.Status == "Closed";
-            store.UpdateTicket(ticket with { Status = newStatus, ClosedAt = newStatus == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null });
-            Message = newStatus == "Closed" ? $"{label} added and ticket closed."
-                : wasClosed ? $"{label} added and ticket reopened."
-                : $"{label} added and status changed to {newStatus}.";
-        }
-        if (notified) Message += " The requester has been notified.";
-
+        Message = store.AddTicketReply(number, comment, internalNote, notifyRequester, status).Message;
         return RedirectToPage(new { number });
     }
 
@@ -604,36 +528,9 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
 
     public IActionResult OnPostClose(int number, string? closingMessage)
     {
-        var ticket = store.Tickets.FirstOrDefault(x => x.Number == number);
-        if (ticket is null) return NotFound();
-
-        if (ticket.Status == "Closed")
-        {
-            Message = "Ticket is already closed.";
-            return RedirectToPage(new { number });
-        }
-
-        if (store.CloseBlockedByChecklist(number) is { } blocked)
-        {
-            Message = blocked;
-            return RedirectToPage(new { number });
-        }
-        if (store.RequiresCloseMessage(ticket) && string.IsNullOrWhiteSpace(closingMessage))
-        {
-            Message = $"A closing message is required for {ticket.Priority} priority / {ticket.Category} tickets before they can be closed.";
-            return RedirectToPage(new { number });
-        }
-
-        if (!string.IsNullOrWhiteSpace(closingMessage))
-            store.AddTicketComment(number, closingMessage);
-
-        var current = store.Tickets.FirstOrDefault(x => x.Number == number) ?? ticket;
-        store.UpdateTicket(current with
-        {
-            Status = "Closed",
-            ClosedAt = current.ClosedAt ?? DateTime.UtcNow
-        });
-        Message = "Ticket closed.";
+        if (!store.Tickets.Any(x => x.Number == number)) return NotFound();
+        // The checklist and closing-message rules are the store's (HelpdeskStore.WorkTicket), shared with the phone app.
+        Message = store.CloseTicket(number, closingMessage).Message;
         return RedirectToPage(new { number });
     }
 

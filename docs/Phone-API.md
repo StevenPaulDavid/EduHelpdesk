@@ -11,14 +11,14 @@ What the EduHelpdesk app for Android calls. Code: `Services/PhoneEndpoints.cs`, 
 - **Errors** are `{ "message": "..." }` in words for the technician.
   - `401`: the phone must pair again.
   - `403` on a valid token: the app is off or the role lacks the tick. The phone stays paired.
-  - `409`: Assign to me / On my way refused, with the ticket page's message.
+  - `409`: an action refused (Assign to me, On my way, a reply, status, priority or close), with the ticket page's message.
 - Times are UTC ISO 8601.
 
 ## Getting a token
 
 | Call | Body | Answer |
 |---|---|---|
-| `GET /info` | | `{ schoolName, serverVersion, apiVersion, minAppVersion, phoneAppEnabled }` |
+| `GET /info` | | `{ schoolName, serverVersion, apiVersion, minAppVersion, phoneAppEnabled, features }` |
 | `POST /pair` | `{ code, deviceName }` | `{ token }` |
 | `POST /sign-in` | `{ email, password, deviceName }` | `{ token }`, or `{ pendingId }` when two-step sign-in is on |
 | `POST /sign-in/code` | `{ pendingId, code, deviceName }` | `{ token }` |
@@ -35,7 +35,7 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 | Call | Needs | Answer |
 |---|---|---|
 | `POST /sign-out` | | `204`; this phone is revoked |
-| `GET /me` | | `{ id, name, role, team, schoolName, serverAddress, serverVersion, defaultDeskId, desks: [{ id, name, prefix, color, hours }] }` |
+| `GET /me` | | `{ id, name, role, team, schoolName, serverAddress, serverVersion, defaultDeskId, priorities, desks: [{ id, name, prefix, color, hours }] }` |
 | `GET /options?desk=` | Tickets: New | `{ categories: [{ name, deskId, icon }], priorities, locations, technicians: [person] }` |
 | `GET /people?q=` | Tickets: New | `[person]`, up to 30 |
 | `GET /tickets?view=&desk=&q=` | Tickets: Access | `{ tickets: [ticket], counts: { open, mine, unassigned, overdue, onboarding, all } }`, up to 200 |
@@ -43,6 +43,10 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 | `GET /tickets/{number}/attachments/{id}` | Tickets: View | the file |
 | `POST /tickets/{number}/assign-to-me` | Tickets: Edit | `{ ticket, message }` |
 | `POST /tickets/{number}/on-my-way` | Tickets: Edit | `{ ticket, message }` |
+| `POST /tickets/{number}/comments` (form) | Tickets: Edit | `{ ticket, message }` |
+| `POST /tickets/{number}/status` | Tickets: Edit | `{ status }` → `{ ticket, message }` |
+| `POST /tickets/{number}/priority` | Tickets: Edit | `{ priority }` → `{ ticket, message }` |
+| `POST /tickets/{number}/close` | Tickets: Edit | `{ message }` (the closing message) → `{ ticket, message }` |
 | `POST /tickets` (form) | Tickets: New | `201` full ticket |
 | `GET /alerts` | | `{ unread, items: [alert] }` |
 | `GET /alerts/poll?after=&wait=` | | `{ cursor, items: [alert] }`; waits up to 25 seconds |
@@ -56,12 +60,18 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 - A new ticket also takes `priority` and `requesterId`.
 - `alreadyDone=true` logs a job already done instead, with `doneById` and `doneAt`. It's saved closed and nobody is notified, as *Log a job already done* on the web.
 
+**`POST /tickets/{number}/comments` form fields:** `text`, `internal=true` for an internal note, `notifyRequester=true` to send the requester a portal pop-up (replies only, and only when they can see the ticket), `status` to move it in the same step (which can reopen a closed ticket), and up to 5 files as `photos`. Photos follow the comment: shared with the requester on a reply, internal on a note.
+
+Reply, status, priority and close are the ticket page's own rules (`Services/HelpdeskStore.WorkTicket.cs`): the desk's statuses only, the checklist done before closing, and a closing message where Settings asks for one.
+
+`features` in `/info` lists what this server adds to API version 1, so a newer app can hide what an older server lacks. `work-tickets` (3.2): reply, status, priority and close.
+
 **Shapes:**
 
 - **person**: `{ id, name, email, department, location }`.
-- **ticket**: `{ number, ref, deskId, title, description, type, category, priority, status, statusTone, requester: person, createdAt, updatedAt, technicianId, technicianName, team, location, assetTag, dueAt, sla, closedAt, commentCount, attachmentCount, canAssignToMe, canSayOnMyWay }`.
+- **ticket**: `{ number, ref, deskId, title, description, type, category, priority, status, statusTone, requester: person, createdAt, updatedAt, technicianId, technicianName, team, location, assetTag, dueAt, sla, closedAt, commentCount, attachmentCount, canAssignToMe, canSayOnMyWay, canEdit }`.
   - `statusTone` is `new`, `active`, `waiting` or `closed`.
-  - The full ticket adds `comments: [{ author, text, at, internal, byRequester }]`, `history: [{ action, details, at }]` and `attachments: [{ id, fileName, contentType }]`.
+  - The full ticket adds `comments: [{ author, text, at, internal, byRequester }]`, `history: [{ action, details, at }]` `attachments: [{ id, fileName, contentType }]`, `requesterSeesIt` (a reply can notify them), `closeNeedsMessage` and `statuses: [{ name, tone }]` (the ticket's desk's, for the status picker).
   - `canAssignToMe` and `canSayOnMyWay` use the same checks as the actions themselves (`HelpdeskStore.TakeRefusal`), so the app shows only buttons that will work.
 - **alert**: `{ id, kind, title, at, unread, ticketNumber, deskId }`.
   - `kind` is `new-ticket`, `reply` or `assigned`.
