@@ -15,7 +15,19 @@ public class ResetModel(HelpdeskStore store) : PageModel
     public string BackupFolder => store.BackupFolder;
     [TempData] public string? Message { get; set; }
 
-    public void OnGet() { }
+    public IReadOnlyList<HelpdeskStore.ResetModuleInfo> Modules => HelpdeskStore.ResettableModules;
+    public IReadOnlyDictionary<string, int> Counts { get; private set; } = new Dictionary<string, int>();
+    // The module just reset or refused, so its section opens again with the message beside it.
+    [TempData] public string? LastModule { get; set; }
+
+    public void OnGet() => Counts = store.ResetCounts();
+
+    public IActionResult OnPostResetModule(string? module, string? confirmation, bool keepBackup)
+    {
+        Message = store.ResetModule(module, confirmation, keepBackup).Message;
+        LastModule = module;
+        return RedirectToPage();
+    }
 
     public IActionResult OnPostRemoveDemoData()
     {

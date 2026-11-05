@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.ResetModel
 @{ ViewData["Title"] = "Go live & reset"; }
-<div class="page-heading"><div><h1>Go live &amp; reset</h1><p class="hero-copy">Remove the worked example a new install starts with, or put the whole helpdesk back to how a new install starts.</p></div></div>
+<div class="page-heading"><div><h1>Go live &amp; reset</h1><p class="hero-copy">Remove the worked example a new install starts with, empty one part of the helpdesk, or put the whole helpdesk back to how a new install starts.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -24,6 +24,26 @@
 </section>
 
 <section class="panel danger-zone">
+    <div class="panel-heading"><h2>Reset one part</h2></div>
+    <p>Empty one part of the helpdesk and leave the rest alone - trial tickets before going live, say, or an asset import that went wrong. The set-up around it is kept. <strong>This cannot be undone</strong> unless you keep the backup.</p>
+    @foreach (var module in Model.Modules)
+    {
+        var count = Model.Counts.GetValueOrDefault(module.Key);
+        <details class="reset-module" open="@(string.Equals(Model.LastModule, module.Key, StringComparison.OrdinalIgnoreCase))">
+            <summary><strong>@module.Name</strong> <span class="muted">@count.ToString("N0") @(count == 1 ? "record" : "records")</span></summary>
+            <p><strong>Removes</strong> @module.Removes</p>
+            <p class="muted"><strong>Keeps</strong> @module.Keeps</p>
+            <form method="post" asp-page-handler="ResetModule" class="settings-form" data-confirm="Reset @module.Name.ToLowerInvariant()? @count.ToString("N0") @(count == 1 ? "record" : "records") will be removed. This cannot be undone.">
+                <input type="hidden" name="module" value="@module.Key" />
+                <label class="toggle-label"><input type="checkbox" name="keepBackup" value="true" checked /> Save a backup copy of the current data first</label>
+                <label class="field-narrow"><span>Type <strong>@module.Name</strong> to confirm</span><input name="confirmation" autocomplete="off" required /></label>
+                <button class="button button-danger" type="submit">Reset @module.Name.ToLowerInvariant()</button>
+            </form>
+        </details>
+    }
+</section>
+
+<section class="panel danger-zone">
     <div class="panel-heading"><h2>Reset to factory settings</h2></div>
     <p>This erases <strong>everything</strong> and puts the helpdesk back to how a new install starts: all tickets, comments and history, assets and loans, users, technicians, suppliers and parts, projects, SLAs, custom attributes, every list you added to (teams, departments, locations, asset types, makes, models, statuses, categories and priorities), the print template, attached files, and your branding and review settings. Only the small demo set that a new install comes with is left. <strong>This cannot be undone</strong> unless you keep the backup below.</p>
     <form method="post" asp-page-handler="ResetFactory" class="settings-form" data-confirm="Erase all helpdesk data and reset to factory settings? This cannot be undone.">
@@ -31,7 +51,7 @@
         <p class="muted import-hint">Saved as a backup zip in <code>@Model.BackupFolder</code>, restored the same way as any other backup (see <a asp-page="/Settings/Backups">Backups &amp; data</a>). Untick this to leave no new copy behind - the nightly backups already in that folder are not deleted by a reset, and age out on their own.</p>
         <label class="toggle-label"><input type="checkbox" name="eraseAudit" value="true" /> Also erase the audit log</label>
         <p class="muted import-hint">Off by default: the audit log is kept, and the reset is recorded in it.</p>
-        <label class="field-narrow">Type <strong>DELETE</strong> to confirm<input name="confirmation" autocomplete="off" required /></label>
+        <label class="field-narrow"><span>Type <strong>DELETE</strong> to confirm</span><input name="confirmation" autocomplete="off" required /></label>
         <button class="button button-danger" type="submit">Erase everything and reset</button>
     </form>
 </section>

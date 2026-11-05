@@ -164,6 +164,17 @@ public sealed partial class HelpdeskStore
         }
     }
 
+    // Every message about a ticket, for the ticket module's reset (HelpdeskStore.ModuleResets): the tickets they name are
+    // gone. Read marks stay; they only say how far each account has read, and ids never go back.
+    private void RemoveTicketNotifications()
+    {
+        lock (_notificationSync)
+        {
+            _notifications.RemoveAll(x => x.TicketNumber is not null);
+            ExecuteDirect("DELETE FROM Notifications WHERE TicketNumber IS NOT NULL;");
+        }
+    }
+
     // ---- The notification centre: the bell in the helpdesk's header ----
     // A desktop pop-up is gone once it has been missed, so the same messages are also listed under a bell, with a count
     // of those the technician hasn't looked at yet. Unlike the pop-up's "last one this browser handled", what has been
