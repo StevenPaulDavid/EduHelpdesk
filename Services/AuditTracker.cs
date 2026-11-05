@@ -175,6 +175,8 @@ internal static class AuditTracker
         Add(s, "Settings", "Asset review", "asset-review", "Asset review window", Track.Update, ("Days", d.AssetReviewDays.ToString()));
         Add(s, "Settings", "Asset checks", "asset-checks", "DfE check and end-of-support windows", Track.Update,
             ("Check due soon days", d.CheckDueSoonDays.ToString()), ("Support warning days", d.SupportWarningDays.ToString()), ("Months between checks", d.CheckIntervalMonths.ToString()));
+        Add(s, "Settings", "Asset numbers", "asset-numbers", "Built-in asset numbers", Track.Update,
+            ("Prefix", d.AssetTagPrefix), ("Digits", d.AssetTagDigits.ToString()));
         Add(s, "Settings", "Ticket due soon", "ticket-due-soon", "Ticket due soon window", Track.Update, ("Hours", d.TicketDueSoonHours.ToString()));
         Add(s, "Settings", "Ticket reopen window", "ticket-reopen-window", "Replies reopen closed tickets", Track.Update, ("For days", d.ReopenWindowDays.ToString()));
         // What gets deleted or anonymised is worth knowing who changed. The runs themselves write their own summary.

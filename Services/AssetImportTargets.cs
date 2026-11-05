@@ -3,7 +3,9 @@ using EduHelpdesk.Models;
 
 namespace EduHelpdesk.Services;
 
-public sealed record AssetImportOptions(string DateFormat, bool CreateMissing, bool BlankClears, string? DefaultType, string? DefaultStatus);
+// NumberBlankTags: a row with no asset tag is matched by its serial number, or gets the next built-in number
+// (HelpdeskStore.AssetNumbers) - instead of being skipped.
+public sealed record AssetImportOptions(string DateFormat, bool CreateMissing, bool BlankClears, string? DefaultType, string? DefaultStatus, bool NumberBlankTags = false);
 
 public enum ImportAction { Create, Update, Unchanged, Error }
 
@@ -25,12 +27,13 @@ public static class AssetImportTargets
 
     public static readonly (string Key, string Label)[] Fields =
     [
-        ("tag", "Asset tag (required)"), ("make", "Make"), ("model", "Model"), ("type", "Type"), ("serial", "Serial number"), ("status", "Status"),
+        ("tag", "Asset tag"), ("make", "Make"), ("model", "Model"), ("type", "Type"), ("serial", "Serial number"), ("status", "Status"),
         ("location", "Location"), ("holder", "Assigned to (name or email)"), ("loanDue", "Loan due back"), ("supplier", "Supplier"),
         ("purchaseDate", "Purchase date"), ("purchasePrice", "Purchase price"), ("purchaseOrder", "Purchase order"), ("quoteReference", "Quote reference"),
         ("warrantyEnd", "Warranty end"), ("replacementDate", "Replacement date"),
         ("building", "Building"), ("os", "Operating system"), ("condition", "Condition"), ("ownership", "Ownership (owned, leased or loaned)"),
-        ("lastCheck", "Last check"), ("lastCheckBy", "Checked by"), ("nextCheck", "Next check"), ("endOfSupport", "End of support")
+        ("lastCheck", "Last check"), ("lastCheckBy", "Checked by"), ("nextCheck", "Next check"), ("endOfSupport", "End of support"),
+        ("contract", "Contract (name on the contracts register)")
     ];
 
     private static readonly Dictionary<string, string[]> Synonyms = new()
@@ -55,6 +58,7 @@ public static class AssetImportTargets
         ["endOfSupport"] = ["endofsupport", "endofsupportdate", "supportends", "supportenddate", "unsupportedfrom", "expirydate", "dateofexpiry", "expiryorunsupported", "whendoestheassetexpireorbecomeunsupported"],
         ["holder"] = ["assignedto", "assigneduser", "user", "owner", "primaryuser", "holder", "heldby", "assignee", "userprincipalname", "upn", "useremail", "owneremail", "primaryuseremail", "currentuser", "checkedoutto"],
         ["loanDue"] = ["loanduedate", "loandueback", "dueback", "loandue", "returndate"],
+        ["contract"] = ["contract", "contractname", "lease", "leasecontract", "leaseagreement", "supportcontract", "maintenancecontract", "servicecontract", "agreement"],
         ["supplier"] = ["supplier", "vendor", "reseller", "purchasedfrom", "supplieroftheasset"],
         ["purchaseDate"] = ["purchasedate", "dateofpurchase", "datepurchased", "purchased", "acquired", "acquisitiondate", "bought", "orderdate", "purchasedon"],
         ["purchasePrice"] = ["purchaseprice", "price", "cost", "purchasecost", "unitcost", "unitprice", "amount"],

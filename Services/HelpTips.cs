@@ -96,7 +96,7 @@ public static class HelpTips
         ["asset.disposal"] = new("For an asset leaving the school - sold, recycled, donated or written off. Keeps the record for finance and auditors instead of deleting it.", "dispose-an-asset"),
         ["assets.bulk"] = new("Tick assets in the list, choose what to do - change status, owner or room, record a check, or export - then Apply.", "asset-register", "changing-many-at-once"),
         ["import.blank-clears"] = new("Off (recommended): a blank cell leaves the existing value alone. On: a blank cell empties that field on an existing asset.", "import-assets", "2-match-the-columns"),
-        ["import.add-missing"] = new("On: makes, models, rooms and so on that aren't in the lists yet are added. Off: a row with an unknown value is skipped instead.", "import-assets", "2-match-the-columns"),
+        ["import.add-missing"] = new("On: makes, models, rooms, suppliers and contracts that aren't in the lists yet are added. Off: a row with an unknown value is skipped instead.", "import-assets", "2-match-the-columns"),
         ["loan.borrower"] = new("Someone from the staff directory. For a kit only, choose Not listed and type a name for supply staff or visitors.", "loans", "issuing-a-loan"),
         ["loan.reason"] = new("Why they need it, from Settings → Loan reasons. The loan report uses it to spot patterns, such as repeated forgotten chargers.", "loans", "issuing-a-loan"),
         ["kit.retired"] = new("Stops offering the kit for new loans but keeps its loan history. Use it instead of deleting a kit that's been lent.", "loan-kits", "retiring-a-kit"),

@@ -1,7 +1,7 @@
 @page
 @model EduHelpdesk.Pages.Settings.InventoryRulesModel
 @{ ViewData["Title"] = "Asset, part & loan rules"; }
-<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div></div>
+<div class="page-heading"><div><p class="eyebrow">SETTINGS / ASSETS &amp; INVENTORY</p><h1>Asset, part &amp; loan rules</h1><p class="hero-copy">When assets come up for review, when DfE checks and end of support are flagged, how imported assets with no tag are numbered, when your academic year starts, when a part counts as low in stock, and when repeat borrowing is flagged.</p></div></div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
 
 <section class="panel">
@@ -17,6 +17,16 @@
         <label>Check due soon (days)<input name="dueSoonDays" type="number" min="0" max="3650" step="1" value="@Model.Checks.DueSoonDays" required /></label>
         <label>Support ending warning (days)<input name="supportWarningDays" type="number" min="0" max="3650" step="1" value="@Model.Checks.SupportWarningDays" required /></label>
         <label><span>Months between checks <help-tip key="rules.check-months" /></span><input name="intervalMonths" type="number" min="1" max="120" step="1" value="@Model.Checks.IntervalMonths" required /></label>
+        <button class="button button-primary">Save</button>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><h2>Asset numbers</h2></div>
+    <p class="muted">When a spreadsheet you import has assets with no asset tag, the import can give each one a number of its own: this prefix and a running number, carrying on from the highest already used. A number is never given out twice, even after its asset is deleted. The next one is <strong>@Model.NextAssetTag</strong>.</p>
+    <form method="post" asp-page-handler="SaveAssetNumbers" class="import-row">
+        <label>Prefix<input name="prefix" maxlength="12" value="@Model.AssetNumbering.Prefix" placeholder="none" /></label>
+        <label>Digits<input name="digits" type="number" min="@EduHelpdesk.Services.HelpdeskStore.MinAssetTagDigits" max="@EduHelpdesk.Services.HelpdeskStore.MaxAssetTagDigits" step="1" value="@Model.AssetNumbering.Digits" required /></label>
         <button class="button button-primary">Save</button>
     </form>
 </section>

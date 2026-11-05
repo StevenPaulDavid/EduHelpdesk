@@ -6,7 +6,7 @@ namespace EduHelpdesk.Services;
 public sealed partial class HelpdeskStore
 {
     private const string ListType = "Asset type", ListMake = "Asset make", ListModel = "Asset model", ListLocation = "Location", ListStatus = "Asset status", ListSupplier = "Supplier",
-        ListBuilding = "Building", ListCondition = "Asset condition";
+        ListBuilding = "Building", ListCondition = "Asset condition", ListContract = "Contract";
 
     // What the import would do, without changing anything.
     public AssetImportPlan PlanAssetImport(IReadOnlyList<string[]> rows, IReadOnlyList<string?> targets, AssetImportOptions options)
@@ -40,6 +40,18 @@ public sealed partial class HelpdeskStore
         public readonly List<(Guid Definition, string? Value)> Attributes = [];
         public readonly List<ListNeed> Needs = [];
         public SupplierRecord? NewSupplier;
+        public ContractRecord? NewContract;
+    }
+
+    // What the rows of one run share besides the lists: the built-in numbers handed out so far, existing assets by serial
+    // number (for rows with no tag), the serial numbers already seen in the file, and the contracts register by name.
+    private sealed class ImportLookups
+    {
+        public required AssetNumberer Numbers;
+        public readonly Dictionary<string, List<int>> AssetsBySerial = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, int> SeenSerials = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, ContractRecord> ContractsByName = new(StringComparer.OrdinalIgnoreCase);
+        public int Generated;
     }
 
     // Values created earlier in the same import, so later rows can use them before they exist in the lists.
@@ -53,6 +65,7 @@ public sealed partial class HelpdeskStore
         public readonly HashSet<string> Conditions = new(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<string, string> Models = new(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<string, SupplierRecord> Suppliers = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, ContractRecord> Contracts = new(StringComparer.OrdinalIgnoreCase);
         public readonly List<(string List, string Value)> Created = [];
     }
 
@@ -65,7 +78,19 @@ public sealed partial class HelpdeskStore
 
         var results = new List<ImportRowResult>();
         var pending = new PendingLists();
-        if (!column.ContainsKey("tag")) return new AssetImportPlan(results, pending.Created);
+        if (!column.ContainsKey("tag") && !options.NumberBlankTags) return new AssetImportPlan(results, pending.Created);
+
+        // The file's own tags count too, so a number handed out on row 9 can't be one typed on row 50.
+        var fileTags = column.TryGetValue("tag", out var tagColumn) ? rows.Select(r => tagColumn < r.Length ? r[tagColumn] : "") : [];
+        var lookups = new ImportLookups { Numbers = NewAssetNumbering(fileTags) };
+        for (var i = 0; i < _data.Assets.Count; i++)
+        {
+            var serialKey = _data.Assets[i].SerialNumber.Trim();
+            if (serialKey.Length == 0) continue;
+            if (!lookups.AssetsBySerial.TryGetValue(serialKey, out var list)) lookups.AssetsBySerial[serialKey] = list = [];
+            list.Add(i);
+        }
+        foreach (var contract in _data.Contracts) lookups.ContractsByName.TryAdd(contract.Name.Trim(), contract);
 
         var assetsByTag = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < _data.Assets.Count; i++)
@@ -90,12 +115,12 @@ public sealed partial class HelpdeskStore
 
         for (var r = 0; r < rows.Count; r++)
         {
-            var plan = PlanImportRow(rows[r], r + 2, column, options, defaultStatus, assetsByTag, usersByEmail, usersByName, suppliersByName, definitions, attributeValues, serialOwners, seenTags, pending);
+            var plan = PlanImportRow(rows[r], r + 2, column, options, defaultStatus, assetsByTag, usersByEmail, usersByName, suppliersByName, definitions, attributeValues, serialOwners, seenTags, pending, lookups);
             results.Add(new ImportRowResult(plan.RowNumber, plan.Tag, plan.Error is not null ? ImportAction.Error : plan.Action, plan.Changes, plan.Warnings, plan.Error));
             if (plan.Error is not null) continue;
 
             // The row is good: what it needs becomes available to the rows after it.
-            foreach (var need in plan.Needs) RegisterNeed(pending, need, plan.NewSupplier, apply);
+            foreach (var need in plan.Needs) RegisterNeed(pending, need, plan.NewSupplier, plan.NewContract, apply);
             if (plan.Next is not null && !string.IsNullOrWhiteSpace(plan.Next.SerialNumber)) serialOwners.TryAdd(plan.Next.SerialNumber.Trim(), plan.Tag);
             if (!apply || plan.Action is ImportAction.Unchanged) continue;
 
@@ -111,6 +136,7 @@ public sealed partial class HelpdeskStore
         var outcome = new AssetImportPlan(results, pending.Created);
         if (apply && (outcome.Created > 0 || outcome.Updated > 0))
         {
+            if (lookups.Generated > 0) _data.LastAssetNumber = Math.Max(_data.LastAssetNumber, lookups.Numbers.Highest);
             _pendingAudit.Add(new AuditEntry(DateTime.UtcNow, "Assets", null, null, "Asset import", "Imported",
                 $"{applySource}: {outcome.Created} created, {outcome.Updated} updated, {outcome.Unchanged} unchanged, {outcome.Errors} skipped."));
             Save();
@@ -118,7 +144,7 @@ public sealed partial class HelpdeskStore
         return outcome;
     }
 
-    private void RegisterNeed(PendingLists pending, ListNeed need, SupplierRecord? newSupplier, bool apply)
+    private void RegisterNeed(PendingLists pending, ListNeed need, SupplierRecord? newSupplier, ContractRecord? newContract, bool apply)
     {
         var added = false;
         switch (need.List)
@@ -140,6 +166,9 @@ public sealed partial class HelpdeskStore
             case ListSupplier:
                 if (newSupplier is not null && pending.Suppliers.TryAdd(need.Value, newSupplier)) { added = true; if (apply) _data.Suppliers.Add(newSupplier); }
                 break;
+            case ListContract:
+                if (newContract is not null && pending.Contracts.TryAdd(need.Value, newContract)) { added = true; if (apply) _data.Contracts.Add(newContract); }
+                break;
         }
         if (added) pending.Created.Add((need.List, need.Value));
     }
@@ -148,7 +177,7 @@ public sealed partial class HelpdeskStore
         string[] cells, int rowNumber, Dictionary<string, int> column, AssetImportOptions options, string defaultStatus,
         Dictionary<string, List<int>> assetsByTag, Dictionary<string, List<UserRecord>> usersByEmail, Dictionary<string, List<UserRecord>> usersByName,
         Dictionary<string, SupplierRecord> suppliersByName, Dictionary<Guid, AssetAttributeDefinition> definitions, Dictionary<(Guid, Guid), string> attributeValues,
-        Dictionary<string, string> serialOwners, Dictionary<string, int> seenTags, PendingLists pending)
+        Dictionary<string, string> serialOwners, Dictionary<string, int> seenTags, PendingLists pending, ImportLookups lookups)
     {
         var row = new ImportRowPlan { RowNumber = rowNumber, Action = ImportAction.Unchanged };
         ImportRowPlan Fail(string message) { row.Error ??= message; return row; }
@@ -165,16 +194,41 @@ public sealed partial class HelpdeskStore
         }
 
         var tag = Cell("tag") ?? string.Empty;
-        if (tag.Length == 0) return Fail("The asset tag is blank.");
-        row.Tag = tag;
-        if (seenTags.TryGetValue(tag, out var firstRow)) return Fail($"This tag also appears on row {firstRow}; only the first one is used.");
-        seenTags[tag] = rowNumber;
-
-        assetsByTag.TryGetValue(tag, out var matches);
-        if (matches is { Count: > 1 }) return Fail("More than one existing asset has this tag, so it cannot be matched. Fix the duplicate tags first.");
-        var existing = matches is { Count: 1 } ? _data.Assets[matches[0]] : null;
+        var serialCell = Cell("serial") ?? string.Empty;
+        int? serialFirstRow = serialCell.Length > 0 && lookups.SeenSerials.TryGetValue(serialCell, out var seenOn) ? seenOn : null;
+        if (serialCell.Length > 0) lookups.SeenSerials.TryAdd(serialCell, rowNumber);
+        AssetRecord? existing = null;
+        // No tag: the asset with the same serial number, or a new one with the next built-in number (given out at the end,
+        // once the row is known to be good, so a skipped row doesn't use one up).
+        var numbered = false;
+        if (tag.Length == 0)
+        {
+            if (!options.NumberBlankTags) return Fail("The asset tag is blank.");
+            row.Tag = serialCell.Length > 0 ? $"(serial {serialCell})" : "(no tag)";
+            if (serialFirstRow is { } first) return Fail($"This row has no tag, and its serial number is also on row {first}; only the first one is used.");
+            if (serialCell.Length > 0 && lookups.AssetsBySerial.TryGetValue(serialCell, out var bySerial))
+            {
+                if (bySerial.Count > 1) return Fail($"This row has no tag, and more than one asset has serial number {serialCell}, so it can't be matched.");
+                row.ExistingIndex = bySerial[0];
+                existing = _data.Assets[bySerial[0]];
+                tag = existing.AssetTag;
+            }
+            else numbered = true;
+        }
+        if (!numbered)
+        {
+            row.Tag = tag;
+            if (seenTags.TryGetValue(tag, out var firstRow)) return Fail($"This tag also appears on row {firstRow}; only the first one is used.");
+            seenTags[tag] = rowNumber;
+        }
+        if (existing is null && !numbered)
+        {
+            assetsByTag.TryGetValue(tag, out var matches);
+            if (matches is { Count: > 1 }) return Fail("More than one existing asset has this tag, so it cannot be matched. Fix the duplicate tags first.");
+            existing = matches is { Count: 1 } ? _data.Assets[matches[0]] : null;
+            row.ExistingIndex = matches is { Count: 1 } ? matches[0] : -1;
+        }
         var isNew = existing is null;
-        row.ExistingIndex = matches is { Count: 1 } ? matches[0] : -1;
         var next = existing ?? new AssetRecord(Guid.NewGuid(), tag, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, null) { Status = defaultStatus };
 
         // Looks a value up in a list (including values created by earlier rows), or asks for it to be created.
@@ -315,6 +369,24 @@ public sealed partial class HelpdeskStore
         }
         else if (supplier.Clear) next = next with { SupplierId = null };
 
+        // Contract, by its name on the register. One that isn't there yet is added with just its name (and this row's
+        // supplier), flagged as needing its details until someone edits it (ContractRecord.NeedsDetails).
+        var contract = Field("contract", true);
+        if (contract.Has)
+        {
+            if (lookups.ContractsByName.TryGetValue(contract.Value, out var knownContract)) next = next with { ContractId = knownContract.Id };
+            else if (pending.Contracts.TryGetValue(contract.Value, out var pendingContract)) next = next with { ContractId = pendingContract.Id };
+            else if (!options.CreateMissing) return Fail($"Contract '{contract.Value}' is not on the contracts register.");
+            else if (contract.Value.Length > 200) return Fail("Keep the contract name under 200 characters.");
+            else
+            {
+                row.NewContract = new ContractRecord(Guid.NewGuid(), contract.Value, DateTime.UtcNow) { SupplierId = next.SupplierId, NeedsDetails = true };
+                row.Needs.Add(new ListNeed { List = ListContract, Value = contract.Value });
+                next = next with { ContractId = row.NewContract.Id };
+            }
+        }
+        else if (contract.Clear) next = next with { ContractId = null };
+
         // Dates and price
         DateOnly? ParseDateField(string key, string label, DateOnly? current, out bool failed)
         {
@@ -383,10 +455,25 @@ public sealed partial class HelpdeskStore
             && serialOwners.TryGetValue(next.SerialNumber.Trim(), out var otherTag) && !string.Equals(otherTag, tag, StringComparison.OrdinalIgnoreCase))
             row.Warnings.Add($"Serial number {next.SerialNumber} is also on asset {otherTag}.");
 
+        if (numbered)
+        {
+            tag = lookups.Numbers.Take();
+            lookups.Generated++;
+            next = next with { AssetTag = tag };
+            row.Tag = tag;
+            if (string.IsNullOrWhiteSpace(next.SerialNumber))
+                row.Warnings.Add("No asset tag or serial number: importing this file again will add it again with another new number.");
+        }
+        // A new contract is named with "(new)" so the preview shows it will be added to the register.
+        string ContractName(Guid? id) => id is null ? string.Empty
+            : _data.Contracts.FirstOrDefault(x => x.Id == id)?.Name
+              ?? pending.Contracts.Values.FirstOrDefault(x => x.Id == id)?.Name
+              ?? (row.NewContract?.Id == id ? $"{row.NewContract.Name} (new)" : string.Empty);
         row.Next = next;
         if (isNew)
         {
             row.Action = ImportAction.Create;
+            if (numbered) row.Changes.Add($"Asset tag: {tag} (new number)");
             static string Date(DateOnly? d) => d.HasValue ? AssetInsights.Format(d.Value) : string.Empty;
             var supplierName = next.SupplierId is { } supplierId
                 ? suppliersByName.Values.FirstOrDefault(x => x.Id == supplierId)?.Name ?? pending.Suppliers.Values.FirstOrDefault(x => x.Id == supplierId)?.Name
@@ -399,7 +486,8 @@ public sealed partial class HelpdeskStore
                 ("Warranty end", Date(next.WarrantyEnd)), ("Replacement date", Date(next.ReplacementDate)),
                 ("Building", next.Building), ("Operating system", next.OperatingSystem), ("Condition", next.Condition),
                 ("Ownership", string.IsNullOrEmpty(next.Ownership) ? null : AssetOwnership.Label(next.Ownership)),
-                ("Last check", Date(next.LastCheckDate)), ("Checked by", next.LastCheckBy), ("Next check", Date(next.NextCheckDate)), ("End of support", Date(next.EndOfSupport))
+                ("Last check", Date(next.LastCheckDate)), ("Checked by", next.LastCheckBy), ("Next check", Date(next.NextCheckDate)), ("End of support", Date(next.EndOfSupport)),
+                ("Contract", ContractName(next.ContractId))
             })
                 if (!string.IsNullOrWhiteSpace(value)) row.Changes.Add($"{label}: {value}");
             foreach (var (definitionId, value) in row.Attributes)
@@ -438,6 +526,7 @@ public sealed partial class HelpdeskStore
         Change("Checked by", existing.LastCheckBy, next.LastCheckBy);
         Change("Next check", Day(existing.NextCheckDate), Day(next.NextCheckDate));
         Change("End of support", Day(existing.EndOfSupport), Day(next.EndOfSupport));
+        Change("Contract", ContractName(existing.ContractId), ContractName(next.ContractId));
         foreach (var (definitionId, value) in row.Attributes)
             Change(definitions[definitionId].Name, attributeValues.TryGetValue((existing.Id, definitionId), out var before) ? before : null, value);
         row.Action = row.Changes.Count == 0 ? ImportAction.Unchanged : ImportAction.Update;

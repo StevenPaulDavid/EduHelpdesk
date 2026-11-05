@@ -168,6 +168,8 @@ public sealed partial class HelpdeskStore
         if (_data.CheckDueSoonDays is < 0 or > 3650) _data.CheckDueSoonDays = AssetChecks.DefaultDueSoonDays;
         if (_data.SupportWarningDays is < 0 or > 3650) _data.SupportWarningDays = AssetChecks.DefaultSupportWarningDays;
         if (_data.CheckIntervalMonths is < 1 or > 120) _data.CheckIntervalMonths = AssetChecks.DefaultIntervalMonths;
+        if (_data.AssetTagDigits is < MinAssetTagDigits or > MaxAssetTagDigits) _data.AssetTagDigits = DefaultAssetTagDigits;
+        if (CheckAssetTagPrefix(_data.AssetTagPrefix) is not null) _data.AssetTagPrefix = DefaultAssetTagPrefix;
         if (_data.AcademicYearStartMonth is < 1 or > 12) _data.AcademicYearStartMonth = AcademicYear.DefaultStartMonth;
         if (_data.TicketDueSoonHours is < 0 or > 720) _data.TicketDueSoonHours = 24;
         if (_data.PartsDefaultReorderThreshold < 0) _data.PartsDefaultReorderThreshold = 5;

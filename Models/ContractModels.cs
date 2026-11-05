@@ -40,6 +40,9 @@ public record ContractRecord(Guid Id, string Name, DateTime CreatedAt)
     // Set when the contract was added from an approved project's chosen quote, so the project shows it is on the register.
     public int? ProjectNumber { get; init; }
     public Guid? ProjectItemId { get; init; }
+    // Added by the asset import with just a name (HelpdeskStore.AssetImport): listed as needing its details on the
+    // compliance summary and the overview until it is saved from its own page, which clears it.
+    public bool NeedsDetails { get; init; }
 }
 
 public static class ContractCostPeriods

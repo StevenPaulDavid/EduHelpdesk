@@ -20,6 +20,7 @@
         <p class="hero-copy asset-heading-meta">
             <span>@(Model.Supplier?.Name ?? "No supplier recorded")@(string.IsNullOrWhiteSpace(contract.ContractType) ? "" : " · " + contract.ContractType)</span>
             <span class="status @(live ? "" : "status-closed")">@contract.Status</span>
+            @if (contract.NeedsDetails) { <span class="badge badge-soon" title="Added by an asset import with just its name. Saving it from Edit contract clears this.">Needs details</span> }
             @foreach (var flag in flags) { <span class="badge @flag.Tone">@flag.Text</span> }
         </p>
     </div>

@@ -103,7 +103,8 @@ public sealed partial class HelpdeskStore
             var (clean, error) = CleanContract(contract, current);
             if (clean is null) return (false, error!);
             // Where it came from and when it was first recorded aren't edited.
-            clean = clean with { CreatedAt = current.CreatedAt, ProjectNumber = current.ProjectNumber, ProjectItemId = current.ProjectItemId };
+            // Saving it from its page is what "needs its details" waits for, even when nothing else was changed.
+            clean = clean with { CreatedAt = current.CreatedAt, ProjectNumber = current.ProjectNumber, ProjectItemId = current.ProjectItemId, NeedsDetails = false };
             if (clean == current) return (true, "Nothing had changed.");
             _data.Contracts[index] = clean;
             Save();
@@ -216,9 +217,17 @@ public sealed partial class HelpdeskStore
                 ContractOwner TEXT NOT NULL DEFAULT '', ProcurementApproach TEXT NOT NULL DEFAULT '',
                 ApprovedApp INTEGER NOT NULL DEFAULT 0, ProcessesPersonalData INTEGER NOT NULL DEFAULT 0,
                 RelatedParty INTEGER NOT NULL DEFAULT 0, RelatedPartyReportedOn TEXT NULL, Notes TEXT NOT NULL DEFAULT '',
-                ProjectNumber INTEGER NULL, ProjectItemId TEXT NULL, CreatedAt TEXT NOT NULL);
+                ProjectNumber INTEGER NULL, ProjectItemId TEXT NULL, CreatedAt TEXT NOT NULL, NeedsDetails INTEGER NOT NULL DEFAULT 0);
             """;
         command.ExecuteNonQuery();
+        // Added after the table first shipped: contracts the asset import made with just a name.
+        try
+        {
+            using var column = connection.CreateCommand();
+            column.CommandText = "ALTER TABLE Contracts ADD COLUMN NeedsDetails INTEGER NOT NULL DEFAULT 0;";
+            column.ExecuteNonQuery();
+        }
+        catch (SqliteException) { }
     }
 
     private static void ReadContracts(SqliteConnection connection, StoreData data)
@@ -230,7 +239,7 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'ComplianceVersion';") as string, out var version)) data.ComplianceVersion = version;
         using var command = connection.CreateCommand();
         // Ordinal-indexed: add new columns to the END of this list (see the note on the Assets reader).
-        command.CommandText = "SELECT Id, Name, Description, ContractType, SpendCategory, Duration, Status, SupplierId, SupplierContact, Cost, CostPeriod, CostNotes, RenewalType, StartDate, EndDate, NextRenewalDate, NoticeMonths, ContractOwner, ProcurementApproach, ApprovedApp, ProcessesPersonalData, RelatedParty, RelatedPartyReportedOn, Notes, ProjectNumber, ProjectItemId, CreatedAt FROM Contracts;";
+        command.CommandText = "SELECT Id, Name, Description, ContractType, SpendCategory, Duration, Status, SupplierId, SupplierContact, Cost, CostPeriod, CostNotes, RenewalType, StartDate, EndDate, NextRenewalDate, NoticeMonths, ContractOwner, ProcurementApproach, ApprovedApp, ProcessesPersonalData, RelatedParty, RelatedPartyReportedOn, Notes, ProjectNumber, ProjectItemId, CreatedAt, NeedsDetails FROM Contracts;";
         using var reader = command.ExecuteReader();
         while (reader.Read())
             data.Contracts.Add(new ContractRecord(Guid.Parse(reader.GetString(0)), reader.GetString(1), Date(reader, 26))
@@ -245,7 +254,8 @@ public sealed partial class HelpdeskStore
                 ContractOwner = reader.GetString(17), ProcurementApproach = reader.GetString(18),
                 ApprovedApp = reader.GetInt32(19) != 0, ProcessesPersonalData = reader.GetInt32(20) != 0, RelatedParty = reader.GetInt32(21) != 0,
                 RelatedPartyReportedOn = NullableDateOnly(reader, 22), Notes = reader.GetString(23),
-                ProjectNumber = reader.IsDBNull(24) ? null : reader.GetInt32(24), ProjectItemId = NullableGuid(reader, 25)
+                ProjectNumber = reader.IsDBNull(24) ? null : reader.GetInt32(24), ProjectItemId = NullableGuid(reader, 25),
+                NeedsDetails = reader.GetInt32(27) != 0
             });
     }
 
@@ -257,7 +267,7 @@ public sealed partial class HelpdeskStore
         InsertStrings(connection, transaction, "ContractStatuses", data.ContractStatuses);
         SetMetadata(connection, transaction, "ComplianceVersion", data.ComplianceVersion.ToString(CultureInfo.InvariantCulture));
         foreach (var x in data.Contracts)
-            Execute(connection, transaction, "INSERT INTO Contracts (Id, Name, Description, ContractType, SpendCategory, Duration, Status, SupplierId, SupplierContact, Cost, CostPeriod, CostNotes, RenewalType, StartDate, EndDate, NextRenewalDate, NoticeMonths, ContractOwner, ProcurementApproach, ApprovedApp, ProcessesPersonalData, RelatedParty, RelatedPartyReportedOn, Notes, ProjectNumber, ProjectItemId, CreatedAt) VALUES ($id,$name,$description,$type,$spend,$duration,$status,$supplier,$contact,$cost,$period,$costnotes,$renewal,$start,$end,$next,$notice,$owner,$procurement,$app,$personal,$related,$reported,$notes,$project,$item,$created);",
+            Execute(connection, transaction, "INSERT INTO Contracts (Id, Name, Description, ContractType, SpendCategory, Duration, Status, SupplierId, SupplierContact, Cost, CostPeriod, CostNotes, RenewalType, StartDate, EndDate, NextRenewalDate, NoticeMonths, ContractOwner, ProcurementApproach, ApprovedApp, ProcessesPersonalData, RelatedParty, RelatedPartyReportedOn, Notes, ProjectNumber, ProjectItemId, CreatedAt, NeedsDetails) VALUES ($id,$name,$description,$type,$spend,$duration,$status,$supplier,$contact,$cost,$period,$costnotes,$renewal,$start,$end,$next,$notice,$owner,$procurement,$app,$personal,$related,$reported,$notes,$project,$item,$created,$needs);",
                 ("$id", x.Id.ToString()), ("$name", x.Name), ("$description", x.Description ?? ""), ("$type", x.ContractType ?? ""),
                 ("$spend", x.SpendCategory ?? ""), ("$duration", x.Duration ?? ""), ("$status", x.Status ?? ContractStatusDefaults.Active),
                 ("$supplier", x.SupplierId?.ToString()), ("$contact", x.SupplierContact ?? ""),
@@ -266,6 +276,6 @@ public sealed partial class HelpdeskStore
                 ("$notice", x.NoticeMonths), ("$owner", x.ContractOwner ?? ""), ("$procurement", x.ProcurementApproach ?? ""),
                 ("$app", x.ApprovedApp ? 1 : 0), ("$personal", x.ProcessesPersonalData ? 1 : 0), ("$related", x.RelatedParty ? 1 : 0),
                 ("$reported", IsoDay(x.RelatedPartyReportedOn)), ("$notes", x.Notes ?? ""), ("$project", x.ProjectNumber),
-                ("$item", x.ProjectItemId?.ToString()), ("$created", Iso(x.CreatedAt)));
+                ("$item", x.ProjectItemId?.ToString()), ("$created", Iso(x.CreatedAt)), ("$needs", x.NeedsDetails ? 1 : 0));
     }
 }

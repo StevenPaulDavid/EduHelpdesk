@@ -337,6 +337,9 @@ public sealed partial class HelpdeskStore
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'CheckDueSoonDays';") as string, out var checkDueSoon)) data.CheckDueSoonDays = checkDueSoon;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'SupportWarningDays';") as string, out var supportWarning)) data.SupportWarningDays = supportWarning;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'CheckIntervalMonths';") as string, out var checkInterval)) data.CheckIntervalMonths = checkInterval;
+        if (ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetTagPrefix';") is string tagPrefix) data.AssetTagPrefix = tagPrefix;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AssetTagDigits';") as string, out var tagDigits)) data.AssetTagDigits = tagDigits;
+        if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'LastAssetNumber';") as string, out var lastAssetNumber)) data.LastAssetNumber = lastAssetNumber;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AcademicYearStartMonth';") as string, out var academicStart)) data.AcademicYearStartMonth = academicStart;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'PermissionModelVersion';") as string, out var permissionVersion)) data.PermissionModelVersion = permissionVersion;
         if (int.TryParse(ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'TicketDueSoonHours';") as string, out var dueSoonHours)) data.TicketDueSoonHours = dueSoonHours;
@@ -845,6 +848,9 @@ public sealed partial class HelpdeskStore
         SetMetadata(connection, transaction, "CheckDueSoonDays", data.CheckDueSoonDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "SupportWarningDays", data.SupportWarningDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "CheckIntervalMonths", data.CheckIntervalMonths.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "AssetTagPrefix", data.AssetTagPrefix);
+        SetMetadata(connection, transaction, "AssetTagDigits", data.AssetTagDigits.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "LastAssetNumber", data.LastAssetNumber.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "AcademicYearStartMonth", data.AcademicYearStartMonth.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "PermissionModelVersion", data.PermissionModelVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetMetadata(connection, transaction, "TicketDueSoonHours", data.TicketDueSoonHours.ToString(System.Globalization.CultureInfo.InvariantCulture));

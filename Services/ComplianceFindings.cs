@@ -52,6 +52,8 @@ public static class ComplianceFindings
             foreach (var contract in store.Contracts)
             {
                 var route = new { id = contract.Id };
+                if (contract.NeedsDetails)
+                    findings.Add(new(Contracts, ComplianceFinding.Levels.Warning, "Needs its details", contract.Name, "Added by an asset import with just its name - fill in the supplier, cost and dates", "/Contract", route, $"contract-details:{contract.Id}"));
                 foreach (var flag in ContractRules.Flags(contract, today))
                     findings.Add(new(Contracts, Level(flag.Tone), flag.Text, contract.Name, flag.Kind switch
                     {

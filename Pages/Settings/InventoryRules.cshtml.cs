@@ -31,6 +31,15 @@ public class InventoryRulesModel(HelpdeskStore store) : PageModel
         return RedirectToPage();
     }
 
+    public (string Prefix, int Digits) AssetNumbering => store.AssetNumbering;
+    public string NextAssetTag => store.NextAssetTag;
+
+    public IActionResult OnPostSaveAssetNumbers(string? prefix, int digits)
+    {
+        Message = store.SetAssetNumbering(prefix, digits);
+        return RedirectToPage();
+    }
+
     public IActionResult OnPostSaveAcademicYear(int month)
     {
         Message = store.SetAcademicYearStartMonth(month);

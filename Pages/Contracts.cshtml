@@ -71,7 +71,12 @@
         <tr class="@(live ? null : "row-muted")">
             <td>
                 <strong>@if (Model.CanView) { <a asp-page="/Contract" asp-route-id="@item.Id">@item.Name</a> } else { @item.Name }</strong>
-                @if (flags.Count > 0) { <br />@foreach (var flag in flags) { <span class="badge @flag.Tone" title="@AssetInsights.Format(flag.Date)">@flag.Text</span> } }
+                @if (flags.Count > 0 || item.NeedsDetails)
+                {
+                    <br />
+                    @if (item.NeedsDetails) { <span class="badge badge-soon" title="Added by an asset import with just its name">Needs details</span> }
+                    @foreach (var flag in flags) { <span class="badge @flag.Tone" title="@AssetInsights.Format(flag.Date)">@flag.Text</span> }
+                }
             </td>
             @if (cols.Show("supplier")) { <td>@Text(Model.SupplierName(item))</td> }
             @if (cols.Show("type")) { <td>@Text(item.ContractType)</td> }

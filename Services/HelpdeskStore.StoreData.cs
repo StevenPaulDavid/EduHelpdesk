@@ -85,6 +85,11 @@ public sealed partial class HelpdeskStore
         public int CheckDueSoonDays { get; set; } = AssetChecks.DefaultDueSoonDays;
         public int SupportWarningDays { get; set; } = AssetChecks.DefaultSupportWarningDays;
         public int CheckIntervalMonths { get; set; } = AssetChecks.DefaultIntervalMonths;
+        // The built-in asset number an import offers to rows with no tag (HelpdeskStore.AssetNumbers): prefix, how many
+        // digits, and the highest handed out, so a number is never given twice even after its asset is deleted.
+        public string AssetTagPrefix { get; set; } = DefaultAssetTagPrefix;
+        public int AssetTagDigits { get; set; } = DefaultAssetTagDigits;
+        public int LastAssetNumber { get; set; }
         // The month the academic year starts in, for the finance and audit report. September for most schools.
         public int AcademicYearStartMonth { get; set; } = AcademicYear.DefaultStartMonth;
         // Open tickets due within this many hours count as "due soon" on the ticket list.

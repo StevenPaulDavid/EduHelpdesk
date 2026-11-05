@@ -43,6 +43,7 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
     public IReadOnlyList<AssetAttributeDefinition> Attributes => store.AssetAttributeDefinitions;
     public IReadOnlyList<string> AssetTypes => store.AssetTypes;
     public IReadOnlyList<string> Statuses => store.AssetStatuses;
+    public string NextAssetTag => store.NextAssetTag;
 
     public void OnGet()
     {
@@ -118,20 +119,22 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
         }
         if (rows.Count > MaxRows) { Message = $"That file has more than {MaxRows:N0} rows. Split it into smaller files."; return RedirectToPage(); }
 
+        var targets = AssetImportTargets.Suggest(headers, store.AssetAttributeDefinitions);
         var session = new AssetImportSession
         {
             FileName = Path.GetFileName(file.FileName),
             Headers = headers,
             Rows = rows,
-            Targets = AssetImportTargets.Suggest(headers, store.AssetAttributeDefinitions),
-            Options = new AssetImportOptions("dmy", true, false, null, null)
+            Targets = targets,
+            // Offered ticked when no column looks like an asset tag: the file has none to match on.
+            Options = new AssetImportOptions("dmy", true, false, null, null, NumberBlankTags: !targets.Contains("tag"))
         };
         var token = Guid.NewGuid().ToString("N");
         cache.Set(CacheKey(token), session, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(45) });
         return RedirectToPage(new { t = token });
     }
 
-    public IActionResult OnPostPreview(string? t, string?[]? targets, string? dateFormat, bool createMissing, bool blankClears, string? defaultType, string? defaultStatus)
+    public IActionResult OnPostPreview(string? t, string?[]? targets, string? dateFormat, bool createMissing, bool blankClears, string? defaultType, string? defaultStatus, bool numberBlankTags)
     {
         var session = Load(t);
         if (session is null) { Message = "That import has expired. Upload the file again."; return RedirectToPage(); }
@@ -147,10 +150,12 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
             ImportParsing.DateFormats.Any(x => x.Key == dateFormat) ? dateFormat! : "dmy",
             createMissing, blankClears,
             string.IsNullOrWhiteSpace(defaultType) ? null : defaultType,
-            string.IsNullOrWhiteSpace(defaultStatus) ? null : defaultStatus);
+            string.IsNullOrWhiteSpace(defaultStatus) ? null : defaultStatus,
+            numberBlankTags);
 
         var used = chosen.Where(x => x is not null).ToList();
-        if (!used.Contains("tag")) return Invalid(t, "Choose which column holds the asset tag. Rows are matched to assets by it.");
+        if (!used.Contains("tag") && !numberBlankTags)
+            return Invalid(t, "Choose which column holds the asset tag, or tick \"Give assets with no asset tag a built-in number\". Rows are matched to assets by their tag.");
         var repeated = used.GroupBy(x => x).FirstOrDefault(g => g.Count() > 1);
         if (repeated is not null) return Invalid(t, "Each field can be used by one column only. Two columns are mapped to the same field.");
         session.Mapped = true;
@@ -164,7 +169,7 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
         var result = store.ApplyAssetImport(session.Rows, session.Targets, session.Options, session.FileName);
         cache.Remove(CacheKey(t!));
         TempData["Message"] = $"Import finished: {result.Created} added, {result.Updated} updated, {result.Unchanged} unchanged, {result.Errors} skipped"
-            + (result.NewValues.Count > 0 ? $", {result.NewValues.Count} new list value{(result.NewValues.Count == 1 ? "" : "s")} created." : ".");
+            + ListAdditions(result.NewValues);
         return RedirectToPage("/Assets");
     }
 
@@ -198,6 +203,18 @@ public class ImportModel(HelpdeskStore store, IMemoryCache cache) : PageModel
     public string? SampleFor(int column) => string.Join(" · ", Session!.Rows.Select(r => column < r.Length ? r[column] : "").Where(x => x.Length > 0).Distinct().Take(3));
 
     public string? PageUrl(int page, string? show = null) => Url.Page("/Assets/Import", new { t = Token, show = (show ?? Show) is null or "all" ? null : (show ?? Show), p = page > 1 ? page : (int?)null });
+
+    // ", 2 new list values and 1 new contract (it needs its details) created." - contracts said apart, since they go on
+    // the register rather than a list, and want filling in.
+    private static string ListAdditions(IReadOnlyList<(string List, string Value)> added)
+    {
+        var contracts = added.Count(x => x.List == "Contract");
+        var values = added.Count - contracts;
+        var parts = new List<string>();
+        if (values > 0) parts.Add($"{values} new list value{(values == 1 ? "" : "s")}");
+        if (contracts > 0) parts.Add($"{contracts} new contract{(contracts == 1 ? "" : "s")} ({(contracts == 1 ? "it needs its" : "they need their")} details)");
+        return parts.Count == 0 ? "." : $", {string.Join(" and ", parts)} created.";
+    }
 
     private IActionResult Invalid(string? token, string message)
     {

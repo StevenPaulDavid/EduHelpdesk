@@ -36,7 +36,7 @@ public static class SettingsMenu
         ]),
         new("Assets & inventory",
         [
-            new("Asset, part & loan rules", "/Settings/InventoryRules", "review warranty replacement academic year finance reorder threshold low stock loan repeat borrowing dfe check interval end of support unsupported"),
+            new("Asset, part & loan rules", "/Settings/InventoryRules", "review warranty replacement academic year finance reorder threshold low stock loan repeat borrowing dfe check interval end of support unsupported asset number tag prefix numbering"),
             new("Asset types", "/Settings/AssetTypes", "type lifespan laptop"),
             new("Asset models", "/Settings/AssetModels", "model"),
             new("Custom asset attributes", "/Settings/AssetAttributes", "custom fields attributes extra"),

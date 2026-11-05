@@ -71,7 +71,10 @@ else if (Model.Stage == "map")
                 <label>Type for new assets with no type<select name="defaultType"><option value="">No default (a type is required)</option>@foreach (var type in Model.AssetTypes) { <option value="@type" selected="@string.Equals(type, session.Options.DefaultType, StringComparison.OrdinalIgnoreCase)">@type</option> }</select></label>
                 <label>Status for new assets with no status<select name="defaultStatus">@foreach (var status in Model.Statuses) { <option value="@status" selected="@(string.Equals(status, session.Options.DefaultStatus, StringComparison.OrdinalIgnoreCase) || (session.Options.DefaultStatus is null && status == Model.Statuses[0]))">@status</option> }</select></label>
             </div>
-            <label class="toggle-label"><input type="checkbox" name="createMissing" value="true" checked="@session.Options.CreateMissing" /> Add makes, models, types, locations, statuses and suppliers that are not in the lists yet <help-tip key="import.add-missing" /></label>
+            <label class="toggle-label"><input type="checkbox" name="numberBlankTags" value="true" checked="@session.Options.NumberBlankTags" /> Give assets with no asset tag a built-in number, starting at <strong>@Model.NextAssetTag</strong></label>
+            <p class="muted import-hint">A row with no tag first looks for the asset with the same serial number, so importing the file again updates it rather than adding it twice. Rows with neither get a new number each time. Change the prefix in <a asp-page="/Settings/InventoryRules">Settings → Asset, part &amp; loan rules</a>.</p>
+            <label class="toggle-label"><input type="checkbox" name="createMissing" value="true" checked="@session.Options.CreateMissing" /> Add makes, models, types, locations, statuses, suppliers and contracts that are not in the lists yet <help-tip key="import.add-missing" /></label>
+            <p class="muted import-hint">A contract that isn't on the contracts register is added with just its name, and marked as needing its details until someone edits it.</p>
             <p class="muted import-hint">You will see everything that would be added in step 3. If this is off, a row with an unknown value is skipped instead.</p>
             <label class="toggle-label"><input type="checkbox" name="blankClears" value="true" checked="@session.Options.BlankClears" /> A blank cell clears the value on an existing asset <help-tip key="import.blank-clears" /></label>
             <p class="muted import-hint">Off (recommended): blank cells are ignored and existing values stay. Tags, types, models and statuses are never cleared.</p>
@@ -94,7 +97,7 @@ else
         @if (plan.NewValues.Count > 0)
         {
             <div class="import-new-values">
-                <strong>These would be added to your lists</strong>
+                <strong>These would be added to your lists and registers</strong>
                 @foreach (var group in plan.NewValues.GroupBy(x => x.List))
                 {
                     <p><span class="muted">@group.Key:</span> @string.Join(", ", group.Take(12).Select(x => x.Value))@(group.Count() > 12 ? $" and {group.Count() - 12} more" : "")</p>

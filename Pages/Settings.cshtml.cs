@@ -105,7 +105,7 @@ public class SettingsModel(HelpdeskStore store, FileLogProvider log) : PageModel
             ["/Settings/TicketTemplates"] = List(store.TicketTemplates.Select(x => x.Name).ToList(), "Saved starting points for repeat jobs."),
             ["/Settings/RecurringTickets"] = List(store.RecurringTickets.Select(x => x.Name).ToList(), "Tickets logged automatically on a schedule: weekly checks, termly jobs, yearly renewals."),
             ["/Settings/TicketAttributes"] = List(store.TicketAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on tickets, by category."),
-            ["/Settings/InventoryRules"] = new("Asset review window, DfE check and end-of-support windows, academic year, parts reorder threshold and repeat-borrowing flag."),
+            ["/Settings/InventoryRules"] = new("Asset review window, DfE check and end-of-support windows, built-in asset numbers, academic year, parts reorder threshold and repeat-borrowing flag."),
             ["/Settings/AssetTypes"] = List(store.AssetTypes, "Kinds of device, and how long each should last."),
             ["/Settings/AssetModels"] = List(store.AssetModels, "Models, each linked to its make."),
             ["/Settings/AssetAttributes"] = List(store.AssetAttributeDefinitions.Select(x => x.Name).ToList(), "Extra fields on assets, by type."),
