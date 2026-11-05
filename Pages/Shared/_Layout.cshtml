@@ -14,7 +14,8 @@
     var onAssets = !onContractors && NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
     var onPeople = NavOn("/People");
     var onOnboarding = NavOn("/Onboarding");
-    var onReports = NavOn("/Reports", "/Contracts", "/Contract", "/Access", "/Compliance");
+    var onReports = NavOn("/Reports");
+    var onCompliance = NavOn("/Contracts", "/Contract", "/Access", "/Compliance");
 
     // A link nobody can follow is worse than no link: people click it, get refused, and raise a ticket about it. So the
     // menu is built from what this role can actually reach. The pages enforce the same permissions themselves - this
@@ -48,14 +49,16 @@
         if (hasFacilitiesDesk && Can(Modules.Reports) && Helpdesk.UserHasFlag(User, Modules.Flags.ReportSpend)) facilitiesLinks.Add((Url.Page("/Reports/Spend")!, "Job spend"));
         if (hasFacilitiesDesk && Can(Modules.Suppliers)) facilitiesLinks.Add((Url.Page("/Suppliers", new { use = "contractors" })!, "Contractors"));
     }
-    // Reports: every report this role can open (ReportMenu - /Reports is the asset report, not an index), then the DfE
-    // registers that aren't inventory, the compliance summary first since it is where the three meet.
-    var reportLinks = ReportMenu.For(Helpdesk, User).Select(x => (Section: "Reports", x.Page, x.Label)).ToList();
+    // Reports: every report this role can open (ReportMenu - /Reports is the asset report, not an index).
+    var reportLinks = ReportMenu.For(Helpdesk, User).Select(x => (x.Page, x.Label)).ToList();
+    // Compliance: the DfE registers that aren't inventory, while Settings → Features has them on - the summary first,
+    // since it is where the three meet. Its own menu after Assets (they sat in Reports from d42ee37 until 2026-11-05).
+    var complianceLinks = new List<(string Page, string Label)>();
     if (On(DeskAreas.Compliance))
     {
-        if (Can(Modules.Contracts) || Can(Modules.Access)) reportLinks.Add(("Compliance", "/Compliance/Index", "Compliance summary"));
-        if (Can(Modules.Contracts)) reportLinks.Add(("Compliance", "/Contracts", "Contracts register"));
-        if (Can(Modules.Access)) { reportLinks.Add(("Compliance", "/Access/Index", "Access control")); reportLinks.Add(("Compliance", "/Access/Review", "Access review")); }
+        if (Can(Modules.Contracts) || Can(Modules.Access)) complianceLinks.Add(("/Compliance/Index", "Compliance summary"));
+        if (Can(Modules.Contracts)) complianceLinks.Add(("/Contracts", "Contracts register"));
+        if (Can(Modules.Access)) { complianceLinks.Add(("/Access/Index", "Access control")); complianceLinks.Add(("/Access/Review", "Access review")); }
     }
     // The gear: the Settings index, or for someone who can't open it - a DPO given only the audit log, a site manager
     // given "Set up facilities" - the first settings page they can open, whose own menu lists the rest (_SettingsLayout).
@@ -201,22 +204,22 @@
                 </details>
             }
             else if (assetLinks.Count == 1) { <a href="@Url.Page(assetLinks[0].Page)" class="@(onAssets ? "active" : null)">@assetLinks[0].Label</a> }
-            @* In sections only when the registers are there too: Reports, then Compliance. *@
-            @if (reportLinks.Count > 1)
+            @if (complianceLinks.Count > 1)
             {
-                var sectioned = reportLinks.Select(x => x.Section).Distinct().Count() > 1;
                 <details class="nav-menu">
-                    <summary class="@(onReports ? "active" : null)">Reports<span class="chev" aria-hidden="true">▾</span></summary>
-                    <div class="nav-panel@(sectioned ? " nav-panel-sections" : null)">
-                        @foreach (var group in reportLinks.GroupBy(x => x.Section))
-                        {
-                            if (sectioned) { <p class="nav-section">@group.Key</p> }
-                            foreach (var link in group) { <a href="@Url.Page(link.Page)">@link.Label</a> }
-                        }
-                    </div>
+                    <summary class="@(onCompliance ? "active" : null)">Compliance<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel">@foreach (var link in complianceLinks) { <a href="@Url.Page(link.Page)">@link.Label</a> }</div>
                 </details>
             }
-            else if (reportLinks.Count == 1) { <a href="@Url.Page(reportLinks[0].Page)" class="@(onReports ? "active" : null)">@(reportLinks[0].Section == "Reports" ? "Reports" : reportLinks[0].Label)</a> }
+            else if (complianceLinks.Count == 1) { <a href="@Url.Page(complianceLinks[0].Page)" class="@(onCompliance ? "active" : null)">@complianceLinks[0].Label</a> }
+            @if (reportLinks.Count > 1)
+            {
+                <details class="nav-menu">
+                    <summary class="@(onReports ? "active" : null)">Reports<span class="chev" aria-hidden="true">▾</span></summary>
+                    <div class="nav-panel">@foreach (var link in reportLinks) { <a href="@Url.Page(link.Page)">@link.Label</a> }</div>
+                </details>
+            }
+            else if (reportLinks.Count == 1) { <a href="@Url.Page(reportLinks[0].Page)" class="@(onReports ? "active" : null)">Reports</a> }
         </nav>
         <details class="nav-menu user-menu">
             <summary><span class="user-name">@User.Identity!.Name</span><span class="chev" aria-hidden="true">▾</span></summary>
