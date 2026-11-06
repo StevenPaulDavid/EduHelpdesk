@@ -6,16 +6,29 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace EduHelpdesk.Pages;
 
 // The device agent (HelpdeskStore.Agent): turning it on and the install command, PCs waiting to be linked to an asset
-// whose serial they share, and every PC reporting in. Opening it needs Device agent: Access (Program.cs); each button
+// whose serial they share (linked field by field on Devices/Review), and every PC reporting in. Opening it needs Device agent: Access (Program.cs); each button
 // asks for its own tick here.
-public class DevicesModel(HelpdeskStore store, IConfiguration configuration, IHostEnvironment environment) : PageModel
+public class DevicesModel(HelpdeskStore store, IConfiguration configuration, IWebHostEnvironment environment) : PageModel
 {
+    // The agent this helpdesk hands out (agent-app beside the program, from the release zip). Null in a build without one.
+    public AgentPackage.Package? Package => AgentPackage.Latest(environment);
+
+    // A PC on an older agent than the one handed out; it updates itself within a day or so.
+    public bool Behind(HelpdeskStore.AgentDevice device) =>
+        Package is { } package && Version.TryParse(device.AgentVersion, out var version) && version < package.Version;
+
+    // The exe for installing by hand or packaging for Intune, for whoever sets the agent up.
+    public IActionResult OnGetDownload()
+    {
+        if (!CanSetUp) return Forbid();
+        return Package is { } package ? PhysicalFile(package.Path, "application/octet-stream", AgentPackage.FileName) : NotFound();
+    }
+
     public bool Enabled => store.AgentEnabled;
     public bool IsHttps => Request.IsHttps;
     public bool CanSetUp => store.UserCan(User, Modules.DeviceAgent, ModulePermission.Edit);
     public bool CanView => store.UserCan(User, Modules.DeviceAgent, ModulePermission.View);
-    // Linking changes the asset; adding makes one. So each needs the asset tick as well as the agent's.
-    public bool CanLink => CanSetUp && store.UserCan(User, Modules.Assets, ModulePermission.Edit);
+    // Adding makes an asset, so it needs the asset tick as well as the agent's. Linking is on Devices/Review.
     public bool CanAddNew => store.UserCan(User, Modules.DeviceAgent, ModulePermission.New) && store.UserCan(User, Modules.Assets, ModulePermission.New);
     public bool CanRemove => store.UserCan(User, Modules.DeviceAgent, ModulePermission.Delete);
 
@@ -58,13 +71,6 @@ public class DevicesModel(HelpdeskStore store, IConfiguration configuration, IHo
     public IActionResult OnPostTurnOn() => SetUp(() => store.SetAgentEnabled(true));
     public IActionResult OnPostTurnOff() => SetUp(() => store.SetAgentEnabled(false));
     public IActionResult OnPostNewKey() => SetUp(store.NewAgentEnrolmentKey);
-
-    public IActionResult OnPostLink(Guid id)
-    {
-        if (!CanLink) return Forbid();
-        Message = store.LinkAgentDevice(id).Message;
-        return RedirectToPage();
-    }
 
     public IActionResult OnPostAddNew(Guid id)
     {

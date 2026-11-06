@@ -6,3 +6,5 @@ App_Data/
 releases/
 # A phone app dropped in to try the update check locally (deploy/New-Release.ps1 adds the real one to each release).
 phone-app/
+# The device agent dropped in to try downloads and self-update locally (deploy/New-Release.ps1 adds the real one).
+agent-app/

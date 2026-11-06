@@ -1,0 +1,94 @@
+@page
+@model ReviewModel
+@using EduHelpdesk.Services
+@{
+    var device = Model.Preview.Device;
+    var asset = Model.Preview.Asset;
+    var report = device.Report;
+    var pcName = device.ComputerName.Length > 0 ? device.ComputerName : "This PC";
+    ViewData["Title"] = $"Link {pcName}";
+    var holder = Model.HolderName(asset);
+    var specs = string.Join(", ", new[] { AgentFacts.Processor(report), AgentFacts.Memory(report.MemoryBytes), AgentFacts.Storage(report) }.Where(x => x.Length > 0));
+}
+<a class="back-link" asp-page="/Devices">← Back to the device agent</a>
+<div class="page-heading"><div><h1>Is @pcName @asset.AssetTag?</h1><p class="hero-copy">They have the same serial number. If they're the same machine, link them: choose which value to keep for each field, and @pcName reports into @asset.AssetTag from now on. If they aren't, add @pcName as a new asset.</p></div></div>
+@if (TempData["Message"] is string message) { <div class="notice">@message</div> }
+
+@if (Model.Preview.Candidates.Count > 1)
+{
+    <section class="panel">
+        <h2>Which asset?</h2>
+        <p class="muted">@Model.Preview.Candidates.Count assets on the register have this serial number.</p>
+        <div class="button-row">
+            @foreach (var candidate in Model.Preview.Candidates)
+            {
+                <a class="button @(candidate.Id == asset.Id ? "button-primary" : "button-secondary")" asp-route-id="@device.Id" asp-route-asset="@candidate.Id" aria-current="@(candidate.Id == asset.Id ? "true" : null)">@candidate.AssetTag@(HelpdeskStore.IsDisposed(candidate) ? " (disposed)" : "")</a>
+            }
+        </div>
+    </section>
+}
+
+<section class="panel">
+    <div class="merge-columns">
+        <div>
+            <h2><a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a></h2>
+            <dl class="detail-list">
+                <dt>Status</dt><dd>@asset.Status@if (HelpdeskStore.IsDisposed(asset)) { <span class="badge badge-warning">Disposed</span> }</dd>
+                <dt>Where</dt><dd>@(string.Join(", ", new[] { asset.Building, asset.Location }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } where ? where : "Not recorded")</dd>
+                <dt>Held by</dt><dd>@(holder ?? "Not assigned")</dd>
+            </dl>
+        </div>
+        <div>
+            <h2>@pcName</h2>
+            <dl class="detail-list">
+                <dt>Specs</dt><dd>@(specs.Length > 0 ? specs : "Not known")</dd>
+                <dt>Last signed in</dt><dd>@(AgentFacts.LastUser(report) is { Length: > 0 } who ? who : "Not known")</dd>
+                <dt>Last seen</dt><dd>@DevicesModel.Ago(device.LastSeenAt)@(device.LastAddress is { } from ? $" from {from}" : "")</dd>
+            </dl>
+        </div>
+    </div>
+    @if (HelpdeskStore.IsDisposed(asset))
+    {
+        <div class="notice notice-warning">@asset.AssetTag is disposed, yet a PC with its serial number is reporting in. Check it before linking: if it really is back in use, change its status after linking.</div>
+    }
+</section>
+
+<section class="panel">
+    <h2>What to keep</h2>
+    <p class="muted">Serial number and Windows default to what the PC says; make, model and type default to what the asset says unless it's blank. Every change is written to the asset's History.</p>
+    <form method="post" asp-page-handler="Link" asp-route-id="@device.Id" asp-route-asset="@asset.Id">
+        <div class="table-wrap"><table class="stack-table merge-table"><thead><tr><th data-stack="head">Field</th><th>On @asset.AssetTag</th><th>From @pcName</th></tr></thead><tbody>
+        @foreach (var row in Model.Preview.Rows)
+        {
+            var name = $"Choice[{row.Key}]";
+            <tr>
+                <td><strong>@row.Label</strong>@if (!row.Differs) { <br /><span class="muted">Same on both</span> }</td>
+                @if (row.Differs && row.PcHasValue)
+                {
+                    <td><label class="merge-choice"><input type="radio" name="@name" value="asset" checked="@(!row.PcByDefault)" /> @(row.OnAsset.Length > 0 ? row.OnAsset : "(blank)")</label></td>
+                    <td><label class="merge-choice"><input type="radio" name="@name" value="pc" checked="@row.PcByDefault" /> @row.FromPc</label></td>
+                }
+                else
+                {
+                    <td>@(row.OnAsset.Length > 0 ? row.OnAsset : "(blank)")<input type="hidden" name="@name" value="asset" /></td>
+                    <td class="muted">@(row.PcHasValue ? row.FromPc : "The PC doesn't say")</td>
+                }
+            </tr>
+        }
+        </tbody></table></div>
+        <p class="muted">Everything else on @asset.AssetTag - its tag, status, location, purchase and warranty details, who holds it - stays as it is. The PC's other specs appear on the asset's Device tab.</p>
+        <div class="button-row">
+            @if (Model.CanLink) { <button class="button button-primary">Link and keep these</button> }
+            else { <span class="muted">Linking changes the asset, so it also needs Assets: Edit.</span> }
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Not the same machine?</h2>
+    <p class="muted">The serial on @asset.AssetTag might have been typed wrong, or two machines may share one. Add @pcName as an asset of its own, or remove it if it shouldn't be reporting at all.</p>
+    <div class="button-row">
+        @if (Model.CanAddNew) { <form method="post" asp-page-handler="AddNew" asp-route-id="@device.Id"><button class="button button-secondary">Add as a new asset</button></form> }
+        @if (Model.CanRemove) { <form method="post" asp-page-handler="Remove" asp-route-id="@device.Id" data-confirm="Remove @pcName? If the agent is still on it, it enrols again at its next report."><button class="button button-danger">Remove</button></form> }
+    </div>
+</section>

@@ -1,16 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <!-- The EduHelpdesk Agent: a Windows service on school PCs that reports each PC's specs to EduHelpdesk, which keeps
-       the asset register up to date from them. See Program.cs for the commands and Services/AgentContract.cs (shared
-       with the helpdesk) for what it sends. -->
+       the asset register up to date from them, plus the tray icon showing the asset tag. See Program.cs for the
+       commands and Services/AgentContract.cs (shared with the helpdesk) for what it sends.
+       Bump Version when the agent changes: PCs update themselves to a newer one from their helpdesk (Updater.cs), so an
+       unchanged version means no PC downloads anything. -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- A console app, so install and report print to the prompt they were typed in and give an exit code. The tray icon
+         is started by the service with no window (TrayLauncher.cs), so no console ever shows at sign-in. -->
     <OutputType>Exe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>EduHelpdesk.Agent</AssemblyName>
     <RootNamespace>EduHelpdesk.Agent</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Steven Davidson</Authors>
     <Product>EduHelpdesk Agent</Product>
     <Copyright>Copyright (c) 2026 Steven Davidson. MIT licence.</Copyright>
@@ -18,6 +23,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 

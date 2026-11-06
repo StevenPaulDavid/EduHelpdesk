@@ -77,6 +77,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Assets/Delete", Policy(Modules.Assets, ModulePermission.Delete));
     // The device agent's PCs and set-up. One page; its handlers check New, Edit and Delete themselves.
     options.Conventions.AuthorizePage("/Devices", Policy(Modules.DeviceAgent, ModulePermission.Access));
+    // Linking a waiting PC field by field; the page also asks for Assets: Edit before it changes the asset.
+    options.Conventions.AuthorizePage("/Devices/Review", Policy(Modules.DeviceAgent, ModulePermission.Edit));
 
     options.Conventions.AuthorizePage("/Kits", Policy(Modules.Kits, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Kits/Edit", Policy(Modules.Kits, NewOrEdit));

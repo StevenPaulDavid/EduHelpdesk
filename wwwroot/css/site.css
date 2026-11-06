@@ -2784,3 +2784,10 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .inline-search input { min-width: 0; flex: 0 1 240px; }
 #asset-device .detail-list + .asset-subheading { margin-top: 28px; }
 #setup details + .button-row { margin-top: 14px; }
+/* Linking a waiting PC (Pages/Devices/Review): the asset and the PC side by side, then a choice per field. */
+.merge-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.merge-columns h2 { margin-top: 0; }
+@media (max-width: 760px) { .merge-columns { grid-template-columns: 1fr; } }
+.merge-choice { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-weight: 400; }
+.merge-choice input { margin-top: 3px; }
+.merge-table td { vertical-align: top; }

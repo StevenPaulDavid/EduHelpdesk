@@ -210,6 +210,19 @@ public sealed partial class HelpdeskStore
         }
     }
 
+    // Why this token may not download the agent (to update itself), or null when it may: an enrolled PC, while the
+    // device agent is on.
+    public (int Status, string Message)? AgentDownloadRefusal(string? token)
+    {
+        lock (_sync)
+        {
+            if (AgentRefusal() is { } refusal) return (StatusCodes.Status403Forbidden, refusal);
+            if (string.IsNullOrEmpty(token) || !token.StartsWith(AgentTokenPrefix, StringComparison.Ordinal) || !_agents.ContainsKey(HashToken(token)))
+                return (StatusCodes.Status401Unauthorized, "This PC isn't enrolled.");
+            return null;
+        }
+    }
+
     private CheckInAnswer Answer(AgentDevice device, string? token) => device.AssetId is { } assetId
         ? new CheckInAnswer(token, AgentDeviceStatus.Linked, TagOf(assetId), AgentReportHours, null)
         : new CheckInAnswer(token, AgentDeviceStatus.Waiting, null, AgentReportHours,
@@ -298,32 +311,112 @@ public sealed partial class HelpdeskStore
         return spellings[0];
     }
 
-    // ---- Waiting PCs (Device agent page) ----
+    // ---- Waiting PCs (Device agent page, Devices/Review) ----
 
-    // The PC is the asset it matched: it reports into it from now on. Blank make, model and type are filled in and the
-    // operating system is the PC's; everything else typed on the asset stays.
-    public (bool Ok, string Message) LinkAgentDevice(Guid deviceId)
+    // The asset fields a PC can fill in, for the side-by-side review before linking. The machine is the authority on its
+    // serial number and Windows, so those default to the PC; make, model and type are often typed the school's own way,
+    // so they default to what the asset already says - unless it says nothing.
+    public static class AgentMergeFields
+    {
+        public const string Make = "make";
+        public const string Model = "model";
+        public const string Type = "type";
+        public const string Serial = "serial";
+        public const string OperatingSystem = "os";
+        public static readonly string[] All = [Make, Model, Type, Serial, OperatingSystem];
+    }
+
+    // One field: what the asset says, what the PC says (as the school's lists would spell it), and which is ticked first.
+    public sealed record AgentMergeRow(string Key, string Label, string OnAsset, string FromPc, bool PcByDefault)
+    {
+        public bool Differs => !string.Equals(OnAsset.Trim(), FromPc.Trim(), StringComparison.OrdinalIgnoreCase);
+        // A PC that says nothing for a field can't be chosen for it.
+        public bool PcHasValue => FromPc.Length > 0;
+    }
+
+    // Candidates: every asset sharing the PC's serial that no other PC reports into - usually one, but a register can
+    // hold the same serial twice. Asset is the one being compared.
+    public sealed record AgentMergePreview(AgentDevice Device, AssetRecord Asset, IReadOnlyList<AssetRecord> Candidates, IReadOnlyList<AgentMergeRow> Rows);
+
+    public AgentMergePreview? AgentMergePreviewFor(Guid deviceId, Guid? assetId = null)
+    {
+        lock (_sync)
+        {
+            if (_agents.Values.FirstOrDefault(x => x.Device.Id == deviceId)?.Device is not { AssetId: null } device) return null;
+            var candidates = AgentCandidates(device);
+            var asset = candidates.FirstOrDefault(x => x.Id == assetId) ?? candidates.FirstOrDefault(x => x.Id == device.MatchAssetId) ?? candidates.FirstOrDefault();
+            if (asset is null) return null;
+            var report = device.Report;
+            AgentMergeRow Row(string key, string label, string onAsset, string fromPc, bool machineKnowsBest) =>
+                new(key, label, onAsset ?? "", fromPc, fromPc.Length > 0 && (machineKnowsBest || string.IsNullOrWhiteSpace(onAsset)));
+            return new AgentMergePreview(device, asset, candidates,
+            [
+                Row(AgentMergeFields.Make, "Make", asset.Make, Spelled(_data.AssetMakes, AgentFacts.Make(report)), false),
+                Row(AgentMergeFields.Model, "Model", asset.Model, AgentModelSpelling(report), false),
+                Row(AgentMergeFields.Type, "Type", asset.Type, Spelled(_data.AssetTypes, AgentFacts.Type(report)), false),
+                Row(AgentMergeFields.Serial, "Serial number", asset.SerialNumber, device.SerialNumber, true),
+                Row(AgentMergeFields.OperatingSystem, "Operating system", asset.OperatingSystem, AgentFacts.OperatingSystem(report), true)
+            ]);
+        }
+    }
+
+    // The PC is this asset: it reports into it from now on. usePc names the fields (AgentMergeFields) to take from the PC;
+    // the rest keep what the asset says. Null takes the review's defaults. assetId null is the asset it first matched.
+    public (bool Ok, string Message) LinkAgentDevice(Guid deviceId, Guid? assetId = null, IReadOnlyCollection<string>? usePc = null)
     {
         lock (_sync)
         {
             if (_agents.Values.FirstOrDefault(x => x.Device.Id == deviceId) is not { } row) return (false, "That PC isn't enrolled any more.");
-            if (row.Device.MatchAssetId is not { } assetId) return (false, "That PC isn't waiting for an asset.");
-            var index = _data.Assets.FindIndex(x => x.Id == assetId);
-            if (index < 0) return (false, "The asset it matched has been deleted. The PC gets an asset of its own at its next report.");
+            if (row.Device.AssetId is not null) return (false, "That PC already reports into an asset.");
+            var target = assetId ?? row.Device.MatchAssetId;
+            var preview = AgentMergePreviewFor(deviceId, target);
+            if (preview is null || preview.Asset.Id != target)
+                return (false, "That asset can't be linked to this PC any more: it was deleted, its serial number changed, or another PC reports into it.");
+            var take = usePc?.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                ?? preview.Rows.Where(x => x.PcByDefault).Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Only where the two differ: "5cd123" and "5CD123" are the same serial, and the asset's spelling stays.
+            bool Take(string key) => take.Contains(key) && preview.Rows.Any(x => x.Key == key && x.PcHasValue && x.Differs);
+
+            var index = _data.Assets.FindIndex(x => x.Id == preview.Asset.Id);
             var asset = _data.Assets[index];
             var report = row.Device.Report;
-            var item = asset with { OperatingSystem = AgentFacts.OperatingSystem(report) is { Length: > 0 } os ? os : asset.OperatingSystem };
-            if (string.IsNullOrWhiteSpace(item.Make)) item = item with { Make = AgentOption(_data.AssetMakes, AgentFacts.Make(report)) };
-            if (string.IsNullOrWhiteSpace(item.Model)) item = item with { Model = AgentModel(report, item.Make) };
-            if (string.IsNullOrWhiteSpace(item.Type)) item = item with { Type = AgentOption(_data.AssetTypes, AgentFacts.Type(report)) };
+            var item = asset;
+            if (Take(AgentMergeFields.Make)) item = item with { Make = AgentOption(_data.AssetMakes, AgentFacts.Make(report)) };
+            if (Take(AgentMergeFields.Model)) item = item with { Model = AgentModel(report, item.Make) };
+            if (Take(AgentMergeFields.Type)) item = item with { Type = AgentOption(_data.AssetTypes, AgentFacts.Type(report)) };
+            if (Take(AgentMergeFields.Serial)) item = item with { SerialNumber = row.Device.SerialNumber };
+            if (Take(AgentMergeFields.OperatingSystem)) item = item with { OperatingSystem = AgentFacts.OperatingSystem(report) };
             ApplyAssetUpdate(index, item);
             AddAgentHistory(index, "Linked to the device agent", $"{Named(row.Device)} reports into this asset from now on.");
-            var linked = row with { Device = row.Device with { AssetId = assetId, MatchAssetId = null } };
+            var linked = row with { Device = row.Device with { AssetId = asset.Id, MatchAssetId = null } };
             WriteAgentRow(linked);
             _agents[linked.TokenHash] = linked;
             Save();
             return (true, $"{Named(row.Device)} now reports into {asset.AssetTag}.");
         }
+    }
+
+    // Assets a waiting PC might be, its first match first, then the rest; disposed ones last. Called with the lock held.
+    private List<AssetRecord> AgentCandidates(AgentDevice device)
+    {
+        var reported = _agents.Values.Where(x => x.Device.Id != device.Id && x.Device.AssetId is not null).Select(x => x.Device.AssetId!.Value).ToHashSet();
+        return _data.Assets
+            .Where(x => !reported.Contains(x.Id) && (x.Id == device.MatchAssetId
+                || (device.SerialNumber.Length > 0 && string.Equals(x.SerialNumber.Trim(), device.SerialNumber, StringComparison.OrdinalIgnoreCase))))
+            .OrderBy(x => x.Id != device.MatchAssetId).ThenBy(IsDisposed).ThenBy(x => x.AssetTag, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    // How a value would be spelt once it is on the school's list, without adding it.
+    private static string Spelled(List<string> list, string value) =>
+        list.FirstOrDefault(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase)) ?? value;
+
+    private string AgentModelSpelling(AgentReport report)
+    {
+        var spellings = AgentFacts.ModelSpellings(report).ToList();
+        foreach (var spelling in spellings)
+            if (_data.AssetModels.FirstOrDefault(x => string.Equals(x, spelling, StringComparison.OrdinalIgnoreCase)) is { } known) return known;
+        return spellings.FirstOrDefault() ?? "";
     }
 
     // The PC isn't the asset it matched (a mistyped serial, a second board with the same one): it gets its own.

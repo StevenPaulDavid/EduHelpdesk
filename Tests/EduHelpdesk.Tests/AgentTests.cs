@@ -156,6 +156,64 @@ public class AgentTests
     }
 
     [Fact]
+    public void The_review_defaults_to_the_PC_for_serial_and_Windows_and_to_the_asset_for_what_was_typed()
+    {
+        using var test = WithAgentOn();
+        var existing = new AssetRecord(Guid.NewGuid(), "LT-0042", "Dell Technologies", "", "Laptop", "5cd1234xyz", "S12", null) { OperatingSystem = "Windows 10 Pro" };
+        test.Store.AddAsset(existing);
+        Enrol(test, Pc());
+        var device = test.Store.AgentDevices.Single();
+
+        var rows = test.Store.AgentMergePreviewFor(device.Id)!.Rows.ToDictionary(x => x.Key);
+        Assert.False(rows[HelpdeskStore.AgentMergeFields.Make].PcByDefault);   // typed: the asset's
+        Assert.True(rows[HelpdeskStore.AgentMergeFields.Make].Differs);
+        Assert.True(rows[HelpdeskStore.AgentMergeFields.Model].PcByDefault);   // blank on the asset: the PC's
+        Assert.False(rows[HelpdeskStore.AgentMergeFields.Type].Differs);
+        Assert.False(rows[HelpdeskStore.AgentMergeFields.Serial].Differs);     // only the case differs
+        Assert.True(rows[HelpdeskStore.AgentMergeFields.OperatingSystem].PcByDefault);
+        Assert.Equal("Windows 11 Pro 24H2", rows[HelpdeskStore.AgentMergeFields.OperatingSystem].FromPc);
+
+        // Flip make to the PC and keep the asset's Windows.
+        var (ok, message) = test.Store.LinkAgentDevice(device.Id, existing.Id, [HelpdeskStore.AgentMergeFields.Make, HelpdeskStore.AgentMergeFields.Model]);
+        Assert.True(ok, message);
+        var linked = test.Store.Assets.Single(x => x.Id == existing.Id);
+        Assert.Equal("Dell", linked.Make);
+        Assert.Equal("Latitude 5440", linked.Model);
+        Assert.Equal("Windows 10 Pro", linked.OperatingSystem);
+        Assert.Equal("5cd1234xyz", linked.SerialNumber);
+        Assert.Equal("S12", linked.Location);
+        Assert.Contains(linked.History, x => x.Action == "Make changed");
+        Assert.DoesNotContain(linked.History, x => x.Action == "Operating system changed");
+        Assert.Null(test.Store.AgentMergePreviewFor(device.Id));
+        Assert.Null(test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public void With_two_assets_sharing_the_serial_either_can_be_chosen_but_nothing_else()
+    {
+        using var test = WithAgentOn();
+        var first = new AssetRecord(Guid.NewGuid(), "LT-0001", "", "", "", "5CD1234XYZ", "", null);
+        var second = new AssetRecord(Guid.NewGuid(), "LT-0002", "", "", "", "5CD1234XYZ", "", null);
+        var unrelated = new AssetRecord(Guid.NewGuid(), "LT-0003", "", "", "", "OTHER", "", null);
+        test.Store.AddAsset(first);
+        test.Store.AddAsset(second);
+        test.Store.AddAsset(unrelated);
+        Enrol(test, Pc());
+        var device = test.Store.AgentDevices.Single();
+
+        var preview = test.Store.AgentMergePreviewFor(device.Id)!;
+        Assert.Equal(2, preview.Candidates.Count);
+        Assert.Equal(device.MatchAssetId, preview.Asset.Id);
+        Assert.Equal(second.Id, test.Store.AgentMergePreviewFor(device.Id, second.Id)!.Asset.Id);
+
+        Assert.False(test.Store.LinkAgentDevice(device.Id, unrelated.Id).Ok);
+        Assert.True(test.Store.LinkAgentDevice(device.Id, second.Id).Ok);
+        Assert.Equal(second.Id, test.Store.AgentDevices.Single().AssetId);
+        Assert.Equal("Dell", test.Store.Assets.Single(x => x.Id == second.Id).Make);
+        Assert.Equal("", test.Store.Assets.Single(x => x.Id == first.Id).Make);
+    }
+
+    [Fact]
     public void A_waiting_PC_can_be_added_as_an_asset_of_its_own()
     {
         using var test = WithAgentOn();
@@ -248,6 +306,38 @@ public class AgentTests
         Assert.Equal(@"Jane Smith (STAFF\jsmith)", AgentFacts.LastUser(Pc()));
         // The same local account written two ways keeps its name.
         Assert.Equal(@"Steve (HERMES\steve)", AgentFacts.LastUser(new AgentReport { CurrentUser = @"HERMES\steve", LastUser = @".\steve", LastUserDisplayName = "Steve" }));
+    }
+
+    [Fact]
+    public void Only_an_enrolled_PC_may_download_the_agent_and_only_while_it_is_on()
+    {
+        using var test = WithAgentOn();
+        var token = Enrol(test, Pc());
+        Assert.Null(test.Store.AgentDownloadRefusal(token));
+        Assert.Equal(StatusCodes.Status401Unauthorized, test.Store.AgentDownloadRefusal("eha_made-up")!.Value.Status);
+        Assert.Equal(StatusCodes.Status401Unauthorized, test.Store.AgentDownloadRefusal(null)!.Value.Status);
+        test.Store.SetAgentEnabled(false);
+        Assert.Equal(StatusCodes.Status403Forbidden, test.Store.AgentDownloadRefusal(token)!.Value.Status);
+    }
+
+    [Fact]
+    public void The_agent_to_hand_out_is_read_from_its_file_with_its_version_and_hash()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "eduhelpdesk-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            Assert.Null(AgentPackage.Latest(folder));
+            // Any file with a version resource will do: the helpdesk's own dll, under the agent's name.
+            var path = Path.Combine(folder, AgentPackage.FileName);
+            File.Copy(typeof(HelpdeskStore).Assembly.Location, path);
+            var package = AgentPackage.Latest(folder)!;
+            var expected = typeof(HelpdeskStore).Assembly.GetName().Version!;
+            Assert.Equal(new Version(expected.Major, expected.Minor, expected.Build), package.Version);
+            Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant(), package.Sha256);
+            Assert.Equal(new FileInfo(path).Length, package.Length);
+        }
+        finally { Directory.Delete(folder, recursive: true); }
     }
 
     [Theory]

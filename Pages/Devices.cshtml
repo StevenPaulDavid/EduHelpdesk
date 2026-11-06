@@ -20,7 +20,16 @@
         }
         else
         {
-            <p>The device agent is on. Run this on a PC as an administrator (or push it with Intune) to install the agent and enrol the PC:</p>
+            <p>The device agent is on. Download the agent, then run the install command in its folder on a PC as an administrator, or add it to Intune as a Win32 app (see Help).</p>
+            @if (Model.Package is { } package)
+            {
+                <p><a class="button button-secondary" asp-page-handler="Download">Download the agent (version @package.VersionText, @((package.Length / 1048576d).ToString("0")) MB)</a></p>
+                <p class="muted">PCs already running an older version update themselves to this one within a couple of hours of their next report.</p>
+            }
+            else
+            {
+                <div class="notice notice-warning">This helpdesk has no agent to hand out: it comes with each release, in the <code>agent-app</code> folder beside the program. PCs can still report in with an agent from elsewhere, but won't update themselves.</div>
+            }
             <details>
                 <summary>Show the install command</summary>
                 <pre class="code-block"><code>@Model.InstallCommand</code></pre>
@@ -42,7 +51,7 @@ else if (!Model.Enabled)
 {
     <section class="panel" id="waiting">
         <h2>Waiting to be linked <span class="badge">@Model.Waiting.Count</span></h2>
-        <p class="muted">These PCs share a serial number with an asset already on the register. Link one if it is that asset, or add it as a new asset if it isn't (a mistyped serial, say). Until then its reports are kept here and nothing on the asset changes.</p>
+        <p class="muted">These PCs share a serial number with an asset already on the register. Review one to compare them side by side and link it if it's that asset, choosing which value to keep for each field. If it isn't (a mistyped serial, say), add it as a new asset. Until then its reports are kept here and nothing on the asset changes.</p>
         <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">PC</th><th>Matches</th><th>Enrolled</th><th></th></tr></thead><tbody>
         @foreach (var device in Model.Waiting)
         {
@@ -53,7 +62,7 @@ else if (!Model.Enabled)
                 <td>@device.EnrolledAt.ToLocalTime().ToString("d MMM yyyy")<br /><span class="muted">last seen @DevicesModel.Ago(device.LastSeenAt)</span></td>
                 <td>
                     <div class="button-row">
-                        @if (Model.CanLink && match is not null) { <form method="post" asp-page-handler="Link" asp-route-id="@device.Id" data-confirm="Link @device.ComputerName to @match.AssetTag? It reports into that asset from now on; blank make, model and type are filled in and the operating system is updated."><button class="button button-primary">Link to @match.AssetTag</button></form> }
+                        @if (Model.CanSetUp && match is not null) { <a class="button button-primary" asp-page="/Devices/Review" asp-route-id="@device.Id">Review and link</a> }
                         @if (Model.CanAddNew) { <form method="post" asp-page-handler="AddNew" asp-route-id="@device.Id"><button class="button button-secondary">Add as a new asset</button></form> }
                         @if (Model.CanRemove) { <form method="post" asp-page-handler="Remove" asp-route-id="@device.Id" data-confirm="Remove @device.ComputerName? If the agent is still on it, it enrols again at its next report."><button class="button button-danger">Remove</button></form> }
                     </div>
@@ -91,7 +100,7 @@ else if (!Model.Enabled)
                 <td>@if (asset is not null) { <a asp-page="/Asset" asp-route-id="@asset.Id" asp-fragment="@(Model.CanView ? "asset-device" : null)">@asset.AssetTag</a> } else { <span class="muted">Asset deleted: added again at its next report</span> }</td>
                 <td>@AgentFacts.OperatingSystem(device.Report)<br /><span class="muted">build @AgentFacts.Build(device.Report)</span></td>
                 <td>@AgentFacts.LastUser(device.Report)</td>
-                <td>@DevicesModel.Ago(device.LastSeenAt)@if (device.LastAddress is { } where) { <br /><span class="muted">from @where</span> }<br /><span class="muted">agent @device.AgentVersion</span></td>
+                <td>@DevicesModel.Ago(device.LastSeenAt)@if (device.LastAddress is { } where) { <br /><span class="muted">from @where</span> }<br /><span class="muted">agent @device.AgentVersion@(Model.Behind(device) ? ", updating" : "")</span></td>
                 @if (Model.CanRemove) { <td><form method="post" asp-page-handler="Remove" asp-route-id="@device.Id" asp-route-q="@Model.Q" data-confirm="Remove @device.ComputerName from the device agent? Its asset stays. If the agent is still on it, it enrols again at its next report."><button class="button button-danger">Remove</button></form></td> }
             </tr>
         }

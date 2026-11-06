@@ -28,28 +28,44 @@ public static class AgentEndpoints
             return await next(context);
         });
 
-        api.MapGet("/info", (HelpdeskStore store) => Results.Json(new
+        api.MapGet("/info", (HelpdeskStore store, IWebHostEnvironment environment) => Results.Json(new
         {
             serverVersion = PhoneEndpoints.ServerVersion,
             apiVersion = ApiVersion,
-            enabled = store.AgentEnabled
+            enabled = store.AgentEnabled,
+            agentVersion = AgentPackage.Latest(environment)?.VersionText
         }));
 
-        api.MapPost("/enrol", (EnrolRequest? request, HttpContext http, HelpdeskStore store) =>
-            Answer(store.EnrolAgent(request?.Key, request?.Report, http.Connection.RemoteIpAddress)));
+        api.MapPost("/enrol", (EnrolRequest? request, HttpContext http, HelpdeskStore store, IWebHostEnvironment environment) =>
+            Answer(store.EnrolAgent(request?.Key, request?.Report, http.Connection.RemoteIpAddress), environment));
 
-        api.MapPost("/report", (AgentReport? report, HttpContext http, HelpdeskStore store) =>
+        api.MapPost("/report", (AgentReport? report, HttpContext http, HelpdeskStore store, IWebHostEnvironment environment) =>
+            Answer(store.AgentReportIn(Token(http), report, http.Connection.RemoteIpAddress), environment));
+
+        // The agent itself, for an enrolled PC updating itself. Only to a PC with a token: the exe is no secret, but
+        // there's no reason to hand it to anyone on the network who asks. Staff download it from the Device agent page.
+        api.MapGet("/agent", (HttpContext http, HelpdeskStore store, IWebHostEnvironment environment) =>
         {
-            var header = http.Request.Headers.Authorization.ToString();
-            var token = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? header[7..].Trim() : null;
-            return Answer(store.AgentReportIn(token, report, http.Connection.RemoteIpAddress));
+            if (store.AgentDownloadRefusal(Token(http)) is { } refusal) return Refuse(refusal.Status, refusal.Message);
+            return AgentPackage.Latest(environment) is { } package
+                ? Results.File(package.Path, "application/octet-stream", AgentPackage.FileName)
+                : Refuse(StatusCodes.Status404NotFound, "This helpdesk has no agent to hand out.");
         });
 
         return app;
     }
 
-    private static IResult Answer(HelpdeskStore.AgentResult result) =>
-        result.Answer is { } answer ? Results.Json(answer) : Refuse(result.Status, result.Error ?? "Refused.");
+    private static string? Token(HttpContext http)
+    {
+        var header = http.Request.Headers.Authorization.ToString();
+        return header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? header[7..].Trim() : null;
+    }
+
+    // Every answer says which agent this helpdesk hands out, so a PC running an older one knows to update.
+    private static IResult Answer(HelpdeskStore.AgentResult result, IWebHostEnvironment environment) =>
+        result.Answer is { } answer
+            ? Results.Json(AgentPackage.Latest(environment) is { } package ? answer with { AgentVersion = package.VersionText, AgentSha256 = package.Sha256 } : answer)
+            : Refuse(result.Status, result.Error ?? "Refused.");
 
     private static IResult Refuse(int status, string message) => Results.Json(new { message }, statusCode: status);
 }

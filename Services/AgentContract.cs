@@ -8,14 +8,18 @@ namespace EduHelpdesk.AgentContract;
 // The agent sends what Windows says, raw - "Dell Inc.", "LENOVO", chassis type 10. Tidying that into a make, model and
 // type is done by the helpdesk (Services/AgentFacts.cs), so improving it never needs every PC to update.
 //
-//   GET  /api/agent/v1/info      { serverVersion, apiVersion, enabled }
+//   GET  /api/agent/v1/info      { serverVersion, apiVersion, enabled, agentVersion }
 //   POST /api/agent/v1/enrol     EnrolRequest -> CheckInAnswer (with token)      - the school's enrolment key
 //   POST /api/agent/v1/report    AgentReport  -> CheckInAnswer                   - "Authorization: Bearer eha_..."
+//   GET  /api/agent/v1/agent     the agent exe this helpdesk hands out           - "Authorization: Bearer eha_..."
 public sealed record EnrolRequest(string? Key, AgentReport? Report);
 
 // Status: "linked" (reporting into AssetTag), "waiting" (its serial matches an asset someone has to confirm first).
 // NextReportHours is how long until the next full report, so the helpdesk can change it without updating every PC.
-public sealed record CheckInAnswer(string? Token, string Status, string? AssetTag, int NextReportHours, string? Message);
+// AgentVersion and AgentSha256: the agent this helpdesk hands out (null when it has none). A PC running an older one
+// downloads it from /agent and checks the hash before installing it.
+public sealed record CheckInAnswer(string? Token, string Status, string? AssetTag, int NextReportHours, string? Message,
+    string? AgentVersion = null, string? AgentSha256 = null);
 
 public sealed record AgentReport
 {

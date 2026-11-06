@@ -10,7 +10,8 @@
       2. warns if there are uncommitted changes, which would go into the release,
       3. runs the tests and stops if any fail,
       4. publishes the app for 64-bit Windows with the .NET runtime included, so schools install nothing else, with
-         the newest signed phone app (EduHelpdeskApp\releases\EduHelpdesk-Android-<version>.apk) beside it,
+         the newest signed phone app (EduHelpdeskApp\releases\EduHelpdesk-Android-<version>.apk) and the device agent
+         for school PCs (agent\EduHelpdesk.Agent) beside it,
       5. adds the installer, the licence, the notices and the guides (the install guide also as a PDF),
       6. checks nothing from your own install is in it - no database, keys or settings - and zips it, with a SHA-256
          checksum beside it,
@@ -108,6 +109,15 @@ if ($apk) {
     Write-Host "  No phone app found in EduHelpdeskApp\releases, so this release won't hand one out." -ForegroundColor Yellow
 }
 
+# The EduHelpdesk Agent for school PCs goes in too: the Device agent page offers it for download, and PCs update
+# themselves to it (Services/AgentPackage.cs). It keeps its own version (agent\EduHelpdesk.Agent\EduHelpdesk.Agent.csproj),
+# bumped only when the agent changes, so a release that doesn't change it makes no PC download anything.
+& dotnet publish (Join-Path $root "agent\EduHelpdesk.Agent\EduHelpdesk.Agent.csproj") -c Release -o (Join-Path $work "agent") --nologo -v quiet
+if ($LASTEXITCODE -ne 0) { throw "Publishing the device agent failed." }
+New-Item -ItemType Directory -Force -Path (Join-Path $stage "app\agent-app") | Out-Null
+Copy-Item -LiteralPath (Join-Path $work "agent\EduHelpdesk.Agent.exe") (Join-Path $stage "app\agent-app")
+Write-Host "  With the device agent $((Get-Item (Join-Path $stage 'app\agent-app\EduHelpdesk.Agent.exe')).VersionInfo.FileVersion)"
+
 # ---- 5. Installer, licence and guides -------------------------------------------------------------------------------
 Step "Adding the installer and guides..."
 Copy-Item (Join-Path $root "installer\*") $stage
@@ -139,6 +149,7 @@ $private = Get-ChildItem $stage -Recurse -File | Where-Object {
 }
 if ($private) { throw "Refusing to zip: these look like a real install's data or settings: $($private.FullName -join ', ')" }
 if (-not (Test-Path (Join-Path $stage "app\EduHelpdesk.exe"))) { throw "The published app is missing EduHelpdesk.exe." }
+if (-not (Test-Path (Join-Path $stage "app\agent-app\EduHelpdesk.Agent.exe"))) { throw "The release is missing the device agent." }
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip
 $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
 Set-Content -Path "$zip.sha256.txt" -Value "$hash  $name.zip" -Encoding ASCII

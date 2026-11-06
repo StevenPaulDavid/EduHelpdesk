@@ -2,10 +2,12 @@ namespace EduHelpdesk.Agent;
 
 // The Windows service. It reports when it starts and then every day (the helpdesk says how often), and also soon after
 // someone different signs in, so "Last signed in" on the asset is current. A report that can't be sent - the laptop is
-// at home, the helpdesk is down - is tried again every 15 minutes with fresh details until it goes.
+// at home, the helpdesk is down - is tried again every 15 minutes with fresh details until it goes. After each report it
+// tells the tray icon the asset tag (AgentStatus), and updates itself when the helpdesk has a newer agent (Updater).
 public sealed class AgentService : BackgroundService
 {
-    private static readonly TimeSpan Tick = TimeSpan.FromMinutes(5);
+    // Often enough that a tray icon appears soon after someone signs in; a report is only sent when one is due.
+    private static readonly TimeSpan Tick = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(15);
     // Give the network a moment after start-up before the first try.
     private static readonly TimeSpan StartDelay = TimeSpan.FromSeconds(30);
@@ -13,7 +15,12 @@ public sealed class AgentService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stop)
     {
         AgentLog.Write($"EduHelpdesk Agent {Collector.Version} started.");
+        Installer.CleanUp();
+        // Tray icons only when running as the service (as SYSTEM), not "run" from a prompt.
+        var trays = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService();
+        if (trays) Safely("restart the tray icons", TrayLauncher.StopOldTrays);
         try { await Task.Delay(StartDelay, stop); } catch (TaskCanceledException) { return; }
+        var updater = new Updater();
         var nextReport = DateTime.MinValue;
         var retryAt = DateTime.MinValue;
         string? reportedUser = null;
@@ -38,12 +45,27 @@ public sealed class AgentService : BackgroundService
                     {
                         nextReport = now + TimeSpan.FromHours(Math.Clamp(outcome.Answer?.NextReportHours ?? 24, 1, 168));
                         reportedUser = user;
+                        AgentStatus.Write(outcome.Answer?.AssetTag, outcome.Answer?.Status ?? "", outcome.Answer?.Message);
+                        updater.Consider(outcome.Answer);
                     }
                     else retryAt = now + RetryAfter;
                 }
             }
+            // The update stops this service itself within moments. If it somehow doesn't, reporting carries on in an hour.
+            if (await updater.RunIfDueAsync(stop)) nextReport = DateTime.UtcNow + TimeSpan.FromHours(1);
+            if (trays) Safely("start the tray icon", TrayLauncher.EnsureTrays);
             try { await Task.Delay(Tick, stop); } catch (TaskCanceledException) { break; }
         }
         AgentLog.Write("EduHelpdesk Agent stopped.");
+    }
+
+    // The tray is a nicety: nothing about it may stop the reports.
+    private static void Safely(string what, Action action)
+    {
+        try { action(); }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or UnauthorizedAccessException)
+        {
+            AgentLog.Write($"Couldn't {what}: {exception.Message}");
+        }
     }
 }

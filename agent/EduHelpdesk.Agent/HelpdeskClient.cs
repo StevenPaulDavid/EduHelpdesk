@@ -61,6 +61,38 @@ public sealed class HelpdeskClient(AgentConfig config)
                 : $"The helpdesk at {server.Authority} has a certificate this PC doesn't trust. Install again with the command from the Device agent page, which includes its fingerprint."
             : $"Couldn't reach the helpdesk at {server.Authority}: {exception.Message}";
 
+    // The agent the helpdesk hands out, saved to target only if its SHA-256 is the one the helpdesk's answer gave.
+    public async Task<(bool Ok, string Message)> DownloadAgentAsync(string target, string sha256, CancellationToken cancel)
+    {
+        if (!Uri.TryCreate(config.Server, UriKind.Absolute, out var server) || server.Scheme != Uri.UriSchemeHttps) return (false, "The helpdesk address isn't https://.");
+        if (config.Token.Length == 0) return (false, "This PC isn't enrolled yet.");
+        using var http = Create(server);
+        http.Timeout = TimeSpan.FromMinutes(10);
+        var partial = target + ".part";
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, Prefix + "/agent");
+            request.Headers.Authorization = new("Bearer", config.Token);
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
+            if (!response.IsSuccessStatusCode) return (false, $"the helpdesk answered {(int)response.StatusCode}: {await Message(response, cancel)}");
+            await using (var file = File.Create(partial))
+                await response.Content.CopyToAsync(file, cancel);
+            string actual;
+            await using (var file = File.OpenRead(partial))
+                actual = Convert.ToHexString(await SHA256.HashDataAsync(file, cancel));
+            if (!actual.Equals(sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(partial);
+                return (false, "what arrived isn't the file the helpdesk described (its SHA-256 doesn't match), so it was thrown away.");
+            }
+            File.Move(partial, target, overwrite: true);
+            return (true, "Downloaded.");
+        }
+        catch (HttpRequestException exception) { return (false, Unreachable(server, exception)); }
+        catch (TaskCanceledException) when (!cancel.IsCancellationRequested) { return (false, "the download didn't finish in time."); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return (false, exception.Message); }
+    }
+
     // Whether the helpdesk can be reached and has the agent turned on, for the install command to say so straight away.
     public async Task<string> CheckAsync(CancellationToken cancel)
     {
