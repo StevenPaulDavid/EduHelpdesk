@@ -254,6 +254,8 @@ public sealed partial class HelpdeskStore
             DeleteAllAttachmentFiles();
             // Every account was replaced, so nobody's sign-in carries on.
         EndAllSessions();
+        // The enrolment key went with the old settings, so the PCs enrolled under it start again from a new install command.
+        ForgetAllAgentDevices();
         ClearNotifications();
         ClearPreferences();
         return (true, $"System reset to factory settings. Sign in again as {BootstrapAdminEmail} with the password {BootstrapAdminPassword}, and change it straight away."

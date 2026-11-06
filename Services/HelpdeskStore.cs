@@ -42,6 +42,7 @@ public sealed partial class HelpdeskStore
         _audit = LoadAudit();
         LoadSessions();
         LoadPhones();
+        LoadAgentDevices();
         LoadNotifications();
         LoadPreferences();
         Prepare();

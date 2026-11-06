@@ -6,8 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The test project lives inside this folder but is its own project (Tests/EduHelpdesk.Tests). -->
     <!-- deploy/ holds the release tooling (its own small C# tool included) and installer/ the scripts shipped in the
-         release zip; releases/ is where the zips are made. None of them are part of the app. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**;deploy/**;installer/**;releases/**</DefaultItemExcludes>
+         release zip; releases/ is where the zips are made. agent/ is the EduHelpdesk Agent for school PCs, its own
+         project (it shares Services/AgentContract.cs). None of them are part of the app. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**;deploy/**;installer/**;releases/**;agent/**</DefaultItemExcludes>
     <!-- The release number schools see (Settings → About). deploy/New-Release.ps1 sets it for each release. -->
     <Version>3.3.0</Version>
     <Authors>Steven Davidson</Authors>

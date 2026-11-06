@@ -105,6 +105,10 @@ public sealed partial class HelpdeskStore
         // Settings → Sign-in security: every paired phone must use app lock (fingerprint, face or PIN). Off unless a school
         // turns it on; a technician can still turn it on for their own phone.
         public bool RequirePhoneAppLock { get; set; }
+        // Device agent (HelpdeskStore.Agent): PCs may enrol and report in. Off, with no key, until someone turns it on.
+        public bool AgentEnabled { get; set; }
+        // What the install command carries; enrols a PC. Changing it stops new enrolments only.
+        public string AgentEnrolmentKey { get; set; } = "";
         // Settings → Notifications: pings and pop-ups on at all, for staff, for requesters in the portal, and whether people
         // who haven't switched them on are reminded to (HelpdeskStore.NotificationSettings). All on unless a school turns them off.
         public bool NotificationsEnabled { get; set; } = true;

@@ -2777,3 +2777,10 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .merge-prompt .muted { margin: 10px 0 0; font-size: 13px; }
 .merge-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .merge-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; min-width: 220px; }
+
+/* Device agent (Pages/Devices): the install command to copy, and the search beside the PC list. */
+.code-block { white-space: pre-wrap; word-break: break-all; font-size: 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; user-select: all; }
+.inline-search { display: flex; gap: 8px; margin: 0; }
+.inline-search input { min-width: 0; flex: 0 1 240px; }
+#asset-device .detail-list + .asset-subheading { margin-top: 28px; }
+#setup details + .button-row { margin-top: 14px; }

@@ -101,6 +101,7 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["SchoolPeriods"] = "The lessons in the school day, for SLAs counted in periods.",
         ["Sessions"] = "Who is signed in, and until when. Signing out or a password change removes the row.",
         ["Phones"] = "Phones paired with the EduHelpdesk app (Phones in the account menu): whose, when, and when last used. Only a hash of each phone's token is kept. Revoking or signing out removes the row.",
+        ["AgentDevices"] = "PCs reporting in through the EduHelpdesk Agent (Assets → Device agent): the asset each reports into (or, while waiting, the asset whose serial it shares), when it was last seen, and its last full report as JSON. Only a hash of each PC's token is kept.",
         ["SpiceworksImports"] = "Each import from Spiceworks: when, by whom, from which file, and what it brought across.",
         ["SpiceworksLinks"] = "What each Spiceworks ticket, comment, history line and requester became here, so a later import updates rather than duplicates. Created is 1 where the import made the record.",
         ["SpiceworksTicketStates"] = "What Spiceworks said about each imported ticket at the last import (title, description, status, priority, category, technician, requester, due date), to tell what has changed since in each system.",
@@ -156,7 +157,8 @@ public sealed class RawDatabase(HelpdeskStore store)
         ["Users"] = new(StringComparer.OrdinalIgnoreCase) { "PasswordHash" },
         ["Technicians"] = new(StringComparer.OrdinalIgnoreCase) { "PasswordHash", "TotpSecret", "RecoveryCodes", "RecoveryKeyHash" },
         ["Sessions"] = new(StringComparer.OrdinalIgnoreCase) { "Id" },
-        ["Phones"] = new(StringComparer.OrdinalIgnoreCase) { "TokenHash", "Stamp" }
+        ["Phones"] = new(StringComparer.OrdinalIgnoreCase) { "TokenHash", "Stamp" },
+        ["AgentDevices"] = new(StringComparer.OrdinalIgnoreCase) { "TokenHash" }
     };
 
     public static bool IsSecret(string table, string column) => SecretColumns.TryGetValue(table, out var columns) && columns.Contains(column);
@@ -164,7 +166,8 @@ public sealed class RawDatabase(HelpdeskStore store)
     // Settings kept in the Metadata table whose value is a secret, such as the Teams webhook address (whoever holds it can
     // post to the channel) or the EduNotify API key (whoever holds it can put messages on staff PCs). Their rows are masked,
     // and left out of a search or filter, for anyone but an Administrator.
-    private static readonly string[] SecretMetadataKeys = ["TeamsWebhookUrl", "EduNotifyApiKey"];
+    // The agent's enrolment key enrols any PC as an asset.
+    private static readonly string[] SecretMetadataKeys = ["TeamsWebhookUrl", "EduNotifyApiKey", "AgentEnrolmentKey"];
     public static bool IsSecretMetadata(string table, string key) =>
         string.Equals(table, "Metadata", StringComparison.OrdinalIgnoreCase)
             // Each desk's Teams address is TeamsWebhookUrl:<desk id> (HelpdeskStore.Desks), as secret as the first.

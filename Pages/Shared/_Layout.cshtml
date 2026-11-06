@@ -11,7 +11,7 @@
     // Facilities → Contractors is the supplier directory's contractors, so it lights Facilities rather than Assets.
     var onContractors = NavOn("/Suppliers") && Context.Request.Query["use"] == "contractors";
     var onFacilities = NavOn("/Checks", "/Rounds", "/RoundSheet") || onContractors;
-    var onAssets = !onContractors && NavOn("/Assets", "/Asset", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
+    var onAssets = !onContractors && NavOn("/Assets", "/Asset", "/Devices", "/Kits", "/Loans", "/Parts", "/Suppliers", "/Supplier");
     var onPeople = NavOn("/People");
     var onOnboarding = NavOn("/Onboarding");
     var onReports = NavOn("/Reports");
@@ -29,6 +29,7 @@
     // Reports, a menu with two or more, a plain link with one, nothing with none.
     var assetLinks = new List<(string Page, string Label)>();
     if (Can(Modules.Assets) && On(DeskAreas.Assets)) assetLinks.Add(("/Assets", "Assets"));
+    if (Can(Modules.DeviceAgent) && On(DeskAreas.Assets)) assetLinks.Add(("/Devices", "Device agent"));
     if (Can(Modules.Kits) && On(DeskAreas.Kits)) assetLinks.Add(("/Kits", "Kits"));
     if (Can(Modules.Loans) && On(DeskAreas.Loans)) assetLinks.Add(("/Loans", "Loans"));
     if (Can(Modules.Parts) && On(DeskAreas.Parts)) assetLinks.Add(("/Parts", "Parts"));

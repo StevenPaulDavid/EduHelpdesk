@@ -23,6 +23,8 @@
     var supportState = Model.SupportState;
     var checkFlagged = checkState is AssetChecks.State.Overdue or AssetChecks.State.Soon;
     var supportFlagged = supportState is AssetChecks.State.Overdue or AssetChecks.State.Soon;
+    // The PC's own report through the device agent (HelpdeskStore.Agent), for anyone with Device agent: View.
+    var device = Helpdesk.UserCan(User, Modules.DeviceAgent, ModulePermission.View) ? Helpdesk.AgentDeviceFor(asset.Id) : null;
 }
 
 <a class="back-link" asp-page="/Assets">← Back to assets</a>
@@ -52,6 +54,7 @@
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-purchase">Purchase &amp; warranty</button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-checks">Checks &amp; support@(checkFlagged || supportFlagged ? " ⚠" : "")</button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-loans">Ownership &amp; loans</button>
+    @if (device is not null) { <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-device">Device</button> }
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-tickets">Tickets <span class="badge">@linkedTicketRecords.Count</span></button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-comments">Comments <span class="badge">@asset.Comments.Count</span></button>
     <button class="ticket-tab-button" type="button" role="tab" aria-selected="false" aria-controls="asset-history">History <span class="badge">@asset.History.Count</span></button>
@@ -285,6 +288,50 @@
     @if (Model.Ownership.Count == 0) { <tr><td colspan="4" class="empty">This asset has not been assigned to anyone.</td></tr> }
     </tbody></table></div>
 </section>
+
+@* ---- Device: what the PC itself last reported through the device agent. Read-only; changes go in History. ---- *@
+@if (device is not null)
+{
+    var report = device.Report;
+    var person = Helpdesk.AgentDeviceUser(report);
+    string Or(string value) => string.IsNullOrWhiteSpace(value) ? "Not known" : value;
+    string When(DateTime? value) => value is { } at ? at.ToLocalTime().ToString("d MMM yyyy, HH:mm") : "Not known";
+    <section id="asset-device" class="ticket-tab-panel panel" role="tabpanel" hidden>
+        <div class="panel-heading">
+            <div><h2>@Or(device.ComputerName)</h2><p class="muted">Reported by the EduHelpdesk Agent @DevicesModel.Ago(device.LastSeenAt)@(device.LastAddress is { } from ? $" from {from}" : ""). A change to anything below is written to History.</p></div>
+            @if (Helpdesk.UserCan(User, Modules.DeviceAgent, ModulePermission.Access)) { <a class="button button-secondary" asp-page="/Devices" asp-route-q="@device.ComputerName">Device agent</a> }
+        </div>
+        <h3 class="asset-subheading">Hardware</h3>
+        <dl class="detail-list">
+            <dt>Made by</dt><dd>@Or(AgentFacts.Clean(report.Manufacturer) ?? "") @(AgentFacts.Clean(report.Model) ?? "")</dd>
+            <dt>Serial number</dt><dd>@Or(device.SerialNumber)</dd>
+            <dt>Processor</dt><dd>@Or(AgentFacts.Processor(report))@(report.ProcessorCores is { } cores ? $" ({cores} cores{(report.ProcessorThreads is { } threads && threads != cores ? $", {threads} threads" : "")})" : "")</dd>
+            <dt>Memory</dt><dd>@Or(AgentFacts.Memory(report.MemoryBytes))</dd>
+            <dt>Storage</dt><dd>@Or(AgentFacts.Storage(report))</dd>
+            <dt>Drive C:</dt><dd>@Or(AgentFacts.FreeSpace(report))</dd>
+            <dt>BIOS</dt><dd>@Or(AgentFacts.Clean(report.BiosVersion) ?? "")@(report.BiosDate is { } biosDate ? $", {biosDate:d MMM yyyy}" : "")</dd>
+        </dl>
+        <h3 class="asset-subheading">Windows and security</h3>
+        <dl class="detail-list">
+            <dt>Windows</dt><dd>@Or(AgentFacts.OperatingSystem(report))@(AgentFacts.Build(report) is { Length: > 0 } build ? $", build {build}" : "")@(AgentFacts.Clean(report.OsArchitecture) is { } bits ? $", {bits}" : "")</dd>
+            <dt>Installed</dt><dd>@When(report.OsInstalledAt)</dd>
+            <dt>Last restarted</dt><dd>@When(report.LastBootAt)</dd>
+            <dt>Windows 11 ready</dt><dd>@AgentFacts.Windows11(report)</dd>
+            <dt>TPM</dt><dd>@AgentFacts.Tpm(report)</dd>
+            <dt>Secure Boot</dt><dd>@AgentFacts.SecureBoot(report)</dd>
+            <dt>BitLocker (C:)</dt><dd>@AgentFacts.BitLocker(report)</dd>
+            <dt>Antivirus</dt><dd>@AgentFacts.Antivirus(report)</dd>
+        </dl>
+        <h3 class="asset-subheading">Network and people</h3>
+        <dl class="detail-list">
+            <dt>Joined to</dt><dd>@AgentFacts.JoinedTo(report)</dd>
+            <dt>IP addresses</dt><dd>@Or(AgentFacts.Addresses(report))</dd>
+            <dt>MAC addresses</dt><dd>@Or(AgentFacts.MacAddresses(report))</dd>
+            <dt>Last signed in</dt><dd>@Or(AgentFacts.LastUser(report))@if (person is not null && Helpdesk.UserCan(User, Modules.Requesters, ModulePermission.View)) { <text> · </text><a asp-page="/User" asp-route-id="@person.Id">@person.Name in People</a> }</dd>
+            <dt>Agent</dt><dd>Version @Or(device.AgentVersion), enrolled @device.EnrolledAt.ToLocalTime().ToString("d MMM yyyy")</dd>
+        </dl>
+    </section>
+}
 
 @* ---- Tickets ---- *@
 <section id="asset-tickets" class="ticket-tab-panel panel" role="tabpanel" hidden>

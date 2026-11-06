@@ -1,0 +1,100 @@
+@page
+@model DevicesModel
+@using EduHelpdesk.Services
+@{ ViewData["Title"] = "Device agent"; }
+<div class="page-heading"><div><h1>Device agent</h1><p class="hero-copy">School PCs with the EduHelpdesk Agent installed add themselves to the asset register and keep their specs up to date. Each reports when it starts and once a day.</p></div></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (!Model.IsHttps)
+{
+    <div class="notice notice-warning">This page came over plain HTTP. The agent only connects over HTTPS, so PCs can't report in until HTTPS is on: run Enable-Https.cmd from the folder EduHelpdesk was installed from. See the Install Guide.</div>
+}
+
+@if (Model.CanSetUp)
+{
+    <section class="panel" id="setup">
+        <h2>Set-up</h2>
+        @if (!Model.Enabled)
+        {
+            <p>The device agent is off. Turning it on makes an enrolment key for the install command; PCs can then enrol and report in.</p>
+            <form method="post" asp-page-handler="TurnOn"><button class="button button-primary">Turn on the device agent</button></form>
+        }
+        else
+        {
+            <p>The device agent is on. Run this on a PC as an administrator (or push it with Intune) to install the agent and enrol the PC:</p>
+            <details>
+                <summary>Show the install command</summary>
+                <pre class="code-block"><code>@Model.InstallCommand</code></pre>
+                <p class="muted">The key in it enrols any PC, so treat it like a password. A new key stops new enrolments with the old one; PCs already enrolled carry on.@if (Model.Fingerprint is null) { <text> No certificate fingerprint is included, so PCs check the helpdesk's certificate the normal Windows way: it has to be trusted on them.</text> }</p>
+            </details>
+            <div class="button-row">
+                <form method="post" asp-page-handler="NewKey" data-confirm="Make a new enrolment key? The old install command stops enrolling PCs; PCs already enrolled carry on."><button class="button button-secondary">New enrolment key</button></form>
+                <form method="post" asp-page-handler="TurnOff" data-confirm="Turn the device agent off? PCs stop reporting in until it is turned back on; they stay enrolled."><button class="button button-danger">Turn off</button></form>
+            </div>
+        }
+    </section>
+}
+else if (!Model.Enabled)
+{
+    <div class="notice notice-warning">The device agent is off. Someone with Device agent: Edit can turn it on here.</div>
+}
+
+@if (Model.Waiting.Count > 0)
+{
+    <section class="panel" id="waiting">
+        <h2>Waiting to be linked <span class="badge">@Model.Waiting.Count</span></h2>
+        <p class="muted">These PCs share a serial number with an asset already on the register. Link one if it is that asset, or add it as a new asset if it isn't (a mistyped serial, say). Until then its reports are kept here and nothing on the asset changes.</p>
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">PC</th><th>Matches</th><th>Enrolled</th><th></th></tr></thead><tbody>
+        @foreach (var device in Model.Waiting)
+        {
+            var match = Model.AssetFor(device.MatchAssetId);
+            <tr>
+                <td><strong>@device.ComputerName</strong><br /><span class="muted">@AgentFacts.Make(device.Report) @AgentFacts.Model(device.Report), serial @device.SerialNumber</span></td>
+                <td>@if (match is not null) { <a asp-page="/Asset" asp-route-id="@match.Id">@match.AssetTag</a><br /><span class="muted">@match.Make @match.Model@(string.IsNullOrWhiteSpace(match.Location) ? "" : $", {match.Location}")</span> }</td>
+                <td>@device.EnrolledAt.ToLocalTime().ToString("d MMM yyyy")<br /><span class="muted">last seen @DevicesModel.Ago(device.LastSeenAt)</span></td>
+                <td>
+                    <div class="button-row">
+                        @if (Model.CanLink && match is not null) { <form method="post" asp-page-handler="Link" asp-route-id="@device.Id" data-confirm="Link @device.ComputerName to @match.AssetTag? It reports into that asset from now on; blank make, model and type are filled in and the operating system is updated."><button class="button button-primary">Link to @match.AssetTag</button></form> }
+                        @if (Model.CanAddNew) { <form method="post" asp-page-handler="AddNew" asp-route-id="@device.Id"><button class="button button-secondary">Add as a new asset</button></form> }
+                        @if (Model.CanRemove) { <form method="post" asp-page-handler="Remove" asp-route-id="@device.Id" data-confirm="Remove @device.ComputerName? If the agent is still on it, it enrols again at its next report."><button class="button button-danger">Remove</button></form> }
+                    </div>
+                </td>
+            </tr>
+        }
+        </tbody></table></div>
+    </section>
+}
+
+<section class="panel" id="pcs">
+    <div class="panel-heading">
+        <div><h2>PCs reporting in <span class="badge">@Model.LinkedTotal</span></h2></div>
+        @if (Model.LinkedTotal > 0)
+        {
+            <form method="get" class="inline-search"><input name="q" type="search" value="@Model.Q" placeholder="Search name, tag, serial, user" aria-label="Search PCs" maxlength="100" /><button class="button button-secondary">Search</button></form>
+        }
+    </div>
+    @if (Model.LinkedTotal == 0)
+    {
+        <p class="muted">No PCs have reported in yet.</p>
+    }
+    else if (Model.Linked.Count == 0)
+    {
+        <p class="muted">No PCs match "@Model.Q". <a asp-page="/Devices">Show all</a></p>
+    }
+    else
+    {
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">PC</th><th>Asset</th><th>Windows</th><th>Last signed in</th><th>Last seen</th>@if (Model.CanRemove) { <th></th> }</tr></thead><tbody>
+        @foreach (var device in Model.Linked)
+        {
+            var asset = Model.AssetFor(device.AssetId);
+            <tr>
+                <td><strong>@device.ComputerName</strong><br /><span class="muted">@AgentFacts.Make(device.Report) @AgentFacts.Model(device.Report)</span></td>
+                <td>@if (asset is not null) { <a asp-page="/Asset" asp-route-id="@asset.Id" asp-fragment="@(Model.CanView ? "asset-device" : null)">@asset.AssetTag</a> } else { <span class="muted">Asset deleted: added again at its next report</span> }</td>
+                <td>@AgentFacts.OperatingSystem(device.Report)<br /><span class="muted">build @AgentFacts.Build(device.Report)</span></td>
+                <td>@AgentFacts.LastUser(device.Report)</td>
+                <td>@DevicesModel.Ago(device.LastSeenAt)@if (device.LastAddress is { } where) { <br /><span class="muted">from @where</span> }<br /><span class="muted">agent @device.AgentVersion</span></td>
+                @if (Model.CanRemove) { <td><form method="post" asp-page-handler="Remove" asp-route-id="@device.Id" asp-route-q="@Model.Q" data-confirm="Remove @device.ComputerName from the device agent? Its asset stays. If the agent is still on it, it enrols again at its next report."><button class="button button-danger">Remove</button></form></td> }
+            </tr>
+        }
+        </tbody></table></div>
+    }
+</section>

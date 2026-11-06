@@ -11,6 +11,7 @@ public static class Modules
     public const string Projects = "Projects";
     public const string Onboarding = "Onboarding";
     public const string Assets = "Assets";
+    public const string DeviceAgent = "DeviceAgent";
     public const string Kits = "Kits";
     public const string Loans = "Loans";
     public const string Parts = "Parts";
@@ -38,6 +39,8 @@ public static class Modules
         new(Projects, "Projects", "Purchasing projects raised from the staff portal. Edit covers tidying them up, notes and status; assigning is separate below.", Full),
         new(Onboarding, "Onboarding", "New staff checklists. Technicians can open an onboarding from the ticket list and tick its IT tasks with Tickets permissions alone; this covers the rest.", Full),
         new(Assets, "Assets", "The asset register. New covers the CSV import; Delete covers disposal.", Full),
+        // The EduHelpdesk Agent on school PCs (HelpdeskStore.Agent): the machines reporting in, and its set-up.
+        new(DeviceAgent, "Device agent", "PCs reporting in through the EduHelpdesk Agent. Access lists them; View shows a machine's specs, also on its asset; New adds a waiting machine as a new asset; Edit links a waiting machine to an existing asset and sets the agent up (turning it on, the enrolment key); Delete removes a machine so it has to enrol again.", Full),
         new(Kits, "Loan kits", "The kits themselves and what is in them.", Full),
         new(Loans, "Loans", "New issues a device, Edit books it back in.", Full),
         new(Parts, "Parts", "The parts inventory. Edit covers stock adjustments.", Full),

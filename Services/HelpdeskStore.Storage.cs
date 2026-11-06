@@ -723,6 +723,7 @@ public sealed partial class HelpdeskStore
         ReadOnboarding(connection, data);
         ReadTeams(connection, data);
         ReadEduNotify(connection, data);
+        ReadAgentSettings(connection, data);
         ReadRecurringTickets(connection, data);
         // After the technicians, whose desks it fills in.
         ReadDesks(connection, data);
@@ -925,6 +926,7 @@ public sealed partial class HelpdeskStore
         WriteLifecycleSettings(connection, transaction, data);
         WriteTeams(connection, transaction, data);
         WriteEduNotify(connection, transaction, data);
+        WriteAgentSettings(connection, transaction, data);
         WriteRecurringTickets(connection, transaction, data);
         WriteDesks(connection, transaction, data);
         foreach (var item in data.Parts)

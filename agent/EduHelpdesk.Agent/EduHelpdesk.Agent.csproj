@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <!-- The EduHelpdesk Agent: a Windows service on school PCs that reports each PC's specs to EduHelpdesk, which keeps
+       the asset register up to date from them. See Program.cs for the commands and Services/AgentContract.cs (shared
+       with the helpdesk) for what it sends. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>EduHelpdesk.Agent</AssemblyName>
+    <RootNamespace>EduHelpdesk.Agent</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>Steven Davidson</Authors>
+    <Product>EduHelpdesk Agent</Product>
+    <Copyright>Copyright (c) 2026 Steven Davidson. MIT licence.</Copyright>
+    <!-- One self-contained exe, so PCs need no .NET installed. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Services\AgentContract.cs" Link="AgentContract.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
+    <PackageReference Include="System.Management" Version="10.0.9" />
+  </ItemGroup>
+
+</Project>

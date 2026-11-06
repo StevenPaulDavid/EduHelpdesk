@@ -75,6 +75,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Assets/Add", Policy(Modules.Assets, ModulePermission.New));
     options.Conventions.AuthorizePage("/Assets/Import", Policy(Modules.Assets, ModulePermission.New));
     options.Conventions.AuthorizePage("/Assets/Delete", Policy(Modules.Assets, ModulePermission.Delete));
+    // The device agent's PCs and set-up. One page; its handlers check New, Edit and Delete themselves.
+    options.Conventions.AuthorizePage("/Devices", Policy(Modules.DeviceAgent, ModulePermission.Access));
 
     options.Conventions.AuthorizePage("/Kits", Policy(Modules.Kits, ModulePermission.Access));
     options.Conventions.AuthorizePage("/Kits/Edit", Policy(Modules.Kits, NewOrEdit));
@@ -382,6 +384,8 @@ app.MapNotificationEndpoints();
 app.MapEduNotifyCallEndpoints();
 // The EduHelpdesk phone app (docs/Phone-API.md).
 app.MapPhoneEndpoints();
+// The EduHelpdesk Agent on school PCs (Services/AgentContract.cs).
+app.MapAgentEndpoints();
 app.MapRazorPages()
    .WithStaticAssets();
 
