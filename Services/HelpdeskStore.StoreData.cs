@@ -109,6 +109,13 @@ public sealed partial class HelpdeskStore
         public bool AgentEnabled { get; set; }
         // What the install command carries; enrols a PC. Changing it stops new enrolments only.
         public string AgentEnrolmentKey { get; set; } = "";
+        // Device agent warnings (HelpdeskStore.AgentWarnings): a PC not seen for this many days, or with less than this
+        // percent free on its system drive, needs attention. 0 switches that warning off.
+        public int AgentStaleDays { get; set; } = HelpdeskStore.DefaultAgentStaleDays;
+        public int AgentLowDiskPercent { get; set; } = HelpdeskStore.DefaultAgentLowDiskPercent;
+        // What the bell has already rung about (warning keys), and the day it last looked - as the compliance reminders.
+        public HashSet<string> AgentReminded { get; set; } = new(StringComparer.Ordinal);
+        public DateOnly? LastAgentReminder { get; set; }
         // Settings → Notifications: pings and pop-ups on at all, for staff, for requesters in the portal, and whether people
         // who haven't switched them on are reminded to (HelpdeskStore.NotificationSettings). All on unless a school turns them off.
         public bool NotificationsEnabled { get; set; } = true;

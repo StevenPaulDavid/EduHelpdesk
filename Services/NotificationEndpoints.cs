@@ -138,6 +138,8 @@ public static class NotificationEndpoints
             // Generic like the rest: what fell due is on the summary, not in a toast on a projected screen.
             HelpdeskStore.NotificationKinds.Compliance => ("Compliance: something is due", "A renewal, notice date, check or access review needs attention. Click to see what.",
                 links.GetPathByPage(context, "/Compliance/Index") ?? settings),
+            HelpdeskStore.NotificationKinds.DeviceAgent => ("Device agent: PCs need attention", "A PC has stopped reporting or is low on disk space. Click to see which.",
+                (links.GetPathByPage(context, "/Devices") is { } devices ? devices + "#attention" : null) ?? settings),
             _ => ("Helpdesk", "There is something new.", settings)
         };
         return new NotificationText(title, body, url);

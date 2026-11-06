@@ -35,6 +35,15 @@
                 <pre class="code-block"><code>@Model.InstallCommand</code></pre>
                 <p class="muted">The key in it enrols any PC, so treat it like a password. A new key stops new enrolments with the old one; PCs already enrolled carry on.@if (Model.Fingerprint is null) { <text> No certificate fingerprint is included, so PCs check the helpdesk's certificate the normal Windows way: it has to be trusted on them.</text> }</p>
             </details>
+            <details>
+                <summary>Warnings: not seen for @(Model.WarningSettings.StaleDays > 0 ? $"{Model.WarningSettings.StaleDays} days" : "(off)"), low disk below @(Model.WarningSettings.LowDiskPercent > 0 ? $"{Model.WarningSettings.LowDiskPercent}%" : "(off)")</summary>
+                <form method="post" asp-page-handler="Warnings" class="settings-form field-narrow">
+                    <label>A PC needs attention when it hasn't reported for this many days<input asp-for="StaleDays" type="number" min="0" max="@HelpdeskStore.MaxAgentStaleDays" required /></label>
+                    <label>Or when its C: drive has less than this percent free<input asp-for="LowDiskPercent" type="number" min="0" max="@HelpdeskStore.MaxAgentLowDiskPercent" required /></label>
+                    <p class="muted">0 switches that warning off. The bell rings once a day, from 7am, for PCs newly on the list, for everyone with Device agent access.</p>
+                    <button class="button button-secondary">Save warnings</button>
+                </form>
+            </details>
             <div class="button-row">
                 <form method="post" asp-page-handler="NewKey" data-confirm="Make a new enrolment key? The old install command stops enrolling PCs; PCs already enrolled carry on."><button class="button button-secondary">New enrolment key</button></form>
                 <form method="post" asp-page-handler="TurnOff" data-confirm="Turn the device agent off? PCs stop reporting in until it is turned back on; they stay enrolled."><button class="button button-danger">Turn off</button></form>
@@ -45,6 +54,27 @@
 else if (!Model.Enabled)
 {
     <div class="notice notice-warning">The device agent is off. Someone with Device agent: Edit can turn it on here.</div>
+}
+
+@if (Model.Warnings.Count > 0)
+{
+    <section class="panel" id="attention">
+        <div class="panel-heading">
+            <div><h2>Needs attention <span class="badge badge-warning">@Model.Warnings.Count</span></h2><p class="muted">PCs that have stopped reporting (lost, broken, put away, or the agent removed) or are running low on disk space.</p></div>
+            @if (Model.CanView) { <a class="button button-secondary" asp-page-handler="Export">Download CSV</a> }
+        </div>
+        <div class="table-wrap"><table class="stack-table"><thead><tr><th data-stack="head">PC</th><th>Asset</th><th>Problem</th><th>Last signed in</th></tr></thead><tbody>
+        @foreach (var warning in Model.Warnings)
+        {
+            <tr>
+                <td><strong>@warning.Device.ComputerName</strong><br /><span class="muted">@AgentFacts.Make(warning.Device.Report) @AgentFacts.Model(warning.Device.Report)</span></td>
+                <td>@if (warning.Asset is { } asset) { <a asp-page="/Asset" asp-route-id="@asset.Id">@asset.AssetTag</a>@if (!string.IsNullOrWhiteSpace(asset.Location)) { <br /><span class="muted">@asset.Location</span> } } else { <span class="muted">Waiting to be linked</span> }</td>
+                <td>@warning.Detail@if (warning.Kind == HelpdeskStore.AgentWarningKinds.NotSeen) { <br /><span class="muted">last seen @warning.Device.LastSeenAt.ToLocalTime().ToString("d MMM yyyy")@(warning.Device.LastAddress is { } from ? $" from {from}" : "")</span> }</td>
+                <td>@AgentFacts.LastUser(warning.Device.Report)</td>
+            </tr>
+        }
+        </tbody></table></div>
+    </section>
 }
 
 @if (Model.Waiting.Count > 0)
@@ -100,7 +130,7 @@ else if (!Model.Enabled)
                 <td>@if (asset is not null) { <a asp-page="/Asset" asp-route-id="@asset.Id" asp-fragment="@(Model.CanView ? "asset-device" : null)">@asset.AssetTag</a> } else { <span class="muted">Asset deleted: added again at its next report</span> }</td>
                 <td>@AgentFacts.OperatingSystem(device.Report)<br /><span class="muted">build @AgentFacts.Build(device.Report)</span></td>
                 <td>@AgentFacts.LastUser(device.Report)</td>
-                <td>@DevicesModel.Ago(device.LastSeenAt)@if (device.LastAddress is { } where) { <br /><span class="muted">from @where</span> }<br /><span class="muted">agent @device.AgentVersion@(Model.Behind(device) ? ", updating" : "")</span></td>
+                <td>@DevicesModel.Ago(device.LastSeenAt)@if (Model.Stale(device)) { <text> </text><span class="badge badge-warning">Not reporting</span> }@if (device.LastAddress is { } where) { <br /><span class="muted">from @where</span> }<br /><span class="muted">agent @device.AgentVersion@(Model.Behind(device) ? ", updating" : "")</span></td>
                 @if (Model.CanRemove) { <td><form method="post" asp-page-handler="Remove" asp-route-id="@device.Id" asp-route-q="@Model.Q" data-confirm="Remove @device.ComputerName from the device agent? Its asset stays. If the agent is still on it, it enrols again at its next report."><button class="button button-danger">Remove</button></form></td> }
             </tr>
         }

@@ -150,6 +150,12 @@ public static class AgentFacts
         string.Join(", ", (report.Disks ?? []).Where(x => x.SizeBytes > 0)
             .Select(x => Clean(x.Kind) is { } kind ? $"{Size(x.SizeBytes)} {kind}" : Size(x.SizeBytes)));
 
+    // Percent free on the system drive, or null when the PC didn't say.
+    public static int? FreePercent(AgentReport report) =>
+        report.SystemDriveBytes is > 0 && report.SystemDriveFreeBytes is >= 0
+            ? (int)Math.Round(100d * report.SystemDriveFreeBytes.Value / report.SystemDriveBytes.Value)
+            : null;
+
     public static string FreeSpace(AgentReport report)
     {
         if (report.SystemDriveBytes is not > 0 || report.SystemDriveFreeBytes is not >= 0) return string.Empty;

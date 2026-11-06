@@ -29,6 +29,8 @@ public sealed partial class HelpdeskStore
         public const string Assigned = "ticket-assigned";
         // Something on the DfE registers has fallen due (HelpdeskStore.ComplianceReminders): to each account that can see it.
         public const string Compliance = "compliance";
+        // A PC has stopped reporting or is low on disk (HelpdeskStore.AgentWarnings): to each account with Device agent access.
+        public const string DeviceAgent = "device-agent";
     }
 
     // An Id is the time it was made, in milliseconds, or one more than the last: it only ever goes up, even after the

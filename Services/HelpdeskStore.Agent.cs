@@ -530,13 +530,29 @@ public sealed partial class HelpdeskStore
 
     private static void ReadAgentSettings(SqliteConnection connection, StoreData data)
     {
-        data.AgentEnabled = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AgentEnabled';") as string == "1";
-        data.AgentEnrolmentKey = ExecuteScalar(connection, "SELECT Value FROM Metadata WHERE Key = 'AgentEnrolmentKey';") as string ?? "";
+        string? Value(string key) => ExecuteScalar(connection, $"SELECT Value FROM Metadata WHERE Key = '{key}';") as string;
+        data.AgentEnabled = Value("AgentEnabled") == "1";
+        data.AgentEnrolmentKey = Value("AgentEnrolmentKey") ?? "";
+        if (int.TryParse(Value("AgentStaleDays"), out var days)) data.AgentStaleDays = days;
+        if (int.TryParse(Value("AgentLowDiskPercent"), out var percent)) data.AgentLowDiskPercent = percent;
+        if (DateOnly.TryParseExact(Value("LastAgentReminder"), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var day))
+            data.LastAgentReminder = day;
+        data.AgentReminded = new HashSet<string>(StringComparer.Ordinal);
+        if (Value("AgentReminded") is { Length: > 0 } reminded)
+        {
+            try { data.AgentReminded.UnionWith(JsonSerializer.Deserialize<List<string>>(reminded) ?? []); }
+            catch (JsonException) { }
+        }
     }
 
     private static void WriteAgentSettings(SqliteConnection connection, SqliteTransaction transaction, StoreData data)
     {
         SetMetadata(connection, transaction, "AgentEnabled", data.AgentEnabled ? "1" : "0");
         SetMetadata(connection, transaction, "AgentEnrolmentKey", data.AgentEnrolmentKey);
+        SetMetadata(connection, transaction, "AgentStaleDays", data.AgentStaleDays.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "AgentLowDiskPercent", data.AgentLowDiskPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SetMetadata(connection, transaction, "LastAgentReminder", IsoDay(data.LastAgentReminder) ?? "");
+        // Sorted, so the same set always writes the same row and an unchanged save writes nothing.
+        SetMetadata(connection, transaction, "AgentReminded", data.AgentReminded.Count == 0 ? "" : JsonSerializer.Serialize(data.AgentReminded.Order(StringComparer.Ordinal)));
     }
 }

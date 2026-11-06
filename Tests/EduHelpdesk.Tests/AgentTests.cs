@@ -309,6 +309,55 @@ public class AgentTests
     }
 
     [Fact]
+    public void A_PC_that_stops_reporting_needs_attention_unless_its_asset_is_disposed()
+    {
+        using var test = WithAgentOn();
+        Enrol(test, Pc());
+        Enrol(test, Pc("OTHER-SERIAL", "SCI-LT-02"));
+        Assert.Empty(test.Store.AgentWarnings(DateTime.UtcNow));
+
+        var later = DateTime.UtcNow.AddDays(HelpdeskStore.DefaultAgentStaleDays + 1);
+        Assert.Equal(2, test.Store.AgentWarnings(later).Count(x => x.Kind == HelpdeskStore.AgentWarningKinds.NotSeen));
+
+        var disposed = test.Store.Assets.Single(x => x.SerialNumber == "OTHER-SERIAL");
+        Assert.True(test.Store.DisposeAsset(disposed.Id, DateOnly.FromDateTime(DateTime.Today), "Recycled (WEEE)", null).Ok);
+        Assert.Single(test.Store.AgentWarnings(later));
+
+        Assert.Equal("Warnings saved.", test.Store.SetAgentWarningSettings(0, 10));
+        Assert.Empty(test.Store.AgentWarnings(later));
+        Assert.StartsWith("Choose", test.Store.SetAgentWarningSettings(-1, 10));
+        test.Reopen();
+        Assert.Equal((0, 10), test.Store.AgentWarningSettings);
+    }
+
+    [Fact]
+    public void The_bell_rings_once_for_a_PC_low_on_disk_and_again_only_if_it_recovers_and_drops_again()
+    {
+        using var test = WithAgentOn();
+        var low = Pc() with { SystemDriveBytes = 256_000_000_000, SystemDriveFreeBytes = 12_000_000_000 };
+        var token = Enrol(test, low);
+        var warning = Assert.Single(test.Store.AgentWarnings(DateTime.UtcNow));
+        Assert.Equal(HelpdeskStore.AgentWarningKinds.LowDisk, warning.Kind);
+        Assert.Contains("5%", warning.Detail);
+
+        var now = DateTime.Today.AddHours(8);
+        Assert.True(test.Store.SendAgentReminders(now, force: true) > 0);   // the Administrator hears
+        Assert.Equal(0, test.Store.SendAgentReminders(now, force: true));   // already told
+        Assert.Equal(0, test.Store.SendAgentReminders(now.AddDays(1)));     // still the same PC, still told
+
+        test.Store.AgentReportIn(token, low with { SystemDriveFreeBytes = 100_000_000_000 }, null);
+        Assert.Equal(0, test.Store.SendAgentReminders(now.AddDays(2)));     // recovered: nothing to say, and forgotten
+        test.Store.AgentReportIn(token, low, null);
+        Assert.True(test.Store.SendAgentReminders(now.AddDays(3)) > 0);     // low again: rings again
+
+        // Nothing at all while the agent is off.
+        test.Store.SetAgentEnabled(false);
+        test.Store.AgentReportIn(token, low, null);
+        Assert.Equal(0, test.Store.SendAgentReminders(now.AddDays(4), force: true));
+        Assert.Null(test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
     public void Only_an_enrolled_PC_may_download_the_agent_and_only_while_it_is_on()
     {
         using var test = WithAgentOn();

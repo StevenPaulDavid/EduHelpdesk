@@ -47,9 +47,37 @@ public class DevicesModel(HelpdeskStore store, IConfiguration configuration, IWe
     public string InstallCommand =>
         $"EduHelpdesk.Agent.exe install --server {Address} --key {store.AgentEnrolmentKey}" + (Fingerprint is { } fingerprint ? $" --fingerprint {fingerprint}" : "");
 
+    // Needs attention (HelpdeskStore.AgentWarnings): PCs that have stopped reporting or are low on disk.
+    public IReadOnlyList<HelpdeskStore.AgentWarning> Warnings { get; private set; } = [];
+    public (int StaleDays, int LowDiskPercent) WarningSettings => store.AgentWarningSettings;
+    [BindProperty] public int StaleDays { get; set; }
+    [BindProperty] public int LowDiskPercent { get; set; }
+
+    public bool Stale(HelpdeskStore.AgentDevice device) => Warnings.Any(x => x.Device.Id == device.Id && x.Kind == HelpdeskStore.AgentWarningKinds.NotSeen);
+
+    public IActionResult OnPostWarnings()
+    {
+        if (!CanSetUp) return Forbid();
+        Message = store.SetAgentWarningSettings(StaleDays, LowDiskPercent);
+        return RedirectToPage(null, null, null, "setup");
+    }
+
+    // The Needs attention list for a spreadsheet: to chase PCs round the school, or hand to whoever does the clear-out.
+    public IActionResult OnGetExport()
+    {
+        if (!CanView) return Forbid();
+        var csv = Csv.Table(["Computer name", "Asset tag", "Problem", "Last seen", "Last signed in", "Location", "Make", "Model", "Serial number"],
+            store.AgentWarnings(DateTime.UtcNow),
+            x => [x.Device.ComputerName, x.Asset?.AssetTag ?? "", x.Detail, x.Device.LastSeenAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), AgentFacts.LastUser(x.Device.Report),
+                  x.Asset?.Location ?? "", AgentFacts.Make(x.Device.Report), AgentFacts.Model(x.Device.Report), x.Device.SerialNumber]);
+        return File(Csv.ToBytes(csv), Csv.ContentType, Csv.FileName("pcs-needing-attention", DateTime.Now));
+    }
+
     public void OnGet()
     {
         _assets = store.Assets.ToDictionary(x => x.Id);
+        Warnings = store.AgentWarnings(DateTime.UtcNow);
+        (StaleDays, LowDiskPercent) = store.AgentWarningSettings;
         var devices = store.AgentDevices;
         Waiting = devices.Where(x => x.Status == HelpdeskStore.AgentDeviceStatus.Waiting).OrderBy(x => x.EnrolledAt).ToList();
         var linked = devices.Where(x => x.Status == HelpdeskStore.AgentDeviceStatus.Linked).ToList();

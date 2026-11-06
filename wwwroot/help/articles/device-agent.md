@@ -5,7 +5,7 @@ area: Assets and inventory
 kind: page
 pages: /Devices, /Devices/Review
 needs: DeviceAgent
-keywords: agent device agent pc pcs laptops desktops install intune win32 intunewin enrol enrolment key specs inventory scan automatic auto discovery serial windows 11 tpm bitlocker last seen last signed in tray icon asset tag update download
+keywords: agent device agent pc pcs laptops desktops install intune win32 intunewin enrol enrolment key specs inventory scan automatic auto discovery serial windows 11 tpm bitlocker last seen last signed in tray icon asset tag update download not reporting missing lost low disk space free space warning bell
 order: 6
 ---
 The **EduHelpdesk Agent** is a small Windows service for school PCs and laptops. Each PC reports its specs when it starts and once a day, and the asset register keeps itself up to date from them, so the only thing you ever need to type is the asset tag if you want a different one.
@@ -63,6 +63,17 @@ Press **Review and link** beside a waiting PC. The asset and the PC appear side 
 Flip any choice, then press **Link and keep these**. The PC reports into that asset from now on. Each change is written to the asset's History, along with "Linked to the device agent". Everything else on the asset stays as it is: its tag, status, location, purchase and warranty details, and who holds it.
 
 If more than one asset has the same serial number, choose which one at the top first. If it isn't the same machine, press **Add as a new asset** instead. If the matched asset is disposed, the page warns you before you link.
+
+## Needs attention
+
+PCs with a problem are listed under **Needs attention** at the top of the Device agent page:
+
+- **Not reporting.** It hasn't reported for 14 days. It might be lost, broken, put away in a cupboard, or the agent might have been removed. The PC list marks it **Not reporting** too.
+- **Low disk space.** Its C: drive has less than 10% free.
+
+To change either limit, open **Warnings** under Set-up. 0 switches that warning off. **Download CSV** gives you the list as a spreadsheet, for example to chase PCs round the school. A PC whose asset is disposed is never listed.
+
+Once a day, from 7am, the bell rings for everyone with Device agent access if a PC is newly on the list. It rings once per PC per problem, so the end of a holiday is one ring, not one every morning. If a PC comes back, or frees some space, and later has the same problem again, the bell rings for it again.
 
 ## The Device tab
 
