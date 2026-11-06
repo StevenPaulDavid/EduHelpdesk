@@ -1,11 +1,11 @@
 ---
 title: Device agent
-summary: The EduHelpdesk Agent on school PCs: installing it by hand or with Intune, how PCs add themselves to the asset register, linking a PC that matches an existing asset, the tray icon, updates, and what the Device tab shows.
+summary: The EduHelpdesk Agent on school PCs: installing it by hand or with Intune, how PCs add themselves to the asset register, linking a PC that matches an existing asset, the tray icon, updates, warnings, remote support with Quick Assist, and what the Device tab shows.
 area: Assets and inventory
 kind: page
 pages: /Devices, /Devices/Review
 needs: DeviceAgent
-keywords: agent device agent pc pcs laptops desktops install intune win32 intunewin enrol enrolment key specs inventory scan automatic auto discovery serial windows 11 tpm bitlocker last seen last signed in tray icon asset tag update download not reporting missing lost low disk space free space warning bell
+keywords: agent device agent pc pcs laptops desktops install intune win32 intunewin enrol enrolment key specs inventory scan automatic auto discovery serial windows 11 tpm bitlocker last seen last signed in tray icon asset tag update download not reporting missing lost low disk space free space warning bell remote support quick assist remote control screen sharing connect help someone code
 order: 6
 ---
 The **EduHelpdesk Agent** is a small Windows service for school PCs and laptops. Each PC reports its specs when it starts and once a day, and the asset register keeps itself up to date from them, so the only thing you ever need to type is the asset tag if you want a different one.
@@ -74,6 +74,24 @@ PCs with a problem are listed under **Needs attention** at the top of the Device
 To change either limit, open **Warnings** under Set-up. 0 switches that warning off. **Download CSV** gives you the list as a spreadsheet, for example to chase PCs round the school. A PC whose asset is disposed is never listed.
 
 Once a day, from 7am, the bell rings for everyone with Device agent access if a PC is newly on the list. It rings once per PC per problem, so the end of a holiday is one ring, not one every morning. If a PC comes back, or frees some space, and later has the same problem again, the bell rings for it again.
+
+## Remote support with Quick Assist
+
+You can offer to see someone's screen from their ticket, using Windows' own **Quick Assist**. Quick Assist can't be started for someone remotely. You make a code on your PC, the person at theirs types it in, and they choose whether to let you in. The device agent carries the code to their screen and keeps the ticket up to date.
+
+1. Link the PC's asset to the ticket. A **Remote support** box then appears on the ticket.
+2. On your own PC, open **Quick Assist**, choose **Help someone**, and sign in if it asks. It shows a security code.
+3. Type that code in the ticket's Remote support box and press **Send to the PC**.
+4. Within a second or two, the person at the PC sees **IT would like to connect**. It shows your name, the ticket and the code in large text. They press **Open Quick Assist**, type the code (it's also copied, so they can paste it), and press **Allow** when Quick Assist asks.
+
+While you wait, the box on the ticket shows how it's going: the PC has the code, it's on screen, accepted, Quick Assist open. The ticket's **History** records each step: requested, accepted or declined, Quick Assist opened, and Quick Assist closed with how long it was open. It also records it if nobody was signed in, if Quick Assist isn't installed, or if nobody responded within 10 minutes (Quick Assist's codes only last that long). If you typed the code wrong, send a new one. It replaces the first.
+
+Things to know:
+
+- Someone must be signed in to the PC and at it. Quick Assist always asks them to **Allow** you, and it can't connect when nobody is there or at the sign-in screen.
+- Quick Assist comes with Windows 11, and Windows 10 can get it free from the Microsoft Store. On the helper's side, Microsoft asks you to sign in with a work or Microsoft account.
+- It works while the PC is on the school network, like the rest of the agent.
+- Sending a code needs the **Remote support with Quick Assist** tick on the role (People → Roles, under Tickets), as well as Tickets: Edit. Only Administrators have it until you tick it on other roles.
 
 ## The Device tab
 

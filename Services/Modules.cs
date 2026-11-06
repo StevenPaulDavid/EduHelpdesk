@@ -74,6 +74,7 @@ public static class Modules
     {
         public const string NotifyStaff = "Tickets.NotifyStaff";
         public const string PhoneApp = "Tickets.PhoneApp";
+        public const string RemoteSupport = "Tickets.RemoteSupport";
         public const string AllDesks = "Tickets.AllDesks";
         public const string Costs = "Tickets.Costs";
         public const string ReportSpend = "Reports.Spend";
@@ -104,6 +105,8 @@ public static class Modules
             new(NotifyStaff, "Tell staff through EduNotify", "Send an outage notice from a ticket to staff PCs through EduNotify, update it, and recall it. Also needs Tickets: Edit.", "Tickets"),
             // A second way in, so it is its own tick, and the school must also turn the phone app on (Settings → Sign-in security).
             new(PhoneApp, "Use the phone app", "Pair a phone with the EduHelpdesk app to see tickets, take them and log new ones. The phone can do only what the role's other ticks allow. Also needs the phone app turned on in Settings → Sign-in security.", "Tickets"),
+            // Puts a pop-up on a user's PC through the device agent (HelpdeskStore.RemoteSupport), so it is its own tick.
+            new(RemoteSupport, "Remote support with Quick Assist", "Send a Quick Assist code from a ticket to a linked PC that reports through the device agent; the person at it gets a pop-up to open Quick Assist. Also needs Tickets: Edit.", "Tickets"),
             // The project lead assigns from the staff portal (the "Project lead" tick in People); this is the helpdesk-side backup.
             // Cleaning supervisors; cleaners themselves don't sign in and work from the printed sheet (HelpdeskStore.Rounds).
             new(Rounds, "Record cleaning rounds", "Open the day's cleaning rounds, print the sheets, and tick off which rooms were cleaned, by whom, with spot-check scores.", "Facilities"),

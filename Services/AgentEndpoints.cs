@@ -52,8 +52,25 @@ public static class AgentEndpoints
                 : Refuse(StatusCodes.Status404NotFound, "This helpdesk has no agent to hand out.");
         });
 
+        // Remote support (HelpdeskStore.RemoteSupport): the PC waits here for a Quick Assist request, then says how it went.
+        api.MapGet("/remote", async (HttpContext http, HelpdeskStore store, CancellationToken cancel) =>
+        {
+            var wait = await store.WaitForRemoteRequestAsync(Token(http), LongestRemoteWait, cancel);
+            return wait.Offer is { } offer ? Results.Json(offer)
+                : wait.Status == StatusCodes.Status204NoContent ? Results.NoContent()
+                : Refuse(wait.Status, wait.Error ?? "Refused.");
+        });
+        api.MapPost("/remote/{id:guid}", (Guid id, RemoteStateReport? report, HttpContext http, HelpdeskStore store) =>
+        {
+            var (status, error) = store.ReportRemoteState(Token(http), id, report?.State);
+            return error is null ? Results.NoContent() : Refuse(status, error);
+        });
+
         return app;
     }
+
+    // Under the minute a proxy or the agent's own client might give up at.
+    private static readonly TimeSpan LongestRemoteWait = TimeSpan.FromSeconds(50);
 
     private static string? Token(HttpContext http)
     {

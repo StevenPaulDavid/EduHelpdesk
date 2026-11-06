@@ -455,6 +455,28 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         return ok && CanOpenProjects ? RedirectToPage("/Project", new { number = projectNumber }) : RedirectToPage(new { number });
     }
 
+    // Remote support with Quick Assist (HelpdeskStore.RemoteSupport): offered to someone with the Remote support tick
+    // when a linked asset has a PC reporting through the device agent.
+    public bool CanRemoteSupport => CanEdit && store.UserHasFlag(User, Modules.Flags.RemoteSupport) && store.AgentEnabled;
+    public IReadOnlyList<HelpdeskStore.RemoteTarget> RemoteTargets => Ticket is null || !CanRemoteSupport ? [] : store.RemoteSupportTargets(Ticket.Number);
+    public HelpdeskStore.RemoteRequest? RemoteRequest => Ticket is null ? null : store.RemoteSupportFor(Ticket.Number);
+
+    public IActionResult OnPostRemoteSupport(int number, Guid device, string? code)
+    {
+        if (!CanRemoteSupport) return Forbid();
+        Message = store.RequestRemoteSupport(number, device, code).Message;
+        return RedirectToPage(null, null, new { number }, "remote-support");
+    }
+
+    // For the ticket page to follow the request as it happens (wwwroot/js/pages/remote-support.js).
+    public IActionResult OnGetRemoteStatus(int number)
+    {
+        if (!CanEdit || store.Tickets.All(x => x.Number != number)) return NotFound();
+        if (store.RemoteSupportFor(number) is not { } request) return new JsonResult(new { text = "", active = false });
+        var (text, active) = HelpdeskStore.DescribeRemote(request, DateTime.UtcNow);
+        return new JsonResult(new { text, active, state = request.State });
+    }
+
     // Telling staff through EduNotify (Settings → EduNotify). Offered to someone with the Tell staff permission once
     // EduNotify is set up and switched on; a notice already showing is listed for anyone who can see the ticket.
     public bool CanTellStaff => CanEdit && store.UserHasFlag(User, Modules.Flags.NotifyStaff) && store.EduNotifySettings.Ready;

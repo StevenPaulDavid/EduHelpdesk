@@ -93,6 +93,44 @@ public sealed class HelpdeskClient(AgentConfig config)
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return (false, exception.Message); }
     }
 
+    // Waits (the helpdesk holds it up to ~50 seconds) for a remote support request for this PC. Status 200 with the
+    // offer, 204 with none; anything else (or 0 when unreachable) means try again later.
+    public async Task<(int Status, RemoteOffer? Offer)> WaitRemoteAsync(CancellationToken cancel)
+    {
+        if (!Uri.TryCreate(config.Server, UriKind.Absolute, out var server) || server.Scheme != Uri.UriSchemeHttps || config.Token.Length == 0) return (0, null);
+        using var http = Create(server);
+        http.Timeout = TimeSpan.FromSeconds(75);
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, Prefix + "/remote");
+            request.Headers.Authorization = new("Bearer", config.Token);
+            using var response = await http.SendAsync(request, cancel);
+            if (response.StatusCode == HttpStatusCode.OK) return (200, await response.Content.ReadFromJsonAsync<RemoteOffer>(Json, cancel));
+            return ((int)response.StatusCode, null);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or NotSupportedException || (exception is TaskCanceledException && !cancel.IsCancellationRequested))
+        {
+            return (0, null);
+        }
+    }
+
+    public async Task ReportRemoteAsync(Guid id, string state, CancellationToken cancel)
+    {
+        if (!Uri.TryCreate(config.Server, UriKind.Absolute, out var server) || server.Scheme != Uri.UriSchemeHttps || config.Token.Length == 0) return;
+        using var http = Create(server);
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{Prefix}/remote/{id}") { Content = JsonContent.Create(new RemoteStateReport(state), options: Json) };
+            request.Headers.Authorization = new("Bearer", config.Token);
+            using var response = await http.SendAsync(request, cancel);
+            if (!response.IsSuccessStatusCode) AgentLog.Write($"The helpdesk didn't take the remote support update '{state}': {await Message(response, cancel)}");
+        }
+        catch (Exception exception) when (exception is HttpRequestException || (exception is TaskCanceledException && !cancel.IsCancellationRequested))
+        {
+            AgentLog.Write($"Couldn't tell the helpdesk '{state}' about remote support: {exception.Message}");
+        }
+    }
+
     // Whether the helpdesk can be reached and has the agent turned on, for the install command to say so straight away.
     public async Task<string> CheckAsync(CancellationToken cancel)
     {

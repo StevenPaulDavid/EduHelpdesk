@@ -10,6 +10,44 @@ public class NotificationTests
     private const string Portal = HelpdeskStore.PortalAudience;
     private const string Test = HelpdeskStore.NotificationKinds.Test;
 
+    // The waiting tests below used to fail now and then in a full run (fixed 2026-11-06). Two causes:
+    // - The store's wait carried on on its caller's context: xunit's own, whose few threads are often all busy with other
+    //   tests. Fixed in the store (ConfigureAwait(false)); StuckContext proves it.
+    // - A 20 second wait checked within 5 seconds: on a machine flat out running the suite, the wake-up can simply be late.
+    //   So a wait is now far longer than any test (it can only end early by being woken, which is the point), and the
+    //   guard is generous: a broken wake-up still fails, a busy machine doesn't.
+    internal static readonly TimeSpan LongWait = TimeSpan.FromMinutes(10);
+    internal static readonly TimeSpan Guard = TimeSpan.FromSeconds(60);
+
+    // A context that never runs what is posted to it: the worst case of xunit's. A wait that needs its caller's context to
+    // finish would never finish here.
+    private sealed class StuckContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) { }
+    }
+
+    internal static Task<T> StartedFromStuckContext<T>(Func<Task<T>> start)
+    {
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new StuckContext());
+        try { return start(); }
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
+    }
+
+    [Fact]
+    public async Task Waiting_finishes_without_needing_the_callers_context()
+    {
+        using var test = new TestStore();
+        var account = Guid.NewGuid();
+        var cursor = test.Store.NotificationsFor(Staff, account, -1).Cursor;
+        var waiting = StartedFromStuckContext(() => test.Store.WaitForNotificationsAsync(Staff, account, cursor, LongWait, CancellationToken.None));
+        Assert.False(waiting.IsCompleted);
+
+        var id = test.Store.AddNotification(Staff, account, Test);
+        var batch = await waiting.WaitAsync(Guard);
+        Assert.Equal([id], batch.Items.Select(x => x.Id));
+    }
+
     [Fact]
     public void A_ping_for_staff_reaches_every_staff_account_but_never_the_portal()
     {
@@ -200,7 +238,7 @@ public class NotificationTests
     {
         using var test = new TestStore();
         var account = Guid.NewGuid();
-        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, test.Store.NotificationsFor(Staff, account, -1).Cursor, TimeSpan.FromSeconds(20), CancellationToken.None);
+        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, test.Store.NotificationsFor(Staff, account, -1).Cursor, LongWait, CancellationToken.None);
         Assert.False(waiting.IsCompleted);
 
         // Someone else's ping wakes the request but isn't an answer for it, so it carries on waiting.
@@ -209,7 +247,7 @@ public class NotificationTests
         Assert.False(waiting.IsCompleted);
 
         var id = test.Store.AddNotification(Staff, account, Test);
-        var batch = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        var batch = await waiting.WaitAsync(Guard);
         Assert.Equal([id], batch.Items.Select(x => x.Id));
     }
 
@@ -224,9 +262,9 @@ public class NotificationTests
         Assert.Empty(timedOut.Items);
 
         using var dropped = new CancellationTokenSource();
-        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, cursor, TimeSpan.FromSeconds(20), dropped.Token);
+        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, cursor, LongWait, dropped.Token);
         dropped.Cancel();
-        Assert.Empty((await waiting.WaitAsync(TimeSpan.FromSeconds(5))).Items);
+        Assert.Empty((await waiting.WaitAsync(Guard)).Items);
     }
 
     // ---- The bell (notification centre) ----
@@ -313,18 +351,18 @@ public class NotificationTests
         var cursor = test.Store.NotificationsFor(Staff, account, -1).Cursor;
 
         // The page shows 1; the wait carries on while that is still true...
-        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, cursor, TimeSpan.FromSeconds(20), CancellationToken.None, knownUnread: 1);
+        var waiting = test.Store.WaitForNotificationsAsync(Staff, account, cursor, LongWait, CancellationToken.None, knownUnread: 1);
         await Task.Delay(100);
         Assert.False(waiting.IsCompleted);
 
         // ...and ends as soon as the ticket is opened in another tab.
         test.Store.MarkTicketNotificationsRead(account, 8);
-        var batch = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
+        var batch = await waiting.WaitAsync(Guard);
         Assert.Equal(0, batch.Unread);
         Assert.Empty(batch.Items);
 
         // A page showing the wrong count is answered at once.
-        var stale = await test.Store.WaitForNotificationsAsync(Staff, account, cursor, TimeSpan.FromSeconds(20), CancellationToken.None, knownUnread: -1).WaitAsync(TimeSpan.FromSeconds(5));
+        var stale = await test.Store.WaitForNotificationsAsync(Staff, account, cursor, LongWait, CancellationToken.None, knownUnread: -1).WaitAsync(Guard);
         Assert.Equal(0, stale.Unread);
     }
 

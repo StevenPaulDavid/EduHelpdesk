@@ -45,6 +45,72 @@ public static class AgentStatus
         }
     }
 
+    // ---- Remote support: the service puts the request here for the tray (HKLM, read-only to users), and the tray puts
+    // the person's answer in their own HKCU, which the service reads through HKEY_USERS. Nobody can change a request,
+    // and an answer can only come from someone signed in to the PC. ----
+
+    private const string AnswerPath = @"Software\EduHelpdesk Agent";
+
+    public static void WriteRemoteRequest(AgentContract.RemoteOffer? offer)
+    {
+        try
+        {
+            using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var key = root.CreateSubKey(KeyPath);
+            if (offer is null) key.DeleteValue("RemoteRequest", throwOnMissingValue: false);
+            else key.SetValue("RemoteRequest", System.Text.Json.JsonSerializer.Serialize(offer, Json));
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+        {
+            AgentLog.Write($"Couldn't pass the remote support request to the tray icon: {exception.Message}");
+        }
+    }
+
+    public static AgentContract.RemoteOffer? ReadRemoteRequest()
+    {
+        try
+        {
+            using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+            using var key = root.OpenSubKey(KeyPath);
+            return key?.GetValue("RemoteRequest") is string text ? System.Text.Json.JsonSerializer.Deserialize<AgentContract.RemoteOffer>(text, Json) : null;
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or System.Security.SecurityException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    // From the tray, as the signed-in person: "<request id>:accepted" (or declined, unavailable).
+    public static void WriteRemoteAnswer(Guid id, string answer)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(AnswerPath);
+            key.SetValue("RemoteAnswer", $"{id}:{answer}");
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or System.Security.SecurityException) { }
+    }
+
+    // From the service: the answer for this request from any of these users (SIDs), taken so it isn't read twice.
+    public static string? TakeRemoteAnswer(Guid id, IEnumerable<string> sids)
+    {
+        foreach (var sid in sids)
+        {
+            try
+            {
+                using var key = Registry.Users.OpenSubKey($@"{sid}\{AnswerPath}", writable: true);
+                if (key?.GetValue("RemoteAnswer") is not string value) continue;
+                key.DeleteValue("RemoteAnswer", throwOnMissingValue: false);
+                var prefix = $"{id}:";
+                if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return value[prefix.Length..];
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or System.Security.SecurityException) { }
+        }
+        return null;
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     public static void Delete()
     {
         try

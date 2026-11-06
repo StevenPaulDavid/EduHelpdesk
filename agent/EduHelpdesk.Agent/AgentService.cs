@@ -20,6 +20,8 @@ public sealed class AgentService : BackgroundService
         var trays = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService();
         if (trays) Safely("restart the tray icons", TrayLauncher.StopOldTrays);
         try { await Task.Delay(StartDelay, stop); } catch (TaskCanceledException) { return; }
+        // Remote support needs the tray to ask the person at the PC, so only as the service.
+        var remote = trays ? Task.Run(() => new RemoteSupport().RunAsync(stop), stop) : Task.CompletedTask;
         var updater = new Updater();
         var nextReport = DateTime.MinValue;
         var retryAt = DateTime.MinValue;
@@ -56,6 +58,7 @@ public sealed class AgentService : BackgroundService
             if (trays) Safely("start the tray icon", TrayLauncher.EnsureTrays);
             try { await Task.Delay(Tick, stop); } catch (TaskCanceledException) { break; }
         }
+        try { await remote; } catch (OperationCanceledException) { }
         AgentLog.Write("EduHelpdesk Agent stopped.");
     }
 

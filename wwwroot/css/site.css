@@ -2791,3 +2791,9 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .merge-choice { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-weight: 400; }
 .merge-choice input { margin-top: 3px; }
 .merge-table td { vertical-align: top; }
+/* Remote support on a ticket (Pages/Job): the request's progress and the Quick Assist code box. */
+.badge-muted { background: var(--surface-2); color: var(--muted); }
+.remote-status { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.remote-form { display: grid; gap: 8px; }
+.remote-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; }
+.remote-code { font-family: ui-monospace, Consolas, monospace; font-size: 18px; letter-spacing: 0.15em; text-transform: uppercase; }

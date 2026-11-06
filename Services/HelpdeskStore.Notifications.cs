@@ -147,7 +147,9 @@ public sealed partial class HelpdeskStore
             if (batch.Items.Count > 0 || after < 0 || (batch.Unread is { } unread && unread != knownUnread) || remaining <= TimeSpan.Zero || cancel.IsCancellationRequested) return batch;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             timeout.CancelAfter(remaining);
-            await Task.WhenAny(signal, Task.Delay(Timeout.Infinite, timeout.Token));
+            // ConfigureAwait(false): carry on on any thread, not the caller's context. ASP.NET has none, but a caller with
+            // a busy one (xunit's few test threads) would otherwise hold the wait open long after the news arrived.
+            await Task.WhenAny(signal, Task.Delay(Timeout.Infinite, timeout.Token)).ConfigureAwait(false);
             timeout.Cancel();
         }
     }

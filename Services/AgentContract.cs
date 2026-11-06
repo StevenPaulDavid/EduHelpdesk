@@ -12,7 +12,35 @@ namespace EduHelpdesk.AgentContract;
 //   POST /api/agent/v1/enrol     EnrolRequest -> CheckInAnswer (with token)      - the school's enrolment key
 //   POST /api/agent/v1/report    AgentReport  -> CheckInAnswer                   - "Authorization: Bearer eha_..."
 //   GET  /api/agent/v1/agent     the agent exe this helpdesk hands out           - "Authorization: Bearer eha_..."
+//   GET  /api/agent/v1/remote    waits up to ~50s for a remote support request   - token; 200 RemoteOffer or 204
+//   POST /api/agent/v1/remote/{id}  RemoteStateReport: how the request is going  - token
 public sealed record EnrolRequest(string? Key, AgentReport? Report);
+
+// A technician wants to help through Quick Assist (from a ticket). Code is the Quick Assist security code they made on
+// their own PC; the person at this PC types it in. It lasts 10 minutes (ExpiresAt), as Quick Assist's own code does.
+public sealed record RemoteOffer(Guid Id, string Code, string TechnicianName, string TicketRef, DateTime ExpiresAt);
+
+// What happened at the PC: one of RemoteStates.
+public sealed record RemoteStateReport(string? State);
+
+// Where a remote support request has got to. The helpdesk sets the first two; the agent reports the rest.
+public static class RemoteStates
+{
+    public const string Requested = "requested";      // the technician sent it
+    public const string Delivered = "delivered";      // the agent has collected it
+    public const string Shown = "shown";              // the pop-up is on the screen
+    public const string Accepted = "accepted";        // Open Quick Assist pressed
+    public const string Declined = "declined";        // No thanks pressed
+    public const string Nobody = "nobody";            // nobody signed in to show it to
+    public const string Unavailable = "unavailable";  // Quick Assist isn't on the PC
+    public const string Started = "started";          // Quick Assist is open
+    public const string Ended = "ended";              // Quick Assist closed again
+    public const string Expired = "expired";          // 10 minutes and no Quick Assist
+
+    public static readonly string[] FromAgent = [Shown, Accepted, Declined, Nobody, Unavailable, Started, Ended, Expired];
+    // Nothing more happens after these.
+    public static bool IsFinished(string state) => state is Declined or Nobody or Unavailable or Ended or Expired;
+}
 
 // Status: "linked" (reporting into AssetTag), "waiting" (its serial matches an asset someone has to confirm first).
 // NextReportHours is how long until the next full report, so the helpdesk can change it without updating every PC.

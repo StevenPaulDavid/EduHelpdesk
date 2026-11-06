@@ -33,6 +33,10 @@ public static class Tray
         private readonly ToolStripMenuItem _name = new() { Enabled = false };
         private readonly ToolStripMenuItem _copyTag;
         private readonly System.Windows.Forms.Timer _timer = new() { Interval = 60_000 };
+        // Remote support: every two seconds, whether the service has a request for the person here (RemoteSupport.cs).
+        private readonly System.Windows.Forms.Timer _remoteTimer = new() { Interval = 2_000 };
+        private RemoteForm? _remote;
+        private Guid? _remoteSeen;
         private AgentStatus.Snapshot _status = AgentStatus.Read();
 
         public TrayContext()
@@ -45,7 +49,26 @@ public static class Tray
             _icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowCard(); };
             _timer.Tick += (_, _) => Refresh();
             _timer.Start();
+            _remoteTimer.Tick += (_, _) => CheckRemote();
+            _remoteTimer.Start();
             Refresh();
+        }
+
+        // Shows a new request once; closes the window when the request is withdrawn, replaced or finished.
+        private void CheckRemote()
+        {
+            var request = AgentStatus.ReadRemoteRequest();
+            if (_remote is { IsDisposed: false } shown && shown.RequestId != request?.Id)
+            {
+                shown.Close();
+                _remote = null;
+            }
+            if (request is null || request.Id == _remoteSeen || request.ExpiresAt <= DateTime.UtcNow) return;
+            _remoteSeen = request.Id;
+            _remote = new RemoteForm(request);
+            _remote.FormClosed += (_, _) => _remote = null;
+            _remote.Show();
+            _remote.Activate();
         }
 
         private string TagText => _status.AssetTag.Length > 0 ? _status.AssetTag
@@ -79,6 +102,8 @@ public static class Tray
             if (disposing)
             {
                 _timer.Dispose();
+                _remoteTimer.Dispose();
+                _remote?.Dispose();
                 _icon.Visible = false;
                 _icon.Dispose();
             }

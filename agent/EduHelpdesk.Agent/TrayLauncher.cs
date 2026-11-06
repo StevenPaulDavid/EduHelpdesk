@@ -35,6 +35,25 @@ public static class TrayLauncher
             if (!running.Contains(session)) Launch(session);
     }
 
+    // Who is signed in to each active session, as SIDs, for reading their answer to a remote support request.
+    public static List<string> ActiveUserSids()
+    {
+        var sids = new List<string>();
+        foreach (var session in ActiveSessions())
+        {
+            if (!WTSQueryUserToken((uint)session, out var token)) continue;
+            try
+            {
+                using var identity = new System.Security.Principal.WindowsIdentity(token);
+                if (identity.User?.Value is { } sid) sids.Add(sid);
+            }
+            finally { CloseHandle(token); }
+        }
+        return sids;
+    }
+
+    public static bool AnyoneSignedIn() => ActiveSessions().Count > 0;
+
     private static List<int> ActiveSessions()
     {
         var sessions = new List<int>();

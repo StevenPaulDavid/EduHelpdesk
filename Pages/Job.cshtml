@@ -504,6 +504,41 @@ else
                 }
             </div>
         }
+        @{
+            var remoteTargets = Model.RemoteTargets;
+            var remote = Model.RemoteRequest;
+            var remoteStatus = remote is null ? default : EduHelpdesk.Services.HelpdeskStore.DescribeRemote(remote, DateTime.UtcNow);
+        }
+        @if ((remoteTargets.Count > 0 && Model.Ticket.Status != "Closed") || remote is not null)
+        {
+            @* Quick Assist through the device agent (HelpdeskStore.RemoteSupport): the code goes to the PC, whose tray icon
+               offers to open Quick Assist; what happens comes back here and into the history. *@
+            <div class="detail-block related-block no-print" id="remote-support" data-status-url="@Url.Page("/Job", "RemoteStatus", new { number = Model.Ticket.Number })" data-active="@(remoteStatus.Active ? "true" : "false")">
+                <p class="eyebrow field-name">Remote support</p>
+                @if (remote is not null)
+                {
+                    <p class="remote-status" aria-live="polite"><span class="badge @(remoteStatus.Active ? "" : "badge-muted")" data-remote-badge>@(remoteStatus.Active ? "In progress" : "Finished")</span> <span data-remote-text>@remoteStatus.Text</span></p>
+                }
+                @if (remoteTargets.Count > 0 && Model.Ticket.Status != "Closed")
+                {
+                    <form method="post" asp-page-handler="RemoteSupport" class="remote-form">
+                        <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                        <p class="muted">Open <strong>Quick Assist</strong> on your PC, choose <strong>Help someone</strong>, and type the code it gives you here. The person at the PC gets a pop-up with the code and a button to open Quick Assist.</p>
+                        @if (remoteTargets.Count == 1)
+                        {
+                            <input type="hidden" name="device" value="@remoteTargets[0].Device.Id" />
+                            <p>To <strong>@remoteTargets[0].Device.ComputerName</strong> (@remoteTargets[0].Asset.AssetTag), last seen @DevicesModel.Ago(remoteTargets[0].Device.LastSeenAt)</p>
+                        }
+                        else
+                        {
+                            <label>PC<select name="device">@foreach (var target in remoteTargets) { <option value="@target.Device.Id">@target.Device.ComputerName (@target.Asset.AssetTag)</option> }</select></label>
+                        }
+                        <label>Quick Assist code<input name="code" required autocomplete="off" spellcheck="false" inputmode="text" maxlength="20" class="remote-code" placeholder="e.g. 7HK2QD" /></label>
+                        <button class="button button-secondary" type="submit">@(remote is { } r && !EduHelpdesk.AgentContract.RemoteStates.IsFinished(r.State) ? "Send a new code" : "Send to the PC")</button>
+                    </form>
+                }
+            </div>
+        }
         @if (Model.TicketAttributes.Count > 0)
         {
             @* The values, read like the fields above them; changing them opens a panel rather than sitting as a form. *@
@@ -683,4 +718,5 @@ else
 
 @section Scripts {
 <script src="~/js/pages/job.js" asp-append-version="true"></script>
+<script src="~/js/pages/remote-support.js" asp-append-version="true"></script>
 }

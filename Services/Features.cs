@@ -29,7 +29,7 @@ public static class Features
     public static readonly IReadOnlyList<Feature> All =
     [
         new(Assets, "Assets", "The asset register, devices on tickets, the asset and finance reports, and the asset settings.",
-            [Services.Modules.Assets, Services.Modules.DeviceAgent], [Services.Modules.Flags.ReportAssets, Services.Modules.Flags.ReportFinance], [], ["/Assets", "/Asset", "/Devices","/PrintLabel", "=/Reports", "/Reports/Print", "/Reports/Finance", "/Reports/FinancePrint", "/Settings/AssetTypes", "/Settings/AssetModels", "/Settings/AssetAttributes"]),
+            [Services.Modules.Assets, Services.Modules.DeviceAgent], [Services.Modules.Flags.ReportAssets, Services.Modules.Flags.ReportFinance, Services.Modules.Flags.RemoteSupport], [], ["/Assets", "/Asset", "/Devices", "/PrintLabel", "=/Reports", "/Reports/Print", "/Reports/Finance", "/Reports/FinancePrint", "/Settings/AssetTypes", "/Settings/AssetModels", "/Settings/AssetAttributes"]),
         new(Loans, "Kits and loans", "Lending devices and loan kits to staff, and the loans report.",
             [Services.Modules.Kits, Services.Modules.Loans], [Services.Modules.Flags.ReportLoans], [Assets], ["/Kits", "/Loans", "/Reports/Loans", "/Reports/LoansPrint"]),
         new(Parts, "Parts", "The spare parts inventory and stock levels, parts used on tickets, and the parts report.",

@@ -15,7 +15,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>EduHelpdesk.Agent</AssemblyName>
     <RootNamespace>EduHelpdesk.Agent</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Authors>Steven Davidson</Authors>
     <Product>EduHelpdesk Agent</Product>
     <Copyright>Copyright (c) 2026 Steven Davidson. MIT licence.</Copyright>

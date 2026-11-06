@@ -357,6 +357,106 @@ public class AgentTests
         Assert.Null(test.Store.CompareDatabaseWithMemory());
     }
 
+    // A ticket with this PC's asset linked to it, and the PC's token.
+    private static (int Ticket, string Token, HelpdeskStore.AgentDevice Device) TicketForPc(TestStore test)
+    {
+        var token = Enrol(test, Pc());
+        var device = test.Store.AgentDevices.Single();
+        var number = test.AddTicket(test.AddRequester("Jane Smith").Id);
+        Assert.True(test.Store.LinkAssetToTicket(device.AssetId!.Value, number));
+        return (number, token, device);
+    }
+
+    [Fact]
+    public void Remote_support_goes_only_to_a_PC_linked_to_the_ticket_with_a_proper_code()
+    {
+        using var test = WithAgentOn();
+        var (number, _, device) = TicketForPc(test);
+        Assert.Single(test.Store.RemoteSupportTargets(number));
+        Assert.False(test.Store.RequestRemoteSupport(number, device.Id, "12").Ok);
+        Assert.False(test.Store.RequestRemoteSupport(number, Guid.NewGuid(), "7HK2QD").Ok);
+        var other = test.AddTicket(test.AddRequester("Bob Jones").Id);
+        Assert.False(test.Store.RequestRemoteSupport(other, device.Id, "7HK2QD").Ok);
+
+        var (ok, message) = test.Store.RequestRemoteSupport(number, device.Id, " 7hk-2qd ");
+        Assert.True(ok, message);
+        var request = test.Store.RemoteSupportFor(number)!;
+        Assert.Equal("7HK2QD", request.Code);
+        Assert.Equal(RemoteStates.Requested, request.State);
+        Assert.Contains(test.Store.Tickets.Single(x => x.Number == number).History, x => x.Action == "Remote support requested");
+    }
+
+    [Fact]
+    public async Task A_waiting_PC_gets_the_request_the_moment_it_is_sent()
+    {
+        using var test = WithAgentOn();
+        var (number, token, device) = TicketForPc(test);
+
+        var nothing = await test.Store.WaitForRemoteRequestAsync(token, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+        Assert.Equal(StatusCodes.Status204NoContent, nothing.Status);
+        Assert.Equal(StatusCodes.Status401Unauthorized, (await test.Store.WaitForRemoteRequestAsync("eha_nope", TimeSpan.FromMilliseconds(10), CancellationToken.None)).Status);
+
+        var waiting = test.Store.WaitForRemoteRequestAsync(token, NotificationTests.LongWait, CancellationToken.None);
+        await Task.Delay(100);
+        Assert.False(waiting.IsCompleted);
+        test.Store.RequestRemoteSupport(number, device.Id, "7HK2QD");
+        var got = await waiting.WaitAsync(NotificationTests.Guard);
+        Assert.Equal("7HK2QD", got.Offer!.Code);
+        Assert.Equal(test.Store.Ref(number), got.Offer.TicketRef);
+        Assert.Equal(RemoteStates.Delivered, test.Store.RemoteSupportFor(number)!.State);
+
+        // Given again if asked again before it is on the screen (a lost answer), but not once it is.
+        Assert.Equal(got.Offer.Id, (await test.Store.WaitForRemoteRequestAsync(token, TimeSpan.FromMilliseconds(10), CancellationToken.None)).Offer!.Id);
+        test.Store.ReportRemoteState(token, got.Offer.Id, RemoteStates.Shown);
+        Assert.Null((await test.Store.WaitForRemoteRequestAsync(token, TimeSpan.FromMilliseconds(10), CancellationToken.None)).Offer);
+    }
+
+    [Fact]
+    public async Task A_waiting_PC_is_answered_without_needing_the_callers_context()
+    {
+        using var test = WithAgentOn();
+        var (number, token, device) = TicketForPc(test);
+        var waiting = NotificationTests.StartedFromStuckContext(() => test.Store.WaitForRemoteRequestAsync(token, NotificationTests.LongWait, CancellationToken.None));
+        Assert.False(waiting.IsCompleted);
+        test.Store.RequestRemoteSupport(number, device.Id, "7HK2QD");
+        Assert.Equal("7HK2QD", (await waiting.WaitAsync(NotificationTests.Guard)).Offer!.Code);
+    }
+
+    [Fact]
+    public async Task Each_step_at_the_PC_goes_in_the_ticket_history_once()
+    {
+        using var test = WithAgentOn();
+        var (number, token, device) = TicketForPc(test);
+        test.Store.RequestRemoteSupport(number, device.Id, "7HK2QD");
+        var id = (await test.Store.WaitForRemoteRequestAsync(token, TimeSpan.FromSeconds(1), CancellationToken.None)).Offer!.Id;
+
+        Assert.Equal(StatusCodes.Status404NotFound, test.Store.ReportRemoteState(token, Guid.NewGuid(), RemoteStates.Accepted).Status);
+        Assert.Equal(StatusCodes.Status400BadRequest, test.Store.ReportRemoteState(token, id, "hacked").Status);
+        foreach (var state in new[] { RemoteStates.Shown, RemoteStates.Accepted, RemoteStates.Accepted, RemoteStates.Started, RemoteStates.Ended, RemoteStates.Declined })
+            test.Store.ReportRemoteState(token, id, state);
+
+        var lines = test.Store.Tickets.Single(x => x.Number == number).History.Select(x => x.Action).ToList();
+        Assert.Equal(["Remote support requested", "Remote support accepted", "Quick Assist opened", "Quick Assist closed"],
+            lines.Where(x => x.Contains("Remote support") || x.Contains("Quick Assist")).ToList());
+        var request = test.Store.RemoteSupportFor(number)!;
+        Assert.Equal(RemoteStates.Ended, request.State);
+        Assert.False(HelpdeskStore.DescribeRemote(request, DateTime.UtcNow).Active);
+        Assert.Null(test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public void A_new_code_replaces_the_one_in_hand()
+    {
+        using var test = WithAgentOn();
+        var (number, _, device) = TicketForPc(test);
+        test.Store.RequestRemoteSupport(number, device.Id, "AAAAAA");
+        var first = test.Store.RemoteSupportFor(number)!.Id;
+        test.Store.RequestRemoteSupport(number, device.Id, "BBBBBB");
+        var second = test.Store.RemoteSupportFor(number)!;
+        Assert.NotEqual(first, second.Id);
+        Assert.Equal("BBBBBB", second.Code);
+    }
+
     [Fact]
     public void Only_an_enrolled_PC_may_download_the_agent_and_only_while_it_is_on()
     {
