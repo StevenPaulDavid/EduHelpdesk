@@ -44,6 +44,25 @@ public static class TicketInsights
     public static bool IsOverdue(TicketRecord ticket, DateTime now) =>
         !IsClosed(ticket) && !ticket.IsSlaPaused && ticket.DueDate is { } due && due < now;
 
+    // Open, and booked in for a day that has gone by: the plan slipped.
+    public static bool IsPlanLate(TicketRecord ticket, DateOnly today) => !IsClosed(ticket) && ticket.PlannedFor is { } planned && planned < today;
+
+    // The school week a day falls in, Monday to Sunday.
+    public static (DateOnly From, DateOnly To) WeekOf(DateOnly day)
+    {
+        var monday = day.AddDays(-(((int)day.DayOfWeek + 6) % 7));
+        return (monday, monday.AddDays(6));
+    }
+
+    // "Today", "Tomorrow", "Yesterday", or the day and date - how a planned day reads in a list.
+    public static string PlannedText(DateOnly planned, DateOnly today) => (planned.DayNumber - today.DayNumber) switch
+    {
+        0 => "Today",
+        1 => "Tomorrow",
+        -1 => "Yesterday",
+        _ => planned.ToString(planned.Year == today.Year ? "ddd d MMM" : "ddd d MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"))
+    };
+
     public static string DueText(TicketRecord ticket, DateTime now)
     {
         if (ticket.DueDate is not { } due) return string.Empty;
@@ -67,7 +86,9 @@ public sealed class TicketListQuery
     // named on), unassigned: open with no technician, overdue: open and past due or due soon, onboarding: open
     // onboardings with IT tasks still to do, all: everything including closed.
     public static readonly string[] Views = ["open", "mine", "unassigned", "overdue", "onboarding", "all"];
-    public static readonly string[] SortColumns = ["number", "title", "requester", "asset", "technician", "priority", "status", "due", "created", "updated"];
+    public static readonly string[] SortColumns = ["number", "title", "requester", "asset", "technician", "priority", "status", "due", "planned", "created", "updated"];
+    // Planned for: today, this week (Monday to Sunday), late (a day gone by, still open) or none (open with no day).
+    public static readonly string[] PlanFilters = ["today", "week", "late", "none"];
 
     public string View { get; set; } = "open";
     public string? Search { get; set; }
@@ -90,6 +111,9 @@ public sealed class TicketListQuery
     // Logged on or between these days (local), either end open - what a dashboard chart's bar opens.
     public DateOnly? LoggedFrom { get; set; }
     public DateOnly? LoggedTo { get; set; }
+    // One of PlanFilters, or a single day (what a planner day opens).
+    public string? Planned { get; set; }
+    public DateOnly? PlannedOn { get; set; }
     public string Sort { get; set; } = "number";
     public bool Descending { get; set; } = true;
 
@@ -140,6 +164,20 @@ public sealed class TicketListQuery
         if (Asset is { } assetId) query = query.Where(t => t.AssetIds.Contains(assetId));
         if (LoggedFrom is { } from) query = query.Where(t => DateOnly.FromDateTime(t.CreatedAt.ToLocalTime()) >= from);
         if (LoggedTo is { } to) query = query.Where(t => DateOnly.FromDateTime(t.CreatedAt.ToLocalTime()) <= to);
+        if (PlannedOn is { } plannedOn) query = query.Where(t => t.PlannedFor == plannedOn);
+        if (!string.IsNullOrWhiteSpace(Planned))
+        {
+            var today = DateOnly.FromDateTime(context.Now.ToLocalTime());
+            var (weekFrom, weekTo) = TicketInsights.WeekOf(today);
+            query = Planned switch
+            {
+                "today" => query.Where(t => t.PlannedFor == today),
+                "week" => query.Where(t => t.PlannedFor is { } day && day >= weekFrom && day <= weekTo),
+                "late" => query.Where(t => TicketInsights.IsPlanLate(t, today)),
+                "none" => query.Where(t => t.PlannedFor is null && !TicketInsights.IsClosed(t)),
+                _ => query
+            };
+        }
         if (!string.IsNullOrWhiteSpace(Search))
         {
             var terms = Search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => x.TrimStart('#')).Where(x => x.Length > 0).ToList();
@@ -203,6 +241,7 @@ public sealed class TicketListQuery
             "priority" => ByValue(PriorityRank),
             "status" => ByValue(StatusRank),
             "due" => ByDate(t => t.DueDate),
+            "planned" => ByDate(t => t.PlannedFor?.ToDateTime(TimeOnly.MinValue)),
             "created" => ByValue(t => t.CreatedAt),
             "updated" => ByValue(t => t.LastModifiedAt),
             _ => ByValue(t => t.Number)

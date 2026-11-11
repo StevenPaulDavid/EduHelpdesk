@@ -30,6 +30,9 @@ public class JobsModel(HelpdeskStore store) : PageModel
     // takes it off.
     [BindProperty(SupportsGet = true, Name = "from")] public DateOnly? LoggedFrom { get; set; }
     [BindProperty(SupportsGet = true, Name = "to")] public DateOnly? LoggedTo { get; set; }
+    // Planned for: today, week, late or none (TicketListQuery.PlanFilters), or one day from the planner.
+    [BindProperty(SupportsGet = true, Name = "plan")] public string? Planned { get; set; }
+    [BindProperty(SupportsGet = true, Name = "planday")] public DateOnly? PlannedOn { get; set; }
     [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
@@ -75,7 +78,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public string DeskPhrase => HelpdeskStore.DeskPhrase(ShownDesks);
     public string? AllDesksUrl() { var route = RouteFor(1, Sort!, Dir!, View); route["desk"] = "all"; return Url.Page("/Jobs", route); }
     public bool IsFiltered => !string.IsNullOrWhiteSpace(Search) || Status.Count > 0 || Priority.Count > 0 || Category.Count > 0 || Type.Count > 0 || !string.IsNullOrWhiteSpace(Technician)
-        || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset) || LoggedFrom is not null || LoggedTo is not null;
+        || !string.IsNullOrWhiteSpace(Team) || !string.IsNullOrWhiteSpace(Requester) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(Location) || !string.IsNullOrWhiteSpace(Asset) || LoggedFrom is not null || LoggedTo is not null || !string.IsNullOrWhiteSpace(Planned) || PlannedOn is not null;
 
     // The list as last looked at - view, filters, sort and page - so "Back to tickets" on a ticket returns to it rather
     // than to a fresh, unfiltered list. Only a path on this page is ever stored or followed (see JobModel.BackUrl).
@@ -105,7 +108,17 @@ public class JobsModel(HelpdeskStore store) : PageModel
         AssetsById = context.Assets.ToDictionary(x => x.Id);
     }
 
-    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newType, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, string? mergeTarget)
+    public DateOnly Today => DateOnly.FromDateTime(Now.ToLocalTime());
+    public static string PlanLabel(string? plan) => plan switch
+    {
+        "today" => "Today",
+        "week" => "This week",
+        "late" => "Planned day gone by",
+        "none" => "Not planned",
+        _ => "Any"
+    };
+
+    public IActionResult OnPostBulk(string? operation, int[]? ids, bool selectAll, string? newStatus, string? newPriority, string? newCategory, string? newType, string? newTeam, string? newTechnician, string? commentText, bool commentInternal, string? closingMessage, string? mergeTarget, string? newPlanned)
     {
         Prepare();
         // Editing in bulk is still editing, and merging in bulk is still merging - this path used to check neither,
@@ -148,6 +161,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             "type" => new("type", newType),
             "team" => new("team", string.IsNullOrWhiteSpace(newTeam) ? TicketListQuery.None : newTeam),
             "technician" => new("technician", TechnicianId: technicianId),
+            "plan" => new("plan", newPlanned),
             "comment" => new("comment", Text: commentText, Internal: commentInternal),
             "close" => new("close", Text: closingMessage),
             "merge" => new("merge", TargetNumber: mergeNumber),
@@ -216,6 +230,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         Location = Location,
         Asset = Guid.TryParse(Asset, out var assetId) ? assetId : null,
         LoggedFrom = LoggedFrom, LoggedTo = LoggedTo,
+        Planned = Planned, PlannedOn = PlannedOn,
         Sort = Sort!, Descending = Descending
     };
 
@@ -227,6 +242,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         var (defaultSort, defaultDescending) = TicketListQuery.DefaultSort(View);
         if (!TicketListQuery.SortColumns.Contains(Sort)) { Sort = defaultSort; Dir = defaultDescending ? "desc" : "asc"; }
         else Dir = string.Equals(Dir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
+        Planned = TicketListQuery.PlanFilters.Contains(Planned?.Trim().ToLowerInvariant()) ? Planned!.Trim().ToLowerInvariant() : null;
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
         Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category); Type = Clean(Type);
@@ -283,6 +299,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!string.IsNullOrWhiteSpace(Asset)) yield return ("asset", Asset);
         if (LoggedFrom is { } from) yield return ("from", from.ToString("yyyy-MM-dd"));
         if (LoggedTo is { } to) yield return ("to", to.ToString("yyyy-MM-dd"));
+        if (!string.IsNullOrWhiteSpace(Planned)) yield return ("plan", Planned);
+        if (PlannedOn is { } plannedOn) yield return ("planday", plannedOn.ToString("yyyy-MM-dd"));
         yield return ("sort", Sort!);
         yield return ("dir", Dir!);
         yield return ("p", PageNumber.ToString());
@@ -307,6 +325,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["desk"] = DeskRoute(ShownDesks),
             ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["loc"] = Blank(Location), ["asset"] = Blank(Asset),
             ["from"] = LoggedFrom?.ToString("yyyy-MM-dd"), ["to"] = LoggedTo?.ToString("yyyy-MM-dd"),
+            ["plan"] = Blank(Planned), ["planday"] = PlannedOn?.ToString("yyyy-MM-dd"),
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,
             ["p"] = page > 1 ? page : null,
@@ -332,7 +351,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
 
     // Filters in the Filters panel that are switched on - the number on its button.
     public int PanelFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count + (DesksAreDefault ? 0 : 1)
-        + new[] { Technician, Team, Requester, Department, Location }.Count(x => !string.IsNullOrWhiteSpace(x));
+        + new[] { Technician, Team, Requester, Department, Location, Planned }.Count(x => !string.IsNullOrWhiteSpace(x));
 
     // Every filter in force, each as a chip that takes just that one off. With the panel closed, this is how the list
     // says what it is showing.
@@ -379,6 +398,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
             var route = RouteFor(1, Sort!, Dir!, View); route["from"] = null; route["to"] = null;
             chips.Add(new(label, Url.Page("/Jobs", route)));
         }
+        if (!string.IsNullOrWhiteSpace(Planned)) chips.Add(new($"Planned: {PlanLabel(Planned)}", Without("plan", null)));
+        if (PlannedOn is { } plannedOn) chips.Add(new($"Planned for {plannedOn:ddd d MMM}", Without("planday", null)));
         Many("status", "Status", Status);
         Many("type", "Type", Type);
         Many("priority", "Priority", Priority);

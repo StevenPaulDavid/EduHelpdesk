@@ -264,6 +264,8 @@ public static class TicketReportPdf
         Fact(facts, "SLA", input.Sla is { } sla ? $"{sla.Name} ({sla.Duration} {sla.DurationUnit})" : "No SLA");
         Fact(facts, "Raised", Moment(ticket.CreatedAt.ToLocalTime()));
         Fact(facts, "Due", ticket.DueDate is { } due ? Moment(due.ToLocalTime()) + (ticket.DueDateOverridden ? " (set by hand)" : "") : "No due date");
+        // The team's own plan: on the staff copy only.
+        if (input.IncludeInternal && ticket.PlannedFor is { } planned) Fact(facts, "Planned for", planned.ToString("dddd d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB")));
         Fact(facts, "Closed", ticket.ClosedAt is { } closed ? Moment(closed.ToLocalTime()) : "Still open");
         Fact(facts, "Last updated", Moment(ticket.LastModifiedAt.ToLocalTime()));
     }

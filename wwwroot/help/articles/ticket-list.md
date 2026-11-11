@@ -40,7 +40,7 @@ The tabs are the queues. The number on each tab is how many tickets are in it.
 
 Type in the search box to look through ticket numbers, titles, descriptions, comments, requesters, asset tags and technicians. You can type a number with or without its prefix (IT-1042 or 1042).
 
-**Filters** opens a panel to narrow the list by desk, technician, team, requester, department, location, status, priority, type and category, and to choose how many rows a page shows. Each filter in force shows as a chip under the search box; click a chip's **×** to remove it, or **Clear all**.
+**Filters** opens a panel to narrow the list by desk, technician, team, requester, department, location, planned day, status, priority, type and category, and to choose how many rows a page shows. Each filter in force shows as a chip under the search box; click a chip's **×** to remove it, or **Clear all**.
 
 > **Tip:** With more than one desk, the list starts on your own desks. Tick desks in the Desk filter to see others (if your role allows), or tick none to see every desk you can.
 

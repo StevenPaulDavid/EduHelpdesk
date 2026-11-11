@@ -32,7 +32,7 @@ public static class TicketCsv
         var headers = new List<string>
         {
             "Ticket number", "Title", "Description", "Type", "Status", "Priority", "Category", "Sub-category", "Location", "Requester", "Requester email", "Department",
-            "Technician", "Team", "Assets", "SLA", "Created", "Due", "Closed", "Last updated", "Comments"
+            "Technician", "Team", "Assets", "SLA", "Created", "Due", "Planned for", "Closed", "Last updated", "Comments"
         };
         if (deskOf is not null) headers.InsertRange(1, ["Reference", "Desk"]);
         // Two attributes can share a name (they apply to different categories); keep the columns distinct.
@@ -59,7 +59,7 @@ public static class TicketCsv
                 ticket.TeamName ?? "",
                 string.Join("; ", ticket.AssetIds.Select(id => assetTags.GetValueOrDefault(id)).Where(x => !string.IsNullOrEmpty(x))),
                 ticket.SlaId is { } sla ? slaNames.GetValueOrDefault(sla, "") : "",
-                Stamp(ticket.CreatedAt), Stamp(ticket.DueDate), Stamp(ticket.ClosedAt), Stamp(ticket.LastModifiedAt),
+                Stamp(ticket.CreatedAt), Stamp(ticket.DueDate), ticket.PlannedFor?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "", Stamp(ticket.ClosedAt), Stamp(ticket.LastModifiedAt),
                 ticket.Comments.Count.ToString(CultureInfo.InvariantCulture)
             };
             if (deskOf is not null) cells.InsertRange(1, [HelpdeskStore.RefFor(deskOf(ticket.Category), ticket), deskOf(ticket.Category).Name]);

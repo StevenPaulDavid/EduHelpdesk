@@ -223,9 +223,9 @@ public sealed partial class HelpdeskStore
         return from.Id == DeskForCategoryCore(category).Id ? (changed, []) : FitToDeskCore(RenumberCore(changed, from));
     }
 
-    // One change applied to many tickets. Operation is status, technician, team, priority, category, type, comment, close or merge.
+    // One change applied to many tickets. Operation is status, technician, team, priority, category, type, plan, comment, close or merge.
     // Value is the new status, team, priority or category (TicketListQuery.None clears the team); Text is the comment or closing message;
-    // TargetNumber is the ticket to merge into.
+    // TargetNumber is the ticket to merge into. For plan, Value is the day (yyyy-MM-dd), or blank to take the tickets off the plan.
     public sealed record TicketBulkChange(string Operation, string? Value = null, Guid? TechnicianId = null, string? Text = null, int? TargetNumber = null, bool Internal = false);
     // Skipped tickets could not be changed for a reason worth telling the user; unchanged ones already had the value.
     public sealed record TicketBulkResult(int Updated, int Unchanged, int Skipped, string? SkippedReason, string? Error);
@@ -264,6 +264,9 @@ public sealed partial class HelpdeskStore
                     break;
                 case "technician":
                     if (change.TechnicianId is { } id && !_data.Technicians.Any(x => x.Id == id)) return Fail("Select a valid technician.");
+                    break;
+                case "plan":
+                    if (!string.IsNullOrWhiteSpace(change.Value) && !DateOnly.TryParseExact(change.Value.Trim(), "yyyy-MM-dd", out _)) return Fail("Enter a valid date to plan them for.");
                     break;
                 case "comment":
                     if (text is null) return Fail("Enter a comment to add.");
@@ -325,6 +328,14 @@ public sealed partial class HelpdeskStore
                         if (change.TechnicianId is { } onDeskId && _data.Technicians.First(x => x.Id == onDeskId) is { } person && !TechnicianOnDesk(person, DeskForCategoryCore(ticket.Category).Id))
                         { Skip($"{person.Name} isn't on the desk some of these tickets are on."); continue; }
                         changed = ticket with { TechnicianId = change.TechnicianId };
+                        break;
+                    }
+                    case "plan":
+                    {
+                        DateOnly? planned = string.IsNullOrWhiteSpace(change.Value) ? null : DateOnly.ParseExact(change.Value.Trim(), "yyyy-MM-dd");
+                        if (ticket.PlannedFor == planned) { unchanged++; continue; }
+                        if (planned is not null && TicketInsights.IsClosed(ticket)) { Skip("A closed ticket can't be planned."); continue; }
+                        changed = ticket with { PlannedFor = planned };
                         break;
                     }
                     case "comment":
@@ -687,5 +698,12 @@ public sealed partial class HelpdeskStore
         if (previous.ClosedAt != updated.ClosedAt && previous.Status == updated.Status) history.Add(new("Closure changed", updated.ClosedAt.HasValue ? "The ticket was closed." : "The ticket was reopened.", now));
         if (previous.SlaId != updated.SlaId) history.Add(new("SLA changed", updated.SlaId.HasValue ? "An SLA was assigned." : "The SLA was removed.", now));
         if ((previous.DueDate != updated.DueDate || previous.DueDateOverridden != updated.DueDateOverridden) && slaClockLine?.Action != SlaRestartedAction) history.Add(new("Due date changed", updated.DueDate.HasValue ? (updated.DueDateOverridden ? "The due date was manually overridden." : "The due date was recalculated from the SLA.") : "The due date was removed.", now));
+        if (previous.PlannedFor != updated.PlannedFor) history.Add(new("Planned date changed", PlannedLine(previous.PlannedFor, updated.PlannedFor), now));
+    }
+
+    private static string PlannedLine(DateOnly? before, DateOnly? after)
+    {
+        static string Day(DateOnly day) => day.ToString("ddd d MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"));
+        return after is { } planned ? (before is { } old ? $"Moved from {Day(old)} to {Day(planned)}." : $"Planned for {Day(planned)}.") : "Taken off the plan.";
     }
 }

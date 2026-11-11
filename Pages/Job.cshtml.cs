@@ -75,6 +75,17 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     public bool CanOpenRequester => store.UserCan(User, Modules.Requesters, ModulePermission.View);
     public DueState DueState => Ticket is null ? DueState.None : TicketInsights.DueStateOf(Ticket, DateTime.UtcNow, store.TicketDueSoonHours);
     public string DueText => Ticket is null ? "" : TicketInsights.DueText(Ticket, DateTime.UtcNow);
+    // What's wrong with the plan, if anything: the day has gone by with the ticket still open, or it's after the due date.
+    public (string Text, string Title)? PlanFlag
+    {
+        get
+        {
+            if (Ticket is not { PlannedFor: { } planned } ticket || TicketInsights.IsClosed(ticket)) return null;
+            if (TicketInsights.IsPlanLate(ticket, DateOnly.FromDateTime(DateTime.Now))) return ("Not done", "Planned for a day that has gone by, and still open. Plan it for another day, or close it.");
+            if (!ticket.IsSlaPaused && ticket.DueDate is { } due && planned > DateOnly.FromDateTime(due.ToLocalTime())) return ("After it's due", "Planned for a day after the due date.");
+            return null;
+        }
+    }
     // Back to the ticket list as it was last seen (filters, sort, page), or the plain list. Only ever a /Jobs address.
     public string BackUrl => Request.Cookies[JobsModel.BackCookie] is { } back
         && (back == "/Jobs" || back.StartsWith("/Jobs?", StringComparison.Ordinal)) && Url.IsLocalUrl(back) ? back : Url.Page("/Jobs")!;
@@ -220,6 +231,18 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
                 return RedirectToPage(new { number });
             }
             ticket = ticket with { DueDate = dueDate, DueDateOverridden = dueDate.HasValue };
+        }
+        else if (field == "plannedFor")
+        {
+            DateOnly? planned = string.IsNullOrWhiteSpace(value) ? null : DateOnly.TryParseExact(value, "yyyy-MM-dd", out var parsedPlanned) ? parsedPlanned : null;
+            if (!string.IsNullOrWhiteSpace(value) && !planned.HasValue)
+            {
+                Message = "Enter a valid date to plan it for.";
+                return RedirectToPage(new { number });
+            }
+            if (planned is not null && TicketInsights.IsClosed(ticket)) { Message = "A closed ticket can't be planned. Reopen it first."; return RedirectToPage(new { number }); }
+            ticket = ticket with { PlannedFor = planned };
+            successMessage = planned is { } day ? $"Planned for {day:dddd d MMMM}." : "Taken off the plan.";
         }
         else
         {

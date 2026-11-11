@@ -675,7 +675,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs FROM Tickets;";
+            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs, PlannedFor FROM Tickets;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -693,7 +693,8 @@ public sealed partial class HelpdeskStore
                     RequesterSeenAt = reader.IsDBNull(18) ? null : Date(reader, 18),
                     SubCategory = NullableString(reader, 19) ?? "",
                     DeskNumber = reader.GetInt32(20),
-                    FormerRefs = reader.GetString(21)
+                    FormerRefs = reader.GetString(21),
+                    PlannedFor = NullableDateOnly(reader, 22)
                 };
                 data.Tickets.Add(ticket);
             }
@@ -988,8 +989,8 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen,$subcategory,$desknumber,$formerrefs);",
-                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null), ("$subcategory", s.Item.SubCategory ?? ""), ("$desknumber", s.Item.DeskNumber), ("$formerrefs", s.Item.FormerRefs ?? "")]);
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs, PlannedFor) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen,$subcategory,$desknumber,$formerrefs,$planned);",
+                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null), ("$subcategory", s.Item.SubCategory ?? ""), ("$desknumber", s.Item.DeskNumber), ("$formerrefs", s.Item.FormerRefs ?? ""), ("$planned", IsoDay(s.Item.PlannedFor))]);
             // Most tickets have one asset or none, and those need no de-duplicating.
             foreach (var assetId in item.AssetIds.Count < 2 ? item.AssetIds : item.AssetIds.Distinct())
                 if (assetIds.Contains(assetId))

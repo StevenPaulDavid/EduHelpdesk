@@ -20,6 +20,7 @@ Under **With selected tickets**, choose an **Action**, fill in what it asks for,
 | Change status | Sets a new status on every selected ticket |
 | Assign technician | Assigns one person. A ticket whose team they're not in is skipped |
 | Assign team | Moves them to a team. A technician not in that team is unassigned |
+| Plan for a day | Books them in for a day, or takes them off the plan if the date is empty. Closed tickets are skipped |
 | Change priority, category or type | Sets the new value. A new category can move a ticket to another desk |
 | Add a comment | The same comment on each, as a reply or an internal note |
 | Close with a message | Closes them. Tickets that need a closing message are skipped if it's blank |

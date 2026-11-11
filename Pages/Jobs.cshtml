@@ -68,7 +68,7 @@
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
             ClearUrl = Model.ClearUrl(),
-            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset)],
+            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset), ("planday", Model.PlannedOn?.ToString("yyyy-MM-dd"))],
             Fields = @<text>
                 @if (Model.HasSeveralDesks)
                 {
@@ -80,6 +80,7 @@
                 <label>Requester<select name="requester" data-picker><option value="">Anyone</option>@foreach (var user in Model.Users.OrderBy(x => x.Name)) { <option value="@user.Id" data-search="@user.Email @user.Department" selected="@(user.Id.ToString() == Model.Requester)">@user.Name</option> }</select></label>
                 <label>Department<select name="dept"><option value="">Any department</option>@foreach (var item in Model.Departments) { <option value="@item" selected="@string.Equals(item, Model.Department, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
                 <label>Location<select name="loc"><option value="">Any location</option><option value="@TicketListQuery.None" selected="@(Model.Location == TicketListQuery.None)">(Not specified)</option>@foreach (var item in Model.Locations) { <option value="@item" selected="@string.Equals(item, Model.Location, StringComparison.OrdinalIgnoreCase)">@item</option> }</select></label>
+                <label>Planned for<select name="plan"><option value="">Any</option>@foreach (var item in TicketListQuery.PlanFilters) { <option value="@item" selected="@(item == Model.Planned)">@JobsModel.PlanLabel(item)</option> }</select></label>
                 <fieldset class="filter-group"><legend>Status</legend>@foreach (var item in Model.Statuses) { <label class="toggle-label"><input type="checkbox" name="status" value="@item" checked="@Model.Status.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
                 <fieldset class="filter-group"><legend>Priority</legend>@foreach (var item in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priority" value="@item" checked="@Model.Priority.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
                 <fieldset class="filter-group"><legend>Type</legend>@foreach (var item in Model.Types) { <label class="toggle-label"><input type="checkbox" name="type" value="@item" checked="@Model.Type.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
@@ -107,6 +108,7 @@
             <th><a class="sort-link" href="@Model.SortUrl("priority")">Priority@(Model.SortMark("priority"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("status")">Status@(Model.SortMark("status"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("due")">Due@(Model.SortMark("due"))</a></th>
+            <th><a class="sort-link" href="@Model.SortUrl("planned")">Planned@(Model.SortMark("planned"))</a></th>
             <th><a class="sort-link" href="@Model.SortUrl("updated")">Updated@(Model.SortMark("updated"))</a> <span class="muted">/</span> <a class="sort-link" href="@Model.SortUrl("created")">Created@(Model.SortMark("created"))</a></th>
         </tr></thead><tbody>
         @foreach (var ticket in Model.Rows)
@@ -136,10 +138,11 @@
                 <td><span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span></td>
                 <td><span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span></td>
                 <td class="due-cell">@if (ticket.DueDate is { } dueDate) { <span>@dueDate.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span> @if (due != DueState.None) { <br /><span class="badge @(due == DueState.Overdue ? "badge-warning" : "")">@TicketInsights.DueText(ticket, Model.Now)</span> } } else { <span class="muted">—</span> }</td>
+                <td class="planned-cell">@if (ticket.PlannedFor is { } planned) { var late = TicketInsights.IsPlanLate(ticket, Model.Today); <span title="@planned.ToString("dddd d MMMM yyyy")">@TicketInsights.PlannedText(planned, Model.Today)</span> @if (late) { <br /><span class="badge badge-warning" title="Planned for a day that has gone by, and still open">Not done</span> } } else { <span class="muted">—</span> }</td>
                 <td class="when-cell"><span title="Updated @ticket.LastModifiedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@NotificationEndpoints.When(ticket.LastModifiedAt)</span><br /><span class="muted" title="Created @ticket.CreatedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")">Created @ticket.CreatedAt.ToLocalTime().ToString("d MMM")</span></td>
             </tr>
         }
-        @if (Model.Rows.Count == 0) { <tr><td colspan="@(Model.ShowAssets ? 9 : 8)" class="empty">@(Model.View == "mine" && currentTechnician is null ? "Your account isn't linked to a technician record." : Model.IsFiltered ? "No tickets match these filters." : null)@if (!(Model.View == "mine" && currentTechnician is null) && !Model.IsFiltered) { if (Model.ShownDesks.Count > 0) { <text>Nothing here on @Model.DeskPhrase. <a href="@Model.AllDesksUrl()">Show every desk</a></text> } else { @(Model.TotalTickets == 0 ? "No tickets have been logged yet." : "Nothing in this queue.") } }</td></tr> }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="@(Model.ShowAssets ? 10 : 9)" class="empty">@(Model.View == "mine" && currentTechnician is null ? "Your account isn't linked to a technician record." : Model.IsFiltered ? "No tickets match these filters." : null)@if (!(Model.View == "mine" && currentTechnician is null) && !Model.IsFiltered) { if (Model.ShownDesks.Count > 0) { <text>Nothing here on @Model.DeskPhrase. <a href="@Model.AllDesksUrl()">Show every desk</a></text> } else { @(Model.TotalTickets == 0 ? "No tickets have been logged yet." : "Nothing in this queue.") } }</td></tr> }
         </tbody></table></div>
 
         @if (Model.Rows.Count > 0)
@@ -149,12 +152,14 @@
                 <span class="muted" id="selected-count">None selected</span>
                 <label>Action<select name="operation" id="bulk-operation">
                     <option value="status">Change status</option><option value="technician" data-hint="A technician who is not in a ticket's team is skipped for that ticket.">Assign technician</option><option value="team" data-hint="A technician who is not in the new team is unassigned from the ticket.">Assign team</option>
+                    <option value="plan" data-hint="The day the team means to do the work. Leave the date empty to take tickets off the plan. Closed tickets are skipped.">Plan for a day</option>
                     <option value="priority">Change priority</option><option value="category">Change category</option><option value="type">Change type</option><option value="comment">Add a comment</option>
                     <option value="close" data-hint="Tickets that need a closing message are skipped if you leave it blank.">Close with a message</option><option value="merge" data-hint="Comments, linked assets and parts are copied into that ticket, and each selected ticket is closed. This cannot be undone." data-confirm="Merge {count} ticket(s) into #{mergeTarget}? The merged tickets will be closed.">Merge into a ticket</option><option value="export" data-button="Export selected">Export to CSV</option>
                 </select></label>
                 <label id="bulk-status-field">New status<select name="newStatus" data-describe="bulk-status-description">@foreach (var item in Model.Statuses) { <option value="@item" data-description="@Model.StatusDescriptions.GetValueOrDefault(item)">@item</option> }</select><small id="bulk-status-description" class="status-description-hint">@(Model.Statuses.Count > 0 && Model.StatusDescriptions.TryGetValue(Model.Statuses[0], out var firstStatusDescription) ? firstStatusDescription : "")</small></label>
                 <label id="bulk-technician-field" hidden>Technician<select name="newTechnician" disabled><option value="">Unassigned</option>@foreach (var tech in Model.Technicians) { <option value="@tech.Id">@tech.Name · @tech.Team</option> }</select></label>
                 <label id="bulk-team-field" hidden>Team<select name="newTeam" disabled><option value="@TicketListQuery.None">No team</option>@foreach (var item in Model.Teams) { <option value="@item">@item</option> }</select></label>
+                <label id="bulk-plan-field" hidden>Planned for<input name="newPlanned" type="date" disabled /></label>
                 <label id="bulk-priority-field" hidden>New priority<select name="newPriority" disabled>@foreach (var item in Model.Priorities) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-category-field" hidden>New category<select name="newCategory" disabled>@foreach (var item in Model.Categories) { <option value="@item">@item</option> }</select></label>
                 <label id="bulk-type-field" hidden>New type<select name="newType" disabled>@foreach (var item in Model.Types) { <option value="@item">@item</option> }</select></label>

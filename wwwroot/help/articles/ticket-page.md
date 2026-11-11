@@ -34,6 +34,7 @@ Under **Assignment & scheduling**, click the pencil beside a field to change it:
 - **Assigned team** - the group responsible.
 - **SLA** - how long the ticket has. See [Due dates and SLAs](due-dates-and-slas).
 - **Due date** - when it's due. Changing it by hand marks it as an *Override*.
+- **Planned for** - the day the team means to do it. Only the helpdesk sees it. See [Planning a ticket for a day](plan-a-ticket).
 
 ## The tabs
 

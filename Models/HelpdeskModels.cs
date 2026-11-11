@@ -394,6 +394,9 @@ public record TicketRecord(
     public bool IsSlaPaused => SlaPauses.Count > 0 && SlaPauses[^1].EndedAt is null;
     // When the requester last opened the ticket in the portal, for its "New reply" flag. Null until they first do.
     public DateTime? RequesterSeenAt { get; init; }
+    // The day the work is booked in for: the team's own plan, set by hand and never shown to the requester. It has
+    // nothing to do with the due date or the SLA, and stays on a closed ticket as a record of when it was planned.
+    public DateOnly? PlannedFor { get; init; }
 
     // The newest of creation, any history entry (field changes, parts, attributes, merges, asset links) and any comment.
     public DateTime LastModifiedAt => Comments.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();
