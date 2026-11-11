@@ -142,16 +142,29 @@ if (($service -or $NoService) -and (Test-Path $record)) {
 
     if ($service -and $service.State -ne "Stopped") {
         Say "Stopping the service..."
+        $servicePid = [int]$service.ProcessId
         Stop-Service -Name $ServiceName
         (Get-Service -Name $ServiceName).WaitForStatus("Stopped", [TimeSpan]::FromSeconds(90))
+        # "Stopped" comes before the process has gone: it closes the database last, and SQLite then deletes
+        # helpdesk.db-wal and -shm. Backing up before that races it.
+        if ($servicePid -gt 0) { try { Wait-Process -Id $servicePid -Timeout 60 -ErrorAction Stop } catch { } }
     }
 
     # A copy of the data as it was, before the new version touches it (its first start may upgrade the database).
     $backups = Join-Path $dataFolder "backups"
     New-Item -ItemType Directory -Force -Path $backups | Out-Null
     $backup = Join-Path $backups ("before-upgrade-{0}-to-{1}-{2:yyyyMMdd-HHmmss}.zip" -f $oldVersion, $newVersion, (Get-Date))
-    $items = Get-ChildItem -LiteralPath $dataFolder -Force | Where-Object { $_.Name -notin @("backups", "logs") }
-    Compress-Archive -Path $items.FullName -DestinationPath $backup
+    # Copied to a staging folder first, so a file that changes or vanishes meanwhile can't fail the zip. helpdesk.db-shm
+    # is left out: it is only SQLite's shared-memory index, rebuilt from the database and -wal on the next start.
+    $staging = Join-Path $backups (".staging-{0:yyyyMMdd-HHmmss}" -f (Get-Date))
+    try {
+        & robocopy $dataFolder $staging /E /XD $backups (Join-Path $dataFolder "logs") /XF "*.db-shm" /R:3 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) { Fail "Backing up $dataFolder failed (robocopy code $LASTEXITCODE). Nothing was changed; start the EduHelpdesk service again and retry." }
+        $items = @(Get-ChildItem -LiteralPath $staging -Force)
+        if ($items.Count -gt 0) { Compress-Archive -Path $items.FullName -DestinationPath $backup }
+    } finally {
+        Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Say "Data backed up to $backup"
 
     $previous = "$programFolder.previous"
