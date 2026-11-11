@@ -27,6 +27,11 @@ public class PhonesModel(HelpdeskStore store, SignInThrottle throttle, IConfigur
     // the server certificate's fingerprint, for anyone typing the address into the app.
     public string Address => store.SiteAddress is { Length: > 0 } set ? set.TrimEnd('/') : People.QuickStartModel.GuessAddress(Request).TrimEnd('/');
     public string? Fingerprint => ServerCertificate.Fingerprint(configuration, environment);
+    // The app only connects over HTTPS and refuses a pairing code that points anywhere else, so an http:// address saved
+    // in Settings → Sign-in security (often from before HTTPS was turned on) would make a code no phone can use.
+    public bool AddressIsPlainHttp => Address.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+    // Phones' alerts are the web bell's: with staff notifications off in Settings → Notifications there are none to send.
+    public bool AlertsOff => !store.NotificationsOpenFor(HelpdeskStore.StaffAudience);
 
     // Shown once, straight after Add a phone.
     public string? QrCode { get; private set; }
@@ -39,7 +44,7 @@ public class PhonesModel(HelpdeskStore store, SignInThrottle throttle, IConfigur
     public IActionResult OnPostAdd()
     {
         if (!Load()) return Forbid();
-        if (Refusal is not null || !IsHttps) return RedirectToPage();
+        if (Refusal is not null || !IsHttps || AddressIsPlainHttp) return RedirectToPage();
         var address = HttpContext.Connection.RemoteIpAddress;
         if (throttle.Refusal("helpdesk", Me.Email, address) is { } refusal)
         {

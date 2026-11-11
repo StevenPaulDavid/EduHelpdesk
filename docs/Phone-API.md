@@ -50,7 +50,7 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 | `POST /tickets/{number}/close` | Tickets: Edit | `{ message }` (the closing message) → `{ ticket, message }` |
 | `POST /tickets` (form) | Tickets: New | `201` full ticket |
 | `GET /alerts` | | `{ unread, items: [alert] }` |
-| `GET /alerts/poll?after=&wait=` | | `{ cursor, items: [alert] }`; waits up to 25 seconds |
+| `GET /alerts/poll?after=&wait=` | | `{ cursor, items: [alert] }`; waits up to 25 seconds. With staff notifications switched off (Settings → Notifications) this and `/alerts` answer `{ disabled: true }` at once, which the app shows rather than polling again straight away |
 | `POST /alerts/read` | | `{ id }` or `{ all: true }` → `204` |
 
 `view` is one of the web Tickets page's views: `open`, `mine`, `unassigned`, `overdue`, `onboarding`, `all`. `desk` left out means every desk the person sees. The counts honour `q`.

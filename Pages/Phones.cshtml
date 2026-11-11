@@ -12,6 +12,14 @@ else if (!Model.IsHttps)
 {
     <div class="notice notice-warning">This page came over plain HTTP. The phone app only connects over HTTPS, so phones can't be paired until HTTPS is on: run Enable-Https.cmd from the folder EduHelpdesk was installed from. See the Install Guide.</div>
 }
+else if (Model.AddressIsPlainHttp)
+{
+    <div class="notice notice-warning">The helpdesk address is set to <code>@Model.Address</code>, which isn't HTTPS. The phone app only connects over HTTPS, so it would turn down a pairing code with this address. @if (Model.CanSetUp) { <text>Change it to start <code>https://</code> in <a asp-page="/Settings/SignIn" asp-fragment="address">Sign-in security</a>, then come back here to add a phone.</text> } else { <text>Ask an administrator to change it to start <code>https://</code> in Settings → Sign-in security.</text> }</div>
+}
+@if (Model.AppOn && Model.AlertsOff)
+{
+    <div class="notice notice-warning">Staff notifications are switched off, so paired phones get no alerts. @if (Model.CanSetUp) { <text>Turn them on in <a asp-page="/Settings/Notifications">Settings → Notifications</a>.</text> } else { <text>An administrator can turn them on in Settings → Notifications.</text> }</div>
+}
 
 @if (Model.QrCode is { } qr)
 {
@@ -25,7 +33,7 @@ else if (!Model.IsHttps)
         <p><a asp-page="/Phones">Done</a></p>
     </section>
 }
-else if (Model.Refusal is null && Model.IsHttps)
+else if (Model.Refusal is null && Model.IsHttps && !Model.AddressIsPlainHttp)
 {
     <section class="panel">
         <h2>Add a phone</h2>
