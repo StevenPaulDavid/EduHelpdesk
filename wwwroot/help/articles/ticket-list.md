@@ -12,9 +12,9 @@ order: 1
 
 ![The ticket list](tickets-list.png)
 
-## List or board
+## List, board or planner
 
-**List | Board** beside the queues switches between this list and the same tickets as cards in columns. See [The ticket board](ticket-board).
+**List | Board | Planner** beside the queues switches between this list, the same tickets as cards in columns, and the same tickets on the days they're planned for. See [The ticket board](ticket-board) and [The ticket planner](ticket-planner).
 
 ## The More menu
 

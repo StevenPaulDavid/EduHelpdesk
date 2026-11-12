@@ -24,6 +24,10 @@ To take a ticket off the plan, clear the date and press the tick. Every change i
 
 On the Tickets page, tick the tickets, choose **Plan for a day** under **With selected tickets**, pick the day and press **Apply to selected**. Leave the date empty to take them off the plan. Closed tickets are skipped. See [Updating many tickets at once](update-many-tickets).
 
+## Planning by dragging
+
+The **planner** shows the week by person, or the month, and lets you drag tickets onto days. See [The ticket planner](ticket-planner).
+
 ## Finding what's planned
 
 The ticket list has a **Planned** column: *Today*, *Tomorrow*, or the day and date. Click its heading to sort by it.

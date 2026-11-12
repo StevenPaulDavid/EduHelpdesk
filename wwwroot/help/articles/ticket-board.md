@@ -12,7 +12,7 @@ The **board** shows the same tickets as the list, as cards in columns. It's the 
 
 ## Opening it
 
-On the **Tickets** page, press **Board** in the **List | Board** switch beside the queues. **List** takes you back. The queue you're on, the search and the filters stay as they are, so the board shows exactly the tickets the list did.
+On the **Tickets** page, press **Board** in the **List | Board | Planner** switch beside the queues. **List** takes you back. The queue you're on, the search and the filters stay as they are, so the board shows exactly the tickets the list did.
 
 ## Columns
 

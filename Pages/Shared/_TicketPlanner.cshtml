@@ -1,0 +1,134 @@
+@using EduHelpdesk.Services
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.JobsModel
+@* The Tickets page as a planner (Pages/Jobs): the tickets the queue, search and filters choose, on the days they're
+   planned for. The week has a row for each person; the month is a calendar. A card is planned by dragging it onto a
+   day (wwwroot/js/pages/planner.js) or with its Plan menu, which works without scripts and by keyboard; both post to
+   the page's Plan handler. Only the helpdesk ever sees the plan. *@
+@{
+    var planner = Model.Planner!;
+    var planUrl = Model.PlanUrl();
+    var culture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+
+    async Task Card(TicketRecord ticket, bool showWho, bool showDay)
+    {
+        var closed = TicketInsights.IsClosed(ticket);
+        var late = TicketInsights.IsPlanLate(ticket, Model.Today);
+        var afterDue = !closed && !ticket.IsSlaPaused && ticket.PlannedFor is { } on && ticket.DueDate is { } dueDate && on > DateOnly.FromDateTime(dueDate.ToLocalTime());
+        var due = TicketInsights.DueStateOf(ticket, Model.Now, Model.DueSoonHours);
+        var isOnboarding = Model.Onboardings.ContainsKey(ticket.Number);
+        var cardUrl = isOnboarding ? Url.Page("/Onboarding/Details", new { number = ticket.Number }) : Url.Page("/Job", new { number = ticket.Number });
+        var reference = Model.Ref(ticket);
+        <article class="plan-card @(closed ? "plan-card-done" : "") @(due == DueState.Overdue ? "card-overdue" : due == DueState.Soon ? "card-soon" : "")" draggable="@(Model.CanEdit && !closed ? "true" : "false")" data-number="@ticket.Number" data-ref="@reference">
+            <a class="plan-card-title" href="@cardUrl" title="@ticket.Title"><strong>@reference</strong> @ticket.Title</a>
+            <p class="plan-card-tags">
+                <span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span>
+                @if (closed) { <span class="badge">Closed</span> }
+                @if (showDay && ticket.PlannedFor is { } was) { <span class="badge badge-warning" title="Planned for @was.ToString("dddd d MMMM yyyy", culture), and still open">@TicketInsights.PlannedText(was, Model.Today)</span> }
+                else if (late) { <span class="badge badge-warning" title="Planned for a day that has gone by, and still open">Not done</span> }
+                @if (afterDue) { <span class="badge badge-warning" title="Planned for a day after its due date">After it's due</span> }
+                @if (showWho) { <span class="muted">@(ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned")</span> }
+            </p>
+            @if (Model.CanEdit && !closed)
+            {
+                <details class="board-move">
+                    <summary>Plan<span class="visually-hidden"> @reference</span></summary>
+                    <form method="post" action="@planUrl" class="board-move-form plan-form" asp-antiforgery="true">
+                        <input type="hidden" name="number" value="@ticket.Number" />
+                        <label>Day<input type="date" name="planFor" value="@((ticket.PlannedFor ?? Model.Today).ToString("yyyy-MM-dd"))" /></label>
+                        <label>Who<select name="tech">
+                            <option value="keep">Leave as it is</option>
+                            <option value="@JobsModel.UnassignedKey">Unassigned</option>
+                            @foreach (var person in planner.People) { <option value="@person.Id">@person.Name</option> }
+                        </select></label>
+                        <span class="plan-form-buttons">
+                            <button class="button button-secondary" type="submit">Plan</button>
+                            @if (ticket.PlannedFor is not null) { <button class="button button-secondary" type="submit" name="clear" value="true">Take off the plan</button> }
+                        </span>
+                    </form>
+                </details>
+            }
+        </article>
+    }
+}
+<section class="panel planner-panel">
+    <div class="panel-heading">
+        <div><h2>@planner.Title <help-tip key="tickets.planner" /></h2><p class="muted planner-count">@planner.PlannedInRange ticket@(planner.PlannedInRange == 1 ? "" : "s") planned · @JobsModel.ViewLabel(Model.View)</p></div>
+        <div class="planner-nav">
+            <nav class="view-switch" aria-label="Move through the planner">
+                <a href="@Model.PlannerStepUrl(-1)" rel="prev">← Previous</a>
+                <a href="@Model.PlannerUrl(Model.Span, null)">@(Model.IsMonth ? "This month" : "This week")</a>
+                <a href="@Model.PlannerStepUrl(1)" rel="next">Next →</a>
+            </nav>
+            <nav class="view-switch" aria-label="How much to show">
+                <a class="@(Model.IsMonth ? "" : "active")" href="@Model.PlannerUrl(null, Model.Day)" aria-current="@(Model.IsMonth ? null : "page")">Week</a>
+                <a class="@(Model.IsMonth ? "active" : "")" href="@Model.PlannerUrl("month", Model.Day)" aria-current="@(Model.IsMonth ? "page" : null)">Month</a>
+            </nav>
+        </div>
+    </div>
+    <p class="notice board-notice" id="planner-notice" role="status" hidden></p>
+    <div class="planner" id="ticket-planner" data-plan-url="@planUrl" data-can-edit="@(Model.CanEdit ? "true" : "false")">
+        <aside class="planner-side" aria-label="Tickets to plan">
+            @if (planner.LateTotal > 0)
+            {
+                <section class="planner-side-group">
+                    <header class="board-column-head"><h3>Planned day gone by</h3><span class="badge badge-warning">@planner.LateTotal</span></header>
+                    <p class="muted board-column-note">Still open. Drag to a new day, or close them.</p>
+                    <div class="plan-cards">@foreach (var ticket in planner.Late) { await Card(ticket, true, true); }</div>
+                    @if (planner.LateTotal > planner.Late.Count) { <p class="board-more">@(planner.LateTotal - planner.Late.Count) more not shown. <a href="@Model.PlannedListUrl("plan", "late")">Open as a list</a></p> }
+                </section>
+            }
+            <section class="planner-side-group plan-drop" data-plan-clear="true">
+                <header class="board-column-head"><h3>Not planned</h3><span class="badge">@planner.UnplannedTotal</span></header>
+                <div class="plan-cards">
+                    @foreach (var ticket in planner.Unplanned) { await Card(ticket, true, false); }
+                    @if (planner.UnplannedTotal == 0) { <p class="muted board-empty">@(Model.CanEdit ? "Every open ticket here has a day. Drop a card here to take it off the plan." : "Every open ticket here has a day.")</p> }
+                </div>
+                @if (planner.UnplannedTotal > planner.Unplanned.Count) { <p class="board-more">@(planner.UnplannedTotal - planner.Unplanned.Count) more not shown. <a href="@Model.PlannedListUrl("plan", "none")">Open as a list</a></p> }
+            </section>
+        </aside>
+        <div class="table-wrap planner-wrap">
+            <table class="planner-table @(Model.IsMonth ? "planner-month" : "planner-week")">
+                @if (Model.IsMonth)
+                {
+                    <thead><tr>@foreach (var weekday in planner.Columns) { <th scope="col">@culture.DateTimeFormat.GetDayName(weekday)</th> }</tr></thead>
+                    <tbody>
+                    @foreach (var week in planner.Rows)
+                    {
+                        <tr>
+                        @foreach (var day in week.Days)
+                        {
+                            var cards = week.Cells[day.Date];
+                            <td class="plan-drop plan-cell @(day.IsToday ? "plan-today" : "") @(day.InRange ? "" : "plan-outside")" data-plan-day="@day.Date.ToString("yyyy-MM-dd")">
+                                <p class="plan-day-head"><a href="@Model.PlannerUrl(null, day.Date)" title="Open the week of @day.Date.ToString("d MMMM", culture)">@(day.Date.Day == 1 || !day.InRange && day.Date == week.Days[0].Date ? day.Date.ToString("d MMM", culture) : day.Date.Day.ToString())</a>@if (day.IsToday) { <span class="badge">Today</span> }</p>
+                                <div class="plan-cards">@foreach (var ticket in cards.Take(JobsModel.PlannerMonthDayLimit)) { await Card(ticket, true, false); }</div>
+                                @if (cards.Count > JobsModel.PlannerMonthDayLimit) { <p class="board-more"><a href="@Model.PlannedListUrl("planday", day.Date.ToString("yyyy-MM-dd"))">+ @(cards.Count - JobsModel.PlannerMonthDayLimit) more</a></p> }
+                            </td>
+                        }
+                        </tr>
+                    }
+                    </tbody>
+                }
+                else
+                {
+                    <thead><tr><th scope="col"><span class="visually-hidden">Who</span></th>@foreach (var day in planner.Rows[0].Days) { <th scope="col" class="@(day.IsToday ? "plan-today" : "")">@day.Date.ToString("ddd d MMM", culture)@if (day.IsToday) { <text> </text><span class="badge">Today</span> }</th> }</tr></thead>
+                    <tbody>
+                    @foreach (var row in planner.Rows)
+                    {
+                        <tr>
+                            <th scope="row">@row.Name<br /><span class="muted">@row.Cells.Values.Sum(x => x.Count) planned</span></th>
+                            @foreach (var day in row.Days)
+                            {
+                                <td class="plan-drop plan-cell @(day.IsToday ? "plan-today" : "")" data-plan-day="@day.Date.ToString("yyyy-MM-dd")" data-plan-tech="@row.Key" aria-label="@row.Name, @day.Date.ToString("dddd d MMMM", culture)">
+                                    <div class="plan-cards">@foreach (var ticket in row.Cells[day.Date]) { await Card(ticket, false, false); }</div>
+                                </td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                }
+            </table>
+        </div>
+    </div>
+    <p class="muted board-foot">Only the helpdesk sees the plan; it doesn't change due dates.@if (Model.CanEdit) { <text> Drag a ticket onto a day@(Model.IsMonth ? "" : " in someone's row"), or use <strong>Plan</strong> on the card.</text> }</p>
+</section>

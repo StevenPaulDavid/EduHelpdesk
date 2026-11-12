@@ -104,6 +104,64 @@ public class PlannedForTests
     }
 
     [Fact]
+    public void The_planner_books_a_day_and_gives_the_ticket_to_the_row_it_was_dropped_on()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        var number = test.AddTicket(test.AddRequester("Priya Shah").Id);
+        var team = store.TechnicianTeams[0];
+        var sam = new TechnicianRecord(Guid.NewGuid(), "Sam Okoro", "sam@school.test", team) { DeskIds = [store.Desks[0].Id] };
+        store.AddTechnician(sam);
+        var thursday = Today.AddDays(3);
+
+        var dropped = store.PlanTicket(number, thursday, HelpdeskStore.PlanAssignee.To(sam.Id));
+        Assert.True(dropped.Ok, dropped.Message);
+        Assert.Contains("given to Sam Okoro", dropped.Message);
+        var ticket = store.Tickets.Single(x => x.Number == number);
+        Assert.Equal((thursday, sam.Id), (ticket.PlannedFor, ticket.TechnicianId));
+
+        // The same cell again is no change; the month only moves the day; the side list only clears it.
+        Assert.EndsWith("is already there.", store.PlanTicket(number, thursday, HelpdeskStore.PlanAssignee.To(sam.Id)).Message);
+        Assert.True(store.PlanTicket(number, thursday.AddDays(1), HelpdeskStore.PlanAssignee.Keep).Ok);
+        Assert.True(store.PlanTicket(number, null, HelpdeskStore.PlanAssignee.Keep).Ok);
+        ticket = test.Reopen().Tickets.Single(x => x.Number == number);
+        Assert.Null(ticket.PlannedFor);
+        Assert.Equal(sam.Id, ticket.TechnicianId);
+
+        // The Unassigned row takes it off them.
+        Assert.True(test.Store.PlanTicket(number, thursday, HelpdeskStore.PlanAssignee.Nobody).Ok);
+        Assert.Null(test.Store.Tickets.Single(x => x.Number == number).TechnicianId);
+        Assert.Null(test.Store.CompareDatabaseWithMemory());
+    }
+
+    [Fact]
+    public void A_planner_move_that_cant_be_made_changes_nothing()
+    {
+        using var test = new TestStore();
+        var store = test.Store;
+        var person = test.AddRequester("Sam Taylor");
+        var number = test.AddTicket(person.Id);
+        store.AddTechnicianTeam("Network team");
+        var team = store.TechnicianTeams[0];
+        var outsider = new TechnicianRecord(Guid.NewGuid(), "Ola Berg", "ola@school.test", "Network team") { DeskIds = [store.Desks[0].Id] };
+        store.AddTechnician(outsider);
+        store.UpdateTicket(store.Tickets.Single(x => x.Number == number) with { TeamName = team });
+
+        // Not in the ticket's team: neither the person nor the day is changed.
+        var refused = store.PlanTicket(number, Today.AddDays(1), HelpdeskStore.PlanAssignee.To(outsider.Id));
+        Assert.False(refused.Ok);
+        Assert.Contains("Ola Berg isn't in the team", refused.Message);
+        var ticket = store.Tickets.Single(x => x.Number == number);
+        Assert.Null(ticket.PlannedFor);
+        Assert.Null(ticket.TechnicianId);
+
+        Assert.False(store.PlanTicket(number, Today, HelpdeskStore.PlanAssignee.To(Guid.NewGuid())).Ok);
+        Assert.False(store.PlanTicket(987654, Today, HelpdeskStore.PlanAssignee.Keep).Ok);
+        var closed = test.AddTicket(person.Id, "Old job", status: "Closed", closedAt: DateTime.UtcNow);
+        Assert.Contains("is closed", store.PlanTicket(closed, Today, HelpdeskStore.PlanAssignee.Keep).Message);
+    }
+
+    [Fact]
     public void A_planned_day_reads_as_today_tomorrow_or_the_date()
     {
         var day = new DateOnly(2026, 11, 11);
