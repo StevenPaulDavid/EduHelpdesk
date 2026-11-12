@@ -187,6 +187,7 @@ public static class TicketReportPdf
         Details(section, input);
         Description(section, input);
         Linked(section, input);
+        Disposal(section, input);
         Conversation(section, input);
         History(section, input);
         Attachments(section, input, files, firstFilePage > 0);
@@ -316,6 +317,48 @@ public static class TicketReportPdf
                 Cells(table.AddRow(), relation.Reference.Length > 0 ? relation.Reference : $"#{relation.Number}", relation.Title, relation.Status, relation.Label);
         }
     }
+
+    // What the ticket disposed of, and what is still waiting (HelpdeskStore.Disposal): the record an auditor asks for.
+    // Staff copy only - it names contractors and money. Left out when the ticket has nothing to do with disposal.
+    private static void Disposal(Section section, TicketReportInput input)
+    {
+        var ticket = input.Ticket;
+        var disposed = input.Assets.Where(x => x.DisposalTicket == ticket.Number && x.DisposalDate is not null).ToList();
+        var waiting = input.Assets.Where(x => x.AwaitingDisposalTicket == ticket.Number).ToList();
+        if (!input.IncludeInternal || (!ticket.DisposeOnClose && disposed.Count == 0)) return;
+
+        section.AddParagraph("Disposal", StyleNames.Heading1);
+        if (disposed.Count > 0)
+        {
+            var table = Table(section, 2.4, 3.6, 2.4, 3.2, 3.6, 1.8);
+            Header(table, "Asset tag", "Make and model", "Disposed", "How", "By / certificate", "Proceeds");
+            // The shared header right-aligns the last four of six columns (it was made for money); here only Proceeds is.
+            for (var i = 2; i < 5; i++) table.Rows[0].Cells[i].Format.Alignment = ParagraphAlignment.Left;
+            foreach (var row in DisposalRows(input))
+            {
+                var added = table.AddRow();
+                Cells(added, row);
+                added.Cells[5].Format.Alignment = ParagraphAlignment.Right;
+            }
+        }
+        if (waiting.Count > 0)
+            section.AddParagraph($"Awaiting disposal when this ticket is closed: {string.Join(", ", waiting.Select(x => x.AssetTag))}.", disposed.Count > 0 ? "Muted" : StyleNames.Normal);
+        else if (disposed.Count == 0)
+            section.AddParagraph("This ticket disposes of its linked assets when it's closed. None are waiting.", "Muted");
+        // Before anything is disposed of, the details gathered so far.
+        var planned = string.Join(" · ", new[] { ticket.DisposalMethod, ticket.DisposalBy.Length > 0 ? $"by {ticket.DisposalBy}" : "", ticket.DisposalCertificate.Length > 0 ? $"certificate {ticket.DisposalCertificate}" : "" }.Where(x => x.Length > 0));
+        if (planned.Length > 0 && disposed.Count == 0) section.AddParagraph($"So far: {planned}.", "Muted");
+    }
+
+    // The disposal table's rows: one per asset this ticket disposed of. Empty on the requester copy.
+    internal static IReadOnlyList<string[]> DisposalRows(TicketReportInput input) => !input.IncludeInternal ? [] : input.Assets
+        .Where(x => x.DisposalTicket == input.Ticket.Number && x.DisposalDate is not null)
+        .Select(asset => new[]
+        {
+            asset.AssetTag, $"{asset.Make} {asset.Model}".Trim(), asset.DisposalDate!.Value.ToString("d MMM yyyy", CultureInfo.GetCultureInfo("en-GB")),
+            asset.DisposalMethod, string.Join(" · ", new[] { asset.DisposedBy, asset.DisposalCertificate.Length > 0 ? $"Cert. {asset.DisposalCertificate}" : "" }.Where(x => x.Length > 0)),
+            asset.DisposalProceeds is { } money ? money.ToString("0.00", CultureInfo.InvariantCulture) : ""
+        }).ToList();
 
     private static void Conversation(Section section, TicketReportInput input)
     {

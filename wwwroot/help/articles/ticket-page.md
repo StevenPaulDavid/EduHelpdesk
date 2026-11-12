@@ -19,7 +19,7 @@ The bar stays at the top of the screen as you scroll. It shows the ticket's numb
 - **Assign to me** - take the job.
 - **On my way** - take the job and tell the requester you're coming. They get a pop-up in the staff portal naming you.
 - **Mark as closed** - close it. Some tickets ask for a closing message first. See [Closing a ticket](close-a-ticket).
-- **Print** - a printed **Ticket**, a **Label** to stick on a device, a **Job sheet** to take with you, or the whole ticket as a PDF: **Full report** (everything, internal notes included) or **Requester copy** (without internal notes or history, to give to someone outside the team).
+- **Print** - a printed **Ticket**, a **Label** to stick on a device, a **Job sheet** to take with you, or the whole ticket as a PDF: **Full report** (everything, internal notes included, and a **Disposal** section on a ticket that disposes of assets) or **Requester copy** (without internal notes or history, to give to someone outside the team).
 - **More** - **Merge into another ticket** and **Delete ticket**. These need permission to delete tickets.
 
 ## Description and details

@@ -68,7 +68,7 @@
     <h2>Disposals in @Model.AcademicLabel (@Model.AcademicDisposals.Count)</h2>
     <p>@Model.CalendarDisposals.Count were disposed of in calendar year @Model.CalendarYear.</p>
     <table>
-        <thead><tr><th>Asset</th><th>Make and model</th><th>Type</th><th>Disposed</th><th>How</th><th class="num">Proceeds</th><th class="num">Originally cost</th></tr></thead>
+        <thead><tr><th>Asset</th><th>Make and model</th><th>Type</th><th>Disposed</th><th>How</th><th class="num">Proceeds</th><th class="num">Originally cost</th><th>Ticket</th></tr></thead>
         <tbody>
         @foreach (var asset in Model.AcademicDisposals)
         {
@@ -80,9 +80,10 @@
                 <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)@if (!string.IsNullOrWhiteSpace(asset.DisposedBy) || !string.IsNullOrWhiteSpace(asset.DisposalCertificate)) { <br /><small>@string.Join(" · ", new[] { string.IsNullOrWhiteSpace(asset.DisposedBy) ? null : $"By {asset.DisposedBy}", string.IsNullOrWhiteSpace(asset.DisposalCertificate) ? null : $"Certificate {asset.DisposalCertificate}" }.Where(x => x is not null))</small> }</td>
                 <td class="num">@FinanceReportsModel.Money(asset.DisposalProceeds)</td>
                 <td class="num">@FinanceReportsModel.Money(asset.PurchasePrice)</td>
+                <td>@(Model.DisposalTicketRef(asset) ?? "—")</td>
             </tr>
         }
-        @if (Model.AcademicDisposals.Count == 0) { <tr><td colspan="7" class="empty">Nothing was disposed of in this academic year.</td></tr> }
+        @if (Model.AcademicDisposals.Count == 0) { <tr><td colspan="8" class="empty">Nothing was disposed of in this academic year.</td></tr> }
         </tbody>
     </table>
 </section>

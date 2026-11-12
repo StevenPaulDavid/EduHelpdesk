@@ -310,6 +310,30 @@ public class DisposalTicketTests
         Assert.Equal(TicketTypes.Incident, test.Store.Tickets.Single(x => x.Number == number).Type);
     }
 
+    [Fact]
+    public void The_staff_report_and_the_finance_report_show_what_the_ticket_disposed_of()
+    {
+        using var test = new TestStore();
+        var (one, kept, byHand) = (Laptop("TST-1"), Laptop("TST-2"), Laptop("TST-3"));
+        var number = DisposalTicket(test, one, kept);
+        test.Store.AddAsset(byHand);
+        Assert.True(test.Store.UnlinkAssetFromTicket(kept.Id, number));
+        Assert.True(test.Store.CloseDisposalTicket(number, null, true, Today, "Recycled (WEEE)", "GreenTech", "WEEE-42", 7.5m).Ok);
+        Assert.True(test.Store.DisposeAsset(byHand.Id, Today, "Written off", null).Ok);
+
+        var staff = test.Store.TicketReportFor(number, includeInternal: true, "Tess Tech")!;
+        var row = Assert.Single(TicketReportPdf.DisposalRows(staff));
+        Assert.Equal(["TST-1", "Dell Latitude 5440", "Recycled (WEEE)", "GreenTech · Cert. WEEE-42", "7.50"], new[] { row[0], row[1], row[3], row[4], row[5] });
+        Assert.True(TicketReportPdf.Build(staff).Length > 0);
+        var requesterCopy = test.Store.TicketReportFor(number, includeInternal: false, null)!;
+        Assert.Empty(TicketReportPdf.DisposalRows(requesterCopy));
+        Assert.True(TicketReportPdf.Build(requesterCopy).Length > 0);
+
+        var finance = new EduHelpdesk.Pages.Reports.FinanceReportsModel(test.Store);
+        Assert.Equal(test.Store.Ref(number), finance.DisposalTicketRef(Get(test, one)));
+        Assert.Null(finance.DisposalTicketRef(Get(test, byHand)));
+    }
+
     // The ticket page needs an EduNotify client, which none of these tests reach.
     private sealed class NoClients : IHttpClientFactory
     {

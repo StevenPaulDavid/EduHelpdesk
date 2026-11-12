@@ -83,7 +83,7 @@
 <section class="panel" id="disposals">
     <div class="panel-heading"><div><h2>Disposals in @Model.AcademicLabel</h2></div><div class="heading-actions">@if (Model.CanExport) { <a class="csv-link" asp-page="/Reports/Finance" asp-page-handler="Export" asp-route-table="disposals" asp-route-year="@Model.StartYear">⬇ CSV</a> }<span class="badge">@Model.AcademicDisposals.Count</span></div></div>
     <p class="muted">@Model.CalendarDisposals.Count were disposed of in calendar year @Model.CalendarYear. Disposals are only recorded from the point this was switched on — anything deleted before then is not here.</p>
-    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Disposed</th><th>How</th><th>Proceeds</th><th>Originally cost</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Disposed</th><th>How</th><th>Proceeds</th><th>Originally cost</th><th>Ticket</th></tr></thead><tbody>
     @foreach (var asset in Model.AcademicDisposals)
     {
         <tr>
@@ -93,9 +93,10 @@
             <td>@(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "—" : asset.DisposalMethod)@if (!string.IsNullOrWhiteSpace(asset.DisposedBy) || !string.IsNullOrWhiteSpace(asset.DisposalCertificate)) { <br /><span class="muted">@string.Join(" · ", new[] { string.IsNullOrWhiteSpace(asset.DisposedBy) ? null : $"By {asset.DisposedBy}", string.IsNullOrWhiteSpace(asset.DisposalCertificate) ? null : $"Certificate {asset.DisposalCertificate}" }.Where(x => x is not null))</span> }</td>
             <td>@FinanceReportsModel.Money(asset.DisposalProceeds)</td>
             <td>@FinanceReportsModel.Money(asset.PurchasePrice)</td>
+            <td>@if (Model.DisposalTicketRef(asset) is { } via) { <a asp-page="/Job" asp-route-number="@asset.DisposalTicket">@via</a> } else { <span class="muted">—</span> }</td>
         </tr>
     }
-    @if (Model.AcademicDisposals.Count == 0) { <tr><td colspan="6" class="empty">Nothing was disposed of in this academic year.</td></tr> }
+    @if (Model.AcademicDisposals.Count == 0) { <tr><td colspan="7" class="empty">Nothing was disposed of in this academic year.</td></tr> }
     </tbody></table></div>
 </section>
 

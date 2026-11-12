@@ -134,6 +134,9 @@ public class FinanceReportsModel(HelpdeskStore store) : PageModel
 
     public string AcademicLabelFor(DateOnly? date) => date is { } d ? AcademicYear.LabelFor(d, StartMonth) : "—";
     public string SupplierName(AssetRecord asset) => asset.SupplierId is { } id ? store.Suppliers.FirstOrDefault(s => s.Id == id)?.Name ?? "" : "";
+    // The ticket an asset was disposed of through (HelpdeskStore.Disposal), as people see its number, or null.
+    public string? DisposalTicketRef(AssetRecord asset) => asset.DisposalTicket is { } number && store.Tickets.Any(x => x.Number == number) ? store.Ref(number) : null;
+
     public static string Money(decimal? value) => value is { } v ? v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "—";
     // The same figure for a spreadsheet: a missing amount has to be an empty cell, not a dash, or it lands in Excel as
     // text and breaks the column's sum.
@@ -157,10 +160,10 @@ public class FinanceReportsModel(HelpdeskStore store) : PageModel
                 x => [x.AssetTag, x.Type, x.Make, x.Model, x.PurchaseDate?.ToString("yyyy-MM-dd") ?? "", AcademicLabelFor(x.PurchaseDate),
                       MoneyCell(x.PurchasePrice), Reference(x)?.Reference ?? "", Reference(x)?.Kind ?? "", SupplierName(x), x.Status])),
             "disposals" => ("finance-disposals", Csv.Table(
-                ["Asset tag", "Type", "Make", "Model", "Disposed", "Academic year", "Method", "Proceeds", "Original price", "Purchase date", "Disposed by", "Certificate"],
+                ["Asset tag", "Type", "Make", "Model", "Disposed", "Academic year", "Method", "Proceeds", "Original price", "Purchase date", "Disposed by", "Certificate", "Ticket"],
                 AcademicDisposals,
                 x => [x.AssetTag, x.Type, x.Make, x.Model, x.DisposalDate?.ToString("yyyy-MM-dd") ?? "", AcademicLabelFor(x.DisposalDate),
-                      x.DisposalMethod, MoneyCell(x.DisposalProceeds), MoneyCell(x.PurchasePrice), x.PurchaseDate?.ToString("yyyy-MM-dd") ?? "", x.DisposedBy, x.DisposalCertificate])),
+                      x.DisposalMethod, MoneyCell(x.DisposalProceeds), MoneyCell(x.PurchasePrice), x.PurchaseDate?.ToString("yyyy-MM-dd") ?? "", x.DisposedBy, x.DisposalCertificate, DisposalTicketRef(x) ?? ""])),
             "orders" => ("finance-orders", Csv.Table(
                 ["Reference", "Kind", "Date", "Dates differ", "Amount", "Supplier", "Assets", "What was bought"],
                 Orders,

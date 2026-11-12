@@ -43,4 +43,8 @@ The ticket gets an internal note of what happened to each asset. While assets ar
 
 Reopening a ticket that disposed of assets asks whether to **undo the disposal**. Undoing it clears their disposal records and puts them back to **Awaiting disposal** on the ticket, ready to be closed again. Anyone who held them before isn't put back. You can also undo it later from the **Disposal** box while the ticket is open.
 
+## The record
+
+The ticket's **Full report** PDF (under **More → Print**) has a **Disposal** section listing each asset it disposed of - the date, how, who by, the certificate and any proceeds - for the auditors. The requester copy leaves it out. The finance report's disposals list shows the ticket each asset went through.
+
 See also [Disposing of an asset](dispose-an-asset) for one asset at a time.
