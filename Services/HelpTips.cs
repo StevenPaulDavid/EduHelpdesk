@@ -33,6 +33,7 @@ public static class HelpTips
         ["ticket.due-date"] = new("Set a date by hand and it's marked Override and stays put. To go back to the SLA's date, clear the date and save, then choose the SLA again.", "due-dates-and-slas", "changing-the-due-date"),
 
         // The ticket list
+        ["tickets.board"] = new("Drag a card to another column to change its status, or who it's given to. Without a mouse, use Move on the card. The queue, search and filters above choose which tickets are on the board.", "ticket-board"),
         ["tickets.bulk"] = new("Tick tickets in the list, choose what to do, then Apply. Tickets an action can't apply to are skipped, and the message says why.", "update-many-tickets"),
 
         // Log a job already done

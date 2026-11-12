@@ -12,6 +12,10 @@ order: 1
 
 ![The ticket list](tickets-list.png)
 
+## List or board
+
+**List | Board** beside the queues switches between this list and the same tickets as cards in columns. See [The ticket board](ticket-board).
+
 ## The More menu
 
 - **Print the daily sheet** - open tickets by room, ready to print and hand out. See [The daily sheet](daily-sheet).

@@ -32,6 +32,11 @@
                 <a class="queue-tab @(Model.View == view ? "active" : "")" href="@Model.ViewUrl(view)">@JobsModel.ViewLabel(view) <span class="badge @(view == "overdue" && Model.ViewCounts[view] > 0 ? "badge-warning" : "")">@Model.ViewCounts[view]</span></a>
             }
         </nav>
+        @* The same tickets as a list or as cards in columns. *@
+        <nav class="view-switch" aria-label="Layout">
+            <a class="@(Model.IsBoard ? "" : "active")" href="@Model.ShowUrl(null)" aria-current="@(Model.IsBoard ? null : "page")">List</a>
+            <a class="@(Model.IsBoard ? "active" : "")" href="@Model.ShowUrl("board", Model.By)" aria-current="@(Model.IsBoard ? "page" : null)">Board</a>
+        </nav>
     </div>
     @if (Model.View == "mine" && currentTechnician is null)
     {
@@ -68,7 +73,7 @@
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
             ClearUrl = Model.ClearUrl(),
-            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset), ("planday", Model.PlannedOn?.ToString("yyyy-MM-dd"))],
+            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset), ("planday", Model.PlannedOn?.ToString("yyyy-MM-dd")), ("show", Model.Show), ("by", Model.By)],
             Fields = @<text>
                 @if (Model.HasSeveralDesks)
                 {
@@ -85,7 +90,7 @@
                 <fieldset class="filter-group"><legend>Priority</legend>@foreach (var item in Model.Priorities) { <label class="toggle-label"><input type="checkbox" name="priority" value="@item" checked="@Model.Priority.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
                 <fieldset class="filter-group"><legend>Type</legend>@foreach (var item in Model.Types) { <label class="toggle-label"><input type="checkbox" name="type" value="@item" checked="@Model.Type.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
                 <fieldset class="filter-group"><legend>Category</legend>@foreach (var item in Model.Categories) { <label class="toggle-label"><input type="checkbox" name="category" value="@item" checked="@Model.Category.Contains(item, StringComparer.OrdinalIgnoreCase)" /> @item</label> }</fieldset>
-                <label>Per page<select name="size">@foreach (var size in JobsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
+                <label hidden="@Model.IsBoard">Per page<select name="size">@foreach (var size in JobsModel.PageSizes) { <option value="@size" selected="@(size == Model.Size)">@size</option> }</select></label>
             </text>
         };
     }
@@ -93,6 +98,12 @@
     @if (filteredAsset is not null) { <p class="muted filter-note">Tickets linked to asset <strong>@filteredAsset.AssetTag</strong> (@filteredAsset.Make @filteredAsset.Model).</p> }
 </section>
 
+@if (Model.IsBoard)
+{
+    <partial name="_TicketBoard" model="Model" />
+}
+else
+{
 <section class="panel directory-panel">
     <div class="panel-heading"><div><h2>@JobsModel.ViewLabel(Model.View)</h2></div><span class="badge">@(Model.IsFiltered ? $"{Model.MatchCount} matching" : $"{Model.MatchCount} shown")</span></div>
     <form method="post" asp-page-handler="Bulk" id="bulk-form" data-match-count="@Model.MatchCount" data-noun="ticket" data-nouns="tickets">
@@ -181,7 +192,8 @@
         </div>
     }
 </section>
+}
 
 @section Scripts {
-<script src="~/js/bulk-select.js" asp-append-version="true"></script>
+@if (Model.IsBoard) { <script src="~/js/pages/board.js" asp-append-version="true"></script> } else { <script src="~/js/bulk-select.js" asp-append-version="true"></script> }
 }

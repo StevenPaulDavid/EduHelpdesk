@@ -33,6 +33,10 @@ public class JobsModel(HelpdeskStore store) : PageModel
     // Planned for: today, week, late or none (TicketListQuery.PlanFilters), or one day from the planner.
     [BindProperty(SupportsGet = true, Name = "plan")] public string? Planned { get; set; }
     [BindProperty(SupportsGet = true, Name = "planday")] public DateOnly? PlannedOn { get; set; }
+    // How the tickets are laid out: the list, or the board (cards in columns). The board's columns are by status or by
+    // technician ("tech"). The queue, search and filters are the same in both.
+    [BindProperty(SupportsGet = true, Name = "show")] public string? Show { get; set; }
+    [BindProperty(SupportsGet = true, Name = "by")] public string? By { get; set; }
     [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
@@ -100,6 +104,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         TotalTickets = scoped.Count;
         ViewCounts = TicketListQuery.ViewCounts(scoped, context);
         MatchCount = matches.Count;
+        if (IsBoard) Board = BuildBoard(matches, all, context);
         TotalPages = Math.Max(1, (int)Math.Ceiling(MatchCount / (double)Size));
         PageNumber = Math.Clamp(PageNumber, 1, TotalPages);
         Rows = matches.Skip((PageNumber - 1) * Size).Take(Size).ToList();
@@ -109,6 +114,102 @@ public class JobsModel(HelpdeskStore store) : PageModel
     }
 
     public DateOnly Today => DateOnly.FromDateTime(Now.ToLocalTime());
+
+    // ---- The board ----
+    public bool IsBoard => Show == "board";
+    public bool ByTechnician => By == "tech";
+    public bool CanEdit => store.UserCan(User, Modules.Tickets, ModulePermission.Edit);
+    // A column never draws more cards than this; the rest are a link to the list.
+    public const int BoardColumnLimit = 60;
+    // How long a closed ticket stays in the Closed column.
+    public const int BoardClosedDays = 7;
+    public const string UnassignedKey = "none";
+    // Key is what a card dropped here is given: a status, or a technician's id ("none" for nobody).
+    public sealed record BoardColumn(string Key, string Title, IReadOnlyList<TicketRecord> Cards, int Total, bool IsClosed, string? ListUrl);
+    public IReadOnlyList<BoardColumn> Board { get; private set; } = [];
+
+    private List<BoardColumn> BuildBoard(List<TicketRecord> matches, IReadOnlyList<TicketRecord> all, TicketContext context)
+    {
+        BoardColumn Column(string key, string title, List<TicketRecord> cards, bool closed, string? listUrl) =>
+            new(key, title, cards.Take(BoardColumnLimit).ToList(), cards.Count, closed, listUrl);
+        string? ListUrl(string key, object? value) { var route = RouteFor(1, Sort!, Dir!, View); route["show"] = null; route["by"] = null; route[key] = value; return Url.Page("/Jobs", route); }
+        var open = matches.Where(x => !TicketInsights.IsClosed(x)).ToList();
+        var columns = new List<BoardColumn>();
+        if (ByTechnician)
+        {
+            columns.Add(Column(UnassignedKey, "Unassigned", open.Where(x => x.TechnicianId is null).ToList(), false, ListUrl("tech", "none")));
+            // The people who could be given one of these: active, and on a desk being shown. Anyone else who still
+            // holds a ticket here gets a column too, so no card goes missing.
+            var deskIds = (ShownDesks.Count > 0 ? ShownDesks : Desks).Select(x => x.Id).ToHashSet();
+            var holders = open.Where(x => x.TechnicianId is not null).Select(x => x.TechnicianId!.Value).ToHashSet();
+            foreach (var technician in store.Technicians.Where(x => holders.Contains(x.Id) || x.IsActive && x.DeskIds.Any(deskIds.Contains)).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+                columns.Add(Column(technician.Id.ToString(), technician.Name, open.Where(x => x.TechnicianId == technician.Id).ToList(), false, ListUrl("tech", technician.Id.ToString())));
+            return columns;
+        }
+
+        var shownDeskIds = ShownDesks.Select(x => x.Id).ToHashSet();
+        foreach (var status in store.Statuses.Where(x => !string.Equals(x, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase)))
+        {
+            var cards = open.Where(x => string.Equals(x.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
+            // A status kept to a desk that isn't being shown has no column, unless something is in it.
+            if (cards.Count == 0 && shownDeskIds.Count > 0 && store.DeskForStatus(status) is { } desk && !shownDeskIds.Contains(desk.Id)) continue;
+            columns.Add(Column(status, status, cards, false, ListUrl("status", new[] { status })));
+        }
+        // Closed lately, whichever queue is showing, so a card dropped there can be seen to have landed.
+        var query = BuildQuery();
+        query.View = "all"; query.Sort = "updated"; query.Descending = true;
+        var cutoff = Now.AddDays(-BoardClosedDays);
+        var closed = query.Run(all, context).Where(x => TicketInsights.IsClosed(x) && (x.ClosedAt ?? x.LastModifiedAt) >= cutoff).OrderByDescending(x => x.ClosedAt ?? x.LastModifiedAt).ToList();
+        columns.Add(Column(TicketInsights.ClosedStatus, TicketInsights.ClosedStatus, closed, true, null));
+        return columns;
+    }
+
+    // A card moved to another column: dropped there, or sent with its Move menu. A drop asks for JSON back; the menu
+    // without scripts gets the page again with a message.
+    public IActionResult OnPostMove(int number, string? target, string? closingMessage)
+    {
+        Prepare();
+        if (!CanEdit) return Forbid();
+        var scripted = Request.Headers.XRequestedWith == "fetch";
+        IActionResult Done(bool ok, string message, bool needsMessage = false)
+        {
+            if (scripted) return new JsonResult(new { ok, message, needsMessage });
+            Message = message;
+            return Back();
+        }
+        if (store.TicketsFor(User).FirstOrDefault(x => x.Number == number) is not { } ticket) return Done(false, "That ticket can't be found. It may have been deleted or moved to another desk.");
+        var name = store.Ref(ticket);
+        target = target?.Trim() ?? "";
+
+        if (ByTechnician)
+        {
+            Guid? technicianId = null;
+            if (target != UnassignedKey)
+            {
+                if (!Guid.TryParse(target, out var id)) return Done(false, "Choose who to give it to.");
+                technicianId = id;
+            }
+            var assigned = store.BulkUpdateTickets([number], new("technician", TechnicianId: technicianId));
+            if (assigned.Error is { } assignError) return Done(false, assignError);
+            if (assigned.Skipped > 0) return Done(false, assigned.SkippedReason ?? "That ticket couldn't be moved.");
+            var who = technicianId is { } given ? store.Technicians.FirstOrDefault(x => x.Id == given)?.Name ?? "them" : null;
+            return Done(true, assigned.Unchanged > 0 ? $"{name} is already there." : who is null ? $"{name} is now unassigned." : $"{name} given to {who}.");
+        }
+
+        if (string.Equals(target, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            if (TicketInsights.IsClosed(ticket)) return Done(true, $"{name} is already closed.");
+            if (store.UnansweredChecks(number) > 0) return Done(false, $"{name} is a premises check: open it and fill in its checklist before closing it.");
+            if (store.RequiresCloseMessage(ticket) && string.IsNullOrWhiteSpace(closingMessage))
+                return Done(false, scripted ? $"{name} needs a closing message." : $"{name} needs a closing message. Open the ticket and use Mark as closed.", needsMessage: true);
+            var closedResult = store.CloseTicket(number, closingMessage);
+            return Done(closedResult.Ok, closedResult.Ok ? $"{name} closed." : closedResult.Message);
+        }
+        var moved = store.BulkUpdateTickets([number], new("status", target));
+        if (moved.Error is { } moveError) return Done(false, moveError);
+        if (moved.Skipped > 0) return Done(false, moved.SkippedReason ?? "That ticket couldn't be moved.");
+        return Done(true, moved.Unchanged > 0 ? $"{name} is already there." : TicketInsights.IsClosed(ticket) ? $"{name} reopened as {target}." : $"{name} moved to {target}.");
+    }
     public static string PlanLabel(string? plan) => plan switch
     {
         "today" => "Today",
@@ -243,6 +344,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
         if (!TicketListQuery.SortColumns.Contains(Sort)) { Sort = defaultSort; Dir = defaultDescending ? "desc" : "asc"; }
         else Dir = string.Equals(Dir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
         Planned = TicketListQuery.PlanFilters.Contains(Planned?.Trim().ToLowerInvariant()) ? Planned!.Trim().ToLowerInvariant() : null;
+        Show = string.Equals(Show?.Trim(), "board", StringComparison.OrdinalIgnoreCase) ? "board" : null;
+        By = Show == "board" && string.Equals(By?.Trim(), "tech", StringComparison.OrdinalIgnoreCase) ? "tech" : null;
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
         Status = Clean(Status); Priority = Clean(Priority); Category = Clean(Category); Type = Clean(Type);
@@ -326,6 +429,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["loc"] = Blank(Location), ["asset"] = Blank(Asset),
             ["from"] = LoggedFrom?.ToString("yyyy-MM-dd"), ["to"] = LoggedTo?.ToString("yyyy-MM-dd"),
             ["plan"] = Blank(Planned), ["planday"] = PlannedOn?.ToString("yyyy-MM-dd"),
+            ["show"] = Show, ["by"] = By,
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,
             ["p"] = page > 1 ? page : null,
@@ -342,12 +446,16 @@ public class JobsModel(HelpdeskStore store) : PageModel
         var direction = Sort == column ? (Descending ? "asc" : "desc") : (column is "number" or "created" or "updated" ? "desc" : "asc");
         return Url.Page("/Jobs", RouteFor(1, column, direction, View));
     }
+    // The same queue, search and filters, laid out another way.
+    public string? ShowUrl(string? show, string? by = null) { var route = RouteFor(1, Sort!, Dir!, View); route["show"] = show; route["by"] = show is null ? null : by; return Url.Page("/Jobs", route); }
+    // Where a card's move is posted: the board as it stands, so the page comes back the same.
+    public string? MoveUrl() => Url.Page("/Jobs", "Move", RouteFor(1, Sort!, Dir!, View));
     public string? PageUrl(int page) => Url.Page("/Jobs", RouteFor(page, Sort!, Dir!, View));
     // A queue tab keeps the search and filters but starts on the first page and that queue's own sort order.
     public string? ViewUrl(string view) => Url.Page("/Jobs", RouteFor(1, TicketListQuery.DefaultSort(view).Sort, TicketListQuery.DefaultSort(view).Descending ? "desc" : "asc", view));
     // The printable daily sheet for what the list is showing: the same desks, and the team if one is chosen.
     public string? DailySheetUrl() => Url.Page("/DailySheet", new Dictionary<string, object?> { ["desk"] = ShownDesks.Count == 0 ? null : ShownDesks.Select(x => x.Name).ToArray(), ["team"] = string.IsNullOrWhiteSpace(Team) || Team == TicketListQuery.None ? null : Team });
-    public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View });
+    public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View, show = Show, by = By });
 
     // Filters in the Filters panel that are switched on - the number on its button.
     public int PanelFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count + (DesksAreDefault ? 0 : 1)

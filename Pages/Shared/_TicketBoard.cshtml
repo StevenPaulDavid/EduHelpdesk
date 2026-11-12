@@ -1,0 +1,94 @@
+@using EduHelpdesk.Services
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.JobsModel
+@inject HelpdeskStore Helpdesk
+@* The Tickets page as a board (Pages/Jobs): the tickets the queue, search and filters choose, as cards in a column per
+   status or per technician. A card is moved by dragging it (wwwroot/js/pages/board.js) or with its Move menu, which
+   works without scripts and by keyboard; both post to the page's Move handler. *@
+@{
+    var moveUrl = Model.MoveUrl();
+    var shown = Model.Board.Sum(x => x.Cards.Count);
+}
+<section class="panel board-panel">
+    <div class="panel-heading">
+        <div><h2>@JobsModel.ViewLabel(Model.View) <help-tip key="tickets.board" /></h2></div>
+        <nav class="view-switch" aria-label="Columns">
+            <span class="muted">Columns</span>
+            <a class="@(Model.ByTechnician ? "" : "active")" href="@Model.ShowUrl("board")" aria-current="@(Model.ByTechnician ? null : "page")">Status</a>
+            <a class="@(Model.ByTechnician ? "active" : "")" href="@Model.ShowUrl("board", "tech")" aria-current="@(Model.ByTechnician ? "page" : null)">Technician</a>
+        </nav>
+    </div>
+    <p class="notice board-notice" id="board-notice" role="status" hidden></p>
+    @if (Model.MatchCount == 0 && Model.Board.All(x => x.Total == 0))
+    {
+        <p class="empty">@(Model.IsFiltered ? "No tickets match these filters." : Model.ShownDesks.Count > 0 ? $"Nothing here on {Model.DeskPhrase}." : "Nothing in this queue.")@if (!Model.IsFiltered && Model.ShownDesks.Count > 0) { <text> </text><a href="@Model.AllDesksUrl()">Show every desk</a> }</p>
+    }
+    <div class="board" id="ticket-board" data-move-url="@moveUrl" data-can-edit="@(Model.CanEdit ? "true" : "false")">
+        @foreach (var column in Model.Board)
+        {
+            <section class="board-column @(column.IsClosed ? "board-column-closed" : "")" data-board-column="@column.Key" aria-label="@column.Title">
+                <header class="board-column-head">
+                    <h3>@if (!Model.ByTechnician) { <span class="status status-@Helpdesk.StatusTone(column.Key)">@column.Title</span> } else { @column.Title }</h3>
+                    <span class="badge">@column.Total</span>
+                </header>
+                @if (column.IsClosed) { <p class="muted board-column-note">Closed in the last @JobsModel.BoardClosedDays days</p> }
+                <div class="board-cards">
+                    @foreach (var ticket in column.Cards)
+                    {
+                        var due = TicketInsights.DueStateOf(ticket, Model.Now, Model.DueSoonHours);
+                        var urgent = !TicketInsights.IsClosed(ticket) && string.Equals(ticket.Priority, "Urgent", StringComparison.OrdinalIgnoreCase);
+                        var isOnboarding = Model.Onboardings.ContainsKey(ticket.Number);
+                        var cardUrl = isOnboarding ? Url.Page("/Onboarding/Details", new { number = ticket.Number }) : Url.Page("/Job", new { number = ticket.Number });
+                        var reference = Model.Ref(ticket);
+                        <article class="board-card @(due == DueState.Overdue ? "card-overdue" : due == DueState.Soon ? "card-soon" : "") @(urgent ? "card-urgent" : "")" draggable="@(Model.CanEdit ? "true" : "false")" data-number="@ticket.Number" data-ref="@reference">
+                            <a class="board-card-title" href="@cardUrl"><strong>@reference</strong> @ticket.Title</a>
+                            <p class="muted board-card-who">@(Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "Unknown")@if (!string.IsNullOrWhiteSpace(ticket.Location)) { <text> · @ticket.Location</text> }</p>
+                            <p class="board-card-tags">
+                                <span class="priority @ticket.Priority.ToLowerInvariant()">@ticket.Priority</span>
+                                @if (isOnboarding) { <span class="type-tag type-onboarding">Onboarding</span> }
+                                @if (HelpdeskStore.AwaitingTechnician(ticket)) { <span class="badge badge-reply" title="The requester replied in the staff portal and is waiting to hear back">Reply</span> }
+                                @if (due != DueState.None) { <span class="badge @(due == DueState.Overdue ? "badge-warning" : "")">@TicketInsights.DueText(ticket, Model.Now)</span> }
+                                @if (ticket.PlannedFor is { } planned && !TicketInsights.IsClosed(ticket)) { <span class="badge @(TicketInsights.IsPlanLate(ticket, Model.Today) ? "badge-warning" : "")" title="Planned for @planned.ToString("dddd d MMMM yyyy")">Planned @TicketInsights.PlannedText(planned, Model.Today).ToLowerInvariant()</span> }
+                            </p>
+                            <p class="muted board-card-foot">
+                                @if (Model.ByTechnician) { <span class="status status-@Helpdesk.StatusTone(ticket.Status)">@ticket.Status</span> }
+                                else { @(ticket.TechnicianId is { } techId ? Model.TechnicianNames.GetValueOrDefault(techId) ?? "Unassigned" : "Unassigned") }
+                            </p>
+                            @if (Model.CanEdit)
+                            {
+                                <details class="board-move">
+                                    <summary>Move<span class="visually-hidden"> @reference</span></summary>
+                                    <form method="post" action="@moveUrl" class="board-move-form" asp-antiforgery="true">
+                                        <input type="hidden" name="number" value="@ticket.Number" />
+                                        <label>@(Model.ByTechnician ? "Give to" : "Move to")<select name="target">
+                                            @foreach (var other in Model.Board) { <option value="@other.Key" selected="@(other.Key == column.Key)">@other.Title</option> }
+                                        </select></label>
+                                        <button class="button button-secondary" type="submit">Move</button>
+                                    </form>
+                                </details>
+                            }
+                        </article>
+                    }
+                    @if (column.Cards.Count == 0) { <p class="muted board-empty">@(Model.CanEdit ? "Nothing here. Drop a card to move it." : "Nothing here.")</p> }
+                </div>
+                @if (column.Total > column.Cards.Count)
+                {
+                    <p class="board-more">@(column.Total - column.Cards.Count) more not shown.@if (column.ListUrl is not null) { <text> </text><a href="@column.ListUrl">Open as a list</a> }</p>
+                }
+            </section>
+        }
+    </div>
+    <p class="muted board-foot">@shown card@(shown == 1 ? "" : "s") shown.@if (Model.CanEdit) { <text> Drag a card to another column, or use <strong>Move</strong> on the card.</text> }</p>
+
+    @* Asked for when a card is dropped on Closed and its priority or category needs a closing message. *@
+    <dialog class="board-dialog" id="board-close-dialog" aria-labelledby="board-close-title">
+        <form method="dialog" id="board-close-form">
+            <h2 id="board-close-title">Close <span id="board-close-ref"></span></h2>
+            <label>Closing message <span class="muted">(the requester sees this in the staff portal)</span><textarea id="board-close-message" rows="4" required></textarea></label>
+            <div class="blade-actions">
+                <button class="button button-primary" type="submit" value="close">Close ticket</button>
+                <button class="button button-secondary" type="button" id="board-close-cancel">Cancel</button>
+            </div>
+        </form>
+    </dialog>
+</section>
