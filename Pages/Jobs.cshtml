@@ -74,7 +74,7 @@
             Chips = Model.ActiveFilters(),
             PanelCount = Model.PanelFilterCount,
             ClearUrl = Model.ClearUrl(),
-            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset), ("planday", Model.PlannedOn?.ToString("yyyy-MM-dd")), ("show", Model.Show), ("by", Model.By), ("span", Model.Span), ("day", Model.Day?.ToString("yyyy-MM-dd"))],
+            Hidden = [("view", Model.View == "open" ? null : Model.View), ("sort", Model.Sort), ("dir", Model.Dir), ("asset", Model.Asset), ("planday", Model.PlannedOn?.ToString("yyyy-MM-dd")), ("show", Model.Show), ("by", Model.By), ("span", Model.Span), ("day", Model.Day?.ToString("yyyy-MM-dd")), .. Model.Hide.Select(x => ("hide", (string?)x))],
             Fields = @<text>
                 @if (Model.HasSeveralDesks)
                 {

@@ -34,7 +34,7 @@ public static class HelpTips
 
         // The ticket list
         ["tickets.board"] = new("Drag a card to another column to change its status, or who it's given to. Without a mouse, use Move on the card. The queue, search and filters above choose which tickets are on the board.", "ticket-board"),
-        ["tickets.planner"] = new("Drag a ticket onto a day to plan it; on the week, the row you drop it on is who it's given to. Without a mouse, use Plan on the card. Only the helpdesk sees the plan.", "ticket-planner"),
+        ["tickets.planner"] = new("Drag a ticket onto a day to plan it; on the week, the row you drop it on is who it's given to. Without a mouse, use Plan on the card. Only the helpdesk sees the plan. Recurring work, rounds, loans, starters, contracts and asset checks show too: Also show chooses which.", "ticket-planner"),
         ["tickets.bulk"] = new("Tick tickets in the list, choose what to do, then Apply. Tickets an action can't apply to are skipped, and the message says why.", "update-many-tickets"),
 
         // Log a job already done

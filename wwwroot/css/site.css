@@ -2872,3 +2872,29 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .plan-card-tags { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
 .plan-form-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
 @media(max-width:900px) { .planner { grid-template-columns: 1fr; } }
+
+/* The planner's other dates (planner stage 4): recurring work to come, rounds, loans, starters, contracts, asset checks. */
+.planner-kinds { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 12px; }
+.planner-kinds .muted { font-size: 13px; margin-right: 2px; }
+.planner-kind { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--line); color: var(--muted); text-decoration: none; }
+.planner-kind.active { border-style: solid; color: var(--ink); background: var(--surface); }
+.plan-dates { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
+.plan-date { font-size: 12px; line-height: 1.35; padding: 2px 6px; border-radius: 6px; border-left: 3px solid var(--line); background: color-mix(in srgb, var(--paper) 70%, transparent); overflow-wrap: anywhere; }
+.plan-date a, .plan-date span { color: var(--ink); text-decoration: none; }
+.plan-date a:hover { text-decoration: underline; }
+.plan-date-recurring { border-left-color: var(--teal); font-style: italic; }
+.plan-date-rounds { border-left-color: #7a6bd1; }
+.plan-date-loans { border-left-color: #2f86c9; }
+.plan-date-starters { border-left-color: #2e9e5b; }
+.plan-date-contracts { border-left-color: var(--amber); }
+.plan-date-checks { border-left-color: #8a8f94; }
+.planner-kind.plan-date-recurring.active { border-color: var(--teal); }
+.planner-kind.plan-date-rounds.active { border-color: #7a6bd1; }
+.planner-kind.plan-date-loans.active { border-color: #2f86c9; }
+.planner-kind.plan-date-starters.active { border-color: #2e9e5b; }
+.planner-kind.plan-date-contracts.active { border-color: var(--amber); }
+.planner-kind.plan-date-checks.active { border-color: #8a8f94; }
+.plan-date-warning { background: color-mix(in srgb, var(--alert) 12%, transparent); }
+.plan-dates-more > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 4px; }
+.plan-dates-row th, .plan-dates-row td { background: color-mix(in srgb, var(--paper) 55%, transparent); }
+.plan-dates-row .plan-cell { height: auto; }

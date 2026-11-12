@@ -40,6 +40,8 @@ public class JobsModel(HelpdeskStore store) : PageModel
     [BindProperty(SupportsGet = true, Name = "by")] public string? By { get; set; }
     [BindProperty(SupportsGet = true, Name = "span")] public string? Span { get; set; }
     [BindProperty(SupportsGet = true, Name = "day")] public DateOnly? Day { get; set; }
+    // The kinds of other date (PlannerKinds) the planner leaves out.
+    [BindProperty(SupportsGet = true, Name = "hide")] public List<string> Hide { get; set; } = [];
     [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Dir { get; set; }
     [BindProperty(SupportsGet = true, Name = "p")] public int PageNumber { get; set; } = 1;
@@ -181,10 +183,16 @@ public class JobsModel(HelpdeskStore store) : PageModel
     // A month's day shows this many cards, then "+ n more".
     public const int PlannerMonthDayLimit = 4;
     public sealed record PlannerDay(DateOnly Date, bool IsToday, bool InRange);
-    // One person's week (Key is their id, or "none"), or one week of the month (Key empty).
-    public sealed record PlannerRow(string Key, string Name, IReadOnlyDictionary<DateOnly, List<TicketRecord>> Cells, IReadOnlyList<PlannerDay> Days);
+    // One person's week (Key is their id, or "none"), the week's row of other dates (IsDates), or one week of the month
+    // (Key empty). Dates are the other things on each day (HelpdeskStore.PlannerDates) that belong in this row.
+    public sealed record PlannerRow(string Key, string Name, IReadOnlyDictionary<DateOnly, List<TicketRecord>> Cells, IReadOnlyList<PlannerDay> Days,
+        IReadOnlyDictionary<DateOnly, List<PlannerDate>> Dates, bool IsDates = false);
+    // Kinds: the kinds of other date this person may see, whether shown or hidden.
     public sealed record PlannerView(DateOnly From, DateOnly To, string Title, IReadOnlyList<DayOfWeek> Columns, IReadOnlyList<PlannerRow> Rows,
-        IReadOnlyList<TicketRecord> Late, int LateTotal, IReadOnlyList<TicketRecord> Unplanned, int UnplannedTotal, IReadOnlyList<TechnicianRecord> People, int PlannedInRange);
+        IReadOnlyList<TicketRecord> Late, int LateTotal, IReadOnlyList<TicketRecord> Unplanned, int UnplannedTotal, IReadOnlyList<TechnicianRecord> People, int PlannedInRange,
+        IReadOnlyList<string> Kinds);
+    // A month's day shows this many other dates, then the rest folded away.
+    public const int PlannerMonthDateLimit = 3;
     public PlannerView? Planner { get; private set; }
 
     private PlannerView BuildPlanner(List<TicketRecord> matches)
@@ -196,10 +204,13 @@ public class JobsModel(HelpdeskStore store) : PageModel
         var (gridFrom, gridTo) = (TicketInsights.WeekOf(from).From, TicketInsights.WeekOf(to).To);
         var planned = matches.Where(x => x.PlannedFor is { } on && on >= gridFrom && on <= gridTo).ToList();
         var byDay = planned.GroupBy(x => x.PlannedFor!.Value).ToDictionary(g => g.Key, g => g.ToList());
-        // The school's days, and any other day something has been planned for: nobody's Saturday job should vanish.
+        var kinds = PlannerKindsAllowed();
+        var dates = kinds.Count == 0 ? [] : VisibleDates(gridFrom, gridTo, kinds.Except(Hide).ToHashSet());
+        var datesByDay = dates.GroupBy(x => x.Date).ToDictionary(g => g.Key, g => g.ToList());
+        // The school's days, and any other day something is on: nobody's Saturday job should vanish.
         var schoolDays = store.SchoolDays;
         var weekdays = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday };
-        var columns = weekdays.Where(d => schoolDays.Contains(d) || byDay.Keys.Any(x => x.DayOfWeek == d)).ToList();
+        var columns = weekdays.Where(d => schoolDays.Contains(d) || byDay.Keys.Any(x => x.DayOfWeek == d) || datesByDay.Keys.Any(x => x.DayOfWeek == d)).ToList();
         if (columns.Count == 0) columns = weekdays.Take(5).ToList();
 
         List<PlannerDay> DaysOf(DateOnly monday) => columns.Select(d => monday.AddDays(((int)d + 6) % 7)).Select(d => new PlannerDay(d, d == today, d >= from && d <= to)).ToList();
@@ -213,14 +224,23 @@ public class JobsModel(HelpdeskStore store) : PageModel
                 var days = DaysOf(monday);
                 // A month that starts on a Sunday has a first week with no school day of its own in it.
                 if (days.All(d => !d.InRange && !byDay.ContainsKey(d.Date))) continue;
-                rows.Add(new("", "", days.ToDictionary(d => d.Date, d => byDay.GetValueOrDefault(d.Date) ?? []), days));
+                rows.Add(new("", "", days.ToDictionary(d => d.Date, d => byDay.GetValueOrDefault(d.Date) ?? []), days,
+                    days.ToDictionary(d => d.Date, d => datesByDay.GetValueOrDefault(d.Date) ?? [])));
             }
         }
         else
         {
             var days = DaysOf(from);
+            // Recurring work goes in its technician's row, or Unassigned; anyone not on the week, and everything else, in
+            // the row of other dates at the top.
+            var rowIds = people.Select(x => x.Id).ToHashSet();
+            bool InPersonRow(PlannerDate date) => date.ForPerson && (date.TechnicianId is null || rowIds.Contains(date.TechnicianId.Value));
             PlannerRow Row(string key, string name, Guid? technicianId) =>
-                new(key, name, days.ToDictionary(d => d.Date, d => (byDay.GetValueOrDefault(d.Date) ?? []).Where(x => x.TechnicianId == technicianId).ToList()), days);
+                new(key, name, days.ToDictionary(d => d.Date, d => (byDay.GetValueOrDefault(d.Date) ?? []).Where(x => x.TechnicianId == technicianId).ToList()), days,
+                    days.ToDictionary(d => d.Date, d => (datesByDay.GetValueOrDefault(d.Date) ?? []).Where(x => InPersonRow(x) && x.TechnicianId == technicianId).ToList()));
+            if (dates.Any(x => !InPersonRow(x)))
+                rows.Add(new("", "Also on", days.ToDictionary(d => d.Date, _ => new List<TicketRecord>()), days,
+                    days.ToDictionary(d => d.Date, d => (datesByDay.GetValueOrDefault(d.Date) ?? []).Where(x => !InPersonRow(x)).ToList()), IsDates: true));
             rows.Add(Row(UnassignedKey, "Unassigned", null));
             rows.AddRange(people.Select(x => Row(x.Id.ToString(), x.Name, x.Id)));
         }
@@ -233,7 +253,60 @@ public class JobsModel(HelpdeskStore store) : PageModel
         var late = open.Where(x => TicketInsights.IsPlanLate(x, today)).OrderBy(x => x.PlannedFor).ToList();
         var unplanned = open.Where(x => x.PlannedFor is null).ToList();
         return new(from, to, title, columns, rows, late.Take(PlannerSideLimit).ToList(), late.Count, unplanned.Take(PlannerSideLimit).ToList(), unplanned.Count, people,
-            planned.Count(x => x.PlannedFor >= from && x.PlannedFor <= to));
+            planned.Count(x => x.PlannedFor >= from && x.PlannedFor <= to), kinds);
+    }
+
+    // The kinds of other date this person may see: what's switched on, and what their role can open.
+    private List<string> PlannerKindsAllowed()
+    {
+        var kinds = new List<string> { PlannerKinds.Recurring };
+        if (store.IsFeatureOn(Features.Rounds) && store.UserHasFlag(User, Modules.Flags.Rounds)) kinds.Add(PlannerKinds.Rounds);
+        if (store.IsFeatureOn(Features.Loans) && store.UserCan(User, Modules.Loans, ModulePermission.Access)) kinds.Add(PlannerKinds.Loans);
+        if (store.IsFeatureOn(Features.Onboarding)) kinds.Add(PlannerKinds.Starters);
+        if (store.IsFeatureOn(Features.Compliance) && store.UserCan(User, Modules.Contracts, ModulePermission.Access)) kinds.Add(PlannerKinds.Contracts);
+        if (store.IsFeatureOn(Features.Assets) && store.UserCan(User, Modules.Assets, ModulePermission.Access)) kinds.Add(PlannerKinds.Checks);
+        return kinds;
+    }
+
+    // The other dates for the days on screen that this person may see, on the desks being shown. Something every desk
+    // shares (a kit, a contract, a cleaning round) shows when a desk being shown uses that part of the helpdesk.
+    private List<PlannerDate> VisibleDates(DateOnly from, DateOnly to, IReadOnlySet<string> kinds)
+    {
+        var desks = ShownDesks.Count > 0 ? ShownDesks : Desks;
+        var deskIds = desks.Select(x => x.Id).ToHashSet();
+        bool AreaShown(string area) => !HasSeveralDesks || desks.Any(d => HelpdeskStore.DeskUses(d, area));
+        var shared = new Dictionary<string, bool>
+        {
+            [PlannerKinds.Rounds] = AreaShown(DeskAreas.Facilities),
+            [PlannerKinds.Loans] = AreaShown(DeskAreas.Loans),
+            [PlannerKinds.Starters] = AreaShown(DeskAreas.People),
+            [PlannerKinds.Contracts] = AreaShown(DeskAreas.Compliance),
+        };
+        return store.PlannerDates(from, to, Now.ToLocalTime())
+            .Where(x => kinds.Contains(x.Kind) && (x.DeskId is { } desk ? !HasSeveralDesks || deskIds.Contains(desk) : shared.GetValueOrDefault(x.Kind, true)))
+            .ToList();
+    }
+
+    // Where one of the other dates opens, or null when there's nothing this person can open.
+    public string? DateUrl(PlannerDate date) => date.Kind switch
+    {
+        PlannerKinds.Recurring => store.UserCan(User, Modules.Settings, ModulePermission.Edit) || store.UserHasFlag(User, Modules.Flags.FacilitiesSetup) ? Url.Page("/Settings/RecurringTickets") : null,
+        PlannerKinds.Rounds => Url.Page("/Rounds", new { date = date.Date.ToString("yyyy-MM-dd") }),
+        PlannerKinds.Loans => date.DeskId is not null && store.UserCan(User, Modules.Assets, ModulePermission.View) ? Url.Page("/Asset", new { id = date.RecordId }) : Url.Page("/Loans"),
+        PlannerKinds.Starters => Url.Page("/Onboarding/Details", new { number = date.Number }),
+        PlannerKinds.Contracts => store.UserCan(User, Modules.Contracts, ModulePermission.View) ? Url.Page("/Contract", new { id = date.RecordId }) : Url.Page("/Contracts"),
+        PlannerKinds.Checks => date.RecordId is { } asset && store.UserCan(User, Modules.Assets, ModulePermission.View) ? Url.Page("/Asset", new { id = asset })
+            : Url.Page("/Assets", new { flag = date.Text.Contains("support", StringComparison.OrdinalIgnoreCase) ? "support" : "check" }),
+        _ => null
+    };
+
+    // The planner with one kind of other date shown or hidden.
+    public string? PlannerKindUrl(string kind)
+    {
+        var route = RouteFor(1, Sort!, Dir!, View);
+        var hide = Hide.Contains(kind) ? Hide.Where(x => x != kind).ToArray() : Hide.Append(kind).ToArray();
+        route["hide"] = hide.Length == 0 ? null : hide;
+        return Url.Page("/Jobs", route);
     }
 
     // The planner on another week or month, or as the other of the two.
@@ -248,7 +321,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         : PlannerUrl(Span, IsMonth ? planner.From.AddMonths(direction) : planner.From.AddDays(7 * direction));
     public string? PlanUrl() => Url.Page("/Jobs", "Plan", RouteFor(1, Sort!, Dir!, View));
     // The list of what's planned for one day, or of one of the side lists in full.
-    public string? PlannedListUrl(string key, object? value) { var route = RouteFor(1, Sort!, Dir!, View); route["show"] = null; route["by"] = null; route["span"] = null; route["day"] = null; route[key] = value; return Url.Page("/Jobs", route); }
+    public string? PlannedListUrl(string key, object? value) { var route = RouteFor(1, Sort!, Dir!, View); route["show"] = null; route["by"] = null; route["span"] = null; route["day"] = null; route["hide"] = null; route[key] = value; return Url.Page("/Jobs", route); }
 
     // A card put on a day (and, on the week, a person), or taken off the plan: dropped there, or sent with its Plan menu.
     public IActionResult OnPostPlan(int number, string? planFor, string? tech, bool clear)
@@ -463,6 +536,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         Show = Show?.Trim().ToLowerInvariant() is "board" or "planner" ? Show.Trim().ToLowerInvariant() : null;
         Span = Show == "planner" && string.Equals(Span?.Trim(), "month", StringComparison.OrdinalIgnoreCase) ? "month" : null;
         if (Show != "planner") Day = null;
+        Hide = Show == "planner" ? (Hide ?? []).Select(x => x?.Trim().ToLowerInvariant() ?? "").Where(PlannerKinds.All.Contains).Distinct().ToList() : [];
         By = Show == "board" && string.Equals(By?.Trim(), "tech", StringComparison.OrdinalIgnoreCase) ? "tech" : null;
         if (!PageSizes.Contains(Size)) Size = 50;
         if (PageNumber < 1) PageNumber = 1;
@@ -547,7 +621,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
             ["tech"] = Blank(Technician), ["team"] = Blank(Team), ["requester"] = Blank(Requester), ["dept"] = Blank(Department), ["loc"] = Blank(Location), ["asset"] = Blank(Asset),
             ["from"] = LoggedFrom?.ToString("yyyy-MM-dd"), ["to"] = LoggedTo?.ToString("yyyy-MM-dd"),
             ["plan"] = Blank(Planned), ["planday"] = PlannedOn?.ToString("yyyy-MM-dd"),
-            ["show"] = Show, ["by"] = By, ["span"] = Span, ["day"] = Day?.ToString("yyyy-MM-dd"),
+            ["show"] = Show, ["by"] = By, ["span"] = Span, ["day"] = Day?.ToString("yyyy-MM-dd"), ["hide"] = Hide.Count == 0 ? null : Hide.ToArray(),
             ["sort"] = isDefaultSort ? null : sort,
             ["dir"] = isDefaultSort ? null : dir,
             ["p"] = page > 1 ? page : null,
@@ -565,7 +639,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
         return Url.Page("/Jobs", RouteFor(1, column, direction, View));
     }
     // The same queue, search and filters, laid out another way.
-    public string? ShowUrl(string? show, string? by = null) { var route = RouteFor(1, Sort!, Dir!, View); route["show"] = show; route["by"] = show == "board" ? by : null; if (show != "planner") { route["span"] = null; route["day"] = null; } return Url.Page("/Jobs", route); }
+    public string? ShowUrl(string? show, string? by = null) { var route = RouteFor(1, Sort!, Dir!, View); route["show"] = show; route["by"] = show == "board" ? by : null; if (show != "planner") { route["span"] = null; route["day"] = null; route["hide"] = null; } return Url.Page("/Jobs", route); }
     // Where a card's move is posted: the board as it stands, so the page comes back the same.
     public string? MoveUrl() => Url.Page("/Jobs", "Move", RouteFor(1, Sort!, Dir!, View));
     public string? PageUrl(int page) => Url.Page("/Jobs", RouteFor(page, Sort!, Dir!, View));
@@ -573,7 +647,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public string? ViewUrl(string view) => Url.Page("/Jobs", RouteFor(1, TicketListQuery.DefaultSort(view).Sort, TicketListQuery.DefaultSort(view).Descending ? "desc" : "asc", view));
     // The printable daily sheet for what the list is showing: the same desks, and the team if one is chosen.
     public string? DailySheetUrl() => Url.Page("/DailySheet", new Dictionary<string, object?> { ["desk"] = ShownDesks.Count == 0 ? null : ShownDesks.Select(x => x.Name).ToArray(), ["team"] = string.IsNullOrWhiteSpace(Team) || Team == TicketListQuery.None ? null : Team });
-    public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View, show = Show, by = By, span = Span, day = Day?.ToString("yyyy-MM-dd") });
+    public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View, show = Show, by = By, span = Span, day = Day?.ToString("yyyy-MM-dd"), hide = Hide.Count == 0 ? null : Hide.ToArray() });
 
     // Filters in the Filters panel that are switched on - the number on its button.
     public int PanelFilterCount => Status.Count + Priority.Count + Category.Count + Type.Count + (DesksAreDefault ? 0 : 1)

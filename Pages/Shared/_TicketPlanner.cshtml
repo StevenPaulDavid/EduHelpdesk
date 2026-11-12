@@ -51,6 +51,17 @@
         </article>
     }
 }
+@{
+    // One of the other dates (HelpdeskStore.PlannerDates): a line that opens what it's about, where the person can.
+    void DateLine(PlannerDate date)
+    {
+        var url = Model.DateUrl(date);
+        <li class="plan-date plan-date-@date.Kind @(date.Warning ? "plan-date-warning" : "")" title="@date.Detail">
+            <span class="visually-hidden">@PlannerKinds.Label(date.Kind): </span>
+            @if (url is not null) { <a href="@url">@date.Text</a> } else { <span>@date.Text</span> }
+        </li>
+    }
+}
 <section class="panel planner-panel">
     <div class="panel-heading">
         <div><h2>@planner.Title <help-tip key="tickets.planner" /></h2><p class="muted planner-count">@planner.PlannedInRange ticket@(planner.PlannedInRange == 1 ? "" : "s") planned · @JobsModel.ViewLabel(Model.View)</p></div>
@@ -66,6 +77,17 @@
             </nav>
         </div>
     </div>
+    @if (planner.Kinds.Count > 0)
+    {
+        <nav class="planner-kinds" aria-label="Other dates shown">
+            <span class="muted">Also show</span>
+            @foreach (var kind in planner.Kinds)
+            {
+                var shown = !Model.Hide.Contains(kind);
+                <a class="planner-kind plan-date-@kind @(shown ? "active" : "")" href="@Model.PlannerKindUrl(kind)" aria-pressed="@(shown ? "true" : "false")" title="@(shown ? "Hide" : "Show") @PlannerKinds.Label(kind).ToLowerInvariant()">@(shown ? "✓ " : "")@PlannerKinds.Label(kind)</a>
+            }
+        </nav>
+    }
     <p class="notice board-notice" id="planner-notice" role="status" hidden></p>
     <div class="planner" id="ticket-planner" data-plan-url="@planUrl" data-can-edit="@(Model.CanEdit ? "true" : "false")">
         <aside class="planner-side" aria-label="Tickets to plan">
@@ -103,6 +125,16 @@
                                 <p class="plan-day-head"><a href="@Model.PlannerUrl(null, day.Date)" title="Open the week of @day.Date.ToString("d MMMM", culture)">@(day.Date.Day == 1 || !day.InRange && day.Date == week.Days[0].Date ? day.Date.ToString("d MMM", culture) : day.Date.Day.ToString())</a>@if (day.IsToday) { <span class="badge">Today</span> }</p>
                                 <div class="plan-cards">@foreach (var ticket in cards.Take(JobsModel.PlannerMonthDayLimit)) { await Card(ticket, true, false); }</div>
                                 @if (cards.Count > JobsModel.PlannerMonthDayLimit) { <p class="board-more"><a href="@Model.PlannedListUrl("planday", day.Date.ToString("yyyy-MM-dd"))">+ @(cards.Count - JobsModel.PlannerMonthDayLimit) more</a></p> }
+                                @{ var others = week.Dates[day.Date]; }
+                                @if (others.Count > 0)
+                                {
+                                    var fits = others.Count <= JobsModel.PlannerMonthDateLimit + 1 ? others.Count : JobsModel.PlannerMonthDateLimit;
+                                    <ul class="plan-dates">@foreach (var date in others.Take(fits)) { DateLine(date); }</ul>
+                                    @if (others.Count > fits)
+                                    {
+                                        <details class="plan-dates-more"><summary>+ @(others.Count - fits) more</summary><ul class="plan-dates">@foreach (var date in others.Skip(fits)) { DateLine(date); }</ul></details>
+                                    }
+                                }
                             </td>
                         }
                         </tr>
@@ -115,12 +147,26 @@
                     <tbody>
                     @foreach (var row in planner.Rows)
                     {
+                        if (row.IsDates)
+                        {
+                            <tr class="plan-dates-row">
+                                <th scope="row">@row.Name<br /><span class="muted">Not tickets</span></th>
+                                @foreach (var day in row.Days)
+                                {
+                                    <td class="plan-cell @(day.IsToday ? "plan-today" : "")" aria-label="Also on @day.Date.ToString("dddd d MMMM", culture)">
+                                        @if (row.Dates[day.Date].Count > 0) { <ul class="plan-dates">@foreach (var date in row.Dates[day.Date]) { DateLine(date); }</ul> }
+                                    </td>
+                                }
+                            </tr>
+                            continue;
+                        }
                         <tr>
-                            <th scope="row">@row.Name<br /><span class="muted">@row.Cells.Values.Sum(x => x.Count) planned</span></th>
+                            <th scope="row">@row.Name<br /><span class="muted">@row.Cells.Values.Sum(x => x.Count) planned@{ var coming = row.Dates.Values.Sum(x => x.Count); }@if (coming > 0) { <text> · @coming to come</text> }</span></th>
                             @foreach (var day in row.Days)
                             {
                                 <td class="plan-drop plan-cell @(day.IsToday ? "plan-today" : "")" data-plan-day="@day.Date.ToString("yyyy-MM-dd")" data-plan-tech="@row.Key" aria-label="@row.Name, @day.Date.ToString("dddd d MMMM", culture)">
                                     <div class="plan-cards">@foreach (var ticket in row.Cells[day.Date]) { await Card(ticket, false, false); }</div>
+                                    @if (row.Dates[day.Date].Count > 0) { <ul class="plan-dates">@foreach (var date in row.Dates[day.Date]) { DateLine(date); }</ul> }
                                 </td>
                             }
                         </tr>
