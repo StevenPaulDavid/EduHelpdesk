@@ -26,7 +26,7 @@ If your school has ticket templates, **Start from a template** fills in the form
 
 ## Classification
 
-- **Type** - an *incident* is something broken; a *request* is something being asked for; a *disposal* gets rid of the linked assets when it's closed (only for roles with **Dispose of assets** - see [Disposing of assets through a ticket](dispose-via-a-ticket)).
+- **Type** - an *incident* is something broken; a *request* is something being asked for; a *disposal* gets rid of the linked assets when it's closed (only for roles with **Dispose of assets** - see [Disposing of assets through a ticket](dispose-via-a-ticket)). Your school may have types of its own for each desk, set in [Ticket types](settings-ticket-types); you're offered the desk's own.
 - **Priority** - how urgent it is. With an SLA, the priority usually decides how long the ticket has.
 - **Desk** - only shown when there's more than one. It narrows the categories, teams and people to that desk's.
 - **Category** - what the ticket is about. The category also decides the desk and its ticket number (IT-12, SITE-4).

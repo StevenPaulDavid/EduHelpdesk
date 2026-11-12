@@ -44,7 +44,7 @@
     <div class="form-section">
         <h2>Classification</h2>
         <div class="form-grid compact">
-            <label>Type<select asp-for="Ticket.Type">@foreach (var type in Model.TypeChoices) { <option value="@type">@type</option> }</select><small>An incident is something broken; a request is something being asked for@(Model.CanDispose ? "; a disposal gets rid of the linked assets when it's closed" : "").</small></label>
+            <label>Type<select asp-for="Ticket.Type" id="ticket-type-select">@foreach (var type in Model.TypeChoices) { <option value="@type" data-desk="@Model.DeskOfType(type)">@type</option> }</select><small>An incident is something broken; a request is something being asked for@(Model.CanDispose ? "; a disposal gets rid of the linked assets when it's closed" : "").</small></label>
             <label>Priority<select asp-for="Ticket.Priority">@foreach (var priority in Model.Priorities) { <option value="@priority">@priority</option> }</select></label>
             @if (Model.HasSeveralDesks)
             {

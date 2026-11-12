@@ -68,7 +68,7 @@ public sealed partial class HelpdeskStore
         var values = (attributeValues ?? new Dictionary<Guid, string>())
             .Where(x => !string.IsNullOrWhiteSpace(x.Value) && _data.TicketAttributeDefinitions.Any(d => d.Id == x.Key))
             .ToDictionary(x => x.Key, x => x.Value.Trim());
-        return (new TicketTemplate(id, name, TicketTypes.Normalize(type), title, description?.Trim() ?? string.Empty, validCategory, validPriority, slaId)
+        return (new TicketTemplate(id, name, CanonicalTicketTypeCore(type) ?? TicketTypes.Incident, title, description?.Trim() ?? string.Empty, validCategory, validPriority, slaId)
         { AttributeValues = values }, null);
     }
 }

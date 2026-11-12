@@ -302,6 +302,10 @@ public static class TicketTypes
     public static string CssClass(string? type) => type switch { Request => "type-request", Disposal => "type-disposal", _ => "" };
     // The matching type, or Incident for anything unknown or blank.
     public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Incident;
+    // As stored: a built-in type spelt its usual way, a school's own type (HelpdeskStore.TicketTypes) as it is, and
+    // Incident for blank. Not checked against the list, which is the job of whatever sets the type.
+    public static string Stored(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase))
+        ?? (string.IsNullOrWhiteSpace(value) ? Incident : value.Trim());
 }
 // A saved starting point for a ticket a technician logs. A blank SlaId means the SLA is worked out from the priority and
 // category as usual. The staff portal's buttons are the service catalogue's (ServiceItem), not templates.

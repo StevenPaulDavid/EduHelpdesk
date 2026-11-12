@@ -40,7 +40,8 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     // "in the last 3 months" or "over all time", for sentences.
     public string WhenText => PeriodKey == "all" ? "over all time" : "in the " + PeriodLabel.ToLowerInvariant();
     public string TypeLabel => string.IsNullOrEmpty(Type) ? "All types" : OnlyLabel(Type);
-    public static string OnlyLabel(string type) => type switch { TicketTypes.Request => "Requests only", TicketTypes.Disposal => "Disposals only", _ => "Incidents only" };
+    public static string OnlyLabel(string type) => type switch { TicketTypes.Request => "Requests only", TicketTypes.Disposal => "Disposals only", TicketTypes.Incident => "Incidents only", _ => $"{type} only" };
+    public IReadOnlyList<string> TypeOptions => store.AllTicketTypes;
     public DateTime Since { get; private set; }
     public bool HasPreviousPeriod { get; private set; }
 
@@ -131,7 +132,7 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
         if (period.Key is null) period = Periods[1];
         PeriodKey = period.Key;
         PeriodLabel = period.Label;
-        Type = TicketTypes.All.FirstOrDefault(x => string.Equals(x, Type?.Trim(), StringComparison.OrdinalIgnoreCase));
+        Type = store.CanonicalTicketType(Type);
         Since = period.Days is { } days ? Now.AddDays(-days) : period.Months is { } months ? Now.AddMonths(-months) : DateTime.MinValue;
         HasPreviousPeriod = period.Key != "all";
 

@@ -42,7 +42,9 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     // tick, and ticked already when the form was opened from "Dispose via ticket".
     public bool CanDispose => ShowAssets && store.UserHasFlag(User, Modules.Flags.DisposeAssets);
     // Disposal only for someone who can dispose of assets.
-    public IReadOnlyList<string> TypeChoices => TicketTypes.All.Where(x => x != TicketTypes.Disposal || CanDispose).ToList();
+    // Every desk's types; the form shows the chosen desk's (wwwroot/js/pages/new-ticket.js), and the post checks it.
+    public IReadOnlyList<string> TypeChoices => store.AllTicketTypes.Where(x => x != TicketTypes.Disposal || CanDispose).ToList();
+    public Guid? DeskOfType(string type) => store.DeskForTicketType(type)?.Id;
 
     public void OnGet(Guid? template, string? desk, Guid[]? asset, bool dispose = false)
     {
@@ -99,7 +101,8 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (Ticket.RequesterId == Guid.Empty) ModelState.AddModelError("Ticket.RequesterId", "Select a requester.");
         if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Category", "Select a valid category.");
         if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Priority", "Select a valid priority.");
-        if (!TicketTypes.All.Contains(Ticket.Type, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Type", "Select a valid type.");
+        if (store.CanonicalTicketType(Ticket.Type) is not { } knownType) ModelState.AddModelError("Ticket.Type", "Select a valid type.");
+        else if (store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase) && store.TicketTypeProblem(knownType, Ticket.Category) is { } typeProblem) ModelState.AddModelError("Ticket.Type", typeProblem);
         if (string.Equals(Ticket.Type, TicketTypes.Disposal, StringComparison.OrdinalIgnoreCase) && !CanDispose) ModelState.AddModelError("Ticket.Type", "A Disposal ticket needs the Dispose of assets tick.");
         if (Ticket.SlaId.HasValue && !store.Slas.Any(x => x.Id == Ticket.SlaId)) ModelState.AddModelError("Ticket.SlaId", "Select a valid SLA.");
         if (Ticket.TechnicianId.HasValue && !store.Technicians.Any(x => x.Id == Ticket.TechnicianId)) ModelState.AddModelError("Ticket.TechnicianId", "Select a valid technician.");
@@ -133,7 +136,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
             DateTime.UtcNow,
             null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName, string.IsNullOrWhiteSpace(Ticket.Location) ? null : Ticket.Location.Trim())
         {
-            Type = TicketTypes.Normalize(Ticket.Type),
+            Type = store.CanonicalTicketType(Ticket.Type) ?? TicketTypes.Incident,
             DisposeOnClose = Ticket.DisposeOnClose && CanDispose && assetIds.Count > 0
         });
         if (!store.UpdateTicketAttributeValues(number, Ticket.Category, Ticket.CustomAttributes)) { }

@@ -106,7 +106,9 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // Dispose and close, and undoing it need "Dispose of assets"; the details are part of working the ticket.
     public bool CanDispose => store.UserHasFlag(User, Modules.Flags.DisposeAssets);
     // The types this person may choose: Disposal only with the tick (or when it already is one, to show it).
-    public IReadOnlyList<string> TypeChoices => TicketTypes.All.Where(x => x != TicketTypes.Disposal || CanDispose || Ticket.Type == TicketTypes.Disposal).ToList();
+    // This desk's types (the built-in ones and its own, HelpdeskStore.TicketTypes), and the ticket's own if it isn't one.
+    public IReadOnlyList<string> TypeChoices => store.TicketTypesFor(store.DeskOf(Ticket).Id).Where(x => x != TicketTypes.Disposal || CanDispose || Ticket.Type == TicketTypes.Disposal)
+        .Concat(store.TicketTypesFor(store.DeskOf(Ticket).Id).Contains(Ticket.Type, StringComparer.OrdinalIgnoreCase) ? [] : [Ticket.Type]).ToList();
     public IReadOnlyList<HelpdeskStore.DisposalLine> DisposalLines { get; private set; } = [];
     public bool HasWaitingAssets => DisposalLines.Any(x => x.State == HelpdeskStore.DisposalState.Waiting);
     public int DisposedHere => DisposalLines.Count(x => x.State == HelpdeskStore.DisposalState.DisposedHere);
@@ -193,10 +195,11 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         var desk = store.DeskOf(ticket);
         if (field == "type")
         {
-            var type = TicketTypes.All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (type is null)
+            var type = store.CanonicalTicketType(value);
+            var typeProblem = type is null ? "Select a valid type." : store.TicketTypeProblem(type, ticket.Category);
+            if (type is null || typeProblem is not null)
             {
-                Message = "Select a valid type.";
+                Message = typeProblem;
                 return RedirectToPage(new { number });
             }
             // Making it a Disposal ticket marks its assets, and unmaking one frees them (HelpdeskStore.Disposal).

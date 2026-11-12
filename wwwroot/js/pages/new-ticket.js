@@ -4,12 +4,15 @@
     const categorySelect = document.getElementById("ticket-category-select");
     const technicianSelect = document.getElementById("ticket-technician-select");
     const teamSelect = document.getElementById("ticket-team-select");
+    const typeSelect = document.getElementById("ticket-type-select");
 
     // Each list is kept whole here and rebuilt from it, since hidden options can still be picked in some browsers.
     const snapshot = select => select ? Array.from(select.options).map(o => ({ value: o.value, text: o.text, data: { ...o.dataset } })) : [];
     const allCategories = snapshot(categorySelect);
     const allTeams = snapshot(teamSelect);
     const allTechnicians = snapshot(technicianSelect);
+    // A school's own ticket types belong to one desk (data-desk); the built-in ones have none and stay on every desk.
+    const allTypes = snapshot(typeSelect);
     const desk = () => deskSelect ? deskSelect.value : "";
 
     const rebuild = (select, options, keep) => {
@@ -30,6 +33,7 @@
             categorySelect.dispatchEvent(new Event("change"));
         }
         if (teamSelect) rebuild(teamSelect, allTeams, o => o.value === "" || o.data.desk === desk());
+        if (typeSelect) rebuild(typeSelect, allTypes, o => !o.data.desk || o.data.desk === desk());
     };
 
     // Choosing a team narrows the technician list to that team (and, with several desks, to people on the desk),

@@ -55,7 +55,7 @@ public class JobsModel(HelpdeskStore store) : PageModel
     public IReadOnlyList<string> Statuses => store.Statuses;
     public IReadOnlyList<string> Priorities => store.Priorities;
     public IReadOnlyList<string> Categories => store.Categories;
-    public IReadOnlyList<string> Types => TicketTypes.All;
+    public IReadOnlyList<string> Types => store.AllTicketTypes;
     public IReadOnlyDictionary<string, string> StatusDescriptions => store.StatusDescriptions;
     // Only the desks this person can see (HelpdeskStore.Desks): with one, there's nothing to choose between.
     public IReadOnlyList<Desk> Desks => _visibleDesks ??= store.DesksVisibleTo(User);

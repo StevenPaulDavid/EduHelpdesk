@@ -1,0 +1,57 @@
+@page
+@using EduHelpdesk.Models
+@model EduHelpdesk.Pages.Settings.TicketTypesModel
+@{ ViewData["Title"] = "Ticket types"; }
+<div class="page-heading"><h1>Ticket types</h1></div>
+@if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+<section class="panel">
+    <p class="muted">Every ticket has a type. <strong>Incident</strong>, <strong>Request</strong> and <strong>Disposal</strong> are built in and on every desk. Add your own@(Model.HasSeveralDesks ? ", each on one desk - only that desk's tickets can have it" : "") - such as <em>Planned</em> and <em>Reactive</em> for site jobs. They're labels for filtering the ticket list, the ticket report and templates; only Disposal does anything by itself.</p>
+    <form method="post" asp-page-handler="Add" class="settings-form field-narrow">
+        <label>Add a type<input name="name" required maxlength="40" /></label>
+        @if (Model.HasSeveralDesks)
+        {
+            <label>For the desk<select name="deskId" required><option value="">Choose…</option>@foreach (var desk in Model.Desks) { <option value="@desk.Id">@desk.Name</option> }</select></label>
+        }
+        <button class="button button-primary">Add</button>
+    </form>
+    <div class="directory-list">
+        @foreach (var builtIn in TicketTypes.All)
+        {
+            <div class="directory-row status-option-row">
+                <div class="status-option-header"><strong>@builtIn</strong><span class="badge" title="Built-in types are on every desk and can't be renamed or removed.">Built in</span></div>
+            </div>
+        }
+        @for (var i = 0; i < Model.Custom.Count; i++)
+        {
+            var type = Model.Custom[i];
+            var used = Model.Usage(type.Name);
+            <div class="directory-row status-option-row">
+                <div class="status-option-header">
+                    <strong>@type.Name</strong>
+                    @if (Model.HasSeveralDesks) { <span class="badge">@Model.DeskName(type.DeskId) desk</span> }
+                    <span class="muted">@(used == 0 ? "Not used yet" : used == 1 ? "Used once" : $"Used {used} times")</span>
+                    <div class="row-actions">
+                        <form method="post" asp-page-handler="Move"><input type="hidden" name="type" value="@type.Name" /><input type="hidden" name="up" value="true" /><button class="icon-button" type="submit" title="Move up" aria-label="Move @type.Name up" disabled="@(i == 0)">↑</button></form>
+                        <form method="post" asp-page-handler="Move"><input type="hidden" name="type" value="@type.Name" /><input type="hidden" name="up" value="false" /><button class="icon-button" type="submit" title="Move down" aria-label="Move @type.Name down" disabled="@(i == Model.Custom.Count - 1)">↓</button></form>
+                    </div>
+                </div>
+                <div class="row-actions">
+                    <form method="post" asp-page-handler="Rename"><input type="hidden" name="current" value="@type.Name" /><input name="name" value="@type.Name" required maxlength="40" aria-label="New name for @type.Name" /><button class="button button-secondary">Rename</button></form>
+                    @if (Model.HasSeveralDesks)
+                    {
+                        <form method="post" asp-page-handler="Desk"><input type="hidden" name="type" value="@type.Name" /><label>Desk <select name="deskId" data-autosubmit>@foreach (var desk in Model.Desks) { <option value="@desk.Id" selected="@(desk.Id == type.DeskId)">@desk.Name</option> }</select></label><noscript><button class="button button-secondary" type="submit">Save</button></noscript></form>
+                    }
+                    <form method="post" asp-page-handler="Delete" data-confirm="Remove @type.Name@(used > 0 ? " and move what has it to the type chosen" : "")?">
+                        <input type="hidden" name="type" value="@type.Name" />
+                        @if (used > 0)
+                        {
+                            <label>Move to <select name="into">@foreach (var target in Model.MoveTargets(type)) { <option value="@target">@target</option> }</select></label>
+                        }
+                        <button class="button button-danger">Remove</button>
+                    </form>
+                </div>
+            </div>
+        }
+        @if (Model.Custom.Count == 0) { <p class="empty">No types of your own yet.</p> }
+    </div>
+</section>

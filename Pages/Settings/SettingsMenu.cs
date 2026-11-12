@@ -25,6 +25,7 @@ public static class SettingsMenu
             new("Desks", "/Settings/Desks", "desk desks it facilities site premises caretaker cleaning estates departments prefix ticket number portal tiles separate teams switch off rename"),
             new("Ticket queues & closing", "/Settings/TicketRules", "due soon overdue window hours reopen reply closed days closing message requirement print template word docx"),
             new("Statuses", "/Settings/Statuses", "status on hold pause sla clock"),
+            new("Ticket types", "/Settings/TicketTypes", "ticket type types incident request disposal planned reactive label own custom"),
             new("Categories", "/Settings/Categories", "category hardware software"),
             new("Priorities", ListPage("tickets"), "priorities priority urgent high normal low"),
             new("SLAs", "/Settings/Slas", "sla service level due date target"),

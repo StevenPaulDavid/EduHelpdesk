@@ -257,7 +257,7 @@ public sealed partial class HelpdeskStore
                     if (canonical is null) return Fail("Select a valid category.");
                     break;
                 case "type":
-                    canonical = TicketTypes.All.FirstOrDefault(x => string.Equals(x, change.Value?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    canonical = CanonicalTicketTypeCore(change.Value);
                     if (canonical is null) return Fail("Select a valid type.");
                     break;
                 case "team":
@@ -312,6 +312,8 @@ public sealed partial class HelpdeskStore
                         break;
                     case "type":
                         if (string.Equals(ticket.Type, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
+                        if (DeskForTicketTypeCore(canonical) is { } typeDesk && typeDesk.Id != DeskForCategoryCore(ticket.Category).Id)
+                        { Skip($"{canonical} is only used on the {typeDesk.Name} desk."); continue; }
                         changed = WithDisposalTypeRule(ticket, ticket with { Type = canonical! });
                         break;
                     case "team":

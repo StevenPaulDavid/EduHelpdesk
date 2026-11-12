@@ -1,6 +1,7 @@
 @page
 @using EduHelpdesk.Models
 @using EduHelpdesk.Services
+@inject EduHelpdesk.Services.HelpdeskStore Helpdesk
 @model EduHelpdesk.Pages.Settings.TicketTemplatesModel
 @{
     ViewData["Title"] = "Ticket templates";
@@ -12,7 +13,7 @@
         var priority = item?.Priority ?? (Model.Priorities.Contains("Normal") ? "Normal" : Model.Priorities.FirstOrDefault() ?? "");
         <div class="template-fields">
             <label>Name<input name="name" value="@item?.Name" maxlength="100" required placeholder="e.g. New starter" /></label>
-            <label>Type<select name="type">@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == (item?.Type ?? TicketTypes.Incident))">@type</option> }</select></label>
+            <label>Type<select name="type">@foreach (var type in Helpdesk.AllTicketTypes) { <option value="@type" selected="@(type == (item?.Type ?? TicketTypes.Incident))">@type</option> }</select></label>
             <label>Category<select name="category">@foreach (var value in Model.Categories) { <option value="@value" selected="@string.Equals(value, category, StringComparison.OrdinalIgnoreCase)">@value</option> }@if (item is not null && !Model.Categories.Contains(item.Category, StringComparer.OrdinalIgnoreCase)) { <option value="" selected>@item.Category (no longer exists)</option> }</select></label>
             <label>Priority<select name="priority">@foreach (var value in Model.Priorities) { <option value="@value" selected="@string.Equals(value, priority, StringComparison.OrdinalIgnoreCase)">@value</option> }@if (item is not null && !Model.Priorities.Contains(item.Priority, StringComparer.OrdinalIgnoreCase)) { <option value="" selected>@item.Priority (no longer exists)</option> }</select></label>
             <label>SLA<select name="slaId"><option value="">Automatic (from priority and category)</option>@foreach (var sla in Model.Slas) { <option value="@sla.Id" selected="@(sla.Id == item?.SlaId)">@sla.Name (@EduHelpdesk.Services.SlaUnits.Describe(sla))</option> }</select></label>

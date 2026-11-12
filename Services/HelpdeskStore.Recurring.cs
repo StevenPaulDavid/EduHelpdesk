@@ -189,7 +189,7 @@ public sealed partial class HelpdeskStore
             weekOfMonth, Enum.IsDefined(input.WeekDay) ? input.WeekDay : DayOfWeek.Monday,
             frequency == Recurrence.Yearly ? input.Month : 1, input.MoveToSchoolDay);
 
-        return (new RecurringTicket(id, name, input.IsActive, rule, title, input.Description?.Trim() ?? "", TicketTypes.Normalize(input.Type),
+        return (new RecurringTicket(id, name, input.IsActive, rule, title, input.Description?.Trim() ?? "", CanonicalTicketTypeCore(input.Type) ?? TicketTypes.Incident,
             category, priority, input.RequesterId, input.TechnicianId, team, location, assetIds), null);
     }
 
@@ -252,7 +252,7 @@ public sealed partial class HelpdeskStore
                 days, reader.GetInt32(9), reader.GetInt32(10), (DayOfWeek)Math.Clamp(reader.GetInt32(11), 0, 6), reader.GetInt32(12), reader.GetInt32(13) != 0);
             var assetIds = reader.GetString(23).Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => Guid.TryParse(x, out var g) ? (Guid?)g : null).OfType<Guid>().ToList();
             data.RecurringTickets.Add(new RecurringTicket(Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetInt32(2) != 0, rule,
-                reader.GetString(14), reader.GetString(15), TicketTypes.Normalize(reader.GetString(16)), reader.GetString(17), reader.GetString(18),
+                reader.GetString(14), reader.GetString(15), TicketTypes.Stored(reader.GetString(16)), reader.GetString(17), reader.GetString(18),
                 Guid.Parse(reader.GetString(19)), NullableGuid(reader, 20), NullableString(reader, 21), NullableString(reader, 22), assetIds)
             {
                 CountedFrom = DateTime.TryParseExact(reader.GetString(24), LocalTimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var counted) ? counted : DateTime.Now,

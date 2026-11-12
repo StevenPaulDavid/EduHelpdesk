@@ -331,6 +331,12 @@ public sealed partial class HelpdeskStore
             ticket = ticket with { Status = StartingStatusCore(desk.Id) };
             dropped.Add("status");
         }
+        // A school's own type belongs to one desk (HelpdeskStore.TicketTypes).
+        if (DeskForTicketTypeCore(ticket.Type) is { } typeDesk && typeDesk.Id != desk.Id)
+        {
+            ticket = ticket with { Type = TicketTypes.Incident };
+            dropped.Add("type");
+        }
         return (ticket, dropped);
     }
 
@@ -343,6 +349,7 @@ public sealed partial class HelpdeskStore
         if (dropped.Contains("technician")) parts.Add("the technician was unassigned");
         if (dropped.Contains("team")) parts.Add("the team was taken off");
         if (dropped.Contains("status")) parts.Add("the status went back to the start");
+        if (dropped.Contains("type")) parts.Add("the type went back to Incident");
         var joined = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
         return $"{text} {char.ToUpperInvariant(joined[0])}{joined[1..]}, because {(parts.Count == 1 ? "it belongs" : "they belong")} to another desk.";
     }
