@@ -47,6 +47,11 @@ public static class TicketInsights
     // Open, and booked in for a day that has gone by: the plan slipped.
     public static bool IsPlanLate(TicketRecord ticket, DateOnly today) => !IsClosed(ticket) && ticket.PlannedFor is { } planned && planned < today;
 
+    // On a day's planned sheet (Pages/DailySheet, the overview): open, and planned for that day - or, on today's, for a
+    // day already gone by, so a job that slipped isn't dropped from the next morning's sheet.
+    public static bool OnSheetFor(TicketRecord ticket, DateOnly day, DateOnly today) =>
+        !IsClosed(ticket) && ticket.PlannedFor is { } planned && (planned == day || day == today && planned < today);
+
     // The school week a day falls in, Monday to Sunday.
     public static (DateOnly From, DateOnly To) WeekOf(DateOnly day)
     {

@@ -143,7 +143,7 @@
                 }
                 else
                 {
-                    <thead><tr><th scope="col"><span class="visually-hidden">Who</span></th>@foreach (var day in planner.Rows[0].Days) { <th scope="col" class="@(day.IsToday ? "plan-today" : "")">@day.Date.ToString("ddd d MMM", culture)@if (day.IsToday) { <text> </text><span class="badge">Today</span> }</th> }</tr></thead>
+                    <thead><tr><th scope="col"><span class="visually-hidden">Who</span></th>@foreach (var day in planner.Rows[0].Days) { <th scope="col" class="@(day.IsToday ? "plan-today" : "")">@day.Date.ToString("ddd d MMM", culture)@if (day.IsToday) { <text> </text><span class="badge">Today</span> }<a class="plan-sheet-link" href="@Model.DailySheetUrl(day.Date)" target="_blank" rel="noopener" title="Print the jobs planned for @day.Date.ToString("dddd d MMMM", culture), a page for each person">Print</a></th> }</tr></thead>
                     <tbody>
                     @foreach (var row in planner.Rows)
                     {

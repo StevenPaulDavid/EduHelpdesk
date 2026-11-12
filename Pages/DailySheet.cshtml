@@ -3,35 +3,77 @@
 @model DailySheetModel
 @{
     Layout = "_ReportPrint";
-    ViewData["ReportTitle"] = "Daily job sheet";
+    ViewData["ReportTitle"] = Model.Title;
     ViewData["ReportSubtitle"] = Model.Subtitle;
+    var jobs = Model.Count == 1 ? "1 job" : $"{Model.Count} jobs";
 }
-<p class="note">@(Model.Count == 1 ? "1 open job" : $"{Model.Count} open jobs"), by room. Tick each one done and note anything the office should know; hand the sheet back at the end of the shift.</p>
+<style>
+    .sheet-choice { flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: 10.5pt; margin-top: 0; }
+    .sheet-choice label { display: inline-flex; align-items: center; gap: 6px; }
+    .sheet-choice input, .sheet-choice select { font: inherit; padding: 4px 6px; }
+    .sheet-choice span { color: #5c6e75; font-size: 9.5pt; }
+    .sheet-person { page-break-before: always; break-before: page; }
+</style>
+@* Choosing the day and who it's for. Kept off the paper. *@
+<form method="get" class="no-print sheet-choice">
+    @foreach (var desk in Model.ShownDesks) { <input type="hidden" name="desk" value="@desk.Name" /> }
+    @if (!string.IsNullOrWhiteSpace(Model.Team)) { <input type="hidden" name="team" value="@Model.Team" /> }
+    <label>Planned for <input type="date" name="day" value="@(Model.Day?.ToString("yyyy-MM-dd"))" /></label>
+    <label>Who <select name="tech">
+        <option value="">Everyone</option>
+        <option value="@DailySheetModel.Nobody" selected="@(Model.Technician == DailySheetModel.Nobody)">Unassigned</option>
+        @foreach (var person in Model.People) { <option value="@person.Id" selected="@(Model.Technician == person.Id.ToString())">@person.Name</option> }
+    </select></label>
+    <label><input type="checkbox" name="split" value="person" checked="@Model.ByPerson" /> A page for each person</label>
+    <button type="submit">Show</button>
+    <span>Leave the day empty for every open job.</span>
+</form>
+@if (Model.Count > 0 && Model.Day is { } day)
+{
+    <p class="note">@jobs planned for @(day == Model.Today ? "today" : day.ToString("dddd d MMMM"))@(day == Model.Today ? ", and any planned for an earlier day that aren't done yet" : ""), by room. Tick each one done and note anything the office should know; hand the sheet back at the end of the shift.</p>
+}
+else if (Model.Count > 0)
+{
+    <p class="note">@(Model.Count == 1 ? "1 open job" : $"{Model.Count} open jobs"), by room. Tick each one done and note anything the office should know; hand the sheet back at the end of the shift.</p>
+}
 @if (Model.Count == 0)
 {
-    <p>No open jobs right now.</p>
+    <p>@(Model.Day is null ? "No open jobs right now." : "Nothing is planned for this day.")</p>
 }
-@foreach (var (room, tickets) in Model.Rooms)
+@{ var first = true; }
+@foreach (var part in Model.Sections)
 {
-    <section>
-        <h2>@room</h2>
-        <table>
-            <thead><tr><th style="width:8mm">Done</th><th style="width:22mm">Job</th><th>What</th><th style="width:20mm">Priority</th><th style="width:28mm">Due</th><th style="width:30mm">Assigned</th><th style="width:45mm">Notes</th></tr></thead>
-            <tbody>
-                @foreach (var ticket in tickets)
-                {
-                    var due = TicketInsights.DueStateOf(ticket, Model.Now, 0);
-                    <tr class="@(due == DueState.Overdue ? "flag" : "")">
-                        <td>☐</td>
-                        <td class="count">@Model.Ref(ticket)</td>
-                        <td>@ticket.Title<br /><span class="sub">@ticket.Category · @ticket.Status</span></td>
-                        <td>@ticket.Priority</td>
-                        <td>@(ticket.DueDate?.ToLocalTime().ToString("ddd d MMM, HH:mm") ?? "-")@if (due == DueState.Overdue) { <br /><span class="pill pill-warn">Overdue</span> }</td>
-                        <td>@(ticket.TechnicianId is { } who ? Model.Names.GetValueOrDefault(who, "") : ticket.TeamName ?? "Anyone")</td>
-                        <td></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </section>
+    <div class="@(Model.ByPerson && !first ? "sheet-person" : "")">
+    @if (part.Person is not null) { <h2>@part.Person <span class="sub">· @(part.Count == 1 ? "1 job" : $"{part.Count} jobs")</span></h2> }
+    @foreach (var (room, tickets) in part.Rooms)
+    {
+        <section>
+            @if (part.Person is null) { <h2>@room</h2> } else { <h3>@room</h3> }
+            <table>
+                <thead><tr><th style="width:8mm">Done</th><th style="width:22mm">Job</th><th>What</th><th style="width:20mm">Priority</th><th style="width:28mm">Due</th><th style="width:30mm">@(Model.ByPerson ? "Planned" : "Assigned")</th><th style="width:45mm">Notes</th></tr></thead>
+                <tbody>
+                    @foreach (var ticket in tickets)
+                    {
+                        var due = TicketInsights.DueStateOf(ticket, Model.Now, 0);
+                        var carried = Model.Day is not null && ticket.PlannedFor is { } planned && planned < Model.Day;
+                        <tr class="@(due == DueState.Overdue ? "flag" : "")">
+                            <td>☐</td>
+                            <td class="count">@Model.Ref(ticket)</td>
+                            <td>@ticket.Title<br /><span class="sub">@ticket.Category · @ticket.Status</span></td>
+                            <td>@ticket.Priority</td>
+                            <td>@(ticket.DueDate?.ToLocalTime().ToString("ddd d MMM, HH:mm") ?? "-")@if (due == DueState.Overdue) { <br /><span class="pill pill-warn">Overdue</span> }</td>
+                            <td>
+                                @if (Model.ByPerson) { if (!carried) { @(ticket.PlannedFor?.ToString("ddd d MMM") ?? "-") } }
+                                else { @(ticket.TechnicianId is { } who ? Model.Names.GetValueOrDefault(who, "") : ticket.TeamName ?? "Anyone") }
+                                @if (carried) { @if (!Model.ByPerson) { <br /> }<span class="pill pill-warn">From @ticket.PlannedFor!.Value.ToString("ddd d MMM")</span> }
+                            </td>
+                            <td></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+    </div>
+    first = false;
 }

@@ -17,6 +17,7 @@
             <summary class="button button-secondary">More<span class="chev" aria-hidden="true">▾</span></summary>
             <div class="nav-panel nav-panel-right">
                 <a href="@Model.DailySheetUrl()" target="_blank" rel="noopener" title="Open tickets for the desks and team shown, by room, to print and hand out">Print the daily sheet</a>
+                <a href="@Model.DailySheetUrl(Model.Today)" target="_blank" rel="noopener" title="Today's planned jobs by room, a page for each person">Print today's planned jobs</a>
                 <a asp-page="/QuickLog" title="For a job dealt with before it was logged - saved as a closed ticket">Log a job already done</a>
             </div>
         </details>

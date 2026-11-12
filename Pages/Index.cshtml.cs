@@ -29,6 +29,10 @@ public class IndexModel(HelpdeskStore store) : PageModel
     public int DueSoonCount { get; private set; }
     public IReadOnlyList<TicketRecord> UnassignedTickets { get; private set; } = [];
     public IReadOnlyList<TicketRecord> RepliesWaiting { get; private set; } = [];
+    // Planner stage 5: the open tickets planned for today, and those whose planned day went by without them being done.
+    public IReadOnlyList<TicketRecord> PlannedToday { get; private set; } = [];
+    public int PlanLateCount { get; private set; }
+    public int PlannedTodayForMe { get; private set; }
     public int RepliesForMe { get; private set; }
     public IReadOnlyList<ProjectRecord> MyProjects { get; private set; } = [];
     public int ProjectsAwaitingAssignment { get; private set; }
@@ -172,6 +176,14 @@ public class IndexModel(HelpdeskStore store) : PageModel
             var replies = open.Where(HelpdeskStore.AwaitingTechnician).ToList();
             RepliesForMe = replies.Count(x => meId is { } me && x.TechnicianId == me);
             RepliesWaiting = replies.OrderBy(x => meId is { } me && x.TechnicianId == me ? 0 : 1).ThenBy(x => x.LastModifiedAt).ToList();
+
+            // Yours first, then by who has them (nobody last), most urgent first.
+            PlannedToday = open.Where(x => x.PlannedFor == Today)
+                .OrderBy(x => meId is { } me && x.TechnicianId == me ? 0 : x.TechnicianId is null ? 2 : 1)
+                .ThenBy(x => x.TechnicianId is { } who ? TechnicianNames.GetValueOrDefault(who, "") : "", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => PriorityRank(x.Priority)).ThenBy(x => x.Number).ToList();
+            PlannedTodayForMe = PlannedToday.Count(x => meId is { } me && x.TechnicianId == me);
+            PlanLateCount = open.Count(x => TicketInsights.IsPlanLate(x, Today));
         }
 
         if (CanSeeProjects && SignedInTechnician.Id(store, User) is { } projectMe)

@@ -39,6 +39,8 @@ Open **Tickets**. The tabs along the top are the queues:
 
 Search by number, title, requester or asset tag, or use **Filters** to narrow the list by status, priority, category, team, location and more. See [The ticket list](ticket-list).
 
+The **Overview** also has **Planned for today** when anything has been booked in for today on the planner, with a warning when planned jobs weren't done on their day. See [The ticket planner](ticket-planner).
+
 > **Tip:** If the school has more than one desk (IT, Site, Cleaning), the list shows your own desks' tickets. Other desks' tickets aren't shown to you unless your role has "See all desks".
 
 ## Working a ticket

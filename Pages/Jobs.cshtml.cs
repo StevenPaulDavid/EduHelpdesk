@@ -646,7 +646,9 @@ public class JobsModel(HelpdeskStore store) : PageModel
     // A queue tab keeps the search and filters but starts on the first page and that queue's own sort order.
     public string? ViewUrl(string view) => Url.Page("/Jobs", RouteFor(1, TicketListQuery.DefaultSort(view).Sort, TicketListQuery.DefaultSort(view).Descending ? "desc" : "asc", view));
     // The printable daily sheet for what the list is showing: the same desks, and the team if one is chosen.
-    public string? DailySheetUrl() => Url.Page("/DailySheet", new Dictionary<string, object?> { ["desk"] = ShownDesks.Count == 0 ? null : ShownDesks.Select(x => x.Name).ToArray(), ["team"] = string.IsNullOrWhiteSpace(Team) || Team == TicketListQuery.None ? null : Team });
+    // With a day: that day's planned jobs (planner stage 5), a page for each person.
+    public string? DailySheetUrl(DateOnly? day = null) => Url.Page("/DailySheet", new Dictionary<string, object?> { ["desk"] = ShownDesks.Count == 0 ? null : ShownDesks.Select(x => x.Name).ToArray(), ["team"] = string.IsNullOrWhiteSpace(Team) || Team == TicketListQuery.None ? null : Team,
+        ["day"] = day?.ToString("yyyy-MM-dd"), ["split"] = day is null ? null : "person" });
     public string? ClearUrl() => Url.Page("/Jobs", new { view = View == "open" ? null : View, show = Show, by = By, span = Span, day = Day?.ToString("yyyy-MM-dd"), hide = Hide.Count == 0 ? null : Hide.ToArray() });
 
     // Filters in the Filters panel that are switched on - the number on its button.

@@ -162,6 +162,23 @@ public class PlannedForTests
     }
 
     [Fact]
+    public void A_days_sheet_holds_its_planned_jobs_and_todays_also_holds_the_ones_that_slipped()
+    {
+        var today = new DateOnly(2026, 11, 12);
+        TicketRecord Ticket(DateOnly? planned, string status = "Open") =>
+            new(1, "Projector", "", Guid.NewGuid(), [], null, "Normal", status, "Hardware", DateTime.UtcNow, null) { PlannedFor = planned };
+
+        Assert.True(TicketInsights.OnSheetFor(Ticket(today), today, today));
+        Assert.True(TicketInsights.OnSheetFor(Ticket(today.AddDays(-3)), today, today));
+        Assert.True(TicketInsights.OnSheetFor(Ticket(today.AddDays(1)), today.AddDays(1), today));
+        // Another day's sheet is just that day; nothing unplanned or closed is on any.
+        Assert.False(TicketInsights.OnSheetFor(Ticket(today.AddDays(-3)), today.AddDays(1), today));
+        Assert.False(TicketInsights.OnSheetFor(Ticket(today), today.AddDays(1), today));
+        Assert.False(TicketInsights.OnSheetFor(Ticket(null), today, today));
+        Assert.False(TicketInsights.OnSheetFor(Ticket(today, "Closed"), today, today));
+    }
+
+    [Fact]
     public void A_planned_day_reads_as_today_tomorrow_or_the_date()
     {
         var day = new DateOnly(2026, 11, 11);

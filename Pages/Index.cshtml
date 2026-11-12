@@ -99,6 +99,34 @@
     </section>
     }
 
+    @if (Model.PlannedToday.Count > 0 || Model.PlanLateCount > 0)
+    {
+    @* Planner stage 5: what the team has booked in for today, and the plan that slipped. *@
+    <section class="panel" id="planned-today">
+        <div class="panel-heading">
+            <div><h2>Planned for today</h2></div>
+            <div class="heading-actions">
+                <a class="button button-secondary" href="@Url.Page("/DailySheet", new { day = "today", split = "person" })" target="_blank" rel="noopener" title="Today's planned jobs by room, a page for each person">Print today's sheets</a>
+                <a class="button button-secondary" href="@Url.Page("/Jobs", new { show = "planner" })">Open the planner</a>
+            </div>
+        </div>
+        @if (Model.PlanLateCount > 0)
+        {
+            <p class="notice notice-warning dash-note"><strong>@Model.PlanLateCount planned job@(Model.PlanLateCount == 1 ? " wasn't" : "s weren't") done on the day.</strong> <a href="@Url.Page("/Jobs", new { plan = "late" })">Plan @(Model.PlanLateCount == 1 ? "it" : "them") for another day →</a></p>
+        }
+        @if (Model.PlannedToday.Count > 0)
+        {
+            <p class="muted dash-note">@(Model.PlannedTodayForMe > 0 ? $"{Model.PlannedTodayForMe} of yours first, then everyone else's." : "Booked in for today on the planner.")</p>
+            <ul class="dash-list">@foreach (var ticket in Model.PlannedToday.Take(IndexModel.PanelSize)) { await TicketRow(ticket, true); }</ul>
+            @if (Model.PlannedToday.Count > IndexModel.PanelSize) { <p class="muted dash-more"><a href="@Url.Page("/Jobs", new { plan = "today" })">See all @Model.PlannedToday.Count →</a></p> }
+        }
+        else
+        {
+            <p class="muted dash-note">Nothing is planned for today.</p>
+        }
+    </section>
+    }
+
     @if (Model.DueTickets.Count > 0 || Model.UnassignedTickets.Count > 0)
     {
     <div class="dash-grid">

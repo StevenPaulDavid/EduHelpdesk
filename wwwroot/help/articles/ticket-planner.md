@@ -21,7 +21,7 @@ On the **Tickets** page, press **Planner** in the **List | Board | Planner** swi
 - **Week** - a row for each person on the desks being shown, with **Unassigned** at the top, and a column for each school day. Each row says how many tickets that person has planned.
 - **Month** - an ordinary calendar. Each day shows up to four tickets, then **+ more**, which opens that day as a list. Click a day's number to open its week.
 
-**← Previous**, **This week** (or **This month**) and **Next →** move through time. Today is shaded.
+**← Previous**, **This week** (or **This month**) and **Next →** move through time. Today is shaded. **Print** under each day's name on the week prints that day's planned jobs, a page for each person: see [The daily sheet](daily-sheet#a-days-planned-jobs).
 
 The columns are your school's days (**Settings → School day**). A day outside them, such as a Saturday, appears whenever something is planned for it.
 
