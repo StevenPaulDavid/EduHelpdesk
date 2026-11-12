@@ -10,7 +10,7 @@
          project (it shares Services/AgentContract.cs). None of them are part of the app. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**;deploy/**;installer/**;releases/**;agent/**</DefaultItemExcludes>
     <!-- The release number schools see (Settings → About). deploy/New-Release.ps1 sets it for each release. -->
-    <Version>3.3.0</Version>
+    <Version>4.1.0</Version>
     <Authors>Steven Davidson</Authors>
     <Product>EduHelpdesk</Product>
     <Copyright>Copyright (c) 2026 Steven Davidson. MIT licence.</Copyright>
