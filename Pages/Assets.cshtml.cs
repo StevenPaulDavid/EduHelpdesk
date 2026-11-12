@@ -46,6 +46,8 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public bool CanAdd => store.UserCan(User, Modules.Assets, ModulePermission.New);
     public bool CanEdit => store.UserCan(User, Modules.Assets, ModulePermission.Edit);
     public bool CanDelete => store.UserCan(User, Modules.Assets, ModulePermission.Delete);
+    // "New ticket" with the ticked assets linked: the New ticket form's own rule, Tickets: New.
+    public bool CanRaiseTicket => store.UserCan(User, Modules.Tickets, ModulePermission.New);
 
     public IReadOnlyList<AssetRecord> Rows { get; private set; } = [];
     public IReadOnlyDictionary<Guid, string> UserNames { get; private set; } = new Dictionary<Guid, string>();
@@ -84,7 +86,14 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     {
         // The list itself only needs Access, so the handlers on it carry their own level: export reads the register,
         // everything else writes to it.
-        if (!store.UserCan(User, Modules.Assets, operation == "export" ? ModulePermission.View : ModulePermission.Edit)) return Forbid();
+        // Raising a ticket reads the register and writes a ticket, so it needs View here plus the ticket form's Tickets: New.
+        var allowed = operation switch
+        {
+            "export" => CanView,
+            "ticket" => CanView && CanRaiseTicket,
+            _ => CanEdit
+        };
+        if (!allowed) return Forbid();
         Normalize();
         // "Select all matching" re-applies the current filters here, so it covers every page, not just the one on screen.
         var targets = selectAll ? Run().Select(x => x.Id).ToList() : (ids ?? []).Distinct().ToList();
@@ -102,6 +111,17 @@ public class AssetsModel(HelpdeskStore store) : PageModel
             var csv = AssetCsv.Build(sorted, store.Users, store.Suppliers, store.AssetAttributeDefinitions, store.AssetAttributeValues, store.AssetTypeLifespans);
             var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
             return File(bytes, "text/csv; charset=utf-8", AssetCsv.FileName(DateTime.Now));
+        }
+
+        // One ticket for all of them: the form opens with them linked. Disposed ones are left out (and counted) there.
+        if (operation == "ticket")
+        {
+            if (targets.Count > NewTicketModel.MaxAssetsFromList)
+            {
+                Message = $"A ticket can be started with up to {NewTicketModel.MaxAssetsFromList} assets from here - {targets.Count} are selected. Tick fewer, or link the rest from the ticket once it's made.";
+                return Back();
+            }
+            return RedirectToPage("/NewTicket", new { asset = targets });
         }
 
         // DfE "Record a check": the date and who did it, with the next check worked out from Settings → Inventory rules.

@@ -31,7 +31,7 @@ If your school has ticket templates, **Start from a template** fills in the form
 - **Desk** - only shown when there's more than one. It narrows the categories, teams and people to that desk's.
 - **Category** - what the ticket is about. The category also decides the desk and its ticket number (IT-12, SITE-4).
 - **Location** - the room.
-- **Assets** - the devices involved. Link as many as you need, or none.
+- **Assets** - the devices involved. Link as many as you need, or none. Starting from an asset - **New ticket** on the asset page, or **Raise one ticket for them** on the asset list - fills these in for you, and makes you the requester.
 
 ## Assignment & scheduling
 

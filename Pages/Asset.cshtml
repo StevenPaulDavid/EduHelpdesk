@@ -43,6 +43,7 @@
     </div>
     <div class="heading-actions">
         <partial name="_RawDataLink" model='("asset", asset.Id.ToString())' />
+        @if (Model.CanRaiseTicket) { <a class="button button-primary" asp-page="/NewTicket" asp-route-asset="@asset.Id">@Icons.Plus New ticket</a> }
     </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
@@ -335,7 +336,7 @@
 
 @* ---- Tickets ---- *@
 <section id="asset-tickets" class="ticket-tab-panel panel" role="tabpanel" hidden>
-    <div class="panel-heading"><div><h2>Linked tickets</h2></div>@if (linkedTicketRecords.Count > 0) { <a class="button button-secondary" asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all">Open in ticket list</a> }</div>
+    <div class="panel-heading"><div><h2>Linked tickets</h2></div><div class="heading-actions">@if (linkedTicketRecords.Count > 0) { <a class="button button-secondary" asp-page="/Jobs" asp-route-asset="@asset.Id" asp-route-view="all">Open in ticket list</a> }@if (Model.CanRaiseTicket) { <a class="button button-secondary" asp-page="/NewTicket" asp-route-asset="@asset.Id">@Icons.Plus New ticket</a> }</div></div>
     <div class="asset-job-list">
         @foreach (var ticket in linkedTicketRecords)
         {

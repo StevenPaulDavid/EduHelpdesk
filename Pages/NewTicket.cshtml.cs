@@ -34,8 +34,14 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     [BindProperty] public TicketInput Ticket { get; set; } = new();
     [TempData] public string? Message { get; set; }
 
-    public void OnGet(Guid? template, string? desk)
+    // Started from an asset (New ticket on the asset page, or the Assets list's bulk action): the assets it was raised for.
+    // Cancel goes back to the asset when there is just one.
+    public IReadOnlyList<AssetRecord> FromAssets { get; private set; } = [];
+    public int DisposedLeftOut { get; private set; }
+
+    public void OnGet(Guid? template, string? desk, Guid[]? asset)
     {
+        StartFromAssets(asset);
         if (template is { } templateId && store.GetTicketTemplate(templateId) is { } chosen)
         {
             AppliedTemplate = chosen;
@@ -54,6 +60,25 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
                 ?? store.Categories.FirstOrDefault() ?? Ticket.Category;
         if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase))
             Ticket.Priority = store.Priorities.FirstOrDefault() ?? Ticket.Priority;
+    }
+
+    // The most assets a ticket can be started with from the list: their ids travel in the address, and a few hundred
+    // would outgrow the longest address the server accepts. More can still be linked on the ticket afterwards.
+    public const int MaxAssetsFromList = 100;
+
+    // Links the assets (disposed ones are left out and counted - they have left the estate) and makes the technician
+    // raising it the requester, through the same staff record the staff portal and "Log a job already done" use.
+    private void StartFromAssets(Guid[]? ids)
+    {
+        if (!ShowAssets || ids is not { Length: > 0 }) return;
+        var wanted = ids.Distinct().Take(MaxAssetsFromList).ToHashSet();
+        var found = store.Assets.Where(x => wanted.Contains(x.Id)).ToList();
+        if (found.Count == 0) return;
+        DisposedLeftOut = found.Count(HelpdeskStore.IsDisposed);
+        FromAssets = found.Where(x => !HelpdeskStore.IsDisposed(x)).ToList();
+        Ticket.AssetIds = FromAssets.Select(x => x.Id).ToList();
+        if (SignedInTechnician.Id(store, User) is { } me && store.PortalRequesterForTechnician(me).User is { } requester)
+            Ticket.RequesterId = requester.Id;
     }
 
     public IActionResult OnPostCreateTicket()
@@ -82,7 +107,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         var createdAt = DateTime.UtcNow;
         var selectedSla = Ticket.SlaId ?? store.SlaFor(Ticket.Priority, Ticket.Category);
         var dueDate = Ticket.DueDate ?? store.CalculateDueDate(selectedSla, createdAt, Ticket.Category);
-        var assetIds = !ShowAssets ? [] : (Ticket.AssetIds ?? []).Where(id => store.Assets.Any(a => a.Id == id)).Distinct().ToList();
+        var assetIds = !ShowAssets ? [] : (Ticket.AssetIds ?? []).Where(id => store.Assets.Any(a => a.Id == id && !HelpdeskStore.IsDisposed(a))).Distinct().ToList();
         var number = store.AddTicket(new TicketRecord(
             0,
             Ticket.Title.Trim(),

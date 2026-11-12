@@ -237,6 +237,8 @@ public class AssetModel(HelpdeskStore store) : PageModel
     }
 
     public bool CanEdit => store.UserCan(User, Modules.Assets, ModulePermission.Edit);
+    // New ticket for this asset: needs Tickets: New (the form's own rule), and not once it has been disposed of.
+    public bool CanRaiseTicket => !IsDisposed && store.UserCan(User, Modules.Tickets, ModulePermission.New);
 
     public IActionResult OnPostGiveToStudent(Guid id, string? studentName)
     {

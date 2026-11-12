@@ -97,7 +97,7 @@ public static class HelpTips
         ["asset.support"] = new("When it stops getting security updates, or a lease ends. Flagged ahead of time. Separate from the replacement date, which is for budgeting.", "asset-checks", "end-of-support"),
         ["asset.next-check"] = new("When its next DfE check is due. Recording a check sets this automatically, a set number of months later.", "asset-checks", "recording-a-check"),
         ["asset.disposal"] = new("For an asset leaving the school - sold, recycled, donated or written off. Keeps the record for finance and auditors instead of deleting it.", "dispose-an-asset"),
-        ["assets.bulk"] = new("Tick assets in the list, choose what to do - change status, owner or room, record a check, or export - then Apply.", "asset-register", "changing-many-at-once"),
+        ["assets.bulk"] = new("Tick assets in the list, choose what to do - change status, owner or room, record a check, raise one ticket for them, or export - then Apply.", "asset-register", "changing-many-at-once"),
         ["import.blank-clears"] = new("Off (recommended): a blank cell leaves the existing value alone. On: a blank cell empties that field on an existing asset.", "import-assets", "2-match-the-columns"),
         ["import.add-missing"] = new("On: makes, models, rooms, suppliers and contracts that aren't in the lists yet are added. Off: a row with an unknown value is skipped instead.", "import-assets", "2-match-the-columns"),
         ["loan.borrower"] = new("Someone from the staff directory. For a kit only, choose Not listed and type a name for supply staff or visitors.", "loans", "issuing-a-loan"),

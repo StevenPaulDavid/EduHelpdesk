@@ -45,4 +45,5 @@ Tick the assets, choose an **Action** and press **Apply to selected**:
 - **Reassign owner** - give them to a person, or to nobody.
 - **Change room**.
 - **Record a check** - the DfE check, with the date and who did it, for every selected asset. See [Asset checks and end of support](asset-checks).
+- **Raise one ticket for them** - opens **New ticket** with every ticked asset already linked and you as the requester. Nothing is saved until you press **Create ticket**. Up to 100 assets at a time; disposed ones are left out. Needs permission to log tickets.
 - **Export to CSV** - download the selected assets.

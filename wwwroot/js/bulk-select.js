@@ -5,7 +5,8 @@
 //   #bulk-operation    the action; each option's fields live in #bulk-<value>-field, and are disabled while another
 //                      action is chosen so they aren't posted. An option may carry data-hint (shown under the bar),
 //                      data-button (the button's wording) and data-confirm (asked before posting; {count} is the number
-//                      selected, and any other {name} is the value of that form field)
+//                      selected, and any other {name} is the value of that form field). data-safe marks an action
+//                      that changes nothing (like export), so a big selection isn't asked about either
 //   data-required-message   on a control inside an action's fields: the action can't be applied while it is blank
 (function () {
     const form = document.getElementById("bulk-form");
@@ -101,7 +102,7 @@
         const value = option ? option.value : "export";
         const question = option?.dataset.confirm
             ? option.dataset.confirm.replace(/\{(\w+)\}/g, (_, key) => key === "count" ? String(total) : (form.elements[key]?.value ?? ""))
-            : value !== "export" && total > 20 ? `Change ${total} ${nouns}?` : null;
+            : value !== "export" && option?.dataset.safe === undefined && total > 20 ? `Change ${total} ${nouns}?` : null;
         if (question && !confirm(question)) e.preventDefault();
     });
 

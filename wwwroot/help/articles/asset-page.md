@@ -10,6 +10,8 @@ order: 2
 ---
 Open an asset from the register to see everything about it, on tabs.
 
+**New ticket**, beside the asset's name, logs a job for it: the form opens with the asset linked and you as the requester - change the requester if someone else asked for it. It's there for anyone who can log tickets, and not once the asset has been disposed of.
+
 ## Details
 
 - **Asset tag** - the school's label number. Each tag is unique.
@@ -44,6 +46,6 @@ Find these devices with **Held by → With a student** on the asset list, by sea
 
 ## Tickets, comments and history
 
-- **Tickets** - every ticket the asset was linked to. **Link a ticket** adds one.
+- **Tickets** - every ticket the asset was linked to. **Link a ticket** adds an existing one; **New ticket** logs a new one for it.
 - **Comments** - notes about the asset, such as *Screen hinge loose*.
 - **History** - every change, by whom and when.
