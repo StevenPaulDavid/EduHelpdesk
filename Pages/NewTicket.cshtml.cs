@@ -41,6 +41,8 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     // "Dispose of the linked assets when closed" (HelpdeskStore.Disposal): offered to anyone with the Dispose of assets
     // tick, and ticked already when the form was opened from "Dispose via ticket".
     public bool CanDispose => ShowAssets && store.UserHasFlag(User, Modules.Flags.DisposeAssets);
+    // Disposal only for someone who can dispose of assets.
+    public IReadOnlyList<string> TypeChoices => TicketTypes.All.Where(x => x != TicketTypes.Disposal || CanDispose).ToList();
 
     public void OnGet(Guid? template, string? desk, Guid[]? asset, bool dispose = false)
     {
@@ -48,7 +50,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (dispose && CanDispose && FromAssets.Count > 0)
         {
             Ticket.DisposeOnClose = true;
-            Ticket.Type = TicketTypes.Request;
+            Ticket.Type = TicketTypes.Disposal;
             Ticket.Title = FromAssets.Count == 1 ? $"Dispose of {FromAssets[0].AssetTag}" : $"Dispose of {FromAssets.Count} assets";
         }
         if (template is { } templateId && store.GetTicketTemplate(templateId) is { } chosen)
@@ -98,6 +100,7 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         if (!store.Categories.Contains(Ticket.Category, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Category", "Select a valid category.");
         if (!store.Priorities.Contains(Ticket.Priority, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Priority", "Select a valid priority.");
         if (!TicketTypes.All.Contains(Ticket.Type, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.Type", "Select a valid type.");
+        if (string.Equals(Ticket.Type, TicketTypes.Disposal, StringComparison.OrdinalIgnoreCase) && !CanDispose) ModelState.AddModelError("Ticket.Type", "A Disposal ticket needs the Dispose of assets tick.");
         if (Ticket.SlaId.HasValue && !store.Slas.Any(x => x.Id == Ticket.SlaId)) ModelState.AddModelError("Ticket.SlaId", "Select a valid SLA.");
         if (Ticket.TechnicianId.HasValue && !store.Technicians.Any(x => x.Id == Ticket.TechnicianId)) ModelState.AddModelError("Ticket.TechnicianId", "Select a valid technician.");
         if (!string.IsNullOrWhiteSpace(Ticket.TeamName) && !store.TechnicianTeams.Contains(Ticket.TeamName, StringComparer.OrdinalIgnoreCase)) ModelState.AddModelError("Ticket.TeamName", "Select a valid team.");

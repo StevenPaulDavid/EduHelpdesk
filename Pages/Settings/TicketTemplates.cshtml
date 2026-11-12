@@ -63,7 +63,7 @@
     @foreach (var item in Model.Templates)
     {
         <details class="template-item">
-            <summary><strong>@item.Name</strong> <span class="badge @(item.Type == TicketTypes.Request ? "type-request" : "")">@item.Type</span> <span class="muted">@item.Category · @item.Priority@(string.IsNullOrWhiteSpace(item.Title) ? "" : " · " + item.Title)</span></summary>
+            <summary><strong>@item.Name</strong> <span class="badge @TicketTypes.CssClass(item.Type)">@item.Type</span> <span class="muted">@item.Category · @item.Priority@(string.IsNullOrWhiteSpace(item.Title) ? "" : " · " + item.Title)</span></summary>
             <form method="post" asp-page-handler="Save" class="settings-form">
                 <input type="hidden" name="id" value="@item.Id" />
                 @{ await TemplateFields(item); }

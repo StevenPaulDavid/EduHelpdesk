@@ -15,10 +15,13 @@ Everything here needs the **Dispose of assets** tick on your role (**People → 
 
 Any of these makes a ticket that disposes of its assets when it's closed:
 
+- A ticket of type **Disposal**, chosen on the New ticket form, the ticket page or **Change type** on the ticket list.
 - **Dispose via ticket** on an asset's page.
 - **Dispose of them via one ticket** on the asset list, with the assets ticked (up to 100).
 - **Dispose of them when closed** in the **Disposal** box on a ticket's **Assets** tab.
 - The **Dispose of the linked assets when this ticket is closed** tick on the New ticket form.
+
+The first three make it a **Disposal** ticket. A Disposal ticket always disposes of its assets when closed; to stop it, change its type, which puts the assets back. The tick on its own works on an incident or request too. Changing a ticket to or from Disposal needs the **Dispose of assets** tick.
 
 ## While it's open
 

@@ -105,6 +105,8 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // Disposing of the linked assets when the ticket closes (HelpdeskStore.Disposal). The tick, the close pop-up's
     // Dispose and close, and undoing it need "Dispose of assets"; the details are part of working the ticket.
     public bool CanDispose => store.UserHasFlag(User, Modules.Flags.DisposeAssets);
+    // The types this person may choose: Disposal only with the tick (or when it already is one, to show it).
+    public IReadOnlyList<string> TypeChoices => TicketTypes.All.Where(x => x != TicketTypes.Disposal || CanDispose || Ticket.Type == TicketTypes.Disposal).ToList();
     public IReadOnlyList<HelpdeskStore.DisposalLine> DisposalLines { get; private set; } = [];
     public bool HasWaitingAssets => DisposalLines.Any(x => x.State == HelpdeskStore.DisposalState.Waiting);
     public int DisposedHere => DisposalLines.Count(x => x.State == HelpdeskStore.DisposalState.DisposedHere);
@@ -195,6 +197,12 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
             if (type is null)
             {
                 Message = "Select a valid type.";
+                return RedirectToPage(new { number });
+            }
+            // Making it a Disposal ticket marks its assets, and unmaking one frees them (HelpdeskStore.Disposal).
+            if ((type == TicketTypes.Disposal || ticket.Type == TicketTypes.Disposal) && type != ticket.Type && !CanDispose)
+            {
+                Message = "Changing a ticket to or from the Disposal type needs the Dispose of assets tick.";
                 return RedirectToPage(new { number });
             }
             ticket = ticket with { Type = type };

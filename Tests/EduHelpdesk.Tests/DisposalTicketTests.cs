@@ -252,7 +252,7 @@ public class DisposalTicketTests
 
         var page = Signed(new NewTicketModel(test.Store), Principal(admin));
         page.OnGet(null, null, [one.Id], dispose: true);
-        Assert.Equal((true, "Dispose of TST-1", TicketTypes.Request), (page.Ticket.DisposeOnClose, page.Ticket.Title, page.Ticket.Type));
+        Assert.Equal((true, "Dispose of TST-1", TicketTypes.Disposal), (page.Ticket.DisposeOnClose, page.Ticket.Title, page.Ticket.Type));
 
         var list = Signed(new AssetsModel(test.Store), Principal(admin));
         var result = Assert.IsType<RedirectToPageResult>(list.OnPostBulk("dispose", [one.Id, two.Id], false, null, null, null, null, null));
@@ -265,5 +265,54 @@ public class DisposalTicketTests
         juniorPage.OnGet(null, null, [one.Id], dispose: true);
         Assert.False(juniorPage.Ticket.DisposeOnClose);
         Assert.IsType<ForbidResult>(Signed(new AssetsModel(test.Store), Principal(junior)).OnPostBulk("dispose", [one.Id], false, null, null, null, null, null));
+    }
+
+    [Fact]
+    public void The_Disposal_type_is_the_tick_always_on()
+    {
+        using var test = new TestStore();
+        var asset = Laptop("TST-1", "In stock or spare");
+        test.Store.AddAsset(asset);
+        var requester = test.AddRequester("Ada Lovelace");
+        var number = test.Store.AddTicket(new TicketRecord(0, "Old laptop", "", requester.Id, [asset.Id], null,
+            test.Store.Priorities[0], "Open", test.Store.Categories[0], DateTime.UtcNow, null) { Type = TicketTypes.Disposal });
+        Assert.True(test.Store.Tickets.Single(x => x.Number == number).DisposeOnClose);
+        Assert.Equal(number, Get(test, asset).AwaitingDisposalTicket);
+
+        // It can't be unticked while it's a Disposal ticket; changing the type unticks it and frees the asset.
+        Assert.False(test.Store.SetDisposeOnClose(number, false).Ok);
+        var ticket = test.Store.Tickets.Single(x => x.Number == number);
+        Assert.True(test.Store.UpdateTicket(ticket with { Type = TicketTypes.Request }));
+        Assert.False(test.Store.Tickets.Single(x => x.Number == number).DisposeOnClose);
+        Assert.Equal(("In stock or spare", (int?)null), (Get(test, asset).Status, Get(test, asset).AwaitingDisposalTicket));
+
+        // In bulk too, and the type survives a restart.
+        Assert.Equal(1, test.Store.BulkUpdateTickets([number], new("type", TicketTypes.Disposal)).Updated);
+        Assert.Equal(number, Get(test, asset).AwaitingDisposalTicket);
+        var reopened = test.Reopen().Tickets.Single(x => x.Number == number);
+        Assert.Equal((TicketTypes.Disposal, true), (reopened.Type, reopened.DisposeOnClose));
+        Assert.Contains(reopened.History, h => h.Action == "Disposal on close");
+    }
+
+    [Fact]
+    public void Without_the_tick_the_Disposal_type_is_neither_offered_nor_taken()
+    {
+        using var test = new TestStore();
+        var junior = new TechnicianRecord(Guid.NewGuid(), "Junior", "junior@test.example", test.Store.TechnicianTeams[0], "Junior Technician");
+        test.Store.AddTechnician(junior);
+        var number = test.AddTicket(test.AddRequester("Ada Lovelace").Id);
+
+        var form = Signed(new NewTicketModel(test.Store), Principal(junior));
+        Assert.DoesNotContain(TicketTypes.Disposal, form.TypeChoices);
+
+        var page = Signed(new JobModel(test.Store, new EduNotifyClient(test.Store, new NoClients(), Microsoft.Extensions.Logging.Abstractions.NullLogger<EduNotifyClient>.Instance), Microsoft.Extensions.Logging.Abstractions.NullLogger<JobModel>.Instance), Principal(junior));
+        Assert.IsType<RedirectToPageResult>(page.OnPostUpdate(number, "type", TicketTypes.Disposal));
+        Assert.Equal(TicketTypes.Incident, test.Store.Tickets.Single(x => x.Number == number).Type);
+    }
+
+    // The ticket page needs an EduNotify client, which none of these tests reach.
+    private sealed class NoClients : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new();
     }
 }

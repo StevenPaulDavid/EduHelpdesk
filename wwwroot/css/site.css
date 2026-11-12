@@ -2914,3 +2914,4 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .dispose-fields legend { font-weight: 700; padding: 0 4px; }
 .dispose-fields label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
 .linked-asset-item .badge { align-self: flex-start; width: fit-content; }
+.type-tag.type-disposal, .badge.type-disposal { color: var(--caution); opacity: 1; }

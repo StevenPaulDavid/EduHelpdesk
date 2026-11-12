@@ -94,7 +94,7 @@ public sealed partial class HelpdeskStore
             new("Ticket created", details, DateTime.UtcNow) { By = CurrentActor() }
         };
         // Created straight into a status that stops the clock (unusual, but a school can set it up that way).
-        var created = WithSlaClock(item with { Number = number, DeskNumber = TakeDeskNumberCore(DeskForCategoryCore(item.Category).Id) }, DateTime.UtcNow);
+        var created = WithSlaClock(WithDisposalTypeRule(null, item) with { Number = number, DeskNumber = TakeDeskNumberCore(DeskForCategoryCore(item.Category).Id) }, DateTime.UtcNow);
         if (created.IsSlaPaused) history.Add(new("SLA paused", $"The SLA clock is stopped while the ticket is {created.Status}.", DateTime.UtcNow) { By = CurrentActor() });
         _data.Tickets.Add(created with { History = history });
         return number;
@@ -312,7 +312,7 @@ public sealed partial class HelpdeskStore
                         break;
                     case "type":
                         if (string.Equals(ticket.Type, canonical, StringComparison.Ordinal)) { unchanged++; continue; }
-                        changed = ticket with { Type = canonical! };
+                        changed = WithDisposalTypeRule(ticket, ticket with { Type = canonical! });
                         break;
                     case "team":
                     {
@@ -518,7 +518,7 @@ public sealed partial class HelpdeskStore
 
             var previous = _data.Tickets[index];
             assigned = NewlyAssignedTo(previous.TechnicianId, item);
-            item = WithSlaClock(item, DateTime.UtcNow);
+            item = WithSlaClock(WithDisposalTypeRule(previous, item), DateTime.UtcNow);
             var history = previous.History.ToList();
             var from = history.Count;
             AddTicketActivities(history, previous, item);
@@ -688,6 +688,9 @@ public sealed partial class HelpdeskStore
         if (previous.Title != updated.Title) history.Add(new("Title changed", $"{previous.Title} -> {updated.Title}", now));
         if (previous.Description != updated.Description) history.Add(new("Description changed", "The ticket description was updated.", now));
         if (previous.Status != updated.Status) history.Add(new("Status changed", $"{previous.Status} -> {updated.Status}", now));
+        // Set by the Disposal type (HelpdeskStore.Disposal); the tick's own button writes its own line.
+        if (previous.DisposeOnClose != updated.DisposeOnClose)
+            history.Add(updated.DisposeOnClose ? new("Disposal on close", "Closing this ticket will dispose of its linked assets.", now) : new("No disposal on close", "Closing this ticket will no longer dispose of its assets.", now));
         if (previous.Priority != updated.Priority) history.Add(new("Priority changed", $"{previous.Priority} -> {updated.Priority}", now));
         if (previous.Category != updated.Category) history.Add(new("Category changed", $"{previous.Category} -> {updated.Category}", now));
         if (DeskForCategoryCore(previous.Category) is var oldDesk && DeskForCategoryCore(updated.Category) is var newDesk && oldDesk.Id != newDesk.Id)

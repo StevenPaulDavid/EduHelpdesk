@@ -294,7 +294,12 @@ public static class TicketTypes
 {
     public const string Incident = "Incident";
     public const string Request = "Request";
-    public static readonly string[] All = [Incident, Request];
+    // Getting rid of the linked assets: a ticket of this type always disposes of them when it's closed
+    // (TicketRecord.DisposeOnClose, HelpdeskStore.Disposal). Setting it or taking it off needs "Dispose of assets".
+    public const string Disposal = "Disposal";
+    public static readonly string[] All = [Incident, Request, Disposal];
+    // The type tag's colour class on the ticket list and templates.
+    public static string CssClass(string? type) => type switch { Request => "type-request", Disposal => "type-disposal", _ => "" };
     // The matching type, or Incident for anything unknown or blank.
     public static string Normalize(string? value) => All.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Incident;
 }

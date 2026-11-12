@@ -39,7 +39,8 @@ public class TicketReportsModel(HelpdeskStore store) : PageModel
     public string PeriodLabel { get; private set; } = "";
     // "in the last 3 months" or "over all time", for sentences.
     public string WhenText => PeriodKey == "all" ? "over all time" : "in the " + PeriodLabel.ToLowerInvariant();
-    public string TypeLabel => string.IsNullOrEmpty(Type) ? "Incidents and requests" : Type == TicketTypes.Request ? "Requests only" : "Incidents only";
+    public string TypeLabel => string.IsNullOrEmpty(Type) ? "All types" : OnlyLabel(Type);
+    public static string OnlyLabel(string type) => type switch { TicketTypes.Request => "Requests only", TicketTypes.Disposal => "Disposals only", _ => "Incidents only" };
     public DateTime Since { get; private set; }
     public bool HasPreviousPeriod { get; private set; }
 

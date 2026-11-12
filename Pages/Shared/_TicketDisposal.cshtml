@@ -1,4 +1,5 @@
 @using EduHelpdesk.Services
+@using EduHelpdesk.Models
 @model EduHelpdesk.Pages.JobModel
 @* The disposal block at the top of a ticket's Assets tab (HelpdeskStore.Disposal): the "dispose of them when closed"
    tick, the details gathered while the job is open, and undoing a disposal once the ticket has been reopened. *@
@@ -35,7 +36,11 @@
             <p class="muted">Getting rid of these? Tick this ticket to dispose of its linked assets when it's closed. They wait as Awaiting disposal until then.</p>
         }
 
-        @if (open && Model.CanDispose)
+        @if (open && ticket.Type == TicketTypes.Disposal)
+        {
+            <p class="muted">It's a Disposal ticket, so it always does. Change its type to stop it.</p>
+        }
+        else if (open && Model.CanDispose)
         {
             <form method="post" asp-page-handler="DisposeOnClose" class="inline-form">
                 <input type="hidden" name="number" value="@ticket.Number" />

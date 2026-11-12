@@ -146,7 +146,7 @@ else
                     }
                     else
                     {
-                        <span class="type-tag @(ticket.Type == TicketTypes.Request ? "type-request" : "")">@ticket.Type</span>
+                        <span class="type-tag @TicketTypes.CssClass(ticket.Type)">@ticket.Type</span>
                     }
                     @if (HelpdeskStore.AwaitingTechnician(ticket)) { <text> </text><span class="badge badge-reply" title="The requester replied in the staff portal and is waiting to hear back">Reply</span> }<br /><span class="muted">@ticket.Title</span></td>
                 <td>@(Model.UserNames.GetValueOrDefault(ticket.RequesterId) ?? "—")</td>

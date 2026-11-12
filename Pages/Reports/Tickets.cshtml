@@ -36,7 +36,7 @@
 <section class="panel">
     <form method="get" class="audit-filters">
         <label>Period<select name="period">@foreach (var period in TicketReportsModel.Periods) { <option value="@period.Key" selected="@(period.Key == Model.PeriodKey)">@period.Label</option> }</select></label>
-        <label>Ticket type<select name="type"><option value="">Incidents and requests</option>@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Type)">@(type == TicketTypes.Incident ? "Incidents only" : "Requests only")</option> }</select></label>
+        <label>Ticket type<select name="type"><option value="">All types</option>@foreach (var type in TicketTypes.All) { <option value="@type" selected="@(type == Model.Type)">@EduHelpdesk.Pages.Reports.TicketReportsModel.OnlyLabel(type)</option> }</select></label>
         @if (Model.HasSeveralDesks)
         {
             <label>Desk<select name="desk"><option value="">Every desk</option>@foreach (var desk in Model.Desks) { <option value="@desk.Name" selected="@(desk.Id == Model.ReportDesk?.Id)">@desk.Name</option> }</select></label>

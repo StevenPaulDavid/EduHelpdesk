@@ -424,6 +424,13 @@ public class JobsModel(HelpdeskStore store) : PageModel
             Message = "Select at least one ticket.";
             return Back();
         }
+        // The Disposal type marks or frees the tickets' assets, so making one or unmaking one needs "Dispose of assets".
+        if (operation == "type" && !store.UserHasFlag(User, Modules.Flags.DisposeAssets)
+            && (string.Equals(newType?.Trim(), TicketTypes.Disposal, StringComparison.OrdinalIgnoreCase) || visible.Any(x => targets.Contains(x.Number) && x.Type == TicketTypes.Disposal)))
+        {
+            Message = "Changing a ticket to or from the Disposal type needs the Dispose of assets tick.";
+            return Back();
+        }
 
         if (operation == "export")
         {

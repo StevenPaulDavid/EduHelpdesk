@@ -91,6 +91,17 @@ public sealed partial class HelpdeskStore
 
     // ---- The ticket's side ----
 
+    // The Disposal type is the tick, always on: becoming one ticks it, and stopping being one unticks it. The tick on
+    // its own works on any type.
+    private static TicketRecord WithDisposalTypeRule(TicketRecord? previous, TicketRecord item)
+    {
+        var isDisposal = string.Equals(item.Type, TicketTypes.Disposal, StringComparison.OrdinalIgnoreCase);
+        var wasDisposal = previous is not null && string.Equals(previous.Type, TicketTypes.Disposal, StringComparison.OrdinalIgnoreCase);
+        if (isDisposal && !item.DisposeOnClose) return item with { DisposeOnClose = true };
+        if (wasDisposal && !isDisposal && item.DisposeOnClose) return item with { DisposeOnClose = false };
+        return item;
+    }
+
     // Turning the tick on or off. Who may is the page's question (the Dispose of assets tick).
     public WorkResult SetDisposeOnClose(int number, bool on)
     {
@@ -100,6 +111,8 @@ public sealed partial class HelpdeskStore
             if (index < 0) return new WorkResult(false, TicketNotFoundMessage);
             var ticket = _data.Tickets[index];
             if (ticket.DisposeOnClose == on) return new WorkResult(true, on ? "This ticket already disposes of its assets when closed." : "Nothing changed.");
+            if (!on && string.Equals(ticket.Type, TicketTypes.Disposal, StringComparison.OrdinalIgnoreCase))
+                return new WorkResult(false, "A Disposal ticket always disposes of its assets when closed. Change its type to stop it.");
             if (on && TicketInsights.IsClosed(ticket)) return new WorkResult(false, "Reopen the ticket before marking its assets for disposal.");
             var history = ticket.History.ToList();
             history.Add(new(on ? "Disposal on close" : "No disposal on close",
