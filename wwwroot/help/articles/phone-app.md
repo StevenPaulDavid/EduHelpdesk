@@ -4,12 +4,20 @@ summary: Pairing an Android phone with the EduHelpdesk app, what it can do, revo
 area: Your account
 kind: page
 pages: /Phones
-keywords: phone app android mobile pair pairing qr code scan revoke lost phone tickets on my way assign to me log reply close alerts notifications app lock update apk
+keywords: phone app android mobile pair pairing qr code scan revoke lost phone today planned planner tickets on my way assign to me log reply close alerts notifications app lock update apk
 order: 2
 ---
-The EduHelpdesk app shows your tickets on an Android phone. With it you can see Mine, Unassigned, Overdue and Open for the desk you're working on, open a ticket, press **Assign to me** or **On my way**, reply or add an internal note (with photos), change the status or priority, close it, and log a new ticket or a job already done. Swipe a ticket on Unassigned to the right to take it. The app follows this ticket page's rules and words, so it can't do anything the web page wouldn't let you do.
+The EduHelpdesk app shows your tickets on an Android phone. With it you can see Today, Mine, Unassigned, Overdue and Open for the desk you're working on, open a ticket, press **Assign to me** or **On my way**, reply or add an internal note (with photos), change the status or priority, close it, and log a new ticket or a job already done. Swipe a ticket on Unassigned to the right to take it. The app follows this ticket page's rules and words, so it can't do anything the web page wouldn't let you do.
 
 The phone can do only what your role allows, on the desks you see. It works on the school's network, or anywhere the school has published the helpdesk.
+
+## Today
+
+**Today** is first along the top of the app's ticket list: the jobs planned for you today on the [planner](ticket-planner), and any of yours planned for an earlier day that still aren't done - the same as your page of today's [daily sheet](daily-sheet#a-days-planned-jobs). The ones that slipped come first.
+
+Every ticket with a planned day shows it, on the list and on the ticket: *Planned today*, *Planned Thu 13 Nov*, in red once the day has gone by. The app shows the plan but doesn't change it: plan tickets on the planner in the browser.
+
+Today needs version 1.4 of the app; older versions just don't show it.
 
 ## Pairing a phone
 

@@ -179,6 +179,21 @@ public class PlannedForTests
     }
 
     [Fact]
+    public void The_phone_apps_today_list_is_your_own_share_of_todays_sheet()
+    {
+        var today = new DateOnly(2026, 11, 12);
+        var me = Guid.NewGuid();
+        TicketRecord Ticket(DateOnly? planned, Guid? technician) =>
+            new(1, "Projector", "", Guid.NewGuid(), [], technician, "Normal", "Open", "Hardware", DateTime.UtcNow, null) { PlannedFor = planned };
+
+        Assert.True(TicketInsights.OnTodayFor(Ticket(today, me), me, today));
+        Assert.True(TicketInsights.OnTodayFor(Ticket(today.AddDays(-2), me), me, today));
+        Assert.False(TicketInsights.OnTodayFor(Ticket(today, Guid.NewGuid()), me, today));
+        Assert.False(TicketInsights.OnTodayFor(Ticket(today, null), me, today));
+        Assert.False(TicketInsights.OnTodayFor(Ticket(today.AddDays(1), me), me, today));
+    }
+
+    [Fact]
     public void A_planned_day_reads_as_today_tomorrow_or_the_date()
     {
         var day = new DateOnly(2026, 11, 11);

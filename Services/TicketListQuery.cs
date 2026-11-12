@@ -52,6 +52,10 @@ public static class TicketInsights
     public static bool OnSheetFor(TicketRecord ticket, DateOnly day, DateOnly today) =>
         !IsClosed(ticket) && ticket.PlannedFor is { } planned && (planned == day || day == today && planned < today);
 
+    // The phone app's Today list (planner stage 6): what today's sheet would give this technician.
+    public static bool OnTodayFor(TicketRecord ticket, Guid technicianId, DateOnly today) =>
+        ticket.TechnicianId == technicianId && OnSheetFor(ticket, today, today);
+
     // The school week a day falls in, Monday to Sunday.
     public static (DateOnly From, DateOnly To) WeekOf(DateOnly day)
     {

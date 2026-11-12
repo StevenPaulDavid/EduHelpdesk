@@ -39,7 +39,7 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 | `GET /me` | | `{ id, name, role, team, schoolName, serverAddress, serverVersion, defaultDeskId, priorities, appLockRequired, desks: [{ id, name, prefix, color, hours, alertDays, alertWindows }] }` |
 | `GET /options?desk=` | Tickets: New | `{ categories: [{ name, deskId, icon }], priorities, locations, technicians: [person] }` |
 | `GET /people?q=` | Tickets: New | `[person]`, up to 30 |
-| `GET /tickets?view=&desk=&q=` | Tickets: Access | `{ tickets: [ticket], counts: { open, mine, unassigned, overdue, onboarding, all } }`, up to 200 |
+| `GET /tickets?view=&desk=&q=` | Tickets: Access | `{ tickets: [ticket], counts: { open, mine, unassigned, overdue, onboarding, all, today } }`, up to 200 |
 | `GET /tickets/{number}` | Tickets: View | full ticket; also marks its alerts read, as opening it in a browser does |
 | `GET /tickets/{number}/attachments/{id}` | Tickets: View | the file |
 | `POST /tickets/{number}/assign-to-me` | Tickets: Edit | `{ ticket, message }` |
@@ -53,7 +53,9 @@ Password sign-in shares the web's lockout counts and its wording. It refuses a t
 | `GET /alerts/poll?after=&wait=` | | `{ cursor, items: [alert] }`; waits up to 25 seconds. With staff notifications switched off (Settings → Notifications) this and `/alerts` answer `{ disabled: true }` at once, which the app shows rather than polling again straight away |
 | `POST /alerts/read` | | `{ id }` or `{ all: true }` → `204` |
 
-`view` is one of the web Tickets page's views: `open`, `mine`, `unassigned`, `overdue`, `onboarding`, `all`. `desk` left out means every desk the person sees. The counts honour `q`.
+`view` is one of the web Tickets page's views: `open`, `mine`, `unassigned`, `overdue`, `onboarding`, `all` - or `today` (EduHelpdesk with the planner): the open tickets planned for this technician today, and theirs whose planned day has gone by without them being done, oldest day first, as on today's daily sheet. `desk` left out means every desk the person sees. The counts honour `q`; `counts.today` is only sent by a server that has the Today list, which is how the app knows to offer it.
+
+Each ticket carries `plannedFor`: the day the team booked it in for on the planner (`yyyy-MM-dd`), or `null`. It is the helpdesk's own plan and never reaches the requester.
 
 **`POST /tickets` form fields:**
 

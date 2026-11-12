@@ -198,7 +198,10 @@ public static class PhoneEndpoints
     private static IResult Tickets(string? view, Guid? desk, string? q, ClaimsPrincipal user, HelpdeskStore store)
     {
         if (!store.UserCan(user, Modules.Tickets, ModulePermission.Access)) return Refuse(StatusCodes.Status403Forbidden, "Your role can't see tickets.");
-        var chosen = TicketListQuery.Views.Contains(view) ? view! : "open";
+        // "today" is the app's own list (planner stage 6): the open tickets planned for this technician today, and theirs
+        // whose planned day went by without being done - as on today's daily sheet. Otherwise a Tickets page view.
+        var today = string.Equals(view, "today", StringComparison.OrdinalIgnoreCase);
+        var chosen = today ? "open" : TicketListQuery.Views.Contains(view) ? view! : "open";
         var deskOf = store.DeskLookup();
         var all = store.TicketsFor(user);
         var scoped = desk is { } only ? all.Where(t => deskOf(t.Category).Id == only).ToList() : all;
@@ -206,11 +209,20 @@ public static class PhoneEndpoints
         var (sort, descending) = TicketListQuery.DefaultSort(chosen);
         var query = new TicketListQuery { View = chosen, Search = q, Sort = sort, Descending = descending };
         if (desk is { } d) query.Desks.Add(d);
-        var counts = TicketListQuery.ViewCounts(string.IsNullOrWhiteSpace(q) ? scoped : new TicketListQuery { View = "all", Search = q }.Run(scoped, context), context);
+        var searched = string.IsNullOrWhiteSpace(q) ? scoped : new TicketListQuery { View = "all", Search = q }.Run(scoped, context);
+        var counts = TicketListQuery.ViewCounts(searched, context);
         var me = Me(user);
+        var day = DateOnly.FromDateTime(DateTime.Now);
+        // Its count is also how the app knows this server has a Today list at all.
+        counts["today"] = searched.Count(t => TicketInsights.OnTodayFor(t, me, day));
+        var rows = today
+            // Slipped ones first, oldest first, then today's; most urgent first within a day.
+            ? query.Run(scoped, context).Where(t => TicketInsights.OnTodayFor(t, me, day))
+                .OrderBy(t => t.PlannedFor).ThenBy(t => PriorityRank(t.Priority)).ThenBy(t => t.DueDate ?? DateTime.MaxValue).ToList()
+            : query.Run(scoped, context);
         return Results.Json(new
         {
-            tickets = query.Run(scoped, context).Take(MaxTickets).Select(t => TicketJson(t, user, me, store, full: false)),
+            tickets = rows.Take(MaxTickets).Select(t => TicketJson(t, user, me, store, full: false)),
             counts
         });
     }
@@ -379,6 +391,8 @@ public static class PhoneEndpoints
             dueAt = t.IsSlaPaused ? null : Utc(t.DueDate),
             sla = t.SlaId is { } sla ? store.Slas.FirstOrDefault(x => x.Id == sla)?.Name : null,
             closedAt = Utc(t.ClosedAt),
+            // The day the team booked it in for (yyyy-MM-dd), or null. The helpdesk's own plan: never the requester's.
+            plannedFor = t.PlannedFor?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             commentCount = t.Comments.Count,
             attachmentCount = attachments.Count,
             comments = full ? t.Comments.Select(c => new
@@ -461,6 +475,9 @@ public static class PhoneEndpoints
     }
 
     private static IResult Refuse(int status, string message) => Results.Json(new { message }, statusCode: status);
+
+    private static int PriorityRank(string? priority) =>
+        Array.FindIndex(["Urgent", "High", "Normal", "Low"], x => string.Equals(x, priority, StringComparison.OrdinalIgnoreCase)) is var i and >= 0 ? i : 4;
 
     private static Guid Me(ClaimsPrincipal user) => Guid.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
