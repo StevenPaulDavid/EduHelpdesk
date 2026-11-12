@@ -102,6 +102,7 @@ public sealed partial class HelpdeskStore
     private string? KitAdditionReason(Guid? kitId, AssetRecord asset)
     {
         if (IsDisposed(asset)) return $"{asset.AssetTag} has been disposed of and cannot be put in a kit.";
+        if (AwaitingDisposalBlock(asset, "put in a kit") is { } awaiting) return awaiting;
         if (HeldBlock(asset, "put in a kit") is { } held) return held;
         if (_data.LoanKits.FirstOrDefault(k => k.Id != kitId && k.AssetIds.Contains(asset.Id)) is { } other)
             return $"{asset.AssetTag} is already in {other.Name}. Take it out of that kit first.";
@@ -165,6 +166,8 @@ public sealed partial class HelpdeskStore
             // brought back from the dead. Refuse, and let someone take it out of the kit first.
             if (kit.AssetIds.Select(id => _data.Assets.FirstOrDefault(x => x.Id == id)).OfType<AssetRecord>().FirstOrDefault(IsDisposed) is { } disposed)
                 return (false, $"{kit.Name} contains {disposed.AssetTag}, which has been disposed of. Take it out of the kit before issuing.");
+            if (kit.AssetIds.Select(id => _data.Assets.FirstOrDefault(x => x.Id == id)).OfType<AssetRecord>().FirstOrDefault(IsAwaitingDisposal) is { } going)
+                return (false, $"{kit.Name} contains {going.AssetTag}, which is waiting to be disposed of on {RefCore(going.AwaitingDisposalTicket!.Value)}. Take it out of the kit, or off that ticket, before issuing.");
             // The kit is not out, so any holder on its equipment is somebody's own assignment - it joined the kit before
             // that was refused, or was assigned since. Issuing used to move it onto the loan; now it has to be sorted first.
             if (kit.AssetIds.Select(id => _data.Assets.FirstOrDefault(x => x.Id == id)).OfType<AssetRecord>().FirstOrDefault(x => x.AssignedUserId is not null) is { } assigned)

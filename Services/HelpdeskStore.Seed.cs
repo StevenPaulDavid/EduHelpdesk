@@ -276,6 +276,8 @@ public sealed partial class HelpdeskStore
         _data.PermissionModelVersion = PermissionModelVersion;
         // Likewise: a new store's tickets are counted per desk from the first one (HelpdeskStore.Desks).
         _data.DeskNumberingVersion = 1;
+        // And its roles are seeded with the "Dispose of assets" tick already where it belongs (EnsureDisposeFlag).
+        _data.DisposeFlagVersion = 1;
         EnsureFactoryOptions();
         EnsureProjectDefaults();
         EnsureOnboardingDefaults();

@@ -12,6 +12,8 @@ Open an asset from the register to see everything about it, on tabs.
 
 **New ticket**, beside the asset's name, logs a job for it: the form opens with the asset linked and you as the requester - change the requester if someone else asked for it. It's there for anyone who can log tickets, and not once the asset has been disposed of.
 
+**Dispose via ticket**, beside it, does the same with the ticket ticked to dispose of the asset when it's closed. See [Disposing of assets through a ticket](dispose-via-a-ticket). While it waits, the asset page says which ticket it's on.
+
 ## Details
 
 - **Asset tag** - the school's label number. Each tag is unique.

@@ -2903,3 +2903,14 @@ a.bar-seg:hover, a.bar-seg:focus-visible { filter: brightness(1.12); outline: 2p
 .plan-sheet-link { display: block; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: 2px; }
 .plan-sheet-link:hover { color: var(--ink); }
 #planned-today .heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Disposal through a ticket (Pages/Shared/_TicketDisposal, _TicketDisposalDialogs). */
+.ticket-disposal { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.ticket-disposal .inline-form { margin: 0 0 12px; }
+.dispose-details { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; margin-bottom: 12px; }
+.dispose-list { margin: 0 0 16px; padding-left: 20px; }
+.dispose-list li { margin-bottom: 6px; }
+.dispose-fields { display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 0; }
+.dispose-fields legend { font-weight: 700; padding: 0 4px; }
+.dispose-fields label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
+.linked-asset-item .badge { align-self: flex-start; width: fit-content; }

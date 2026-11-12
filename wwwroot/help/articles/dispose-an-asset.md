@@ -3,11 +3,15 @@ title: Disposing of an asset
 summary: Recording that an asset has left the school - sold, recycled, donated or written off - without losing its record.
 area: Assets and inventory
 kind: task
-needs: Assets:Delete
+needs: Assets.Dispose
 keywords: dispose disposal recycle sold donated written off weee certificate delete remove asset finance audit
 order: 5
 ---
 When an asset leaves the school, **record a disposal** rather than deleting it. The record stays for finance and the auditors, and shows in the finance and audit report.
+
+Disposing needs the **Dispose of assets** tick on your role (**People → Roles**, under *Assets*).
+
+For a job that takes a while - a batch waiting for the recycling company, say - dispose of them through a ticket instead: they wait as **Awaiting disposal** until the ticket is closed. See [Disposing of assets through a ticket](dispose-via-a-ticket).
 
 ## Recording a disposal
 

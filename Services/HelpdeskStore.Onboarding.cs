@@ -219,7 +219,7 @@ public sealed partial class HelpdeskStore
         {
             if (string.IsNullOrWhiteSpace(assetType)) return [];
             return _data.Assets
-                .Where(x => string.Equals(x.Type, assetType, StringComparison.OrdinalIgnoreCase) && !IsDisposed(x) && x.AssignedUserId is null && KitContainingCore(x.Id) is null)
+                .Where(x => string.Equals(x.Type, assetType, StringComparison.OrdinalIgnoreCase) && !IsDisposed(x) && !IsAwaitingDisposal(x) && x.AssignedUserId is null && KitContainingCore(x.Id) is null)
                 .OrderBy(x => string.Equals(x.Status, InStockStatus, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(x => x.AssetTag, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -381,6 +381,7 @@ public sealed partial class HelpdeskStore
         var asset = _data.Assets[index];
         if (!string.Equals(asset.Type, task.AssetType, StringComparison.OrdinalIgnoreCase)) return (null, $"{asset.AssetTag} isn't a {task.AssetType}.", []);
         if (IsDisposed(asset)) return (null, $"{asset.AssetTag} has been disposed of.", []);
+        if (AwaitingDisposalBlock(asset, "issued") is { } awaiting) return (null, awaiting, []);
         if (HeldBlock(asset, "issued") is { } held) return (null, held, []);
         if (KitContainingCore(assetId) is { } kit) return (null, $"{asset.AssetTag} is part of {kit.Name}. Take it out of the kit first.", []);
         if (!_data.Users.Any(x => x.Id == record.StarterId)) return (null, "The new starter's record in People couldn't be found.", []);

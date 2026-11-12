@@ -77,6 +77,8 @@ public sealed partial class HelpdeskStore
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         // A ticket added without going through AddTicketCore gets its desk number here, so none is ever saved without one.
         NumberNewTicketsCore();
+        // Likewise every asset waits on the disposal ticket it should, and only that (HelpdeskStore.Disposal).
+        ReconcileDisposalMarksCore();
         var current = AuditTracker.Take(_data);
         var entries = new List<AuditEntry>(_pendingAudit);
         if (auditChanges && _snapshot is not null) entries.AddRange(AuditTracker.Diff(_snapshot, current, DateTime.UtcNow));
@@ -630,7 +632,7 @@ public sealed partial class HelpdeskStore
             // This reader is ordinal-indexed, so new columns are appended to the END of the SELECT. Inserting one in the
             // middle shifts every ordinal after it and silently scrambles the whole register - which is exactly how the
             // Type/Model swap bug happened.
-            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId, StudentName FROM Assets;";
+            command.CommandText = "SELECT Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId, StudentName, AwaitingDisposalTicket, StatusBeforeDisposal, DisposalTicket FROM Assets;";
             using var reader = command.ExecuteReader();
             while (reader.Read()) data.Assets.Add(new AssetRecord(Guid.Parse(reader.GetString(0)), NullableString(reader, 1) ?? "", NullableString(reader, 2) ?? "", NullableString(reader, 4) ?? "", NullableString(reader, 3) ?? "", NullableString(reader, 5) ?? "", NullableString(reader, 6) ?? "", NullableGuid(reader, 7), NullableGuid(reader, 8))
             {
@@ -656,7 +658,10 @@ public sealed partial class HelpdeskStore
                 DisposedBy = NullableString(reader, 28) ?? "",
                 DisposalCertificate = NullableString(reader, 29) ?? "",
                 ContractId = NullableGuid(reader, 30),
-                StudentName = NullableString(reader, 31) ?? ""
+                StudentName = NullableString(reader, 31) ?? "",
+                AwaitingDisposalTicket = reader.IsDBNull(32) ? null : reader.GetInt32(32),
+                StatusBeforeDisposal = NullableString(reader, 33) ?? "",
+                DisposalTicket = reader.IsDBNull(34) ? null : reader.GetInt32(34)
             });
         }
         ReadAssetChildren(connection, data.Assets);
@@ -675,7 +680,7 @@ public sealed partial class HelpdeskStore
         }
         using (var command = connection.CreateCommand())
         {
-            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs, PlannedFor FROM Tickets;";
+            command.CommandText = "SELECT Number, Title, Description, RequesterId, AssetId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs, PlannedFor, DisposeOnClose, DisposalMethod, DisposalBy, DisposalCertificate, DisposalProceeds FROM Tickets;";
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -694,7 +699,12 @@ public sealed partial class HelpdeskStore
                     SubCategory = NullableString(reader, 19) ?? "",
                     DeskNumber = reader.GetInt32(20),
                     FormerRefs = reader.GetString(21),
-                    PlannedFor = NullableDateOnly(reader, 22)
+                    PlannedFor = NullableDateOnly(reader, 22),
+                    DisposeOnClose = reader.GetInt32(23) != 0,
+                    DisposalMethod = reader.GetString(24),
+                    DisposalBy = reader.GetString(25),
+                    DisposalCertificate = reader.GetString(26),
+                    DisposalProceeds = NullableString(reader, 27) is { } disposalProceeds && decimal.TryParse(disposalProceeds, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedDisposalProceeds) ? parsedDisposalProceeds : null
                 };
                 data.Tickets.Add(ticket);
             }
@@ -728,6 +738,7 @@ public sealed partial class HelpdeskStore
         ReadRecurringTickets(connection, data);
         // After the technicians, whose desks it fills in.
         ReadDesks(connection, data);
+        ReadDisposal(connection, data);
         ReadCosts(connection, data);
         // After the recurring tickets, whose checklists it fills in.
         ReadChecks(connection, data);
@@ -930,6 +941,7 @@ public sealed partial class HelpdeskStore
         WriteAgentSettings(connection, transaction, data);
         WriteRecurringTickets(connection, transaction, data);
         WriteDesks(connection, transaction, data);
+        WriteDisposal(connection, transaction, data);
         foreach (var item in data.Parts)
         {
             Execute(connection, transaction, "INSERT INTO Parts (Id, Name, Sku, Category, QuantityOnHand, CreatedAt, Location, ReorderThreshold) VALUES ($id,$name,$sku,$category,$quantity,$created,$location,$reorder);",
@@ -944,13 +956,14 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Assets)
         {
-            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId, StudentName) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds,$building,$os,$condition,$ownership,$lastcheck,$lastcheckby,$nextcheck,$eos,$disposedby,$certificate,$contract,$student);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Assets (Id, AssetTag, Make, Type, Model, SerialNumber, Location, AssignedUserId, SupplierId, Status, PurchaseDate, PurchasePrice, PurchaseOrder, WarrantyEnd, ReplacementDate, LoanDueDate, QuoteReference, DisposalDate, DisposalMethod, DisposalProceeds, Building, OperatingSystem, Condition, Ownership, LastCheckDate, LastCheckBy, NextCheckDate, EndOfSupport, DisposedBy, DisposalCertificate, ContractId, StudentName, AwaitingDisposalTicket, StatusBeforeDisposal, DisposalTicket) VALUES ($id,$tag,$make,$type,$model,$serial,$location,$user,$supplier,$status,$purchased,$price,$po,$warranty,$replacement,$loan,$quote,$disposed,$method,$proceeds,$building,$os,$condition,$ownership,$lastcheck,$lastcheckby,$nextcheck,$eos,$disposedby,$certificate,$contract,$student,$awaiting,$before,$disposalticket);", static s => [("$id", s.Item.Id.ToString()), ("$tag", s.Item.AssetTag), ("$make", s.Item.Make), ("$type", s.Item.Type), ("$model", s.Item.Model), ("$serial", s.Item.SerialNumber), ("$location", s.Item.Location), ("$user", s.Item.AssignedUserId?.ToString()), ("$supplier", s.Item.SupplierId?.ToString()),
                 ("$status", string.IsNullOrWhiteSpace(s.Item.Status) ? "In use" : s.Item.Status), ("$purchased", IsoDay(s.Item.PurchaseDate)), ("$price", s.Item.PurchasePrice?.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("$po", s.Item.PurchaseOrder ?? string.Empty), ("$warranty", IsoDay(s.Item.WarrantyEnd)), ("$replacement", IsoDay(s.Item.ReplacementDate)), ("$loan", IsoDay(s.Item.LoanDueDate)),
                 ("$quote", s.Item.QuoteReference ?? string.Empty), ("$disposed", IsoDay(s.Item.DisposalDate)), ("$method", s.Item.DisposalMethod ?? string.Empty), ("$proceeds", s.Item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("$building", s.Item.Building ?? string.Empty), ("$os", s.Item.OperatingSystem ?? string.Empty), ("$condition", s.Item.Condition ?? string.Empty), ("$ownership", s.Item.Ownership ?? string.Empty),
                 ("$lastcheck", IsoDay(s.Item.LastCheckDate)), ("$lastcheckby", s.Item.LastCheckBy ?? string.Empty), ("$nextcheck", IsoDay(s.Item.NextCheckDate)), ("$eos", IsoDay(s.Item.EndOfSupport)),
                 ("$disposedby", s.Item.DisposedBy ?? string.Empty), ("$certificate", s.Item.DisposalCertificate ?? string.Empty),
-                ("$contract", s.Item.ContractId?.ToString()), ("$student", s.Item.StudentName ?? string.Empty)]);
+                ("$contract", s.Item.ContractId?.ToString()), ("$student", s.Item.StudentName ?? string.Empty),
+                ("$awaiting", s.Item.AwaitingDisposalTicket), ("$before", s.Item.StatusBeforeDisposal ?? string.Empty), ("$disposalticket", s.Item.DisposalTicket)]);
             foreach (var assignment in item.Assignments)
                 ExecuteFor(assignment, item.Id, item, connection, transaction, "INSERT INTO AssetAssignments (AssetId, UserId, UserName, StartedAt, EndedAt, DueBack, Reason, KitLoanId) VALUES ($id,$user,$name,$started,$ended,$due,$reason,$kitloan);", static s => [("$id", s.Item.Id.ToString()), ("$user", s.Record.UserId?.ToString()), ("$name", s.Record.UserName), ("$started", s.Record.StartedAt.HasValue ? Iso(s.Record.StartedAt.Value) : null), ("$ended", s.Record.EndedAt.HasValue ? Iso(s.Record.EndedAt.Value) : null), ("$due", IsoDay(s.Record.DueBack)), ("$reason", s.Record.Reason), ("$kitloan", s.Record.KitLoanId?.ToString())]);
             foreach (var comment in item.Comments)
@@ -989,8 +1002,8 @@ public sealed partial class HelpdeskStore
         }
         foreach (var item in data.Tickets)
         {
-            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs, PlannedFor) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen,$subcategory,$desknumber,$formerrefs,$planned);",
-                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null), ("$subcategory", s.Item.SubCategory ?? ""), ("$desknumber", s.Item.DeskNumber), ("$formerrefs", s.Item.FormerRefs ?? ""), ("$planned", IsoDay(s.Item.PlannedFor))]);
+            ExecuteFor(item, 0, item, connection, transaction, "INSERT INTO Tickets (Number, Title, Description, RequesterId, TechnicianId, Priority, Status, Category, CreatedAt, ClosedAt, SlaId, DueDate, DueDateOverridden, SlaOverridden, TeamName, TicketType, Location, RequesterSeenAt, SubCategory, DeskNumber, FormerRefs, PlannedFor, DisposeOnClose, DisposalMethod, DisposalBy, DisposalCertificate, DisposalProceeds) VALUES ($number,$title,$description,$requester,$technician,$priority,$status,$category,$created,$closed,$sla,$due,$overridden,$slaoverridden,$team,$type,$location,$seen,$subcategory,$desknumber,$formerrefs,$planned,$disposeonclose,$disposalmethod,$disposalby,$disposalcertificate,$disposalproceeds);",
+                static s => [("$number", s.Item.Number), ("$title", s.Item.Title), ("$description", s.Item.Description), ("$requester", s.Item.RequesterId.ToString()), ("$technician", s.Item.TechnicianId?.ToString()), ("$priority", s.Item.Priority), ("$status", s.Item.Status), ("$category", s.Item.Category), ("$created", Iso(s.Item.CreatedAt)), ("$closed", s.Item.ClosedAt.HasValue ? Iso(s.Item.ClosedAt.Value) : null), ("$sla", s.Item.SlaId?.ToString()), ("$due", s.Item.DueDate.HasValue ? Iso(s.Item.DueDate.Value) : null), ("$overridden", s.Item.DueDateOverridden ? 1 : 0), ("$slaoverridden", s.Item.SlaOverridden ? 1 : 0), ("$team", s.Item.TeamName), ("$type", TicketTypes.Normalize(s.Item.Type)), ("$location", s.Item.Location), ("$seen", s.Item.RequesterSeenAt is { } seen ? Iso(seen) : null), ("$subcategory", s.Item.SubCategory ?? ""), ("$desknumber", s.Item.DeskNumber), ("$formerrefs", s.Item.FormerRefs ?? ""), ("$planned", IsoDay(s.Item.PlannedFor)), ("$disposeonclose", s.Item.DisposeOnClose ? 1 : 0), ("$disposalmethod", s.Item.DisposalMethod ?? ""), ("$disposalby", s.Item.DisposalBy ?? ""), ("$disposalcertificate", s.Item.DisposalCertificate ?? ""), ("$disposalproceeds", s.Item.DisposalProceeds?.ToString(System.Globalization.CultureInfo.InvariantCulture))]);
             // Most tickets have one asset or none, and those need no de-duplicating.
             foreach (var assetId in item.AssetIds.Count < 2 ? item.AssetIds : item.AssetIds.Distinct())
                 if (assetIds.Contains(assetId))

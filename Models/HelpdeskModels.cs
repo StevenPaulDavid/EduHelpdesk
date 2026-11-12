@@ -222,6 +222,13 @@ public record AssetRecord(Guid Id, string AssetTag, string Make, string Model, s
     // A device given to a pupil for the long term (status "With Student", HelpdeskStore.Students): just their name, since
     // pupils aren't in People. Blank otherwise. Never a loan - there is no due-back date - so never in Loans.
     public string StudentName { get; init; } = "";
+    // Disposal through a ticket (HelpdeskStore.Disposal). While a ticket that disposes of its assets on close is open,
+    // its linked assets wait on it: AwaitingDisposalTicket is that ticket's number, and StatusBeforeDisposal what the
+    // status was before it became "Awaiting disposal", so taking the asset off the ticket puts it back. Once disposed,
+    // DisposalTicket says which ticket did it (the reopen question and the finance report use it).
+    public int? AwaitingDisposalTicket { get; init; }
+    public string StatusBeforeDisposal { get; init; } = "";
+    public int? DisposalTicket { get; init; }
 }
 public static class AssetOwnership
 {
@@ -397,6 +404,13 @@ public record TicketRecord(
     // The day the work is booked in for: the team's own plan, set by hand and never shown to the requester. It has
     // nothing to do with the due date or the SLA, and stays on a closed ticket as a record of when it was planned.
     public DateOnly? PlannedFor { get; init; }
+    // Closing it disposes of its linked assets (HelpdeskStore.Disposal), with these details, gathered while the job is
+    // open - who is collecting, the certificate once it arrives. The close pop-up starts from them.
+    public bool DisposeOnClose { get; init; }
+    public string DisposalMethod { get; init; } = "";
+    public string DisposalBy { get; init; } = "";
+    public string DisposalCertificate { get; init; } = "";
+    public decimal? DisposalProceeds { get; init; }
 
     // The newest of creation, any history entry (field changes, parts, attributes, merges, asset links) and any comment.
     public DateTime LastModifiedAt => Comments.Select(x => x.CreatedAt).Concat(History.Select(x => x.CreatedAt)).Append(CreatedAt).Max();

@@ -113,6 +113,9 @@ public sealed partial class HelpdeskStore
         // Give to student sets it by name, and a student's name only stands while an asset has it (WithStudentRule).
         if (kind == "Asset status" && string.Equals(oldValue, WithStudentStatus, StringComparison.OrdinalIgnoreCase))
             return $"\"{WithStudentStatus}\" can't be renamed or merged: devices given to students are kept on it.";
+        // Set and cleared by disposal tickets (HelpdeskStore.Disposal), which look for it by name.
+        if (kind == "Asset status" && string.Equals(oldValue, AwaitingDisposalStatus, StringComparison.OrdinalIgnoreCase))
+            return $"\"{AwaitingDisposalStatus}\" can't be renamed or merged: assets waiting on a disposal ticket are kept on it.";
         if (merge) options.RemoveAt(index); else options[index] = newValue;
         if (kind == "Person type")
             for (var i = 0; i < _data.Users.Count; i++)
@@ -623,7 +626,7 @@ public sealed partial class HelpdeskStore
     private void EnsureSystemOptions()
     {
         // Set by IssueKit, DisposeAsset and GiveToStudent.
-        EnsureOptions(_data.AssetStatuses, ["On loan", "Disposed", WithStudentStatus]);
+        EnsureOptions(_data.AssetStatuses, ["On loan", "Disposed", WithStudentStatus, AwaitingDisposalStatus]);
         // What "ended" means on the contracts register (ContractRules.IsLive). Only once the register's lists exist, so
         // an upgrade still gets the full starting list from EnsureComplianceDefaults rather than this one value.
         if (_data.ComplianceVersion >= 1) EnsureOptions(_data.ContractStatuses, [ContractStatusDefaults.Expired]);

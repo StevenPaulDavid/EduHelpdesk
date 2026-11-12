@@ -1,0 +1,71 @@
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.JobModel
+@* The disposal block at the top of a ticket's Assets tab (HelpdeskStore.Disposal): the "dispose of them when closed"
+   tick, the details gathered while the job is open, and undoing a disposal once the ticket has been reopened. *@
+@{
+    var ticket = Model.Ticket;
+    var open = ticket.Status != "Closed";
+    var waiting = Model.DisposalLines.Count(x => x.State == HelpdeskStore.DisposalState.Waiting);
+    var details = string.Join(", ", new[]
+    {
+        ticket.DisposalMethod,
+        ticket.DisposalBy.Length > 0 ? "by " + ticket.DisposalBy : "",
+        ticket.DisposalCertificate.Length > 0 ? "certificate " + ticket.DisposalCertificate : "",
+        ticket.DisposalProceeds is { } money ? "proceeds " + money.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : ""
+    }.Where(x => x.Length > 0));
+}
+@if (ticket.DisposeOnClose || Model.DisposedHere > 0 || (open && Model.CanDispose && Model.LinkedAssets.Count > 0))
+{
+    <section class="ticket-disposal">
+        <p class="section-heading">Disposal <help-tip key="ticket.dispose-on-close" /></p>
+        @if (ticket.DisposeOnClose && open)
+        {
+            <p>Closing this ticket disposes of its linked assets. @(waiting == 0 ? "None is waiting yet - link the assets to dispose of below." : waiting == 1 ? "1 is waiting as Awaiting disposal." : $"{waiting} are waiting as Awaiting disposal.") Mark as closed asks whether to dispose of them.</p>
+        }
+        else if (ticket.DisposeOnClose)
+        {
+            <p class="muted">This ticket disposed of its assets when it was closed@(details.Length > 0 ? $" ({details})" : "").</p>
+        }
+        else if (Model.DisposedHere > 0)
+        {
+            <p class="muted">This ticket disposed of @Model.DisposedHere asset@(Model.DisposedHere == 1 ? "" : "s"), but no longer disposes of its assets when closed.</p>
+        }
+        else
+        {
+            <p class="muted">Getting rid of these? Tick this ticket to dispose of its linked assets when it's closed. They wait as Awaiting disposal until then.</p>
+        }
+
+        @if (open && Model.CanDispose)
+        {
+            <form method="post" asp-page-handler="DisposeOnClose" class="inline-form">
+                <input type="hidden" name="number" value="@ticket.Number" />
+                <input type="hidden" name="on" value="@(ticket.DisposeOnClose ? "false" : "true")" />
+                <button class="button button-secondary" type="submit" data-confirm="@(ticket.DisposeOnClose && waiting > 0 ? $"Put the {waiting} waiting asset{(waiting == 1 ? "" : "s")} back to their own statuses?" : null)">@(ticket.DisposeOnClose ? "Don't dispose of them" : "Dispose of them when closed")</button>
+            </form>
+        }
+
+        @if (ticket.DisposeOnClose && open)
+        {
+            @if (Model.CanEdit)
+            {
+                <form method="post" asp-page-handler="DisposalDetails" class="settings-form dispose-details">
+                    <input type="hidden" name="number" value="@ticket.Number" />
+                    <label>How<select name="method"><option value="">Not decided yet</option>@foreach (var method in Model.DisposalMethods) { <option value="@method" selected="@(method == ticket.DisposalMethod)">@method</option> }</select></label>
+                    <label>Disposed of by<input name="by" value="@ticket.DisposalBy" maxlength="200" placeholder="Person or recycling company" /></label>
+                    <label>Certificate<input name="certificate" value="@ticket.DisposalCertificate" maxlength="200" placeholder="WEEE or data destruction certificate number" /></label>
+                    <label>Proceeds<input name="proceeds" type="number" min="0" step="0.01" value="@ticket.DisposalProceeds?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" /></label>
+                    <button class="button button-secondary" type="submit">Save details</button>
+                </form>
+            }
+            else if (details.Length > 0)
+            {
+                <p class="muted">So far: @details.</p>
+            }
+        }
+
+        @if (open && Model.CanDispose && Model.DisposedHere > 0)
+        {
+            <p>@Model.DisposedHere asset@(Model.DisposedHere == 1 ? " was" : "s were") disposed of when this ticket was last closed. <button class="link-button" type="button" data-open-blade="restore-disposal-backdrop">Undo the disposal…</button></p>
+        }
+    </section>
+}

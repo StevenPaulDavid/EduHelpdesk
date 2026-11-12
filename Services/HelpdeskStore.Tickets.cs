@@ -141,6 +141,8 @@ public sealed partial class HelpdeskStore
         if (IsOnboardingTicketCore(sourceNumber) || IsOnboardingTicketCore(targetNumber)) return "Onboarding tickets can't be merged.";
         // A premises check is a record of what was found that day; merged into something else it would be lost.
         if (_data.CheckLines.Any(x => x.TicketNumber == sourceNumber)) return "A premises check can't be merged into another ticket - its record would be lost.";
+        // Merging closes the source, which would skip the question of whether to dispose of its assets.
+        if (CloseBlockedByDisposalCore(sourceNumber) is not null) return $"{RefCore(sourceNumber)} has assets waiting to be disposed of. Close it from its own page, or untick disposal on close, before merging it.";
 
         var source = _data.Tickets[sourceIndex];
         var target = _data.Tickets[targetIndex];
@@ -228,6 +230,7 @@ public sealed partial class HelpdeskStore
     // TargetNumber is the ticket to merge into. For plan, Value is the day (yyyy-MM-dd), or blank to take the tickets off the plan.
     public sealed record TicketBulkChange(string Operation, string? Value = null, Guid? TechnicianId = null, string? Text = null, int? TargetNumber = null, bool Internal = false);
     // Skipped tickets could not be changed for a reason worth telling the user; unchanged ones already had the value.
+    private const string DisposalCloseSkip = "A ticket with assets waiting to be disposed of closes only from its own page, where you choose whether to dispose of them.";
     public sealed record TicketBulkResult(int Updated, int Unchanged, int Skipped, string? SkippedReason, string? Error);
 
     // Saves once for the whole batch, however many tickets change.
@@ -296,6 +299,7 @@ public sealed partial class HelpdeskStore
                         if (DeskForStatusCore(canonical) is { } statusDesk && statusDesk.Id != DeskForCategoryCore(ticket.Category).Id)
                         { Skip($"{canonical} is only used on the {statusDesk.Name} desk."); continue; }
                         if (IsBuiltInStatus(canonical) && UnansweredChecksCore(ticket.Number) > 0) { Skip("A premises check can't be closed until its checklist is filled in."); continue; }
+                        if (IsBuiltInStatus(canonical) && CloseBlockedByDisposalCore(ticket.Number) is not null) { Skip(DisposalCloseSkip); continue; }
                         changed = ticket with { Status = canonical!, ClosedAt = string.Equals(canonical, TicketInsights.ClosedStatus, StringComparison.OrdinalIgnoreCase) ? ticket.ClosedAt ?? DateTime.UtcNow : null };
                         break;
                     case "priority":
@@ -351,6 +355,7 @@ public sealed partial class HelpdeskStore
                         if (TicketInsights.IsClosed(ticket)) { unchanged++; continue; }
                         if (text is null && RequiresCloseMessage(ticket)) { Skip("A closing message is required for some of these tickets."); continue; }
                         if (UnansweredChecksCore(ticket.Number) > 0) { Skip("A premises check can't be closed until its checklist is filled in."); continue; }
+                        if (CloseBlockedByDisposalCore(ticket.Number) is not null) { Skip(DisposalCloseSkip); continue; }
                         var comments = ticket.Comments.ToList();
                         if (text is not null) comments.Add(new TicketComment(text, DateTime.UtcNow) { By = CurrentActor() });
                         changed = ticket with { Status = TicketInsights.ClosedStatus, ClosedAt = ticket.ClosedAt ?? DateTime.UtcNow, Comments = comments };

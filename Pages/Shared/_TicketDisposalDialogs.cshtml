@@ -1,0 +1,63 @@
+@using EduHelpdesk.Services
+@model EduHelpdesk.Pages.JobModel
+@* The ticket page's two disposal pop-ups (HelpdeskStore.Disposal): closing a ticket that has assets waiting to be
+   disposed of on it, and undoing what it disposed of once it has been reopened. *@
+@if (Model.Ticket.Status != "Closed" && Model.HasWaitingAssets)
+{
+    var waiting = Model.DisposalLines.Where(x => x.State == HelpdeskStore.DisposalState.Waiting).ToList();
+    var ready = waiting.Where(x => x.Problem is null).ToList();
+    <div id="dispose-close-backdrop" class="blade-backdrop no-print">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="dispose-close-title">
+            <div class="blade-head"><h2 id="dispose-close-title">Close ticket @Model.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <p>@(waiting.Count == 1 ? "1 asset is" : $"{waiting.Count} assets are") waiting to be disposed of on this ticket. Dispose of them as you close it, or close it and put them back to their own statuses.</p>
+            <ul class="dispose-list">
+                @foreach (var line in waiting)
+                {
+                    <li><strong>@line.Asset.AssetTag</strong> <span class="muted">@line.Asset.Type @line.Asset.Model</span>@if (line.Problem is { } problem) { <br /><span class="badge badge-warning">Won't be disposed of</span> <span class="muted">@problem</span> }</li>
+                }
+            </ul>
+            <form method="post" asp-page-handler="CloseDisposal" class="blade-form">
+                <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                <label><span>Closing message@(Model.RequiresCloseMessage ? "" : " (optional)") <help-tip key="ticket.closing-message" /></span><textarea name="closingMessage" rows="3" required="@Model.RequiresCloseMessage" placeholder="Explain how this was resolved…"></textarea></label>
+                @if (Model.CanDispose)
+                {
+                    <fieldset class="dispose-fields">
+                        <legend>The disposal</legend>
+                        <label>Date<input name="date" type="date" value="@Model.Today.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" /></label>
+                        <label>How<select name="method"><option value="">Choose…</option>@foreach (var method in Model.DisposalMethods) { <option value="@method" selected="@(method == Model.Ticket.DisposalMethod)">@method</option> }</select></label>
+                        <label>Disposed of by (optional)<input name="by" value="@Model.Ticket.DisposalBy" maxlength="200" placeholder="Person or recycling company" /></label>
+                        <label>Certificate (optional)<input name="certificate" value="@Model.Ticket.DisposalCertificate" maxlength="200" placeholder="WEEE or data destruction certificate number" /></label>
+                        <label>Proceeds (optional)<input name="proceeds" type="number" min="0" step="0.01" value="@Model.Ticket.DisposalProceeds?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" placeholder="0.00" /></label>
+                    </fieldset>
+                }
+                else
+                {
+                    <p class="muted">Disposing of assets needs the <strong>Dispose of assets</strong> tick on your role. You can close the ticket without disposing of them, or ask someone who has it.</p>
+                }
+                <div class="blade-actions">
+                    @if (Model.CanDispose && ready.Count > 0)
+                    {
+                        <button class="button button-danger" type="submit" name="choice" value="dispose" data-confirm="Record @(ready.Count == 1 ? ready[0].Asset.AssetTag : $"these {ready.Count} assets") as disposed of, and close the ticket?">Dispose and close</button>
+                    }
+                    <button class="button button-secondary" type="submit" name="choice" value="keep">Close without disposing</button>
+                    <button class="button button-secondary" type="button" data-close-blade>Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+@if (Model.Ticket.Status != "Closed" && Model.CanDispose && Model.DisposedHere > 0)
+{
+    @* Opens by itself when this page has just reopened the ticket (AskRestore); otherwise from the Assets tab. *@
+    <div id="restore-disposal-backdrop" class="blade-backdrop no-print" data-reopen="@(Model.AskRestore ? "true" : "")">
+        <div class="blade" role="dialog" aria-modal="true" aria-labelledby="restore-disposal-title">
+            <div class="blade-head"><h2 id="restore-disposal-title">Undo the disposal?</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
+            <p>This ticket disposed of @string.Join(", ", Model.DisposalLines.Where(x => x.State == HelpdeskStore.DisposalState.DisposedHere).Select(x => x.Asset.AssetTag)) when it was closed. Now it's open again, should @(Model.DisposedHere == 1 ? "that" : "those") stand?</p>
+            <p class="muted">Undoing it clears @(Model.DisposedHere == 1 ? "its disposal record" : "their disposal records")@(Model.Ticket.DisposeOnClose ? " and puts them back to Awaiting disposal on this ticket" : " and puts them back to the status they had before"). Anyone who held them before isn't put back.</p>
+            <form method="post" asp-page-handler="RestoreDisposed" class="blade-form">
+                <input type="hidden" name="number" value="@Model.Ticket.Number" />
+                <div class="blade-actions"><button class="button button-primary" type="submit">Undo the disposal</button><button class="button button-secondary" type="button" data-close-blade>Keep them disposed of</button></div>
+            </form>
+        </div>
+    </div>
+}

@@ -212,6 +212,9 @@ public sealed partial class HelpdeskStore
         // 0: tickets from before each desk counted its own, which keep their key as their number (EnsureDesks). A brand
         // new store starts at 1 (SeedStarterData), so its tickets are counted per desk from the start.
         public int DeskNumberingVersion { get; set; }
+        // 0: from before the "Dispose of assets" tick, when disposing was Assets: Delete; the upgrade gives the tick to
+        // those roles (EnsureDisposeFlag). A brand new store starts at 1 (SeedStarterData).
+        public int DisposeFlagVersion { get; set; }
         // Only categories someone has chosen a look for; the rest use PortalLook.DefaultFor.
         public Dictionary<string, CategoryStyle> CategoryStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<TicketAttachment> TicketAttachments { get; set; } = [];

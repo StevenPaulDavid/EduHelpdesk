@@ -102,6 +102,27 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // "walking over now" are different moments.
     public bool CanSayOnMyWay => CanEdit && Ticket is { Status: not "Closed" } ticket && SignedInTechnicianId is not null && store.PortalTicket(ticket.RequesterId, ticket.Number) is not null;
 
+    // Disposing of the linked assets when the ticket closes (HelpdeskStore.Disposal). The tick, the close pop-up's
+    // Dispose and close, and undoing it need "Dispose of assets"; the details are part of working the ticket.
+    public bool CanDispose => store.UserHasFlag(User, Modules.Flags.DisposeAssets);
+    public IReadOnlyList<HelpdeskStore.DisposalLine> DisposalLines { get; private set; } = [];
+    public bool HasWaitingAssets => DisposalLines.Any(x => x.State == HelpdeskStore.DisposalState.Waiting);
+    public int DisposedHere => DisposalLines.Count(x => x.State == HelpdeskStore.DisposalState.DisposedHere);
+    public IReadOnlyList<string> DisposalMethods => HelpdeskStore.DisposalMethods;
+    public DateOnly Today => AssetInsights.Today;
+    // What a linked asset's row on the Assets tab says about its disposal, or null when there is nothing to say.
+    public sealed record Badge(string Text, bool Warning, string? Title);
+    public Badge? DisposalBadge(Guid assetId) => DisposalLines.FirstOrDefault(x => x.Asset.Id == assetId) is not { } line ? null : line.State switch
+    {
+        HelpdeskStore.DisposalState.Waiting => line.Problem is null ? new("Awaiting disposal", false, null) : new("Can't be disposed of yet", true, line.Problem),
+        HelpdeskStore.DisposalState.WaitingElsewhere => new($"Waiting on {line.OtherTicket}", true, $"Already waiting to be disposed of on {line.OtherTicket}, so closing this ticket won't dispose of it."),
+        HelpdeskStore.DisposalState.DisposedHere => new("Disposed of by this ticket", false, null),
+        HelpdeskStore.DisposalState.DisposedElsewhere => new(line.OtherTicket is { } via ? $"Disposed of via {via}" : "Disposed of", false, null),
+        _ => null
+    };
+    // Set when this page reopened a ticket that had disposed of assets, so it asks whether to undo that.
+    [TempData] public bool AskRestore { get; set; }
+
     public IActionResult OnGet(int number)
     {
         // An onboarding is worked from its own page: the checklist, with the ticket's notes and history below it.
@@ -114,6 +135,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         Requester = store.Users.FirstOrDefault(x => x.Id == Ticket.RequesterId);
         Technician = store.Technicians.FirstOrDefault(x => x.Id == Ticket.TechnicianId);
         LinkedAssets = store.Assets.Where(x => Ticket.AssetIds.Contains(x.Id)).ToList();
+        DisposalLines = ShowAssets ? store.DisposalLines(number) : [];
         TemplateHtml = store.RenderPrintTemplate(Ticket, Requester, Technician, LinkedAssets);
         return Page();
     }
@@ -163,6 +185,7 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
         if (field is "status" or "priority")
         {
             Message = (field == "status" ? store.SetTicketStatus(number, value) : store.SetTicketPriority(number, value)).Message;
+            AskIfReopened(ticket);
             return RedirectToPage(new { number });
         }
         var desk = store.DeskOf(ticket);
@@ -361,8 +384,58 @@ public class JobModel(HelpdeskStore store, EduNotifyClient eduNotify, ILogger<Jo
     // form for a note, but the store decides regardless (HelpdeskStore.WorkTicket, shared with the phone app).
     public IActionResult OnPostAddComment(int number, string? comment, string? status, bool internalNote, bool notifyRequester)
     {
+        var before = store.Tickets.FirstOrDefault(x => x.Number == number);
         Message = store.AddTicketReply(number, comment, internalNote, notifyRequester, status).Message;
+        if (before is not null) AskIfReopened(before);
         return RedirectToPage(new { number });
+    }
+
+    // A ticket reopened here that had disposed of assets asks whether to undo that (the reopen pop-up).
+    private void AskIfReopened(TicketRecord before)
+    {
+        if (!TicketInsights.IsClosed(before) || !CanDispose) return;
+        if (store.Tickets.FirstOrDefault(x => x.Number == before.Number) is { } after && !TicketInsights.IsClosed(after) && store.DisposedThrough(before.Number).Count > 0)
+            AskRestore = true;
+    }
+
+    public IActionResult OnPostDisposeOnClose(int number, bool on)
+    {
+        if (!ShowAssets) return NotFound();
+        if (!CanDispose) return Forbid();
+        Message = store.SetDisposeOnClose(number, on).Message;
+        return RedirectToPage(null, null, new { number }, "assets-tab");
+    }
+
+    public IActionResult OnPostDisposalDetails(int number, string? method, string? by, string? certificate, string? proceeds)
+    {
+        if (!ShowAssets) return NotFound();
+        Message = !AssetForm.TryPrice(proceeds, out var amount)
+            ? "Enter the proceeds as a positive amount, such as 45.00, or leave it blank."
+            : store.SaveDisposalDetails(number, method, by, certificate, amount).Message;
+        return RedirectToPage(null, null, new { number }, "assets-tab");
+    }
+
+    // The close pop-up of a ticket with assets waiting on it: choice is "dispose" or "keep".
+    public IActionResult OnPostCloseDisposal(int number, string? closingMessage, string? choice, DateOnly? date, string? method, string? by, string? certificate, string? proceeds)
+    {
+        if (!store.Tickets.Any(x => x.Number == number)) return NotFound();
+        var dispose = choice == "dispose";
+        if (dispose && !CanDispose) return Forbid();
+        if (!AssetForm.TryPrice(proceeds, out var amount))
+        {
+            Message = "Enter the proceeds as a positive amount, such as 45.00, or leave it blank.";
+            return RedirectToPage(new { number });
+        }
+        Message = store.CloseDisposalTicket(number, closingMessage, dispose, date, method, by, certificate, amount).Message;
+        return RedirectToPage(new { number });
+    }
+
+    public IActionResult OnPostRestoreDisposed(int number)
+    {
+        if (!ShowAssets) return NotFound();
+        if (!CanDispose) return Forbid();
+        Message = store.RestoreDisposedThrough(number).Message;
+        return RedirectToPage(null, null, new { number }, "assets-tab");
     }
 
     public bool CanRemoveComment(TicketComment comment) => store.CanRemoveComment(User, Modules.Tickets, comment.By);

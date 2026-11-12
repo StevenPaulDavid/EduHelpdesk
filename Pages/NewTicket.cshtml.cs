@@ -38,10 +38,19 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
     // Cancel goes back to the asset when there is just one.
     public IReadOnlyList<AssetRecord> FromAssets { get; private set; } = [];
     public int DisposedLeftOut { get; private set; }
+    // "Dispose of the linked assets when closed" (HelpdeskStore.Disposal): offered to anyone with the Dispose of assets
+    // tick, and ticked already when the form was opened from "Dispose via ticket".
+    public bool CanDispose => ShowAssets && store.UserHasFlag(User, Modules.Flags.DisposeAssets);
 
-    public void OnGet(Guid? template, string? desk, Guid[]? asset)
+    public void OnGet(Guid? template, string? desk, Guid[]? asset, bool dispose = false)
     {
         StartFromAssets(asset);
+        if (dispose && CanDispose && FromAssets.Count > 0)
+        {
+            Ticket.DisposeOnClose = true;
+            Ticket.Type = TicketTypes.Request;
+            Ticket.Title = FromAssets.Count == 1 ? $"Dispose of {FromAssets[0].AssetTag}" : $"Dispose of {FromAssets.Count} assets";
+        }
         if (template is { } templateId && store.GetTicketTemplate(templateId) is { } chosen)
         {
             AppliedTemplate = chosen;
@@ -119,7 +128,11 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
             store.StartingStatusFor(Ticket.Category),
             Ticket.Category,
             DateTime.UtcNow,
-            null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName, string.IsNullOrWhiteSpace(Ticket.Location) ? null : Ticket.Location.Trim()) { Type = TicketTypes.Normalize(Ticket.Type) });
+            null, selectedSla, dueDate, Ticket.DueDate.HasValue, Ticket.SlaId.HasValue, Ticket.TeamName, string.IsNullOrWhiteSpace(Ticket.Location) ? null : Ticket.Location.Trim())
+        {
+            Type = TicketTypes.Normalize(Ticket.Type),
+            DisposeOnClose = Ticket.DisposeOnClose && CanDispose && assetIds.Count > 0
+        });
         if (!store.UpdateTicketAttributeValues(number, Ticket.Category, Ticket.CustomAttributes)) { }
         Message = $"Ticket {store.Ref(number)} created.";
         return RedirectToPage("/Job", new { number });
@@ -140,5 +153,6 @@ public class NewTicketModel(HelpdeskStore store) : PageModel
         public Guid? SlaId { get; set; }
         public DateTime? DueDate { get; set; }
         public Dictionary<Guid, string>? CustomAttributes { get; set; }
+        public bool DisposeOnClose { get; set; }
     }
 }

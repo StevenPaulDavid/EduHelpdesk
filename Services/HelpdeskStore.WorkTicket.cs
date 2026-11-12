@@ -21,6 +21,7 @@ public sealed partial class HelpdeskStore
         if (StatusesFor(DeskOf(ticket).Id).FirstOrDefault(x => string.Equals(x, status.Trim(), StringComparison.OrdinalIgnoreCase)) is not { } chosen)
             return new WorkResult(false, "Select a valid value.");
         if (IsBuiltInStatus(chosen) && CloseBlockedByChecklist(number) is { } blocked) return new WorkResult(false, blocked);
+        if (IsBuiltInStatus(chosen) && CloseBlockedByDisposal(number) is { } disposal) return new WorkResult(false, disposal);
         UpdateTicket(ticket with { Status = chosen, ClosedAt = chosen == "Closed" ? ticket.ClosedAt ?? DateTime.UtcNow : null });
         return new WorkResult(true, "Ticket updated.");
     }
@@ -52,6 +53,7 @@ public sealed partial class HelpdeskStore
             if (newStatus is null) return new WorkResult(false, "Select a valid status.");
         }
         if (newStatus is not null && IsBuiltInStatus(newStatus) && CloseBlockedByChecklist(number) is { } blocked) return new WorkResult(false, blocked);
+        if (newStatus is not null && IsBuiltInStatus(newStatus) && CloseBlockedByDisposal(number) is { } disposal) return new WorkResult(false, disposal);
         if (!AddTicketComment(number, text, internalNote)) return new WorkResult(false, TicketNotFoundMessage);
 
         var ticket = Tickets.First(x => x.Number == number);
@@ -84,6 +86,7 @@ public sealed partial class HelpdeskStore
         if (Tickets.FirstOrDefault(x => x.Number == number) is not { } ticket) return new WorkResult(false, TicketNotFoundMessage);
         if (ticket.Status == "Closed") return new WorkResult(false, "Ticket is already closed.");
         if (CloseBlockedByChecklist(number) is { } blocked) return new WorkResult(false, blocked);
+        if (CloseBlockedByDisposal(number) is { } disposal) return new WorkResult(false, disposal);
         if (RequiresCloseMessage(ticket) && string.IsNullOrWhiteSpace(closingMessage))
             return new WorkResult(false, $"A closing message is required for {ticket.Priority} priority / {ticket.Category} tickets before they can be closed.");
 

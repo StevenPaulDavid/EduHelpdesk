@@ -23,6 +23,8 @@ Your school chooses which priorities and categories need a closing message, in *
 
 A **premises check** can't be closed until every line of its checklist is filled in. See [Doing a premises check](premises-checks).
 
+A ticket with assets **awaiting disposal** on it closes only with **Mark as closed** on its own page, which asks whether to dispose of them. Closing it from the list, the board, the status box or the phone app is refused until then. See [Disposing of assets through a ticket](dispose-via-a-ticket).
+
 ## Closing many tickets at once
 
 On the Tickets page, tick the tickets and choose **Close with a message**. Tickets that need a closing message are skipped if you leave it blank. See [Updating many tickets at once](update-many-tickets).

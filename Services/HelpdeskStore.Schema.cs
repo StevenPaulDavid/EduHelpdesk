@@ -129,6 +129,12 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Tickets ADD COLUMN FormerRefs TEXT NOT NULL DEFAULT '';",
             // The day the work is booked in for (yyyy-MM-dd), for the planner. Null is "not planned".
             "ALTER TABLE Tickets ADD COLUMN PlannedFor TEXT NULL;",
+            // Disposal through a ticket (HelpdeskStore.Disposal): the tick, and the details the close pop-up starts from.
+            "ALTER TABLE Tickets ADD COLUMN DisposeOnClose INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE Tickets ADD COLUMN DisposalMethod TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Tickets ADD COLUMN DisposalBy TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Tickets ADD COLUMN DisposalCertificate TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Tickets ADD COLUMN DisposalProceeds TEXT NULL;",
             // ServiceItems and TicketTemplates are created further down, after this loop, so these only upgrade a database
             // that already has the tables - a new one gets the columns from its CREATE. Existing catalogue items stay
             // visible in the portal; existing templates stay hidden, as they were written for technicians.
@@ -164,6 +170,10 @@ public sealed partial class HelpdeskStore
             "ALTER TABLE Assets ADD COLUMN DisposalCertificate TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Assets ADD COLUMN ContractId TEXT NULL;",
             "ALTER TABLE Assets ADD COLUMN StudentName TEXT NOT NULL DEFAULT '';",
+            // The ticket an asset is waiting to be disposed of on, its status before that, and the ticket that disposed of it.
+            "ALTER TABLE Assets ADD COLUMN AwaitingDisposalTicket INTEGER NULL;",
+            "ALTER TABLE Assets ADD COLUMN StatusBeforeDisposal TEXT NOT NULL DEFAULT '';",
+            "ALTER TABLE Assets ADD COLUMN DisposalTicket INTEGER NULL;",
             "ALTER TABLE Suppliers ADD COLUMN IsContractor INTEGER NOT NULL DEFAULT 0;",
             "ALTER TABLE Suppliers ADD COLUMN Trade TEXT NOT NULL DEFAULT '';",
             "ALTER TABLE Parts ADD COLUMN Location TEXT NOT NULL DEFAULT '';",

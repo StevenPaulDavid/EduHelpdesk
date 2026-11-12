@@ -48,6 +48,8 @@ public class AssetsModel(HelpdeskStore store) : PageModel
     public bool CanDelete => store.UserCan(User, Modules.Assets, ModulePermission.Delete);
     // "New ticket" with the ticked assets linked: the New ticket form's own rule, Tickets: New.
     public bool CanRaiseTicket => store.UserCan(User, Modules.Tickets, ModulePermission.New);
+    // "Dispose of them via one ticket": the same, with the ticket ticked to dispose of them on close.
+    public bool CanDisposeViaTicket => CanRaiseTicket && store.UserHasFlag(User, Modules.Flags.DisposeAssets);
 
     public IReadOnlyList<AssetRecord> Rows { get; private set; } = [];
     public IReadOnlyDictionary<Guid, string> UserNames { get; private set; } = new Dictionary<Guid, string>();
@@ -91,6 +93,7 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         {
             "export" => CanView,
             "ticket" => CanView && CanRaiseTicket,
+            "dispose" => CanView && CanDisposeViaTicket,
             _ => CanEdit
         };
         if (!allowed) return Forbid();
@@ -114,14 +117,14 @@ public class AssetsModel(HelpdeskStore store) : PageModel
         }
 
         // One ticket for all of them: the form opens with them linked. Disposed ones are left out (and counted) there.
-        if (operation == "ticket")
+        if (operation is "ticket" or "dispose")
         {
             if (targets.Count > NewTicketModel.MaxAssetsFromList)
             {
                 Message = $"A ticket can be started with up to {NewTicketModel.MaxAssetsFromList} assets from here - {targets.Count} are selected. Tick fewer, or link the rest from the ticket once it's made.";
                 return Back();
             }
-            return RedirectToPage("/NewTicket", new { asset = targets });
+            return operation == "dispose" ? RedirectToPage("/NewTicket", new { asset = targets, dispose = true }) : RedirectToPage("/NewTicket", new { asset = targets });
         }
 
         // DfE "Record a check": the date and who did it, with the next check worked out from Settings → Inventory rules.

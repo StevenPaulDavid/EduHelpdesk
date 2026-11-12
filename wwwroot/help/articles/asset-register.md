@@ -46,4 +46,5 @@ Tick the assets, choose an **Action** and press **Apply to selected**:
 - **Change room**.
 - **Record a check** - the DfE check, with the date and who did it, for every selected asset. See [Asset checks and end of support](asset-checks).
 - **Raise one ticket for them** - opens **New ticket** with every ticked asset already linked and you as the requester. Nothing is saved until you press **Create ticket**. Up to 100 assets at a time; disposed ones are left out. Needs permission to log tickets.
+- **Dispose of them via one ticket** - the same, with the ticket ticked to dispose of them when it's closed. Needs the **Dispose of assets** tick too. See [Disposing of assets through a ticket](dispose-via-a-ticket).
 - **Export to CSV** - download the selected assets.

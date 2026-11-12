@@ -43,10 +43,15 @@
     </div>
     <div class="heading-actions">
         <partial name="_RawDataLink" model='("asset", asset.Id.ToString())' />
+        @if (Model.CanDisposeViaTicket) { <a class="button button-secondary" asp-page="/NewTicket" asp-route-asset="@asset.Id" asp-route-dispose="true" title="A new ticket that disposes of this asset when it's closed">Dispose via ticket</a> }
         @if (Model.CanRaiseTicket) { <a class="button button-primary" asp-page="/NewTicket" asp-route-asset="@asset.Id">@Icons.Plus New ticket</a> }
     </div>
 </div>
 @if (!string.IsNullOrWhiteSpace(Model.Message)) { <div class="notice">@Model.Message</div> }
+@if (Model.AwaitingOn is { } disposalTicket)
+{
+    <div class="notice notice-warning">Marked for disposal on <a asp-page="/Job" asp-route-number="@disposalTicket.Number">@Helpdesk.Ref(disposalTicket) - @disposalTicket.Title</a>. It will be disposed of when that ticket is closed, and can't be lent, put in a kit or handed out until then. Take it off the ticket to keep it.</div>
+}
 
 @* One page, in tabs, rather than four long sections one under another. Each form comes back to its own tab: asp-fragment
    puts the tab in the form's address, and the browser keeps it through the redirect after saving. *@
@@ -251,6 +256,7 @@
     {
         <div class="notice">
             <strong>Disposed@(asset.DisposalDate is { } disposedOn ? " on " + AssetInsights.Format(disposedOn) : "").</strong>
+            @if (Model.DisposedThrough is { } throughTicket) { <text>Through <a asp-page="/Job" asp-route-number="@throughTicket.Number">@Helpdesk.Ref(throughTicket)</a>.</text> }
             @(string.IsNullOrWhiteSpace(asset.DisposalMethod) ? "" : asset.DisposalMethod + ".")
             @(asset.DisposalProceeds is { } got ? $"Proceeds {got.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}." : "")
             @(string.IsNullOrWhiteSpace(asset.DisposedBy) ? "" : $"Disposed of by {asset.DisposedBy}.")
@@ -258,7 +264,7 @@
             It stays in the register for audit, and appears in the finance report.
         </div>
     }
-    else
+    else if (Model.CanDispose)
     {
         <details class="dispose-block">
             <summary>Record a disposal <help-tip key="asset.disposal" /></summary>

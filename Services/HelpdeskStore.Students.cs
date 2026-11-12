@@ -38,6 +38,7 @@ public sealed partial class HelpdeskStore
             if (index < 0) return (false, "Asset was not found.");
             var asset = _data.Assets[index];
             if (IsDisposed(asset)) return (false, $"{asset.AssetTag} has been disposed of.");
+            if (AwaitingDisposalBlock(asset, "given to a student") is { } awaiting) return (false, awaiting);
             if (KitContainingCore(assetId) is { } kit) return (false, $"{asset.AssetTag} is part of {kit.Name}. Take it out of the kit first.");
             if (HeldBlock(asset, "given to a student") is { } held) return (false, held);
             if (ResolveAssetStatus(WithStudentStatus) is not { } status)

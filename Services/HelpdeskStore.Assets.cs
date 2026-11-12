@@ -76,6 +76,7 @@ public sealed partial class HelpdeskStore
             var asset = _data.Assets.FirstOrDefault(x => x.Id == assetId);
             if (asset is null) return (false, "Asset was not found.");
             if (IsDisposed(asset)) return (false, $"{asset.AssetTag} has been disposed of and cannot be loaned out.");
+            if (AwaitingDisposalBlock(asset, "loaned out") is { } awaiting) return (false, awaiting);
             // Kit equipment is lent as a kit or not at all, whether or not the kit is currently out. Two reasons: the
             // kit would otherwise show as available while its laptop is on someone's desk, and loaning it separately
             // was also a way round the return block - loan it out, then book it back in.
@@ -103,36 +104,54 @@ public sealed partial class HelpdeskStore
     {
         lock (_sync)
         {
-            var index = _data.Assets.FindIndex(x => x.Id == assetId);
-            if (index < 0) return (false, "Asset was not found.");
-            var asset = _data.Assets[index];
-            if (IsDisposed(asset)) return (false, $"{asset.AssetTag} is already recorded as disposed.");
-            if (date is not { } disposedOn) return (false, "Enter the date it was disposed of.");
-            if (disposedOn > AssetInsights.Today) return (false, "The disposal date cannot be in the future.");
-            if (string.IsNullOrWhiteSpace(method)) return (false, "Choose how it was disposed of.");
-            // Something still out with somebody, or sitting in a kit, is not ready to be written off.
-            if (KitLoanHoldingCore(assetId) is { } held)
-                return (false, $"{asset.AssetTag} is out on loan with {held.Kit.Name}. Book the kit back in first.");
-            if (KitContainingCore(assetId) is { } kit)
-                return (false, $"{asset.AssetTag} is part of {kit.Name}. Take it out of the kit before disposing of it.");
-            if (asset.LoanDueDate is not null)
-                return (false, $"{asset.AssetTag} is out on loan. Book it back in first.");
-
-            var status = ResolveAssetStatus(DisposedStatus) ?? asset.Status;
-            ApplyAssetUpdate(index, asset with
-            {
-                Status = status,
-                AssignedUserId = null,
-                LoanDueDate = null,
-                DisposalDate = disposedOn,
-                DisposalMethod = method.Trim(),
-                DisposalProceeds = proceeds,
-                DisposedBy = (disposedBy ?? string.Empty).Trim(),
-                DisposalCertificate = (certificate ?? string.Empty).Trim()
-            });
-            Save();
-            return (true, $"{asset.AssetTag} recorded as disposed on {AssetInsights.Format(disposedOn)}.");
+            var result = DisposeAssetCore(assetId, date, method, proceeds, disposedBy, certificate, null);
+            if (result.Ok) Save();
+            return result;
         }
+    }
+    // Without saving, so a disposal ticket can dispose of all its assets and save once. throughTicket is the ticket doing
+    // it (HelpdeskStore.Disposal), kept on the asset for the reopen question and the finance report.
+    private (bool Ok, string Message) DisposeAssetCore(Guid assetId, DateOnly? date, string? method, decimal? proceeds, string? disposedBy, string? certificate, int? throughTicket)
+    {
+        var index = _data.Assets.FindIndex(x => x.Id == assetId);
+        if (index < 0) return (false, "Asset was not found.");
+        var asset = _data.Assets[index];
+        if (IsDisposed(asset)) return (false, $"{asset.AssetTag} is already recorded as disposed.");
+        if (date is not { } disposedOn) return (false, "Enter the date it was disposed of.");
+        if (disposedOn > AssetInsights.Today) return (false, "The disposal date cannot be in the future.");
+        if (string.IsNullOrWhiteSpace(method)) return (false, "Choose how it was disposed of.");
+        if (DisposalBlockCore(asset) is { } blocked) return (false, blocked);
+
+        var status = ResolveAssetStatus(DisposedStatus) ?? asset.Status;
+        ApplyAssetUpdate(index, asset with
+        {
+            Status = status,
+            AssignedUserId = null,
+            LoanDueDate = null,
+            DisposalDate = disposedOn,
+            DisposalMethod = method.Trim(),
+            DisposalProceeds = proceeds,
+            DisposedBy = (disposedBy ?? string.Empty).Trim(),
+            DisposalCertificate = (certificate ?? string.Empty).Trim(),
+            // No longer waiting on any ticket. What it was before is kept only when a ticket did it, so undoing the
+            // disposal from that ticket can put it back.
+            AwaitingDisposalTicket = null,
+            DisposalTicket = throughTicket,
+            StatusBeforeDisposal = throughTicket is null ? "" : asset.StatusBeforeDisposal
+        });
+        return (true, $"{asset.AssetTag} recorded as disposed on {AssetInsights.Format(disposedOn)}.");
+    }
+
+    // Why an asset isn't ready to be written off, or null: something still out with somebody, or sitting in a kit.
+    private string? DisposalBlockCore(AssetRecord asset)
+    {
+        if (KitLoanHoldingCore(asset.Id) is { } held)
+            return $"{asset.AssetTag} is out on loan with {held.Kit.Name}. Book the kit back in first.";
+        if (KitContainingCore(asset.Id) is { } kit)
+            return $"{asset.AssetTag} is part of {kit.Name}. Take it out of the kit before disposing of it.";
+        if (asset.LoanDueDate is not null)
+            return $"{asset.AssetTag} is out on loan. Book it back in first.";
+        return null;
     }
 
     // The methods offered when disposing of an asset. Fixed rather than a managed list: they map to how a school

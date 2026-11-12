@@ -38,7 +38,7 @@ public static class Modules
         new(Tickets, "Tickets", "The ticket queues and ticket detail. Delete also covers merging.", Full),
         new(Projects, "Projects", "Purchasing projects raised from the staff portal. Edit covers tidying them up, notes and status; assigning is separate below.", Full),
         new(Onboarding, "Onboarding", "New staff checklists. Technicians can open an onboarding from the ticket list and tick its IT tasks with Tickets permissions alone; this covers the rest.", Full),
-        new(Assets, "Assets", "The asset register. New covers the CSV import; Delete covers disposal.", Full),
+        new(Assets, "Assets", "The asset register. New covers the CSV import. Disposing of assets is its own tick, under Assets below.", Full),
         // The EduHelpdesk Agent on school PCs (HelpdeskStore.Agent): the machines reporting in, and its set-up.
         new(DeviceAgent, "Device agent", "PCs reporting in through the EduHelpdesk Agent. Access lists them; View shows a machine's specs, also on its asset; New adds a waiting machine as a new asset; Edit links a waiting machine to an existing asset and sets the agent up (turning it on, the enrolment key); Delete removes a machine so it has to enrol again.", Full),
         new(Kits, "Loan kits", "The kits themselves and what is in them.", Full),
@@ -92,6 +92,7 @@ public static class Modules
         public const string ReportOnboarding = "Reports.Onboarding";
         public const string ReportExport = "Reports.Export";
         public const string RawDatabase = "System.RawDatabase";
+        public const string DisposeAssets = "Assets.Dispose";
 
         public sealed record Definition(string Key, string Label, string Description, string Group);
 
@@ -112,6 +113,8 @@ public static class Modules
             new(Rounds, "Record cleaning rounds", "Open the day's cleaning rounds, print the sheets, and tick off which rooms were cleaned, by whom, with spot-check scores.", "Facilities"),
             // The site manager, who runs these but shouldn't hold the keys to the rest of Settings. Settings: Edit opens them too.
             new(FacilitiesSetup, "Set up facilities", "Recurring checks and their checklists (for the desks they can see), cleaning rounds, the cleaners list and budget codes - without the rest of Settings.", "Facilities"),
+            // Taking kit out of the estate for good is its own decision, apart from editing the register.
+            new(DisposeAssets, "Dispose of assets", "Record an asset as disposed of, mark a ticket's assets for disposal, dispose of them when the ticket is closed, and undo a disposal made through a ticket.", "Assets"),
             new(AssignProjects, "Assign projects", "Reassign a project from the helpdesk when the project lead can't. The lead normally does this from the staff portal.", "Projects"),
             new(ReportAssets, "Asset reports", "The asset register report: review list, fleet age, warranty, problem devices.", "Reports"),
             new(ReportTickets, "Ticket reports", "SLA performance, workload and repeat problems.", "Reports"),

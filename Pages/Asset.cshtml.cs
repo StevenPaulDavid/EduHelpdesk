@@ -207,10 +207,10 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public DateOnly Today => AssetInsights.Today;
     public bool IsDisposed => Asset is not null && HelpdeskStore.IsDisposed(Asset);
 
-    // Disposal takes an asset out of the register for good, so it sits behind Delete rather than Edit.
+    // Disposal takes an asset out of the register for good, so it has its own tick, "Dispose of assets".
     public IActionResult OnPostDispose(Guid id, DateOnly? disposalDate, string? disposalMethod, string? disposalProceeds, string? disposedBy, string? disposalCertificate)
     {
-        if (!store.UserCan(User, Modules.Assets, ModulePermission.Delete)) return Forbid();
+        if (!CanDispose) return Forbid();
         if (!AssetForm.TryPrice(disposalProceeds, out var proceeds))
         {
             Message = "Enter the proceeds as a positive amount, such as 45.00, or leave it blank.";
@@ -239,6 +239,12 @@ public class AssetModel(HelpdeskStore store) : PageModel
     public bool CanEdit => store.UserCan(User, Modules.Assets, ModulePermission.Edit);
     // New ticket for this asset: needs Tickets: New (the form's own rule), and not once it has been disposed of.
     public bool CanRaiseTicket => !IsDisposed && store.UserCan(User, Modules.Tickets, ModulePermission.New);
+    public bool CanDispose => store.UserHasFlag(User, Modules.Flags.DisposeAssets);
+    // "Dispose via ticket": a new ticket that disposes of it when closed. Not while it already waits on one.
+    public bool CanDisposeViaTicket => CanRaiseTicket && CanDispose && Asset is { AwaitingDisposalTicket: null };
+    // The disposal ticket it is waiting on, if any, for the banner.
+    public TicketRecord? AwaitingOn => Asset?.AwaitingDisposalTicket is { } number ? store.Tickets.FirstOrDefault(x => x.Number == number) : null;
+    public TicketRecord? DisposedThrough => Asset?.DisposalTicket is { } number ? store.Tickets.FirstOrDefault(x => x.Number == number) : null;
 
     public IActionResult OnPostGiveToStudent(Guid id, string? studentName)
     {

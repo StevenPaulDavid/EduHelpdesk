@@ -31,7 +31,9 @@
         }
         @if (Model.CanEdit && Model.Ticket.Status != "Closed")
         {
-            if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" data-open-blade="close-dialog-backdrop">Mark as closed</button> }
+            @* Assets waiting to be disposed of on it: closing asks what becomes of them (HelpdeskStore.Disposal). *@
+            if (Model.HasWaitingAssets) { <button class="button button-primary" type="button" data-open-blade="dispose-close-backdrop">Mark as closed</button> }
+            else if (Model.RequiresCloseMessage) { <button class="button button-primary" type="button" data-open-blade="close-dialog-backdrop">Mark as closed</button> }
             else { <form method="post" asp-page-handler="Close"><input type="hidden" name="number" value="@Model.Ticket.Number" /><button class="button button-primary" type="submit">Mark as closed</button></form> }
         }
         <details class="nav-menu action-menu">
@@ -75,6 +77,7 @@
         </div>
     </div>
 }
+<partial name="_TicketDisposalDialogs" model="Model" />
 <div id="merge-dialog-backdrop" class="blade-backdrop no-print">
     <div class="blade" role="dialog" aria-modal="true" aria-labelledby="merge-dialog-title">
         <div class="blade-head"><h2 id="merge-dialog-title">Merge ticket @Model.Reference</h2><button class="blade-close" type="button" data-close-blade aria-label="Close">@Icons.Close</button></div>
@@ -295,13 +298,15 @@ else
             @if (Model.ShowAssets)
             {
             <div id="assets-tab" class="ticket-tab-panel" role="tabpanel" hidden>
+                <partial name="_TicketDisposal" model="Model" />
                 @if (Model.LinkedAssets.Count > 0)
                 {
                     <div class="linked-asset-list">
                         @foreach (var asset in Model.LinkedAssets)
                         {
+                            var disposalBadge = Model.DisposalBadge(asset.Id);
                             <div class="linked-asset-row">
-                                <a class="linked-asset-item" href="/Asset?id=@asset.Id"><strong>@asset.AssetTag</strong><span>@asset.Type · @asset.Model</span></a>
+                                <a class="linked-asset-item" href="/Asset?id=@asset.Id"><strong>@asset.AssetTag</strong><span>@asset.Type · @asset.Model</span>@if (disposalBadge is { } badge) { <span class="badge @(badge.Warning ? "badge-warning" : "")" title="@badge.Title">@badge.Text</span> }</a>
                                 @* Unlinking one sends every other link, as the picker does - the handler sets the whole list. *@
                                 <form method="post" asp-page-handler="UpdateAssets">
                                     <input type="hidden" name="number" value="@Model.Ticket.Number" />

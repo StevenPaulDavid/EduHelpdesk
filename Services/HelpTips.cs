@@ -29,6 +29,7 @@ public static class HelpTips
         ["ticket.status"] = new("Saved with your reply. Some statuses, such as On Hold, stop the SLA clock while the ticket waits on someone else.", "due-dates-and-slas", "statuses-that-pause-the-clock"),
         ["ticket.closing-message"] = new("Shown to the requester in the staff portal, so write it for them: what was wrong and what was done.", "close-a-ticket", "when-a-closing-message-is-needed"),
         ["ticket.share-file"] = new("Ticked, the requester can see and download the file in the staff portal. Unticked, it's kept for the helpdesk only. You can change it later.", "replies-and-internal-notes", "sharing-files"),
+        ["ticket.dispose-on-close"] = new("Closing the ticket asks whether to dispose of its linked assets. Until then they show as Awaiting disposal and can't be lent, put in a kit or handed out. Needs the Dispose of assets tick.", "dispose-via-a-ticket"),
         ["ticket.planned-for"] = new("The day the team means to do the job. It's only for the helpdesk: the requester never sees it, and it doesn't change the due date or the SLA. Clear the date and save to take it off the plan.", "plan-a-ticket"),
         ["ticket.due-date"] = new("Set a date by hand and it's marked Override and stays put. To go back to the SLA's date, clear the date and save, then choose the SLA again.", "due-dates-and-slas", "changing-the-due-date"),
 
