@@ -51,8 +51,13 @@ public sealed class TestStore : IDisposable
 
     public void Dispose()
     {
-        // SQLite keeps pooled connections open; let go of them before deleting the folder.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        // SQLite keeps pooled connections open; let go of this database's before deleting the folder. Only its own:
+        // ClearAllPools here closed every other test's connections mid-use as test classes run in parallel, which
+        // failed a random test now and then with "Cannot access a disposed object 'SQLitePCL.sqlite3'" - most often
+        // in New-Release.ps1's run, on a busy machine. A pool is keyed by its connection string, so each one the
+        // store opens this database with is cleared.
+        foreach (var options in new[] { "", ";Mode=ReadOnly" })
+            Microsoft.Data.Sqlite.SqliteConnection.ClearPool(new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={DatabasePath}{options}"));
         try { Directory.Delete(Root, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
